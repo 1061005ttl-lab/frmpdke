@@ -583,7 +583,7 @@ function fetchSheet(id,sheet,ok,fail){
   fetch(url)
     .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.text();})
     .then(function(txt){
-      var json=JSON.parse(txt.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\)/)[1]);
+      var start=txt.indexOf('{');var end=txt.lastIndexOf('}');if(start<0||end<0)throw new Error('回應格式錯誤');var json=JSON.parse(txt.slice(start,end+1));
       var tbl=json.table;if(!tbl||!tbl.cols)throw new Error('無法讀取資料');
       var hdrs=tbl.cols.map(function(c){return c.label||'';}).filter(Boolean);
       var ui=-1,li=-1,ni=-1;
