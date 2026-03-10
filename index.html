@@ -326,9 +326,7 @@ body{display:flex;flex-direction:column;background:var(--bg-main);color:var(--te
 #loading-screen{
   position:fixed;inset:0;z-index:9999;background:var(--bg-main);
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
-  transition:opacity .4s;
 }
-#loading-screen.fade{opacity:0;pointer-events:none}
 #loading-canvas{image-rendering:pixelated}
 #loading-txt{font-size:12px;letter-spacing:3px;color:var(--text-secondary);font-weight:600}
 
@@ -523,13 +521,21 @@ function onSurveyChange(){
   startRunner();
   var cfg=SURVEY_CONFIG[idx];if(!cfg)return;
   fetchSheet(cfg.spreadsheetId,cfg.sheetName,function(data){
-    allHeaders=data.headers;allRows=data.rows;
-    initCI();buildTopFilters();
-    curSurvey=idx;stopRunner();render();
+    try{
+      allHeaders=data.headers;allRows=data.rows;
+      initCI();buildTopFilters();
+      curSurvey=idx;
+    }catch(e){
+      console.error('資料處理錯誤:',e);
+    }
+    stopRunner();
+    if(allRows.length) render();
   },function(err){
     stopRunner();
+    console.error('載入失敗:', err);
     document.getElementById('stage').innerHTML=
-      '<div style="padding:40px;color:var(--text-secondary)">⚠️ 載入失敗：'+err+'</div>';
+      '<div style="padding:40px;font-size:14px;color:#c62828">⚠️ 載入失敗：'+err+'<br><br>'
+      +'<small style="color:#888">請確認試算表已公開分享，或重新整理再試</small></div>';
   });
 }
 
@@ -600,7 +606,10 @@ function fetchSheet(id,sheet,ok,fail){
       });
       var keep=[];hdrs.forEach(function(h,i){if(h!=='未填寫'&&h!=='上架'&&h!=='未上架')keep.push(i);});
       ok({headers:keep.map(function(i){return hdrs[i];}),rows:rows.map(function(r){var st=r[r.length-1];return keep.map(function(i){return r[i]||'';}).concat([st]);})});
-    }).catch(function(e){fail(e.message||String(e));});
+    }).catch(function(e){
+      console.error('fetchSheet error:', e);
+      fail(e.message||String(e));
+    });
 }
 
 /* ══════════════════════════════════════════
@@ -986,8 +995,14 @@ function startRunner(){
 }
 function stopRunner(){
   if(_runRaf){cancelAnimationFrame(_runRaf);_runRaf=null;}
-  var ls=document.getElementById('loading-screen');ls.classList.add('fade');
-  setTimeout(function(){ls.style.display='none';},440);
+  var ls=document.getElementById('loading-screen');
+  ls.style.transition='opacity .4s';
+  ls.style.opacity='0';
+  setTimeout(function(){
+    ls.style.display='none';
+    ls.style.opacity='1';
+    ls.style.transition='';
+  },450);
 }
 
 /* ══════════════════════════════════════════
