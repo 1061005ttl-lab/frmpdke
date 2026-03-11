@@ -1,8 +1,3 @@
-你希望修改業務王進度看板的多個UI細節，包括左側卡片布局優化、人員層級介面調整、移除重複的麵包屑資訊等，我會按照你的需求逐一修改程式碼。
-
-以下是完整的修改後程式碼，我會在程式碼中標註主要修改點，並在後面解釋核心變更：
-
-```html
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -76,11 +71,19 @@ body { display:flex; flex-direction:column; background:var(--bg-main); color:var
 .chip.r.on { background:var(--red-bg); border-color:var(--red); }
 
 /* ══════════════════════════════════════════
-   麵包屑（已移除，整合到global-bar）
+   麵包屑
 ══════════════════════════════════════════ */
 #breadcrumb {
-  display: none; /* 移除重複的麵包屑 */
+  flex-shrink:0; padding:5px 20px;
+  display:flex; align-items:center; gap:4px;
+  background:var(--bg-main); border-bottom:1px solid var(--border);
+  font-size:12px; min-height:30px;
 }
+.bc { padding:2px 9px; border-radius:6px; white-space:nowrap; color:var(--text-sub); cursor:pointer; transition:all .12s; }
+.bc:hover { background:var(--border); color:var(--text-main); }
+.bc.cur { color:var(--primary); font-weight:700; cursor:default; }
+.bc.cur:hover { background:transparent; }
+.bc-arrow { color:var(--border); font-size:11px; }
 
 /* ══════════════════════════════════════════
    主舞台
@@ -186,52 +189,22 @@ body { display:flex; flex-direction:column; background:var(--bg-main); color:var
 .bc-st.r .bc-st-pct { color:var(--red); }
 
 /* ══════════════════════════════════════════
-   小卡片（側欄）- 主要修改區域
+   小卡片（側欄）
 ══════════════════════════════════════════ */
 .mini-card {
   width:100%; background:var(--bg-card); border:1.5px solid var(--border);
   border-radius:10px; cursor:pointer;
-  padding:8px 8px 8px; display:flex; flex-direction:column; 
-  text-align:left; transition:all .18s; will-change:transform;
+  padding:10px 10px 9px; display:flex; flex-direction:column; align-items:center; gap:4px;
+  text-align:center; transition:all .18s; will-change:transform;
 }
 .mini-card:hover { border-color:var(--primary); transform:translateX(3px); box-shadow:3px 0 12px var(--shadow); }
 .mini-card.sel { border-color:var(--primary); background:rgba(139,166,144,.07); }
-/* 名稱和數字同行 */
-.mc-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  width: 100%;
-  margin-bottom: 4px;
-}
-.mc-name { 
-  font-size:12px; font-weight:700; color:var(--text-main); 
-  word-break:break-all; line-height:1.25;
-}
-.mc-total { 
-  font-size:22px; font-weight:900; color:var(--primary); 
-  line-height:1.1;
-}
-.mc-bar { 
-  width:100%; height:4px; background:rgba(0,0,0,.07); 
-  border-radius:99px; overflow:hidden; display:flex; 
-  margin:2px 0 4px 0;
-}
-/* 狀態一行顯示 */
-.mc-sts { 
-  display:flex; 
-  justify-content: space-between; 
-  width:100%;
-  font-size:10px; 
-  font-weight:700; 
-  line-height:1.5;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-.mc-s { white-space:nowrap; }
-.mc-s.g { color:var(--green); } 
-.mc-s.y { color:var(--yellow); } 
-.mc-s.r { color:var(--red); }
+.mc-name { font-size:12px; font-weight:700; color:var(--text-main); word-break:break-all; line-height:1.25; }
+.mc-total { font-size:22px; font-weight:900; color:var(--primary); line-height:1.1; }
+.mc-bar { width:100%; height:4px; background:rgba(0,0,0,.07); border-radius:99px; overflow:hidden; display:flex; margin:2px 0; }
+.mc-sts { display:flex; flex-direction:column; gap:2px; width:100%; }
+.mc-s { font-size:10px; font-weight:700; line-height:1.5; white-space:nowrap; }
+.mc-s.g { color:var(--green); } .mc-s.y { color:var(--yellow); } .mc-s.r { color:var(--red); }
 
 /* ══════════════════════════════════════════
    店家層（表格式）
@@ -254,10 +227,6 @@ body { display:flex; flex-direction:column; background:var(--bg-main); color:var
 .store-panel {
   background:var(--bg-card); border:1.5px solid var(--border);
   border-radius:var(--radius); overflow:hidden;
-  display: none; /* 預設隱藏所有面板 */
-}
-.store-panel.active {
-  display: block; /* 只有活躍的面板顯示 */
 }
 .sp-head {
   padding:13px 18px; display:flex; align-items:center; gap:10px;
@@ -381,7 +350,7 @@ body { display:flex; flex-direction:column; background:var(--bg-main); color:var
   letter-spacing: .3px;
 }
 
-/* 人員層：緊湊橫向卡片 - 修改區域 */
+/* 人員層：緊湊橫向卡片 */
 .col-main.staff-view {
   grid-template-columns: 1fr 1fr 1fr;
   padding: 20px;
@@ -404,39 +373,9 @@ body { display:flex; flex-direction:column; background:var(--bg-main); color:var
 .ss-total { font-size: 28px; font-weight: 900; color: var(--primary); flex-shrink: 0; }
 .ss-bar-wrap { flex: 1; }
 .ss-bar { height: 8px; background: rgba(0,0,0,.07); border-radius: 99px; overflow: hidden; display: flex; margin-bottom: 6px; }
-/* 人員層狀態按鈕 */
-.ss-status-buttons {
-  display: flex;
-  gap: 8px;
-}
-.ss-status-btn {
-  padding: 4px 12px;
-  border-radius: 6px;
-  border: 1.5px solid transparent;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all .15s;
-}
-.ss-status-btn.g { 
-  background: var(--green-bg); 
-  border-color: var(--green-bd);
-  color: var(--green); 
-}
-.ss-status-btn.y { 
-  background: var(--yellow-bg); 
-  border-color: var(--yellow-bd);
-  color: var(--yellow); 
-}
-.ss-status-btn.r { 
-  background: var(--red-bg); 
-  border-color: var(--red-bd);
-  color: var(--red); 
-}
-.ss-status-btn.active {
-  border-color: var(--primary);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
+.ss-sts { display: flex; gap: 16px; }
+.ss-s { font-size: 12px; font-weight: 700; }
+.ss-s.g { color: var(--green); } .ss-s.y { color: var(--yellow); } .ss-s.r { color: var(--red); }
 
 .staff-row-card {
   background: var(--bg-card);
@@ -523,6 +462,7 @@ body { display:flex; flex-direction:column; background:var(--bg-main); color:var
 .gb-seg:hover { background:var(--border); color:var(--text-main); }
 .gb-seg.gb-cur { color:var(--text-main); cursor:default; font-weight:600; }
 .gb-seg.gb-cur:hover { background:transparent; }
+.gb-seg strong { color:var(--primary); font-size:14px; font-weight:900; }
 .gb-arrow { color:var(--border); font-size:11px; }
 .gb-right { display:flex; align-items:center; gap:8px; flex-shrink:0; }
 .gb-sync { color:var(--text-sub); font-size:11px; white-space:nowrap; }
@@ -563,7 +503,7 @@ body { display:flex; flex-direction:column; background:var(--bg-main); color:var
   <div id="build-ts" id="build-ts"></div>
 </div>
 
-<!-- 麵包屑（已移除，整合到global-bar） -->
+<!-- 麵包屑 -->
 <div id="global-bar"></div>
 <div id="breadcrumb"></div>
 
@@ -586,8 +526,6 @@ var prevDir='none';  // 'forward' | 'back' | 'none'
 var curSurvey=-1;
 var _oMap={}, _sMap={};
 var _runRaf=null;
-// 新增：當前活躍的狀態面板
-var activeStatusPanel = 'all'; // 'l' | 'n' | 'u' | 'all'
 
 /* ══ 欄位 index ══ */
 var CI={area:-1,office:-1,staff:-1,store:-1,code:-1,channel:-1,type:-1,grade:-1};
@@ -896,48 +834,27 @@ function buildStage(container, rows){
 
   } else if(depth === 1){
     var aRows = rows.filter(function(r){ return gv(r,'area') === drillStack[0].key; });
-    var side = makeSide(220); // 側欄加寬
-    buildSideAreas(side, rows, drillStack[0].key);
-    container.appendChild(side); 
-    container.appendChild(makeDivider());
-    var main = makeMain(); 
-    buildOfficeCards(main, aRows);
+    var side = makeSide(190); buildSideAreas(side, rows, drillStack[0].key);
+    container.appendChild(side); container.appendChild(makeDivider());
+    var main = makeMain(); buildOfficeCards(main, aRows);
     container.appendChild(main);
 
   } else if(depth === 2){
     var aRows = rows.filter(function(r){ return gv(r,'area') === drillStack[0].key; });
     var oRows = aRows.filter(function(r){ return gv(r,'office') === drillStack[1].key; });
-    var s0 = makeSide(200); // 側欄加寬
-    buildSideAreas(s0, rows, drillStack[0].key); 
-    container.appendChild(s0); 
-    container.appendChild(makeDivider());
-    var s1 = makeSide(220); // 側欄加寬
-    buildSideOffices(s1, aRows, drillStack[1].key); 
-    container.appendChild(s1); 
-    container.appendChild(makeDivider());
-    var main = makeMain(); 
-    buildStaffCards(main, oRows);
+    var s0 = makeSide(180); buildSideAreas(s0, rows, drillStack[0].key); container.appendChild(s0); container.appendChild(makeDivider());
+    var s1 = makeSide(190); buildSideOffices(s1, aRows, drillStack[1].key); container.appendChild(s1); container.appendChild(makeDivider());
+    var main = makeMain(); buildStaffCards(main, oRows);
     container.appendChild(main);
 
   } else if(depth >= 3){
     var aRows = rows.filter(function(r){ return gv(r,'area') === drillStack[0].key; });
     var oRows = aRows.filter(function(r){ return gv(r,'office') === drillStack[1].key; });
     var sRows = oRows.filter(function(r){ return gv(r,'staff') === drillStack[2].key; });
-    var s0 = makeSide(185); // 側欄加寬
-    buildSideAreas(s0, rows, drillStack[0].key); 
-    container.appendChild(s0); 
-    container.appendChild(makeDivider());
-    var s1 = makeSide(200); // 側欄加寬
-    buildSideOffices(s1, aRows, drillStack[1].key); 
-    container.appendChild(s1); 
-    container.appendChild(makeDivider());
-    var s2 = makeSide(220); // 側欄加寬
-    buildSideStaff(s2, oRows, drillStack[2].key); 
-    container.appendChild(s2); 
-    container.appendChild(makeDivider());
-    var main = makeMain(); 
-    main.classList.add('store-view'); 
-    buildStoreCards(main, sRows);
+    var s0 = makeSide(165); buildSideAreas(s0, rows, drillStack[0].key); container.appendChild(s0); container.appendChild(makeDivider());
+    var s1 = makeSide(180); buildSideOffices(s1, aRows, drillStack[1].key); container.appendChild(s1); container.appendChild(makeDivider());
+    var s2 = makeSide(190); buildSideStaff(s2, oRows, drillStack[2].key); container.appendChild(s2); container.appendChild(makeDivider());
+    var main = makeMain(); main.classList.add('store-view'); buildStoreCards(main, sRows);
     container.appendChild(main);
   }
 }
@@ -971,17 +888,13 @@ function makeBigCard(name,rows,onClick,isSel){
   return el;
 }
 
-// 修改：小卡片結構優化
 function makeMiniCard(name,rows,onClick,isSel){
   var s=stat(rows);var t=s.t||1;
   var el=document.createElement('div');
   el.className='mini-card'+(isSel?' sel':'');
-  // 修改：名稱和數字同行顯示，狀態一行顯示
   el.innerHTML=
-    '<div class="mc-header">'
-      +'<div class="mc-name">'+esc(name)+'</div>'
-      +'<div class="mc-total">'+s.t+'</div>'
-    +'</div>'
+    '<div class="mc-name">'+esc(name)+'</div>'
+    +'<div class="mc-total">'+s.t+'</div>'
     +'<div class="mc-bar">'+segs(s)+'</div>'
     +'<div class="mc-sts">'
       +(s.l?'<div class="mc-s g">✅ '+s.l+' ('+pct(s.l,t)+'%)</div>':'')
@@ -995,37 +908,28 @@ function makeMiniCard(name,rows,onClick,isSel){
 /* ══ 各層內容 ══ */
 function buildAreaCards(c,rows){
   var sel=drillStack[0]?drillStack[0].key:null;
-  // 修改：全公司改為整體
-  c.appendChild(makeBigCard('🏢 整體',rows,function(){goToDepth(0);},false));
+  c.appendChild(makeBigCard('🏢 全公司',rows,function(){goToDepth(0);},false));
   var m=groupBy(rows,'area');
   sortArea(Object.keys(m)).forEach(function(k){c.appendChild(makeBigCard(k,m[k],function(){drillInto('area',k);},sel===k));});
   if(!Object.keys(m).length)c.appendChild(makeEmpty('沒有符合條件的資料'));
 }
-
-// 修改：側欄整體顯示
 function buildSideAreas(c,rows,sel){
-  // 修改：全改為整體
-  c.appendChild(makeMiniCard('整體',rows,function(){goToDepth(0);},false));
+  c.appendChild(makeMiniCard('全',rows,function(){goToDepth(0);},false));
   var m=groupBy(rows,'area');
   sortArea(Object.keys(m)).forEach(function(k){c.appendChild(makeMiniCard(k,m[k],function(){drillInto('area',k);},sel===k));});
 }
-
 function buildOfficeCards(c,rows){
   var sel=drillStack[1]?drillStack[1].key:null;
   var aName=drillStack[0]?drillStack[0].key:'';
-  // 修改：整體顯示
   c.appendChild(makeBigCard('📍 '+aName+' 整體',rows,function(){},false));
   var m=groupBy(rows,'office');
   Object.keys(m).sort(function(a,b){return a.localeCompare(b,'zh-TW');}).forEach(function(k){c.appendChild(makeBigCard(k,m[k],function(){drillInto('office',k);},sel===k));});
   if(!Object.keys(m).length)c.appendChild(makeEmpty('此處無資料'));
 }
-
 function buildSideOffices(c,rows,sel){
   var m=groupBy(rows,'office');
   Object.keys(m).sort(function(a,b){return a.localeCompare(b,'zh-TW');}).forEach(function(k){c.appendChild(makeMiniCard(k,m[k],function(){drillInto('office',k);},sel===k));});
 }
-
-// 修改：人員層加入狀態按鈕
 function buildStaffCards(c,rows){
   c.classList.add('staff-view');
   var sel=drillStack[2]?drillStack[2].key:null;
@@ -1033,7 +937,7 @@ function buildStaffCards(c,rows){
   var aName=drillStack[0]?drillStack[0].key:'';
   var ts=stat(rows);var tt=ts.t||1;
 
-  // 整體彙總列 - 修改加入狀態按鈕
+  // 整體彙總列
   var summary=document.createElement('div');
   summary.className='staff-summary';
   summary.innerHTML=
@@ -1041,10 +945,10 @@ function buildStaffCards(c,rows){
     +'<div class="ss-total">'+ts.t+'</div>'
     +'<div class="ss-bar-wrap">'
       +'<div class="ss-bar">'+segs(ts)+'</div>'
-      +'<div class="ss-status-buttons">'
-        +'<button class="ss-status-btn g" data-status="l" onclick="toggleStatusPanel(\'l\')">✅ 上架 '+ts.l+'</button>'
-        +'<button class="ss-status-btn y" data-status="n" onclick="toggleStatusPanel(\'n\')">🟡 未上架 '+ts.n+'</button>'
-        +'<button class="ss-status-btn r" data-status="u" onclick="toggleStatusPanel(\'u\')">🔴 未填寫 '+ts.u+'</button>'
+      +'<div class="ss-sts">'
+        +'<span class="ss-s g">✅ 上架 '+ts.l+' ('+pct(ts.l,tt)+'%)</span>'
+        +'<span class="ss-s y">🟡 未上架 '+ts.n+' ('+pct(ts.n,tt)+'%)</span>'
+        +'<span class="ss-s r">🔴 未填寫 '+ts.u+' ('+pct(ts.u,tt)+'%)</span>'
       +'</div>'
     +'</div>';
   c.appendChild(summary);
@@ -1077,13 +981,11 @@ function buildStaffCards(c,rows){
     c.appendChild(card);
   });
 }
-
 function buildSideStaff(c,rows,sel){
   var m=groupBy(rows,'staff');
   Object.keys(m).sort(function(a,b){return a.localeCompare(b,'zh-TW');}).forEach(function(k){c.appendChild(makeMiniCard('👤 '+k,m[k],function(){drillInto('staff',k);},sel===k));});
 }
 
-// 修改：店家層加入狀態面板切換
 function buildStoreCards(c,rows){
   var s=stat(rows);
   // 取上層（所）的統計做佔比對比
@@ -1102,7 +1004,7 @@ function buildStoreCards(c,rows){
   }
   var ps=parentRows?stat(parentRows):null;
 
-  // 頂部：人員名稱 + 統計摘要 + 狀態按鈕
+  // 頂部：人員名稱 + 統計摘要
   var staffName=drillStack[2]?drillStack[2].key:'';
   var officeName=drillStack[1]?drillStack[1].key:'';
   var actions=document.createElement('div');actions.className='store-actions';
@@ -1115,12 +1017,6 @@ function buildStoreCards(c,rows){
       +'　<span style="color:var(--yellow)">🟡 未上架 <strong>'+s.n+'</strong></span>'
       +'　<span style="color:var(--red)">🔴 未填寫 <strong>'+s.u+'</strong></span>'
       +(parentInfo?'<br><span style="font-size:11px;color:var(--text-sub)">'+parentInfo+'</span>':'')
-    +'</div>'
-    +'<div class="ss-status-buttons">'
-      +'<button class="ss-status-btn g" data-status="l" onclick="toggleStatusPanel(\'l\')">✅ 上架</button>'
-      +'<button class="ss-status-btn y" data-status="n" onclick="toggleStatusPanel(\'n\')">🟡 未上架</button>'
-      +'<button class="ss-status-btn r" data-status="u" onclick="toggleStatusPanel(\'u\')">🔴 未填寫</button>'
-      +'<button class="ss-status-btn" data-status="all" onclick="toggleStatusPanel(\'all\')">全部</button>'
     +'</div>';
   c.appendChild(actions);
 
@@ -1131,9 +1027,7 @@ function buildStoreCards(c,rows){
     if(!gr.length)return;
     hasAny=true;
     gr.sort(function(a,b){return gv(a,'store').localeCompare(gv(b,'store'),'zh-TW');});
-    var panel=document.createElement('div');
-    panel.className='store-panel '+g.cls + (activeStatusPanel === 'all' || activeStatusPanel === g.k ? ' active' : '');
-    panel.dataset.status = g.k;
+    var panel=document.createElement('div');panel.className='store-panel '+g.cls;
     var pv=pct(gr.length,s.t);
     // 4 欄：名稱、通路、型態、等級、代碼
     var html='<div class="sp-head"><span class="sp-title">'+g.lbl+'</span>'
@@ -1142,4 +1036,205 @@ function buildStoreCards(c,rows){
       +'<table class="store-tbl"><thead><tr>'
       +'<th style="width:30px"></th>'
       +'<th style="width:22%">店家名稱</th>'
-      +
+      +'<th style="width:14%">通路</th>'
+      +'<th style="width:14%">型態</th>'
+      +'<th style="width:10%">等級</th>'
+      +'<th style="width:20%">店家代碼</th>'
+      +'</tr></thead><tbody>';
+    gr.forEach(function(r){
+      html+='<tr>'
+        +'<td><span class="dot '+g.k+'"></span></td>'
+        +'<td class="td-name">'+esc(gv(r,'store'))+'</td>'
+        +'<td class="td-sub">'+esc(gv(r,'channel'))+'</td>'
+        +'<td class="td-sub">'+esc(gv(r,'type'))+'</td>'
+        +'<td class="td-sub">'+esc(gv(r,'grade'))+'</td>'
+        +'<td class="td-sub">'+esc(gv(r,'code'))+'</td>'
+        +'</tr>';
+    });
+    html+='</tbody></table>';panel.innerHTML=html;c.appendChild(panel);
+  });
+  if(!hasAny)c.appendChild(makeEmpty('沒有符合條件的店家'));
+  window._storeRows=rows;
+  window._storeLabel=drillStack.map(function(d){return d.key;}).join(' › ');
+}
+
+/* ══ 複製 & CSV ══ */
+function copyList(){
+  var rows=window._storeRows||[];if(!rows.length)return;
+  var surveyName=SURVEYS[curSurvey]?SURVEYS[curSurvey].name:'';
+  var pathLabel=drillStack.map(function(d){return d.key;}).join(' › ');
+  var staffName=drillStack[2]?drillStack[2].key:'';
+  var s=stat(rows);
+  // 標題行
+  var lines=[];
+  lines.push('📋 '+surveyName+(pathLabel?' ｜ '+pathLabel:''));
+  // 統計摘要
+  lines.push('🔴 未填寫 '+s.u+'筆	🟡 未上架 '+s.n+'筆	✅ 上架 '+s.l+'筆');
+  lines.push('');
+  // 人員名
+  if(staffName) lines.push('👤 '+staffName);
+  // 按狀態排序：先u，再n，再l
+  var order={u:0,n:1,l:2};
+  var sorted=rows.slice().sort(function(a,b){
+    var od=order[gs(a)]-order[gs(b)];
+    if(od!==0)return od;
+    return gv(a,'store').localeCompare(gv(b,'store'),'zh-TW');
+  });
+  sorted.forEach(function(r){
+    var icon=gs(r)==='u'?'🔴':gs(r)==='n'?'🟡':'✅';
+    var ch=gv(r,'channel');
+    var store=gv(r,'store');
+    lines.push('   '+icon+' '+ch+'｜'+store);
+  });
+  var text=lines.join('\n').trim();
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(function(){flash('copy-btn','✅ 已複製','📋 複製清單');}).catch(function(){fbCopy(text);});
+  }else fbCopy(text);
+}
+function esc_plain(s){return String(s==null?'':s);}
+function fbCopy(t){var ta=document.createElement('textarea');ta.value=t;ta.style.cssText='position:fixed;opacity:0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy');flash('copy-btn','✅ 已複製','📋 複製清單');}catch(e){}document.body.removeChild(ta);}
+function flash(id,on,off){var b=document.getElementById(id);if(!b)return;b.textContent=on;setTimeout(function(){b.textContent=off;},2000);}
+function downloadCSV(){
+  var rows=window._storeRows||[];if(!rows.length)return;
+  var ST={l:'上架',n:'未上架',u:'未填寫'};
+  function q(v){var s=String(v==null?'':v);if(s.indexOf(',')>=0||s.indexOf('"')>=0||s.indexOf('\n')>=0)return'"'+s.replace(/"/g,'""')+'"';return s;}
+  var lines=[['狀態','店家名稱','通路別','店家型態','店家等級','店家代碼'].map(q).join(',')];
+  rows.forEach(function(r){lines.push([ST[gs(r)],gv(r,'store'),gv(r,'channel'),gv(r,'type'),gv(r,'grade'),gv(r,'code')].map(q).join(','));});
+  var blob=new Blob(['\uFEFF'+lines.join('\r\n')],{type:'text/csv;charset=utf-8;'});
+  var url=URL.createObjectURL(blob);
+  var now=new Date();var ts=now.getFullYear()+('0'+(now.getMonth()+1)).slice(-2)+('0'+now.getDate()).slice(-2);
+  var a=document.createElement('a');a.href=url;a.download=(window._storeLabel||'清冊')+'_'+ts+'.csv';
+  a.style.display='none';document.body.appendChild(a);a.click();
+  setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);},500);
+  flash('csv-btn','✅ 已下載','📥 下載 CSV');
+}
+
+/* ══ 麵包屑 ══ */
+function updateBC(){
+  updateGlobalBar();
+  var bc=document.getElementById('breadcrumb');
+  var labels=['全覽'].concat(drillStack.map(function(d){return d.key;}));
+  bc.innerHTML=labels.map(function(lbl,i){
+    var isLast=(i===labels.length-1);
+    var sep=i>0?'<span class="bc-arrow">›</span>':'';
+    var cls='bc'+(isLast?' cur':'');
+    var click=isLast?'':' onclick="goToDepth('+i+')"';
+    return sep+'<span class="'+cls+'"'+click+'>'+esc(lbl)+'</span>';
+  }).join('');
+}
+
+/* ══ 載入動畫 ══ */
+function showLoading(){
+  var ls=document.getElementById('loading');ls.style.display='flex';ls.style.opacity='1';
+  var c=document.getElementById('loading-canvas');var ctx=c.getContext('2d');
+  var W=c.width,H=c.height,frame=0,dots=0;
+  var txtEl=document.getElementById('loading-txt');var S=7;
+  var C='#8BA690';
+  var f0=[[0,0,1,1,0,0,0,0],[0,0,1,1,0,0,0,0],[0,1,1,1,1,0,0,0],[0,0,1,1,0,0,0,0],[0,1,1,1,1,0,0,0],[0,1,0,0,1,0,0,0],[1,1,0,0,0,0,0,0],[0,1,0,0,1,1,0,0]];
+  var f1=[[0,0,1,1,0,0,0,0],[0,0,1,1,0,0,0,0],[0,1,1,1,1,0,0,0],[0,0,1,1,0,0,0,0],[0,1,1,1,1,0,0,0],[0,0,0,1,1,0,0,0],[0,0,0,0,1,1,0,0],[0,1,1,0,0,0,0,0]];
+  var bricks=[];for(var i=0;i<Math.ceil(W/S)+2;i++)bricks.push(i*S);
+  if(_runRaf)cancelAnimationFrame(_runRaf);
+  function draw(){
+    ctx.clearRect(0,0,W,H);ctx.fillStyle='rgba(128,128,128,.15)';
+    for(var b=0;b<bricks.length;b++){var bx=((bricks[b]-frame*2)%W+W)%W;ctx.fillRect(bx,H-S,S-1,S-1);}
+    ctx.fillStyle=C;var sf=frame%8<4?f0:f1;
+    for(var r=0;r<8;r++)for(var col=0;col<8;col++)if(sf[r][col])ctx.fillRect(W/2-4*S+col*S,H-S-8*S-4+r*S,S-1,S-1);
+    frame++;if(frame%20===0){dots=(dots+1)%4;if(txtEl)txtEl.textContent='載入資料中'+'.'.repeat(dots);}
+    _runRaf=requestAnimationFrame(draw);
+  }draw();
+}
+function hideLoading(){
+  if(_runRaf){cancelAnimationFrame(_runRaf);_runRaf=null;}
+  var ls=document.getElementById('loading');
+  ls.style.transition='opacity .4s';ls.style.opacity='0';
+  setTimeout(function(){ls.style.display='none';ls.style.transition='';},420);
+}
+
+/* ══ 工具 ══ */
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+
+/* ══ 啟動 ══ */
+var ss=document.getElementById('sel-survey');
+ss.innerHTML=SURVEYS.map(function(c,i){return'<option value="'+i+'">'+esc(c.name)+'</option>';}).join('');
+ss.disabled=false;
+
+/* 台灣時區時間戳（版本標記，不自動跳） */
+function updateBuildTs(){
+  var el=document.getElementById('build-ts');
+  if(!el)return;
+  var now=new Date();
+  var twOpts={timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false};
+  var s=now.toLocaleString('zh-TW',twOpts).replace(/[/]/g,'-');
+  el.textContent='🕐 '+s;
+}
+updateBuildTs();
+/* 同步時間 = 載入資料那一刻，固定不跳 */
+var _syncTime='';
+function recordSyncTime(){
+  var now=new Date();
+  var twOpts={timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false};
+  _syncTime=now.toLocaleString('zh-TW',twOpts).replace(/[/]/g,'-');
+}
+
+/* 全局筆數 + 最後同步時間 */
+function updateGlobalBar(){
+  var el=document.getElementById('global-bar');
+  if(!el)return;
+  var total=allRows.length;
+
+  // 每層原始數字（不受chip/篩選影響，反映真實資料量）
+  var parts=[];
+  parts.push({lbl:'全覽', n:total, depth:0});
+  if(drillStack.length>=1){
+    var a=drillStack[0].key;
+    var an=allRows.filter(function(r){return gv(r,'area')===a;}).length;
+    parts.push({lbl:a, n:an, depth:1});
+  }
+  if(drillStack.length>=2){
+    var o=drillStack[1].key;
+    var on2=allRows.filter(function(r){
+      return gv(r,'area')===drillStack[0].key && gv(r,'office')===o;
+    }).length;
+    parts.push({lbl:o, n:on2, depth:2});
+  }
+  if(drillStack.length>=3){
+    var st=drillStack[2].key;
+    var sn=allRows.filter(function(r){
+      return gv(r,'area')===drillStack[0].key
+          && gv(r,'office')===drillStack[1].key
+          && gv(r,'staff')===st;
+    }).length;
+    parts.push({lbl:st, n:sn, depth:3});
+  }
+
+  // 路徑 HTML：每層「名稱 數字」，可點擊回上層
+  var pathHtml = parts.map(function(p, i){
+    var isLast = (i === parts.length - 1);
+    var arrow  = i > 0 ? '<span class="gb-arrow"> › </span>' : '';
+    var depth  = p.depth;
+    return arrow
+      + '<span class="gb-seg' + (isLast ? ' gb-cur' : '') + '"'
+      + (isLast ? '' : ' onclick="goToDepth(' + depth + ')"')
+      + '>' + esc(p.lbl)
+      + ' <strong>' + p.n + '</strong>'
+      + '</span>';
+  }).join('');
+
+  // 右側：最後同步時間 + 工具按鈕
+  var rightHtml = '';
+  if(_syncTime){
+    rightHtml += '<span class="gb-sync">📊 最後同步 ' + _syncTime + '</span>';
+  }
+  rightHtml += '<button class="sa-btn" id="copy-btn" onclick="copyList()" '
+    + 'style="padding:3px 12px;font-size:11px">📋 複製</button>';
+  rightHtml += '<button class="sa-btn" id="csv-btn" onclick="downloadCSV()" '
+    + 'style="padding:3px 12px;font-size:11px">📥 CSV</button>';
+
+  el.innerHTML = '<div class="gb-path">' + pathHtml + '</div>'
+               + '<div class="gb-right">' + rightHtml + '</div>';
+}
+
+showLoading();onSurveyChange();
+</script>
+</body>
+</html>
