@@ -107,10 +107,10 @@ body { display:flex; flex-direction:column; background:var(--bg-main); color:var
 /* ── 主欄 ── */
 .col-main {
   flex:1; min-width:0; overflow-y:auto; overflow-x:hidden;
-  padding:20px;
+  padding:22px;
   display:grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap:18px; align-content:start;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap:20px; align-content:start;
 }
 .col-main::-webkit-scrollbar { width:5px; }
 .col-main::-webkit-scrollbar-thumb { background:var(--border); border-radius:5px; }
@@ -137,19 +137,19 @@ body { display:flex; flex-direction:column; background:var(--bg-main); color:var
 }
 /* 卡頭 */
 .bc-head {
-  padding:18px 18px 10px;
+  padding:20px 20px 10px;
   display:flex; justify-content:space-between; align-items:flex-start; gap:8px;
 }
 .bc-name { font-size:15px; font-weight:700; color:var(--text-main); line-height:1.3; flex:1; }
-.bc-total { font-size:38px; font-weight:900; color:var(--primary); line-height:1; flex-shrink:0; font-variant-numeric:tabular-nums; }
+.bc-total { font-size:44px; font-weight:900; color:var(--primary); line-height:1; flex-shrink:0; font-variant-numeric:tabular-nums; }
 /* 進度條 */
-.bc-bar { padding:0 18px 8px; }
+.bc-bar { padding:0 20px 8px; }
 .bc-track { height:7px; background:rgba(0,0,0,.07); border-radius:99px; overflow:hidden; display:flex; }
 .seg-g { background:var(--green); }
 .seg-y { background:var(--yellow); }
 .seg-r { background:var(--red); }
 /* 三格統計 */
-.bc-stats { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; padding:8px 18px 18px; }
+.bc-stats { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; padding:10px 20px 20px; }
 .bc-st {
   display:flex; flex-direction:column; gap:3px;
   padding:9px 10px; border-radius:10px;
@@ -158,7 +158,7 @@ body { display:flex; flex-direction:column; background:var(--bg-main); color:var
 .bc-st.y { background:var(--yellow-bg); border:1px solid var(--yellow-bd); }
 .bc-st.r { background:var(--red-bg); border:1px solid var(--red-bd); }
 .bc-st-lbl { font-size:9px; font-weight:700; letter-spacing:.4px; color:var(--text-sub); }
-.bc-st-num { font-size:20px; font-weight:900; line-height:1; }
+.bc-st-num { font-size:22px; font-weight:900; line-height:1; }
 .bc-st.g .bc-st-num { color:var(--green); }
 .bc-st.y .bc-st-num { color:var(--yellow); }
 .bc-st.r .bc-st-num { color:var(--red); }
@@ -509,19 +509,18 @@ function fetchSheet(id,sheet,ok,fail){
 }
 
 /* ══ 下鑽 ══ */
+// levelIndex: area=0, office=1, staff=2
+var LEVEL_INDEX = {area:0, office:1, staff:2};
+
 function drillInto(level, key){
-  var last = drillStack[drillStack.length-1];
-  if(last && last.level === level){
-    if(last.key === key) return;
-    // 同層換選：記住被點的卡片，做 FLIP
-    var clickedCard = findBigCard(key);
-    drillStack[drillStack.length-1] = {level:level, key:key};
-    renderFLIP(clickedCard, 'forward');
-  } else {
-    var clickedCard = findBigCard(key);
-    drillStack.push({level:level, key:key});
-    renderFLIP(clickedCard, 'forward');
-  }
+  var targetDepth = LEVEL_INDEX[level]; // 這層應該在 drillStack 的哪個 index
+  var clickedCard = findBigCard(key);
+
+  // 截斷到目標深度，再設定該層
+  drillStack = drillStack.slice(0, targetDepth);
+  drillStack.push({level:level, key:key});
+
+  renderFLIP(clickedCard, 'forward');
 }
 function goToDepth(d){
   if(drillStack.length === d) return;
@@ -529,215 +528,160 @@ function goToDepth(d){
   render('back');
 }
 
-/* 根據名稱找到目前主欄中的大卡片 DOM */
+/* ══ 渲染引擎 ══ */
+
+// 找主欄中被點擊的大卡片
 function findBigCard(key){
   var cards = document.querySelectorAll('.col-main .big-card');
   for(var i=0; i<cards.length; i++){
     var nameEl = cards[i].querySelector('.bc-name');
-    if(nameEl && nameEl.textContent.trim().replace(/^[^\w一-鿿]+/,'') === key) return cards[i];
+    if(nameEl){
+      var txt = nameEl.textContent.trim().replace(/^\S+\s+/,''); // 去掉 emoji 前綴
+      if(txt === key || nameEl.textContent.trim() === key) return cards[i];
+    }
   }
   return null;
 }
 
-/* ══ FLIP 動畫核心 ══
-   clickedCard: 被點擊的大卡片 DOM（null 則退化為普通滑動）
-   dir: 'forward' | 'back'
-*/
-function renderFLIP(clickedCard, dir){
+function drillInto(level, key){
+  var LEVEL_IDX = {area:0, office:1, staff:2};
+  var targetDepth = LEVEL_IDX[level];
+  var clickedCard = findBigCard(key);
+
+  // 截斷到目標深度再設定
+  drillStack = drillStack.slice(0, targetDepth);
+  drillStack.push({level:level, key:key});
+
+  doRender('forward', clickedCard);
+}
+
+function goToDepth(d){
+  if(drillStack.length === d) return;
+  drillStack = drillStack.slice(0, d);
+  doRender('back', null);
+}
+
+function render(dir){
+  doRender(dir || 'none', null);
+}
+
+/* 核心渲染：先建好新 DOM，再做動畫，最後替換 */
+function doRender(dir, clickedCard){
   if(!allRows.length) return;
-  var stage = document.getElementById('stage');
-  var rows = visible();
   updateBC();
+  var rows = visible();
+  var stage = document.getElementById('stage');
 
-  // ── STEP 1: 記錄「被點卡片」的 First 位置 ──
-  var firstRect = clickedCard ? clickedCard.getBoundingClientRect() : null;
+  // dir=none：直接替換，無動畫
+  if(dir === 'none'){
+    stage.innerHTML = '';
+    buildStage(stage, rows);
+    return;
+  }
 
-  // ── STEP 2: 建新 DOM（先藏起來量尺寸）──
-  var newStage = document.createElement('div');
-  newStage.style.cssText = 'position:absolute;inset:0;display:flex;overflow:hidden;visibility:hidden;pointer-events:none';
-  stage.appendChild(newStage);
-  buildStage(newStage, rows, dir);
+  // ── 記錄被點卡片的位置（FLIP first）──
+  var firstRect = (clickedCard && dir === 'forward') ? clickedCard.getBoundingClientRect() : null;
 
-  // ── STEP 3: 找新側欄裡對應的小卡片，記錄 Last 位置 ──
-  var key = drillStack[drillStack.length-1] ? drillStack[drillStack.length-1].key : null;
+  // ── 建新內容放進暫存容器 ──
+  var newWrap = document.createElement('div');
+  newWrap.style.cssText = 'position:absolute;inset:0;display:flex;overflow:hidden;pointer-events:none;visibility:hidden;z-index:2';
+  document.getElementById('stage').appendChild(newWrap);
+  buildStage(newWrap, rows);
+
+  // ── 找新側欄中對應小卡的位置（FLIP last）──
   var lastRect = null;
-  if(key && firstRect){
-    var miniCards = newStage.querySelectorAll('.mini-card');
-    for(var i=0; i<miniCards.length; i++){
-      var nameEl = miniCards[i].querySelector('.mc-name');
-      if(nameEl && nameEl.textContent.replace(/^[^\w一-鿿]+/,'').indexOf(key) >= 0){
-        lastRect = miniCards[i].getBoundingClientRect();
-        break;
+  if(firstRect){
+    var key = drillStack[drillStack.length-1] ? drillStack[drillStack.length-1].key : null;
+    if(key){
+      var minis = newWrap.querySelectorAll('.mini-card');
+      for(var i=0; i<minis.length; i++){
+        var nm = minis[i].querySelector('.mc-name');
+        if(nm && nm.textContent.replace(/^\S+\s*/,'').indexOf(key) >= 0){
+          newWrap.style.visibility = 'visible'; // 先顯示才能量
+          lastRect = minis[i].getBoundingClientRect();
+          newWrap.style.visibility = 'hidden';
+          break;
+        }
       }
     }
   }
 
-  // ── STEP 4: 顯示新 DOM，舊 DOM 退場 ──
-  newStage.style.visibility = '';
-  newStage.style.pointerEvents = '';
-  newStage.style.position = 'absolute';
-  newStage.style.inset = '0';
-  newStage.style.zIndex = '2';
+  // ── 取舊主欄準備退場 ──
+  var oldMain = stage.querySelector('.col-main');
 
-  // 舊主欄退場（往左縮小淡出）
-  var oldMain = stage.querySelector('.col-main:not([data-new])');
-  if(oldMain && dir === 'forward'){
-    oldMain.style.transition = 'opacity .35s ease, transform .35s cubic-bezier(0.4,0,0.2,1)';
-    oldMain.style.opacity = '0';
-    oldMain.style.transform = 'translateX(-40px) scale(0.94)';
+  // ── 顯示新內容，同時開始新主欄進場動畫 ──
+  newWrap.style.visibility = 'visible';
+  newWrap.style.pointerEvents = 'auto';
+
+  var newMain = newWrap.querySelector('.col-main');
+  if(newMain){
+    if(dir === 'forward'){
+      newMain.style.cssText += ';opacity:0;transform:translateX(55px) scale(0.96)';
+    } else {
+      newMain.style.cssText += ';opacity:0;transform:translateX(-55px) scale(0.96)';
+    }
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        newMain.style.transition = 'opacity .42s cubic-bezier(0.34,1.05,0.64,1),transform .42s cubic-bezier(0.34,1.05,0.64,1)';
+        newMain.style.opacity = '1';
+        newMain.style.transform = 'none';
+      });
+    });
   }
 
-  // ── STEP 5: FLIP — 被點卡片飛向側欄位置 ──
+  // ── 舊主欄退場 ──
+  if(oldMain){
+    oldMain.style.pointerEvents = 'none';
+    requestAnimationFrame(function(){
+      oldMain.style.transition = 'opacity .32s ease,transform .32s cubic-bezier(0.4,0,0.2,1)';
+      oldMain.style.opacity = '0';
+      oldMain.style.transform = dir === 'forward'
+        ? 'translateX(-40px) scale(0.94)'
+        : 'translateX(40px) scale(0.94)';
+    });
+  }
+
+  // ── FLIP：被點大卡片飛向側欄小卡位置 ──
   if(clickedCard && firstRect && lastRect){
-    // 計算縮放比例
     var scaleX = lastRect.width  / firstRect.width;
     var scaleY = lastRect.height / firstRect.height;
-    // 計算位移（從 first 位置到 last 位置）
     var dx = lastRect.left - firstRect.left;
     var dy = lastRect.top  - firstRect.top;
 
-    // 克隆卡片做飛行動畫（不影響真實 DOM）
     var ghost = clickedCard.cloneNode(true);
     ghost.style.cssText = [
       'position:fixed',
-      'left:'  + firstRect.left   + 'px',
-      'top:'   + firstRect.top    + 'px',
-      'width:' + firstRect.width  + 'px',
-      'height:'+ firstRect.height + 'px',
-      'z-index:9999',
-      'pointer-events:none',
-      'margin:0',
-      'border-radius:14px',
-      'box-shadow:0 10px 32px rgba(80,100,85,.25)',
-      'transition:transform .48s cubic-bezier(0.4,0,0.2,1), opacity .48s ease',
-      'will-change:transform,opacity',
-      'overflow:hidden',
-      'animation:none'  // 取消卡片本身的 cardPop
+      'left:'+firstRect.left+'px','top:'+firstRect.top+'px',
+      'width:'+firstRect.width+'px','height:'+firstRect.height+'px',
+      'z-index:9999','pointer-events:none','margin:0',
+      'border-radius:14px','overflow:hidden','animation:none',
+      'box-shadow:0 8px 28px rgba(80,100,85,.2)',
+      'transition:transform .45s cubic-bezier(0.4,0,0.2,1),opacity .45s ease',
+      'will-change:transform,opacity'
     ].join(';');
     document.body.appendChild(ghost);
-
-    // 觸發 FLIP transform（下一幀）
     requestAnimationFrame(function(){
       requestAnimationFrame(function(){
         ghost.style.transform = 'translate('+dx+'px,'+dy+'px) scale('+scaleX+','+scaleY+')';
         ghost.style.opacity = '0';
-        setTimeout(function(){
-          if(ghost.parentNode) ghost.parentNode.removeChild(ghost);
-        }, 520);
       });
     });
+    setTimeout(function(){if(ghost.parentNode)ghost.parentNode.removeChild(ghost);}, 500);
   }
 
-  // ── STEP 6: 新主欄從右滑入 ──
-  var newMain = newStage.querySelector('.col-main');
-  if(newMain){
-    newMain.setAttribute('data-new','1');
-    newMain.style.opacity = '0';
-    newMain.style.transform = 'translateX(55px) scale(0.96)';
-    newMain.style.transition = 'none';
-    requestAnimationFrame(function(){
-      requestAnimationFrame(function(){
-        newMain.style.transition = 'opacity .42s cubic-bezier(0.34,1.05,0.64,1), transform .42s cubic-bezier(0.34,1.05,0.64,1)';
-        newMain.style.opacity = '1';
-        newMain.style.transform = 'none';
-      });
-    });
-  }
-
-  // ── STEP 7: 清理舊 DOM ──
-  var oldStageChildren = Array.from(stage.children).filter(function(c){ return c !== newStage; });
+  // ── 清理舊 DOM，把新 wrap 解開掛到 stage ──
   setTimeout(function(){
-    oldStageChildren.forEach(function(c){ if(c.parentNode) c.parentNode.removeChild(c); });
-    // 讓新 stage 接管
-    newStage.style.position = '';
-    newStage.style.inset = '';
-    newStage.style.zIndex = '';
-    // 把 newStage 的子節點直接掛到 stage
-    Array.from(newStage.children).forEach(function(c){ stage.appendChild(c); });
-    if(newStage.parentNode) newStage.parentNode.removeChild(newStage);
-  }, 400);
-}
-
-/* 普通渲染（無 FLIP，用於返回 / 篩選變更）*/
-function render(dir){
-  if(!allRows.length) return;
-  var stage = document.getElementById('stage');
-  var rows = visible();
-  updateBC();
-
-  if(dir === 'none'){
-    buildStage(stage, rows, false);
-    return;
-  }
-
-  // 返回：舊主欄往右退，新主欄從左進
-  var oldMain = stage.querySelector('.col-main');
-  if(oldMain){
-    oldMain.style.transition = 'opacity .32s ease, transform .32s cubic-bezier(0.4,0,0.2,1)';
-    oldMain.style.opacity = '0';
-    oldMain.style.transform = 'translateX(50px) scale(0.95)';
-  }
-
-  var tmp = document.createElement('div');
-  tmp.style.cssText = 'flex:1;min-height:0;display:flex;overflow:hidden;position:relative';
-  buildStage(tmp, rows, dir);
-  var newMain = tmp.querySelector('.col-main');
-  if(newMain && dir === 'back'){
-    newMain.style.opacity = '0';
-    newMain.style.transform = 'translateX(-55px) scale(0.96)';
-    Array.from(tmp.children).forEach(function(c){ stage.appendChild(c); });
-    requestAnimationFrame(function(){
-      requestAnimationFrame(function(){
-        newMain.style.transition = 'opacity .42s cubic-bezier(0.34,1.05,0.64,1), transform .42s cubic-bezier(0.34,1.05,0.64,1)';
-        newMain.style.opacity = '1';
-        newMain.style.transform = 'none';
-      });
+    // 移除舊內容（除了 newWrap）
+    Array.from(stage.children).forEach(function(c){
+      if(c !== newWrap && c.parentNode) c.parentNode.removeChild(c);
     });
-  } else {
-    Array.from(tmp.children).forEach(function(c){ stage.appendChild(c); });
-  }
-
-  setTimeout(function(){
-    if(oldMain && oldMain.parentNode) oldMain.parentNode.removeChild(oldMain);
-    var mains = stage.querySelectorAll('.col-main');
-    for(var i=0; i<mains.length-1; i++) if(mains[i].parentNode) mains[i].parentNode.removeChild(mains[i]);
-  }, 380);
-}
-
-function buildStage(container,rows,dir){
-  container.innerHTML='';
-  var depth=drillStack.length;
-
-  if(depth===0){
-    var main=makeMain();
-    buildAreaCards(main,rows);
-    container.appendChild(main);
-
-  }else if(depth===1){
-    var aRows=rows.filter(function(r){return gv(r,'area')===drillStack[0].key;});
-    var side=makeSide(104);buildSideAreas(side,rows,drillStack[0].key);
-    container.appendChild(side);container.appendChild(makeDivider());
-    var main=makeMain();buildOfficeCards(main,aRows);
-    container.appendChild(main);
-
-  }else if(depth===2){
-    var aRows=rows.filter(function(r){return gv(r,'area')===drillStack[0].key;});
-    var oRows=aRows.filter(function(r){return gv(r,'office')===drillStack[1].key;});
-    var s0=makeSide(92);buildSideAreas(s0,rows,drillStack[0].key);container.appendChild(s0);container.appendChild(makeDivider());
-    var s1=makeSide(100);buildSideOffices(s1,aRows,drillStack[1].key);container.appendChild(s1);container.appendChild(makeDivider());
-    var main=makeMain();buildStaffCards(main,oRows);
-    container.appendChild(main);
-
-  }else if(depth>=3){
-    var aRows=rows.filter(function(r){return gv(r,'area')===drillStack[0].key;});
-    var oRows=aRows.filter(function(r){return gv(r,'office')===drillStack[1].key;});
-    var sRows=oRows.filter(function(r){return gv(r,'staff')===drillStack[2].key;});
-    var s0=makeSide(86);buildSideAreas(s0,rows,drillStack[0].key);container.appendChild(s0);container.appendChild(makeDivider());
-    var s1=makeSide(92);buildSideOffices(s1,aRows,drillStack[1].key);container.appendChild(s1);container.appendChild(makeDivider());
-    var s2=makeSide(100);buildSideStaff(s2,oRows,drillStack[2].key);container.appendChild(s2);container.appendChild(makeDivider());
-    var main=makeMain();main.classList.add('store-view');buildStoreCards(main,sRows);
-    container.appendChild(main);
-  }
+    // 把 newWrap 的子節點直接掛到 stage
+    Array.from(newWrap.children).forEach(function(c){ stage.appendChild(c); });
+    if(newWrap.parentNode) newWrap.parentNode.removeChild(newWrap);
+    // 清除新主欄的 inline transition（交給 CSS 接管）
+    var m = stage.querySelector('.col-main');
+    if(m){ m.style.transition=''; m.style.opacity=''; m.style.transform=''; }
+  }, 430);
 }
 
 /* ══ DOM 工廠 ══ */
