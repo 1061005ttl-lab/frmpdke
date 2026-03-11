@@ -194,16 +194,16 @@ body { display:flex; flex-direction:column; background:var(--bg-main); color:var
 .mini-card {
   width:100%; background:var(--bg-card); border:1.5px solid var(--border);
   border-radius:10px; cursor:pointer;
-  padding:9px 7px 8px; display:flex; flex-direction:column; align-items:center; gap:3px;
+  padding:10px 10px 9px; display:flex; flex-direction:column; align-items:center; gap:4px;
   text-align:center; transition:all .18s; will-change:transform;
 }
 .mini-card:hover { border-color:var(--primary); transform:translateX(3px); box-shadow:3px 0 12px var(--shadow); }
 .mini-card.sel { border-color:var(--primary); background:rgba(139,166,144,.07); }
-.mc-name { font-size:10px; font-weight:700; color:var(--text-main); word-break:break-all; line-height:1.25; }
-.mc-total { font-size:20px; font-weight:900; color:var(--primary); line-height:1.1; }
+.mc-name { font-size:12px; font-weight:700; color:var(--text-main); word-break:break-all; line-height:1.25; }
+.mc-total { font-size:22px; font-weight:900; color:var(--primary); line-height:1.1; }
 .mc-bar { width:100%; height:4px; background:rgba(0,0,0,.07); border-radius:99px; overflow:hidden; display:flex; margin:2px 0; }
 .mc-sts { display:flex; flex-direction:column; gap:2px; width:100%; }
-.mc-s { font-size:9px; font-weight:700; line-height:1.4; }
+.mc-s { font-size:10px; font-weight:700; line-height:1.5; white-space:nowrap; }
 .mc-s.g { color:var(--green); } .mc-s.y { color:var(--yellow); } .mc-s.r { color:var(--red); }
 
 /* ══════════════════════════════════════════
@@ -352,7 +352,7 @@ body { display:flex; flex-direction:column; background:var(--bg-main); color:var
 
 /* 人員層：緊湊橫向卡片 */
 .col-main.staff-view {
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   padding: 20px;
   gap: 12px;
   align-content: start;
@@ -412,9 +412,9 @@ body { display:flex; flex-direction:column; background:var(--bg-main); color:var
 .src-name-sub { font-size: 10px; color: var(--text-sub); margin-top: 2px; }
 .src-name-total { display:flex; align-items:baseline; gap:2px; }
 .src-bar-wrap {
-  padding: 6px 16px 12px;
+  padding: 4px 14px 10px;
 }
-.src-bar { height: 6px; background: rgba(0,0,0,.07); border-radius: 99px; overflow: hidden; display: flex; margin-bottom: 10px; }
+.src-bar { height: 5px; background: rgba(0,0,0,.07); border-radius: 99px; overflow: hidden; display: flex; margin-bottom: 8px; }
 .src-stats {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr; /* 固定三欄，永遠對齊 */
@@ -448,16 +448,24 @@ body { display:flex; flex-direction:column; background:var(--bg-main); color:var
 
 /* 全局資訊列 */
 #global-bar {
-  flex-shrink:0; padding:4px 20px;
+  flex-shrink:0; padding:5px 20px;
   background:var(--bg-card);
   border-bottom:1px solid var(--border);
   display:flex; align-items:center; justify-content:space-between;
-  gap:12px; min-height:28px; font-size:13px;
+  gap:12px; min-height:32px; font-size:13px;
 }
-.gb-total { color:var(--text-main); }
-.gb-total strong { font-size:15px; color:var(--primary); font-weight:900; }
-.gb-sub { color:var(--text-sub); font-size:12px; }
-.gb-sync { color:var(--text-sub); font-size:11px; margin-left:auto; }
+.gb-path { display:flex; align-items:center; flex-wrap:wrap; gap:0; }
+.gb-seg {
+  cursor:pointer; color:var(--text-sub); font-size:12px;
+  padding:2px 5px; border-radius:5px; transition:background .12s;
+}
+.gb-seg:hover { background:var(--border); color:var(--text-main); }
+.gb-seg.gb-cur { color:var(--text-main); cursor:default; font-weight:600; }
+.gb-seg.gb-cur:hover { background:transparent; }
+.gb-seg strong { color:var(--primary); font-size:14px; font-weight:900; }
+.gb-arrow { color:var(--border); font-size:11px; }
+.gb-right { display:flex; align-items:center; gap:8px; flex-shrink:0; }
+.gb-sync { color:var(--text-sub); font-size:11px; white-space:nowrap; }
 </style>
 </head>
 <body>
@@ -575,7 +583,7 @@ function onSurveyChange(){
   fetchSheet(cfg.id,cfg.sheet,function(data){
     try{allHeaders=data.headers;allRows=data.rows;initCI();buildFilters();}catch(e){console.error(e);}
     curSurvey=idx;hideLoading();
-    if(allRows.length){render('none');updateGlobalBar();}
+    if(allRows.length){recordSyncTime();render('none');updateGlobalBar();}
   },function(err){
     hideLoading();
     document.getElementById('stage').innerHTML='<div style="padding:40px;color:#c62828;font-size:14px">⚠️ 載入失敗：'+err+'</div>';
@@ -826,7 +834,7 @@ function buildStage(container, rows){
 
   } else if(depth === 1){
     var aRows = rows.filter(function(r){ return gv(r,'area') === drillStack[0].key; });
-    var side = makeSide(170); buildSideAreas(side, rows, drillStack[0].key);
+    var side = makeSide(190); buildSideAreas(side, rows, drillStack[0].key);
     container.appendChild(side); container.appendChild(makeDivider());
     var main = makeMain(); buildOfficeCards(main, aRows);
     container.appendChild(main);
@@ -834,8 +842,8 @@ function buildStage(container, rows){
   } else if(depth === 2){
     var aRows = rows.filter(function(r){ return gv(r,'area') === drillStack[0].key; });
     var oRows = aRows.filter(function(r){ return gv(r,'office') === drillStack[1].key; });
-    var s0 = makeSide(160); buildSideAreas(s0, rows, drillStack[0].key); container.appendChild(s0); container.appendChild(makeDivider());
-    var s1 = makeSide(170); buildSideOffices(s1, aRows, drillStack[1].key); container.appendChild(s1); container.appendChild(makeDivider());
+    var s0 = makeSide(180); buildSideAreas(s0, rows, drillStack[0].key); container.appendChild(s0); container.appendChild(makeDivider());
+    var s1 = makeSide(190); buildSideOffices(s1, aRows, drillStack[1].key); container.appendChild(s1); container.appendChild(makeDivider());
     var main = makeMain(); buildStaffCards(main, oRows);
     container.appendChild(main);
 
@@ -843,9 +851,9 @@ function buildStage(container, rows){
     var aRows = rows.filter(function(r){ return gv(r,'area') === drillStack[0].key; });
     var oRows = aRows.filter(function(r){ return gv(r,'office') === drillStack[1].key; });
     var sRows = oRows.filter(function(r){ return gv(r,'staff') === drillStack[2].key; });
-    var s0 = makeSide(150); buildSideAreas(s0, rows, drillStack[0].key); container.appendChild(s0); container.appendChild(makeDivider());
-    var s1 = makeSide(160); buildSideOffices(s1, aRows, drillStack[1].key); container.appendChild(s1); container.appendChild(makeDivider());
-    var s2 = makeSide(170); buildSideStaff(s2, oRows, drillStack[2].key); container.appendChild(s2); container.appendChild(makeDivider());
+    var s0 = makeSide(165); buildSideAreas(s0, rows, drillStack[0].key); container.appendChild(s0); container.appendChild(makeDivider());
+    var s1 = makeSide(180); buildSideOffices(s1, aRows, drillStack[1].key); container.appendChild(s1); container.appendChild(makeDivider());
+    var s2 = makeSide(190); buildSideStaff(s2, oRows, drillStack[2].key); container.appendChild(s2); container.appendChild(makeDivider());
     var main = makeMain(); main.classList.add('store-view'); buildStoreCards(main, sRows);
     container.appendChild(main);
   }
@@ -1009,9 +1017,7 @@ function buildStoreCards(c,rows){
       +'　<span style="color:var(--yellow)">🟡 未上架 <strong>'+s.n+'</strong></span>'
       +'　<span style="color:var(--red)">🔴 未填寫 <strong>'+s.u+'</strong></span>'
       +(parentInfo?'<br><span style="font-size:11px;color:var(--text-sub)">'+parentInfo+'</span>':'')
-    +'</div>'
-    +'<button class="sa-btn" id="copy-btn" onclick="copyList()">📋 複製清單</button>'
-    +'<button class="sa-btn" id="csv-btn" onclick="downloadCSV()">📥 下載 CSV</button>';
+    +'</div>';
   c.appendChild(actions);
 
   var GRPS=[{k:'l',cls:'sg',lbl:'✅ 上架'},{k:'n',cls:'sy',lbl:'🟡 未上架'},{k:'u',cls:'sr',lbl:'🔴 未填寫'}];
@@ -1152,33 +1158,80 @@ var ss=document.getElementById('sel-survey');
 ss.innerHTML=SURVEYS.map(function(c,i){return'<option value="'+i+'">'+esc(c.name)+'</option>';}).join('');
 ss.disabled=false;
 
-/* 台灣時區時間戳 */
+/* 台灣時區時間戳（版本標記，不自動跳） */
 function updateBuildTs(){
   var el=document.getElementById('build-ts');
   if(!el)return;
   var now=new Date();
   var twOpts={timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false};
-  var s=now.toLocaleString('zh-TW',twOpts).replace(/\//g,'-');
+  var s=now.toLocaleString('zh-TW',twOpts).replace(/[/]/g,'-');
   el.textContent='🕐 '+s;
 }
 updateBuildTs();
-setInterval(updateBuildTs,30000);
+/* 同步時間 = 載入資料那一刻，固定不跳 */
+var _syncTime='';
+function recordSyncTime(){
+  var now=new Date();
+  var twOpts={timeZone:'Asia/Taipei',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false};
+  _syncTime=now.toLocaleString('zh-TW',twOpts).replace(/[/]/g,'-');
+}
 
 /* 全局筆數 + 最後同步時間 */
 function updateGlobalBar(){
   var el=document.getElementById('global-bar');
   if(!el)return;
-  var vis=visible();
   var total=allRows.length;
-  var vt=vis.length;
-  var now=new Date();
-  var twOpts={timeZone:'Asia/Taipei',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false};
-  var syncStr=now.toLocaleString('zh-TW',twOpts);
-  el.innerHTML=
-    '<span class="gb-total">共 <strong>'+vt+'</strong> 筆'
-    +(total!==vt?' <span class="gb-sub">（全 '+total+' 筆）</span>':'')
-    +'</span>'
-    +'<span class="gb-sync">🔄 同步時間 '+syncStr+'</span>';
+
+  // 每層原始數字（不受chip/篩選影響，反映真實資料量）
+  var parts=[];
+  parts.push({lbl:'全覽', n:total, depth:0});
+  if(drillStack.length>=1){
+    var a=drillStack[0].key;
+    var an=allRows.filter(function(r){return gv(r,'area')===a;}).length;
+    parts.push({lbl:a, n:an, depth:1});
+  }
+  if(drillStack.length>=2){
+    var o=drillStack[1].key;
+    var on2=allRows.filter(function(r){
+      return gv(r,'area')===drillStack[0].key && gv(r,'office')===o;
+    }).length;
+    parts.push({lbl:o, n:on2, depth:2});
+  }
+  if(drillStack.length>=3){
+    var st=drillStack[2].key;
+    var sn=allRows.filter(function(r){
+      return gv(r,'area')===drillStack[0].key
+          && gv(r,'office')===drillStack[1].key
+          && gv(r,'staff')===st;
+    }).length;
+    parts.push({lbl:st, n:sn, depth:3});
+  }
+
+  // 路徑 HTML：每層「名稱 數字」，可點擊回上層
+  var pathHtml = parts.map(function(p, i){
+    var isLast = (i === parts.length - 1);
+    var arrow  = i > 0 ? '<span class="gb-arrow"> › </span>' : '';
+    var depth  = p.depth;
+    return arrow
+      + '<span class="gb-seg' + (isLast ? ' gb-cur' : '') + '"'
+      + (isLast ? '' : ' onclick="goToDepth(' + depth + ')"')
+      + '>' + esc(p.lbl)
+      + ' <strong>' + p.n + '</strong>'
+      + '</span>';
+  }).join('');
+
+  // 右側：最後同步時間 + 工具按鈕
+  var rightHtml = '';
+  if(_syncTime){
+    rightHtml += '<span class="gb-sync">📊 最後同步 ' + _syncTime + '</span>';
+  }
+  rightHtml += '<button class="sa-btn" id="copy-btn" onclick="copyList()" '
+    + 'style="padding:3px 12px;font-size:11px">📋 複製</button>';
+  rightHtml += '<button class="sa-btn" id="csv-btn" onclick="downloadCSV()" '
+    + 'style="padding:3px 12px;font-size:11px">📥 CSV</button>';
+
+  el.innerHTML = '<div class="gb-path">' + pathHtml + '</div>'
+               + '<div class="gb-right">' + rightHtml + '</div>';
 }
 
 showLoading();onSurveyChange();
