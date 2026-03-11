@@ -83,10 +83,10 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);}
 .col-side::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
 .col-main{
   flex:1;min-width:0;overflow-y:auto;overflow-x:hidden;
-  padding:18px;display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(290px,1fr));
-  gap:16px;align-content:start;
-  grid-auto-rows:minmax(180px,auto);
+  padding:24px 28px;display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(320px,1fr));
+  gap:22px;align-content:start;
+  grid-auto-rows:minmax(auto,auto); /* 不限制最小高度，讓卡片自然伸展 */
 }
 .col-main::-webkit-scrollbar{width:5px;}
 .col-main::-webkit-scrollbar-thumb{background:var(--border);border-radius:5px;}
@@ -105,7 +105,7 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);}
 .mc-total{font-size:18px;font-weight:900;color:var(--primary);line-height:1;flex-shrink:0;letter-spacing:-1px;}
 .mc-bar{height:4px;background:rgba(0,0,0,.07);border-radius:99px;overflow:hidden;display:flex;margin-bottom:6px;}
 .mc-sts{display:flex;justify-content:space-between;gap:4px;}
-.mc-s{font-size:10px;font-weight:700;white-space:nowrap;}
+.mc-s{font-size:10px;font-weight:700;white-space:nowrap;overflow:visible;}
 .mc-s small{font-size:9px;opacity:.75;font-weight:600;}
 .mc-s.g{color:var(--green);}.mc-s.y{color:var(--yellow);}.mc-s.r{color:var(--red);}
 
@@ -113,10 +113,10 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);}
 .big-card{
   background:var(--card);border:1.5px solid var(--border);border-radius:var(--r);
   cursor:pointer;overflow:hidden;position:relative;
-  display:flex;flex-direction:row;align-items:center; /* 改橫向 */
+  display:flex;flex-direction:row;align-items:center;
   transition:border-color .2s,box-shadow .2s,transform .22s var(--ease);
   animation:cardPop .34s var(--ease) both;
-  padding:14px 16px; gap:14px;
+  padding:18px 20px; gap:18px;
 }
 .big-card::before{
   content:'';position:absolute;left:0;top:0;bottom:0;width:4px;
@@ -127,9 +127,9 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);}
 .big-card:hover{border-color:var(--primary);box-shadow:0 8px 24px var(--shadow);transform:translateY(-3px);}
 .big-card.sel{border-color:var(--primary);box-shadow:0 0 0 3px rgba(139,166,144,.2),0 6px 20px var(--shadow);}
 /* 左側：名稱+大數字 */
-.bc-head{display:flex;flex-direction:column;justify-content:center;min-width:90px;max-width:110px;border-right:1px solid var(--border);padding-right:14px;flex-shrink:0;}
-.bc-name{font-size:13px;font-weight:700;color:var(--text-sub);line-height:1.3;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.bc-total{font-size:36px;font-weight:900;color:var(--primary);line-height:1;letter-spacing:-2px;}
+.bc-head{display:flex;flex-direction:column;justify-content:center;min-width:100px;max-width:130px;border-right:1px solid var(--border);padding-right:16px;flex-shrink:0;}
+.bc-name{font-size:14px;font-weight:700;color:var(--text-sub);line-height:1.3;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.bc-total{font-size:40px;font-weight:900;color:var(--primary);line-height:1;letter-spacing:-2px;}
 /* 右側：進度條+統計 */
 .bc-right{flex:1;display:flex;flex-direction:column;gap:8px;}
 .bc-bar{padding:0;}
@@ -237,6 +237,8 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);}
 .store-panel.sg .sp-pct{background:var(--green-bg);color:#2a6e3a;}
 .store-panel.sy .sp-pct{background:var(--yellow-bg);color:#7a5500;}
 .store-panel.sr .sp-pct{background:var(--red-bg);color:#9e1f18;}
+.sp-arrow{font-size:11px;color:var(--sub);width:14px;flex-shrink:0;}
+.sp-body{overflow:visible;} /* 不限高度，完整顯示所有行 */
 .store-tbl{width:100%;border-collapse:collapse;table-layout:fixed;}
 .store-tbl th{
   padding:7px 14px;font-size:10px;font-weight:700;letter-spacing:.5px;text-align:left;
@@ -271,6 +273,21 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);}
 .store-panel:nth-child(2){animation-delay:.07s}
 .store-panel:nth-child(3){animation-delay:.13s}
 .store-panel:nth-child(4){animation-delay:.19s}
+
+/* ══ 交叉篩選 ══ */
+#cross-filter{flex-shrink:0;background:var(--card);border-bottom:1.5px solid var(--border);}
+.cf-toggle{padding:6px 20px;font-size:12px;font-weight:700;cursor:pointer;color:var(--primary);user-select:none;display:inline-flex;align-items:center;gap:6px;}
+.cf-toggle:hover{background:rgba(0,0,0,.03);}
+.cf-body{padding:10px 20px 14px;border-top:1px solid var(--border);}
+.cf-row{display:flex;align-items:flex-start;gap:24px;flex-wrap:wrap;}
+.cf-group{display:flex;align-items:flex-start;gap:8px;}
+.cf-lbl{font-size:11px;font-weight:700;color:var(--sub);min-width:50px;padding-top:4px;white-space:nowrap;}
+.cf-chips{display:flex;flex-wrap:wrap;gap:5px;}
+.cf-chip{display:flex;align-items:center;gap:4px;font-size:11px;padding:3px 9px;background:var(--bg);border-radius:99px;cursor:pointer;border:1px solid var(--border);}
+.cf-chip:hover{border-color:var(--primary);}
+.cf-chip input{accent-color:var(--primary);cursor:pointer;}
+.cf-reset-btn{align-self:flex-end;font-size:11px;padding:4px 12px;border:1px solid var(--border);border-radius:6px;background:var(--card);cursor:pointer;white-space:nowrap;margin-left:auto;}
+.cf-reset-btn:hover{border-color:var(--primary);color:var(--primary);}
 
 /* ══ 空狀態 ══ */
 .empty{grid-column:1/-1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;gap:10px;color:var(--sub);font-size:13px;}
@@ -310,6 +327,7 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);}
     <button class="chip y on" id="chip-n" onclick="toggleChip('n')">🟡 未上架</button>
     <button class="chip r on" id="chip-u" onclick="toggleChip('u')">🔴 未填寫</button>
   </div>
+  <button id="clear-btn" onclick="clearAllFilters()" style="display:none;padding:4px 12px;border-radius:8px;border:1.5px solid #c62828;background:#fff5f5;color:#c62828;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;">✕ 清除篩選</button>
   <div id="build-ts"></div>
 </div>
 
@@ -322,6 +340,16 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);}
   </div>
 </div>
 
+<div id="cross-filter" style="display:none">
+  <div class="cf-toggle" onclick="toggleCF()">🔽 交叉篩選</div>
+  <div class="cf-body" id="cf-body" style="display:none">
+    <div class="cf-row">
+      <div class="cf-group"><div class="cf-lbl">通路別</div><div class="cf-chips" id="cf-ch"></div></div>
+      <div class="cf-group"><div class="cf-lbl">店家型態</div><div class="cf-chips" id="cf-tp"></div></div>
+      <button onclick="resetCF()" class="cf-reset-btn">重設全選</button>
+    </div>
+  </div>
+</div>
 <div id="stage"></div>
 
 <script>
@@ -342,7 +370,7 @@ var _oMap={},_sMap={};
 var _runRaf=null;
 var _syncTime='';
 /* 店家層狀態過濾（哪些狀態顯示） */
-var _visibleStatus={l:true,n:true,u:true};
+var _visibleStatus={l:false,n:false,u:false};
 
 /* ══ 欄位索引 ══ */
 var CI={area:-1,office:-1,staff:-1,store:-1,code:-1,channel:-1,type:-1,grade:-1};
@@ -474,14 +502,17 @@ function fetchSheet(id,sheet,ok,fail){
 }
 
 /* ══ 篩選器 ══ */
+var _chTypeMap={};/* 通路→型態對應 */
 function buildFilters(){
   var aSet=new Set();_oMap={};_sMap={};var chSet=new Set(),tpSet=new Set();
+  _chTypeMap={};
   allRows.forEach(function(r){
     var a=gv(r,'area'),o=gv(r,'office'),s=gv(r,'staff');
     var ch=gv(r,'channel'),tp=gv(r,'type');
     if(a){aSet.add(a);if(!_oMap[a])_oMap[a]=new Set();
       if(o){_oMap[a].add(o);var k=a+'||'+o;if(!_sMap[k])_sMap[k]=new Set();if(s)_sMap[k].add(s);}}
-    if(ch)chSet.add(ch);if(tp)tpSet.add(tp);
+    if(ch){chSet.add(ch);if(!_chTypeMap[ch])_chTypeMap[ch]=new Set();if(tp)_chTypeMap[ch].add(tp);}
+    if(tp)tpSet.add(tp);
   });
   fillSel('sel-area',Array.from(aSet));
   fillSel('sel-channel',Array.from(chSet));
@@ -514,7 +545,42 @@ function onOfficeFilter(doRender){
   if(doRender!==false)render('none');
 }
 function onStaffFilter(){fStaff=document.getElementById('sel-staff').value;render('none');}
-function onFilterChange(){fCh=document.getElementById('sel-channel').value;fType=document.getElementById('sel-type').value;render('none');}
+function onFilterChange(){
+  fCh=document.getElementById('sel-channel').value;
+  /* 通路改變時，更新型態選單只顯示該通路的型態 */
+  var oldType=document.getElementById('sel-type').value;
+  if(fCh&&_chTypeMap[fCh]){
+    var types=Array.from(_chTypeMap[fCh]);
+    fillSel('sel-type',types);
+    /* 若原本選的型態不在新清單就清掉 */
+    if(oldType&&!_chTypeMap[fCh].has(oldType))document.getElementById('sel-type').value='';
+  }else{
+    /* 通路=全部時恢復全部型態 */
+    var allTypes=new Set();allRows.forEach(function(r){if(gv(r,'type'))allTypes.add(gv(r,'type'));});
+    fillSel('sel-type',Array.from(allTypes));
+  }
+  fType=document.getElementById('sel-type').value;
+  updateClearBtn();
+  render('none');
+}
+function updateClearBtn(){
+  var btn=document.getElementById('clear-btn');if(!btn)return;
+  var hasFilter=fArea||fOffice||fStaff||fCh||fType||!chips.l||!chips.n||!chips.u;
+  btn.style.display=hasFilter?'':'none';
+}
+function clearAllFilters(){
+  fArea='';fOffice='';fStaff='';fCh='';fType='';
+  ['sel-area','sel-office','sel-staff','sel-channel','sel-type'].forEach(function(id){
+    var el=document.getElementById(id);if(el)el.value='';
+  });
+  chips={l:true,n:true,u:true};
+  ['l','n','u'].forEach(function(t){var el=document.getElementById('chip-'+t);if(el)el.classList.add('on');});
+  /* 恢復全部型態選單 */
+  var allTypes=new Set();allRows.forEach(function(r){if(gv(r,'type'))allTypes.add(gv(r,'type'));});
+  fillSel('sel-type',Array.from(allTypes));
+  updateClearBtn();
+  render('none');
+}
 function toggleChip(t){chips[t]=!chips[t];document.getElementById('chip-'+t).classList.toggle('on',chips[t]);render('none');}
 
 /* ══ 下鑽 ══ */
@@ -523,13 +589,13 @@ function drillInto(level,key){
   var clickedCard=findBigCard(key)||findStaffCard(key);
   drillStack=drillStack.slice(0,LEVEL_IDX[level]);
   drillStack.push({level:level,key:key});
-  _visibleStatus={l:true,n:true,u:true};
+  _visibleStatus={l:false,n:false,u:false};
   doRender('forward',clickedCard);
 }
 function goToDepth(d){
   if(drillStack.length===d)return;
   drillStack=drillStack.slice(0,d);
-  _visibleStatus={l:true,n:true,u:true};
+  _visibleStatus={l:false,n:false,u:false};
   doRender('back',null);
 }
 function render(dir){doRender(dir||'none',null);}
@@ -560,7 +626,7 @@ function doRender(dir,clickedCard){
   var stage=document.getElementById('stage');
 
   if(dir==='none'){
-    stage.innerHTML='';buildStage(stage,rows);return;
+    stage.innerHTML='';buildStage(stage,rows);updateCF(rows);return;
   }
 
   var firstRect=(clickedCard&&dir==='forward')?clickedCard.getBoundingClientRect():null;
@@ -601,6 +667,7 @@ function doRender(dir,clickedCard){
       requestAnimationFrame(function(){
         m.style.transition='opacity .4s var(--ease),transform .4s var(--ease)';
         m.style.opacity='1';m.style.transform='none';
+        updateCF();
       });
     }
   });
@@ -633,21 +700,21 @@ function buildStage(container,rows){
     var main=makeMain();buildAreaCards(main,rows);container.appendChild(main);
   }else if(depth===1){
     var aRows=rows.filter(function(r){return gv(r,'area')===drillStack[0].key;});
-    var s0=makeSide(190);buildSideAreas(s0,rows,drillStack[0].key);container.appendChild(s0);container.appendChild(makeDivider());
+    var s0=makeSide(210);buildSideAreas(s0,rows,drillStack[0].key);container.appendChild(s0);container.appendChild(makeDivider());
     var main=makeMain();buildOfficeCards(main,aRows);container.appendChild(main);
   }else if(depth===2){
     var aRows=rows.filter(function(r){return gv(r,'area')===drillStack[0].key;});
     var oRows=aRows.filter(function(r){return gv(r,'office')===drillStack[1].key;});
-    var s0=makeSide(180);buildSideAreas(s0,rows,drillStack[0].key);container.appendChild(s0);container.appendChild(makeDivider());
-    var s1=makeSide(190);buildSideOffices(s1,aRows,drillStack[1].key);container.appendChild(s1);container.appendChild(makeDivider());
+    var s0=makeSide(200);buildSideAreas(s0,rows,drillStack[0].key);container.appendChild(s0);container.appendChild(makeDivider());
+    var s1=makeSide(210);buildSideOffices(s1,aRows,drillStack[1].key);container.appendChild(s1);container.appendChild(makeDivider());
     var main=makeMain();main.classList.add('staff-view');buildStaffCards(main,oRows);container.appendChild(main);
   }else if(depth>=3){
     var aRows=rows.filter(function(r){return gv(r,'area')===drillStack[0].key;});
     var oRows=aRows.filter(function(r){return gv(r,'office')===drillStack[1].key;});
     var sRows=oRows.filter(function(r){return gv(r,'staff')===drillStack[2].key;});
-    var s0=makeSide(165);buildSideAreas(s0,rows,drillStack[0].key);container.appendChild(s0);container.appendChild(makeDivider());
-    var s1=makeSide(175);buildSideOffices(s1,aRows,drillStack[1].key);container.appendChild(s1);container.appendChild(makeDivider());
-    var s2=makeSide(190);buildSideStaff(s2,oRows,drillStack[2].key);container.appendChild(s2);container.appendChild(makeDivider());
+    var s0=makeSide(185);buildSideAreas(s0,rows,drillStack[0].key);container.appendChild(s0);container.appendChild(makeDivider());
+    var s1=makeSide(195);buildSideOffices(s1,aRows,drillStack[1].key);container.appendChild(s1);container.appendChild(makeDivider());
+    var s2=makeSide(210);buildSideStaff(s2,oRows,drillStack[2].key);container.appendChild(s2);container.appendChild(makeDivider());
     var main=makeMain();main.classList.add('store-view');buildStoreCards(main,sRows);container.appendChild(main);
   }
 }
@@ -812,9 +879,13 @@ function buildStoreCards(c,rows){
     panel.id='store-panel-'+g.k;
     if(!_visibleStatus[g.k])panel.classList.add('hidden');
     var pv=pct(gr.length,t);
-    var html='<div class="sp-head"><span class="sp-title">'+g.lbl+'</span>'
+    var isOpen=_visibleStatus[g.k];
+    var html='<div class="sp-head" onclick="togglePanel(\''+g.k+'\')" style="cursor:pointer;user-select:none">'
+      +'<span class="sp-arrow">'+(isOpen?'▾':'▸')+'</span>'
+      +'<span class="sp-title">'+g.lbl+'</span>'
       +'<span class="sp-cnt">'+gr.length+' 家</span>'
       +'<span class="sp-pct">佔 '+pv+'%</span></div>'
+      +'<div class="sp-body"'+(isOpen?'':' style="display:none"')+'>'
       +'<table class="store-tbl"><thead><tr>'
       +'<th style="width:28px"></th>'
       +'<th style="width:22%">店家名稱</th>'
@@ -831,7 +902,7 @@ function buildStoreCards(c,rows){
         +'<td class="td-sub">'+esc(gv(r,'grade'))+'</td>'
         +'<td class="td-sub">'+esc(gv(r,'code'))+'</td></tr>';
     });
-    html+='</tbody></table>';panel.innerHTML=html;c.appendChild(panel);
+    html+='</tbody></table></div>';panel.innerHTML=html;c.appendChild(panel);
   });
   if(!hasAny)c.appendChild(makeEmpty('沒有符合條件的店家'));
   window._storeRows=rows;
@@ -848,6 +919,87 @@ function toggleStatus(k){
 }
 
 /* ══ global bar ══ */
+/* 交叉篩選器：任何層級都可用 */
+function updateCF(rows){
+  /* 收集當前可見資料的通路和型態 */
+  var cfEl=document.getElementById('cross-filter');if(!cfEl)return;
+  var chSet=new Set(),tpSet=new Set();
+  (rows||visible()).forEach(function(r){
+    var ch=gv(r,'channel'),tp=gv(r,'type');
+    if(ch)chSet.add(ch);if(tp)tpSet.add(tp);
+  });
+  var chArr=Array.from(chSet).sort(function(a,b){return a.localeCompare(b,'zh-TW');});
+  var tpArr=Array.from(tpSet).sort(function(a,b){return a.localeCompare(b,'zh-TW');});
+  /* 記住目前勾選狀態 */
+  var prevCh=new Set(),prevTp=new Set();
+  document.querySelectorAll('#cf-ch input:checked').forEach(function(el){prevCh.add(el.dataset.ch);});
+  document.querySelectorAll('#cf-tp input:checked').forEach(function(el){prevTp.add(el.dataset.tp);});
+  var chWasEmpty=(document.querySelectorAll('#cf-ch input').length===0);
+  var tpWasEmpty=(document.querySelectorAll('#cf-tp input').length===0);
+  var chEl=document.getElementById('cf-ch');
+  var tpEl=document.getElementById('cf-tp');
+  if(chEl) chEl.innerHTML=chArr.map(function(ch){
+    var chk=(chWasEmpty||prevCh.has(ch));
+    return '<label class="cf-chip"><input type="checkbox"'+(chk?' checked':'')
+      +' onchange="applyCF()" data-ch="'+esc(ch)+'"> '+esc(ch)+'</label>';
+  }).join('');
+  if(tpEl) tpEl.innerHTML=tpArr.map(function(tp){
+    var chk=(tpWasEmpty||prevTp.has(tp));
+    return '<label class="cf-chip"><input type="checkbox"'+(chk?' checked':'')
+      +' onchange="applyCF()" data-tp="'+esc(tp)+'"> '+esc(tp)+'</label>';
+  }).join('');
+  cfEl.style.display='';
+}
+function toggleCF(){
+  var b=document.getElementById('cf-body');
+  if(!b)return;
+  var open=b.style.display==='none';
+  b.style.display=open?'':'none';
+  var t=document.querySelector('.cf-toggle');
+  if(t)t.textContent=(open?'🔼':'🔽')+' 交叉篩選';
+}
+function applyCF(){
+  /* 讀取勾選 */
+  var chChecked=new Set(),tpChecked=new Set();
+  document.querySelectorAll('#cf-ch input:checked').forEach(function(el){chChecked.add(el.dataset.ch);});
+  document.querySelectorAll('#cf-tp input:checked').forEach(function(el){tpChecked.add(el.dataset.tp);});
+  /* 篩選大卡片 */
+  document.querySelectorAll('.col-main .big-card').forEach(function(card){
+    if(!card.onclick&&!card._onClick)return; /* 整體卡不過濾 */
+    /* 先按 data 重算 — 交給 render 處理，這裡只藏/顯 */
+  });
+  /* 篩選店家表格行 */
+  document.querySelectorAll('.store-panel').forEach(function(panel){
+    var tbody=panel.querySelector('tbody');if(!tbody)return;
+    var trs=tbody.querySelectorAll('tr');
+    var vis=0;
+    trs.forEach(function(tr){
+      var tds=tr.querySelectorAll('td');if(tds.length<5)return;
+      var ch=tds[2].textContent.trim();
+      var tp=tds[3].textContent.trim();
+      var show=(!chChecked.size||chChecked.has(ch))&&(!tpChecked.size||tpChecked.has(tp));
+      tr.style.display=show?'':'none';
+      if(show)vis++;
+    });
+    var cnt=panel.querySelector('.sp-cnt');if(cnt)cnt.textContent=vis+' 家';
+  });
+  /* 篩選人員卡片（staff-card）：依通路重算 */
+  document.querySelectorAll('.staff-card').forEach(function(card){
+    /* 這裡讓重算走 render，暫時只針對店家表格 */
+  });
+}
+function resetCF(){
+  document.querySelectorAll('#cf-ch input,#cf-tp input').forEach(function(el){el.checked=true;});
+  applyCF();
+}
+function togglePanel(k){
+  _visibleStatus[k]=!_visibleStatus[k];
+  var head=document.querySelector('#store-panel-'+k+' .sp-head');
+  var body=document.querySelector('#store-panel-'+k+' .sp-body');
+  var arrow=document.querySelector('#store-panel-'+k+' .sp-arrow');
+  if(body){body.style.display=_visibleStatus[k]?'':'none';}
+  if(arrow){arrow.textContent=_visibleStatus[k]?'▾':'▸';}
+}
 function updateGlobalBar(){
   var path=document.getElementById('gb-path');
   var sync=document.getElementById('gb-sync');
