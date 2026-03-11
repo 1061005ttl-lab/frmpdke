@@ -121,49 +121,64 @@ body { display:flex; flex-direction:column; background:var(--bg-main); color:var
 .big-card {
   background:var(--bg-card);
   border:1.5px solid var(--border);
-  border-radius:var(--radius);
+  border-radius:18px;
   cursor:pointer; overflow:hidden;
-  transition:border-color .2s, box-shadow .2s, transform .22s var(--ease);
+  transition:border-color .22s, box-shadow .22s, transform .24s var(--ease);
   will-change:transform;
+  position:relative;
 }
 .big-card:hover {
   border-color:var(--primary);
-  box-shadow:0 10px 32px var(--shadow);
-  transform:translateY(-5px);
+  box-shadow:0 14px 40px var(--shadow);
+  transform:translateY(-6px);
 }
 .big-card.sel {
   border-color:var(--primary);
-  box-shadow:0 0 0 3px rgba(139,166,144,.2), 0 8px 28px var(--shadow);
+  box-shadow:0 0 0 3px rgba(139,166,144,.22), 0 10px 32px var(--shadow);
 }
+/* 卡頂色條 */
+.big-card::before {
+  content:'';
+  display:block;
+  height:4px;
+  background:linear-gradient(90deg, var(--primary), color-mix(in srgb, var(--primary) 60%, white));
+  opacity:0;
+  transition:opacity .22s;
+}
+.big-card:hover::before, .big-card.sel::before { opacity:1; }
 /* 卡頭 */
 .bc-head {
-  padding:20px 20px 10px;
+  padding:18px 20px 8px;
   display:flex; justify-content:space-between; align-items:flex-start; gap:8px;
 }
 .bc-name { font-size:15px; font-weight:700; color:var(--text-main); line-height:1.3; flex:1; }
-.bc-total { font-size:44px; font-weight:900; color:var(--primary); line-height:1; flex-shrink:0; font-variant-numeric:tabular-nums; }
+.bc-total {
+  font-size:48px; font-weight:900; color:var(--primary); line-height:1;
+  flex-shrink:0; font-variant-numeric:tabular-nums;
+  letter-spacing:-2px;
+}
 /* 進度條 */
-.bc-bar { padding:0 20px 8px; }
-.bc-track { height:7px; background:rgba(0,0,0,.07); border-radius:99px; overflow:hidden; display:flex; }
+.bc-bar { padding:0 20px 10px; }
+.bc-track { height:8px; background:rgba(0,0,0,.07); border-radius:99px; overflow:hidden; display:flex; }
 .seg-g { background:var(--green); }
 .seg-y { background:var(--yellow); }
 .seg-r { background:var(--red); }
 /* 三格統計 */
-.bc-stats { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; padding:10px 20px 20px; }
+.bc-stats { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; padding:0 20px 20px; }
 .bc-st {
-  display:flex; flex-direction:column; gap:3px;
-  padding:9px 10px; border-radius:10px;
-  min-height:0; /* 不固定高度，內容多少算多少 */
+  display:flex; flex-direction:column; gap:4px;
+  padding:11px 12px; border-radius:12px;
+  min-height:0;
 }
 .bc-st.g { background:var(--green-bg); border:1px solid var(--green-bd); }
 .bc-st.y { background:var(--yellow-bg); border:1px solid var(--yellow-bd); }
 .bc-st.r { background:var(--red-bg); border:1px solid var(--red-bd); }
-.bc-st-lbl { font-size:9px; font-weight:700; letter-spacing:.4px; color:var(--text-sub); }
-.bc-st-num { font-size:22px; font-weight:900; line-height:1; }
+.bc-st-lbl { font-size:9px; font-weight:700; letter-spacing:.5px; color:var(--text-sub); text-transform:uppercase; }
+.bc-st-num { font-size:24px; font-weight:900; line-height:1; letter-spacing:-1px; }
 .bc-st.g .bc-st-num { color:var(--green); }
 .bc-st.y .bc-st-num { color:var(--yellow); }
 .bc-st.r .bc-st-num { color:var(--red); }
-.bc-st-pct { font-size:11px; font-weight:600; opacity:.75; }
+.bc-st-pct { font-size:12px; font-weight:700; opacity:.8; }
 .bc-st.g .bc-st-pct { color:var(--green); }
 .bc-st.y .bc-st-pct { color:var(--yellow); }
 .bc-st.r .bc-st-pct { color:var(--red); }
@@ -457,7 +472,7 @@ body { display:flex; flex-direction:column; background:var(--bg-main); color:var
     <button class="chip y on" id="chip-n" onclick="toggleChip('n')">🟡 未上架</button>
     <button class="chip r on" id="chip-u" onclick="toggleChip('u')">🔴 未填寫</button>
   </div>
-  <div id="build-ts">🕐 2026-03-11 03:17</div>
+  <div id="build-ts">🕐 2026-03-11 03:40</div>
 </div>
 
 <!-- 麵包屑 -->
@@ -674,7 +689,7 @@ function render(dir){
   doRender(dir || 'none', null);
 }
 
-/* 核心渲染：先建好新 DOM，再做動畫，最後替換 */
+/* 核心渲染：無閃爍切換 */
 function doRender(dir, clickedCard){
   if(!allRows.length) return;
   updateBC();
@@ -691,13 +706,17 @@ function doRender(dir, clickedCard){
   // ── 記錄被點卡片的位置（FLIP first）──
   var firstRect = (clickedCard && dir === 'forward') ? clickedCard.getBoundingClientRect() : null;
 
-  // ── 建新內容放進暫存容器 ──
+  // ── 在 stage 外建新內容，完全不可見 ──
   var newWrap = document.createElement('div');
-  newWrap.style.cssText = 'position:absolute;inset:0;display:flex;overflow:hidden;pointer-events:none;visibility:hidden;z-index:2';
-  document.getElementById('stage').appendChild(newWrap);
+  newWrap.style.cssText = 'position:fixed;left:-9999px;top:-9999px;display:flex;width:'+stage.offsetWidth+'px;height:'+stage.offsetHeight+'px;overflow:hidden;';
+  document.body.appendChild(newWrap);
   buildStage(newWrap, rows);
 
   // ── 找新側欄中對應小卡的位置（FLIP last）──
+  // 先把 newWrap 移到正確位置量座標
+  var stageRect = stage.getBoundingClientRect();
+  newWrap.style.left = stageRect.left + 'px';
+  newWrap.style.top  = stageRect.top  + 'px';
   var lastRect = null;
   if(firstRect){
     var key = drillStack[drillStack.length-1] ? drillStack[drillStack.length-1].key : null;
@@ -706,57 +725,22 @@ function doRender(dir, clickedCard){
       for(var i=0; i<minis.length; i++){
         var nm = minis[i].querySelector('.mc-name');
         if(nm && nm.textContent.replace(/^\S+\s*/,'').indexOf(key) >= 0){
-          newWrap.style.visibility = 'visible'; // 先顯示才能量
           lastRect = minis[i].getBoundingClientRect();
-          newWrap.style.visibility = 'hidden';
           break;
         }
       }
     }
   }
+  // 量完馬上藏回去
+  newWrap.style.left = '-9999px';
+  newWrap.style.top  = '-9999px';
 
-  // ── 取舊主欄準備退場 ──
-  var oldMain = stage.querySelector('.col-main');
-
-  // ── 顯示新內容，同時開始新主欄進場動畫 ──
-  newWrap.style.visibility = 'visible';
-  newWrap.style.pointerEvents = 'auto';
-
-  var newMain = newWrap.querySelector('.col-main');
-  if(newMain){
-    if(dir === 'forward'){
-      newMain.style.cssText += ';opacity:0;transform:translateX(55px) scale(0.96)';
-    } else {
-      newMain.style.cssText += ';opacity:0;transform:translateX(-55px) scale(0.96)';
-    }
-    requestAnimationFrame(function(){
-      requestAnimationFrame(function(){
-        newMain.style.transition = 'opacity .42s cubic-bezier(0.34,1.05,0.64,1),transform .42s cubic-bezier(0.34,1.05,0.64,1)';
-        newMain.style.opacity = '1';
-        newMain.style.transform = 'none';
-      });
-    });
-  }
-
-  // ── 舊主欄退場 ──
-  if(oldMain){
-    oldMain.style.pointerEvents = 'none';
-    requestAnimationFrame(function(){
-      oldMain.style.transition = 'opacity .32s ease,transform .32s cubic-bezier(0.4,0,0.2,1)';
-      oldMain.style.opacity = '0';
-      oldMain.style.transform = dir === 'forward'
-        ? 'translateX(-40px) scale(0.94)'
-        : 'translateX(40px) scale(0.94)';
-    });
-  }
-
-  // ── FLIP：被點大卡片飛向側欄小卡位置 ──
+  // ── FLIP 幽靈動畫 ──
   if(clickedCard && firstRect && lastRect){
     var scaleX = lastRect.width  / firstRect.width;
     var scaleY = lastRect.height / firstRect.height;
     var dx = lastRect.left - firstRect.left;
     var dy = lastRect.top  - firstRect.top;
-
     var ghost = clickedCard.cloneNode(true);
     ghost.style.cssText = [
       'position:fixed',
@@ -778,19 +762,35 @@ function doRender(dir, clickedCard){
     setTimeout(function(){if(ghost.parentNode)ghost.parentNode.removeChild(ghost);}, 500);
   }
 
-  // ── 清理舊 DOM，把新 wrap 解開掛到 stage ──
-  setTimeout(function(){
-    // 移除舊內容（除了 newWrap）
-    Array.from(stage.children).forEach(function(c){
-      if(c !== newWrap && c.parentNode) c.parentNode.removeChild(c);
-    });
-    // 把 newWrap 的子節點直接掛到 stage
+  // ── 設定新主欄起始狀態（從畫面外）──
+  var newMain = newWrap.querySelector('.col-main');
+  if(newMain){
+    newMain.style.opacity = '0';
+    newMain.style.transform = dir === 'forward' ? 'translateX(50px) scale(0.96)' : 'translateX(-50px) scale(0.96)';
+    newMain.style.transition = 'none';
+  }
+
+  // ── 舊主欄準備退場 ──
+  var oldMain = stage.querySelector('.col-main');
+  if(oldMain) oldMain.style.pointerEvents = 'none';
+
+  // ── 一幀後：把新內容搬進 stage，同時啟動所有動畫 ──
+  requestAnimationFrame(function(){
+    // 清空 stage，放入新內容
+    stage.innerHTML = '';
     Array.from(newWrap.children).forEach(function(c){ stage.appendChild(c); });
     if(newWrap.parentNode) newWrap.parentNode.removeChild(newWrap);
-    // 清除新主欄的 inline transition（交給 CSS 接管）
+
+    // 新主欄進場
     var m = stage.querySelector('.col-main');
-    if(m){ m.style.transition=''; m.style.opacity=''; m.style.transform=''; }
-  }, 430);
+    if(m){
+      requestAnimationFrame(function(){
+        m.style.transition = 'opacity .42s cubic-bezier(0.34,1.05,0.64,1),transform .42s cubic-bezier(0.34,1.05,0.64,1)';
+        m.style.opacity = '1';
+        m.style.transform = 'none';
+      });
+    }
+  });
 }
 
 /* ══ buildStage：根據 drillStack 深度建構整個舞台 ══ */
@@ -805,7 +805,7 @@ function buildStage(container, rows){
 
   } else if(depth === 1){
     var aRows = rows.filter(function(r){ return gv(r,'area') === drillStack[0].key; });
-    var side = makeSide(104); buildSideAreas(side, rows, drillStack[0].key);
+    var side = makeSide(170); buildSideAreas(side, rows, drillStack[0].key);
     container.appendChild(side); container.appendChild(makeDivider());
     var main = makeMain(); buildOfficeCards(main, aRows);
     container.appendChild(main);
@@ -813,8 +813,8 @@ function buildStage(container, rows){
   } else if(depth === 2){
     var aRows = rows.filter(function(r){ return gv(r,'area') === drillStack[0].key; });
     var oRows = aRows.filter(function(r){ return gv(r,'office') === drillStack[1].key; });
-    var s0 = makeSide(92); buildSideAreas(s0, rows, drillStack[0].key); container.appendChild(s0); container.appendChild(makeDivider());
-    var s1 = makeSide(104); buildSideOffices(s1, aRows, drillStack[1].key); container.appendChild(s1); container.appendChild(makeDivider());
+    var s0 = makeSide(160); buildSideAreas(s0, rows, drillStack[0].key); container.appendChild(s0); container.appendChild(makeDivider());
+    var s1 = makeSide(170); buildSideOffices(s1, aRows, drillStack[1].key); container.appendChild(s1); container.appendChild(makeDivider());
     var main = makeMain(); buildStaffCards(main, oRows);
     container.appendChild(main);
 
@@ -822,9 +822,9 @@ function buildStage(container, rows){
     var aRows = rows.filter(function(r){ return gv(r,'area') === drillStack[0].key; });
     var oRows = aRows.filter(function(r){ return gv(r,'office') === drillStack[1].key; });
     var sRows = oRows.filter(function(r){ return gv(r,'staff') === drillStack[2].key; });
-    var s0 = makeSide(86); buildSideAreas(s0, rows, drillStack[0].key); container.appendChild(s0); container.appendChild(makeDivider());
-    var s1 = makeSide(92); buildSideOffices(s1, aRows, drillStack[1].key); container.appendChild(s1); container.appendChild(makeDivider());
-    var s2 = makeSide(104); buildSideStaff(s2, oRows, drillStack[2].key); container.appendChild(s2); container.appendChild(makeDivider());
+    var s0 = makeSide(150); buildSideAreas(s0, rows, drillStack[0].key); container.appendChild(s0); container.appendChild(makeDivider());
+    var s1 = makeSide(160); buildSideOffices(s1, aRows, drillStack[1].key); container.appendChild(s1); container.appendChild(makeDivider());
+    var s2 = makeSide(170); buildSideStaff(s2, oRows, drillStack[2].key); container.appendChild(s2); container.appendChild(makeDivider());
     var main = makeMain(); main.classList.add('store-view'); buildStoreCards(main, sRows);
     container.appendChild(main);
   }
@@ -1035,26 +1035,37 @@ function buildStoreCards(c,rows){
 /* ══ 複製 & CSV ══ */
 function copyList(){
   var rows=window._storeRows||[];if(!rows.length)return;
-  var ST={l:'✅ 上架',n:'🟡 未上架',u:'🔴 未填寫'};
-  var counts={l:0,n:0,u:0};rows.forEach(function(r){counts[gs(r)]++;});
-  var lines=[window._storeLabel||'店家清冊',''];
-  ['l','n','u'].forEach(function(k){
-    if(!counts[k])return;
-    lines.push('【'+ST[k]+' '+counts[k]+'家】');
-    rows.filter(function(r){return gs(r)===k;}).forEach(function(r){
-      var meta=[gv(r,'channel'),gv(r,'type'),gv(r,'grade')].filter(Boolean).join('·');
-      var line='  '+gv(r,'store');
-      if(meta)line+=' ('+meta+')';
-      line+='  '+gv(r,'code');
-      lines.push(line);
-    });
-    lines.push('');
+  var surveyName=SURVEYS[curSurvey]?SURVEYS[curSurvey].name:'';
+  var pathLabel=drillStack.map(function(d){return d.key;}).join(' › ');
+  var staffName=drillStack[2]?drillStack[2].key:'';
+  var s=stat(rows);
+  // 標題行
+  var lines=[];
+  lines.push('📋 '+surveyName+(pathLabel?' ｜ '+pathLabel:''));
+  // 統計摘要
+  lines.push('🔴 未填寫 '+s.u+'筆	🟡 未上架 '+s.n+'筆	✅ 上架 '+s.l+'筆');
+  lines.push('');
+  // 人員名
+  if(staffName) lines.push('👤 '+staffName);
+  // 按狀態排序：先u，再n，再l
+  var order={u:0,n:1,l:2};
+  var sorted=rows.slice().sort(function(a,b){
+    var od=order[gs(a)]-order[gs(b)];
+    if(od!==0)return od;
+    return gv(a,'store').localeCompare(gv(b,'store'),'zh-TW');
+  });
+  sorted.forEach(function(r){
+    var icon=gs(r)==='u'?'🔴':gs(r)==='n'?'🟡':'✅';
+    var ch=gv(r,'channel');
+    var store=gv(r,'store');
+    lines.push('   '+icon+' '+ch+'｜'+store);
   });
   var text=lines.join('\n').trim();
   if(navigator.clipboard&&navigator.clipboard.writeText){
     navigator.clipboard.writeText(text).then(function(){flash('copy-btn','✅ 已複製','📋 複製清單');}).catch(function(){fbCopy(text);});
   }else fbCopy(text);
 }
+function esc_plain(s){return String(s==null?'':s);}
 function fbCopy(t){var ta=document.createElement('textarea');ta.value=t;ta.style.cssText='position:fixed;opacity:0';document.body.appendChild(ta);ta.select();try{document.execCommand('copy');flash('copy-btn','✅ 已複製','📋 複製清單');}catch(e){}document.body.removeChild(ta);}
 function flash(id,on,off){var b=document.getElementById(id);if(!b)return;b.textContent=on;setTimeout(function(){b.textContent=off;},2000);}
 function downloadCSV(){
