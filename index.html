@@ -833,7 +833,7 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
   </div>
   <button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
   <button id="p5-toggle" onclick="toggleP5()">⚡ P5</button>
-  <div id="ver-ts">Ver. 1.0.6 (2026-03-13 TST)</div>
+  <div id="ver-ts">Ver. 1.0.7 (2026-03-13 TST)</div>
 </div>
 
 <div id="gbar">
@@ -1379,13 +1379,8 @@ function buildAreaCards(c,rows){
   var sel=drillStack[0]?drillStack[0].key:null;
   c.appendChild(makeWholeCard('整體',rows));
   var m=groupBy(rows,'area');
-  var sorted=sortArea(Object.keys(m)).slice().sort(function(a,b){
-    return stat(m[b]).u - stat(m[a]).u;
-  });
-  sorted.forEach(function(k,i){
-    var card=makeBigCard(k,m[k],function(){drillInto('area',k);},sel===k);
-    if(i<3)card.classList.add('bc-top'+(i+1));
-    c.appendChild(card);
+  sortArea(Object.keys(m)).forEach(function(k){
+    c.appendChild(makeBigCard(k,m[k],function(){drillInto('area',k);},sel===k));
   });
   if(!Object.keys(m).length)c.appendChild(makeEmpty('沒有符合條件的資料'));
 }
