@@ -806,94 +806,155 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
 #clear-btn{display:none;padding:4px 11px;border-radius:7px;border:1.5px solid #c62828;background:#fff5f5;color:#c62828;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;}
 
 /* ══ 手機漢堡 ══ */
-#hamburger{display:none;background:none;border:none;cursor:pointer;padding:6px;flex-shrink:0;color:var(--text);}
+#hamburger{display:none;background:none;border:none;cursor:pointer;padding:6px;flex-shrink:0;color:var(--text);margin-left:auto;}
 #tb-filters{display:contents;}
 
 /* ══ MOBILE ══ */
 @media(max-width:768px){
-  html,body{height:100%;}
-  #topbar{min-height:44px;padding:0 12px;gap:6px;position:relative;z-index:200;}
-  #tb-filters{
-    display:none;position:fixed;top:44px;left:0;right:0;z-index:199;
-    background:var(--glass);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
-    border-bottom:2px solid var(--glass-border);
-    padding:10px 12px 14px;
-    flex-direction:column;gap:8px;
-    box-shadow:0 8px 24px rgba(0,0,0,.12);
+  /* topbar：只顯示 title + hamburger，其餘收入 dropdown */
+  #topbar{
+    min-height:48px;padding:0 14px;gap:8px;
+    position:relative;z-index:200;flex-wrap:nowrap;overflow:visible;
   }
-  #tb-filters.open{display:flex;}
-  #tb-filters .sep{display:none;}
-  .tb-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;width:100%;}
-  .tb-row .tb-label{min-width:30px;}
-  .tb-row .tb-sel{flex:1;min-width:0;}
-  #hamburger{display:flex;align-items:center;justify-content:center;margin-left:auto;}
-  #title{font-size:13px;}
+  #title{font-size:14px;flex-shrink:0;}
   #ver-ts{display:none;}
-  #chips{flex-wrap:nowrap;}
-  #gbar{padding:0 10px;min-height:36px;}
-  .gb-btn{padding:3px 8px;font-size:10px;}
+  #hamburger{display:flex;align-items:center;justify-content:center;}
+
+  /* tb-filters：隱藏，點漢堡後展開為 dropdown */
+  #tb-filters{
+    display:none !important;
+    position:fixed;top:48px;left:0;right:0;z-index:199;
+    background:var(--glass);
+    backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+    border-bottom:2px solid rgba(0,0,0,.08);
+    padding:12px 14px 16px;
+    flex-direction:column !important;gap:10px;
+    box-shadow:0 10px 30px rgba(0,0,0,.15);
+    overflow-y:auto;max-height:calc(100vh - 48px);
+  }
+  #tb-filters.open{display:flex !important;}
+  #tb-filters .sep{display:none;}
+  .tb-row{display:flex;align-items:center;gap:6px;width:100%;}
+  .tb-row .tb-label{font-size:12px;flex-shrink:0;min-width:28px;}
+  .tb-row .tb-sel{flex:1;min-width:0;font-size:13px;}
+  #chips{display:flex;gap:6px;flex-wrap:wrap;}
+  #chips .chip{font-size:12px;padding:5px 12px;}
+  #clear-btn{font-size:12px;}
+  #p5-toggle{font-size:12px;padding:4px 10px;}
+
+  /* gbar */
+  #gbar{padding:0 12px;min-height:36px;}
+  .gb-btn{padding:3px 9px;font-size:11px;}
   .gb-sync{display:none;}
+  .gb-seg{font-size:11px;}
+
+  /* content-wrap: 全螢幕單欄 */
   #content-wrap{flex-direction:column;}
   .col-side{display:none !important;}
   .divider{display:none !important;}
   #rank-drawer{display:none !important;}
-  #stage{width:100%;flex-direction:column;}
+  #stage{width:100%;flex-direction:column;overflow-y:auto;}
+
+  /* col-main */
   .col-main{
-    width:100% !important;padding:10px 8px !important;
-    grid-template-columns:1fr 1fr !important;gap:10px !important;
+    width:100% !important;
+    padding:10px 10px !important;
+    grid-template-columns:1fr 1fr !important;
+    gap:10px !important;
   }
-  .col-main.area-view,.col-main.store-view{grid-template-columns:1fr !important;}
+  .col-main.area-view{grid-template-columns:1fr !important;}
+  .col-main.store-view{grid-template-columns:1fr !important;}
   .col-main.staff-view{grid-template-columns:1fr 1fr !important;}
-  .big-card.whole{flex-direction:column;gap:10px;padding:14px 16px;}
+
+  /* 整體卡 */
+  .big-card.whole{flex-direction:column;gap:8px;padding:14px;}
   .wc-divider{width:100%;height:1px;}
   .wc-left{flex-direction:row;align-items:baseline;gap:10px;min-width:0;}
-  .wc-total{font-size:36px;}
-  .wc-stats{flex-wrap:wrap;}
-  .wc-st{flex:1;min-width:80px;padding:4px 8px;}
+  .wc-label{font-size:14px !important;}
+  .wc-total{font-size:34px;}
+  .wc-stats{flex-wrap:wrap;gap:0;}
+  .wc-st{flex:1;min-width:90px;padding:5px 8px;}
   .wc-st-num{font-size:18px;}
-  .big-card{padding:12px 12px;}
+  .wc-st-pct{font-size:10px;}
+  .area-view .big-card.whole .wc-total{font-size:36px;}
+  .area-view .big-card.whole .wc-st-num{font-size:20px;}
+
+  /* 大卡 */
+  .big-card{padding:12px 12px;gap:8px;}
   .bc-name{font-size:13px;}
   .bc-total{font-size:26px;}
-  .bc-st-num{font-size:15px;}
-  .area-view .bc-total{font-size:26px;}
+  .bc-st-num{font-size:14px;}
+  .bc-st-pct{font-size:9px;}
   .area-view .bc-name{font-size:13px;}
-  .area-view .big-card.whole .wc-total{font-size:38px;}
+  .area-view .bc-total{font-size:26px;}
+  .area-view .bc-st-num{font-size:14px;}
+
+  /* 人員層 */
   .staff-summary{flex-wrap:wrap;gap:8px;padding:10px 12px;}
+  .ss-title{font-size:12px;}
+  .ss-total{font-size:20px;}
+  .staff-card{gap:0;}
+  .sc-head{padding:10px 11px 7px;}
+  .sc-name{font-size:13px;}
   .sc-corner-num{font-size:20px;}
+  .sc-corner-pct{font-size:9px;}
   .sc-st-num{font-size:14px;}
-  .store-header{flex-direction:column;align-items:flex-start;gap:8px;padding:12px 12px;}
+  .sc-st-pct{font-size:9px;}
+  .sc-st-lbl{font-size:8px;}
+
+  /* 店家層 */
+  .store-header{flex-direction:column;align-items:flex-start;gap:8px;padding:12px;}
+  .sh-name{font-size:15px;}
   .sh-tabs{flex-wrap:wrap;gap:6px;}
   .sh-tab{padding:6px 12px;font-size:12px;}
-  .store-tbl th,.store-tbl td{padding:5px 8px;font-size:11px;}
+  .store-tbl th{padding:5px 8px;font-size:9px;}
+  .store-tbl td{padding:6px 8px;font-size:12px;}
+  .sp-body{max-height:none;}
+
+  /* 排行 FAB */
   #rank-fab{
     display:flex !important;
-    position:fixed;bottom:16px;right:16px;z-index:300;
+    position:fixed;bottom:20px;right:16px;z-index:300;
     width:50px;height:50px;border-radius:50%;
     background:var(--primary-d);color:#fff;border:none;cursor:pointer;
     align-items:center;justify-content:center;font-size:22px;
-    box-shadow:0 4px 16px rgba(0,0,0,.25);transition:transform .15s;
+    box-shadow:0 4px 20px rgba(0,0,0,.3);transition:transform .15s;
   }
   #rank-fab:active{transform:scale(.9);}
+
+  /* 排行 Sheet */
   #rank-sheet{
     display:block !important;
     position:fixed;bottom:0;left:0;right:0;z-index:400;
-    background:rgba(255,255,255,.97);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-    border-top:1px solid rgba(0,0,0,.1);border-radius:18px 18px 0 0;
-    transform:translateY(100%);transition:transform .35s cubic-bezier(.34,1.05,.64,1);
-    max-height:70vh;overflow-y:auto;
+    background:rgba(255,255,255,.98);
+    backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+    border-top:1px solid rgba(0,0,0,.1);
+    border-radius:18px 18px 0 0;
+    transform:translateY(100%);
+    transition:transform .35s cubic-bezier(.34,1.05,.64,1);
+    max-height:72vh;overflow-y:auto;
     padding-bottom:env(safe-area-inset-bottom,16px);
   }
   #rank-sheet.open{transform:translateY(0);}
-  #rank-sheet-handle{display:flex;align-items:center;justify-content:center;padding:12px;cursor:pointer;}
-  #rank-sheet-handle::before{content:'';width:36px;height:4px;border-radius:2px;background:rgba(0,0,0,.15);}
-  #rank-sheet-overlay{display:none;position:fixed;inset:0;z-index:390;background:rgba(0,0,0,.35);}
+  #rank-sheet-handle{
+    display:flex;align-items:center;justify-content:center;
+    padding:14px;cursor:pointer;flex-shrink:0;
+  }
+  #rank-sheet-handle::before{
+    content:'';width:40px;height:4px;border-radius:2px;background:rgba(0,0,0,.15);
+  }
+  #rank-sheet-overlay{
+    display:none;position:fixed;inset:0;z-index:390;background:rgba(0,0,0,.4);
+  }
   #rank-sheet-overlay.open{display:block;}
 }
+
 @media(min-width:769px){
   #rank-fab{display:none !important;}
   #rank-sheet{display:none !important;}
   #rank-sheet-overlay{display:none !important;}
   .tb-row{display:contents;}
+  #tb-filters{display:contents !important;}
 }
 </style>
 </head>
@@ -944,7 +1005,7 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
       <button id="p5-toggle" onclick="toggleP5()">⚡ P5</button>
     </div>
   </div>
-  <div id="ver-ts">Ver. 1.1.0 (2026-03-13 TST)</div>
+  <div id="ver-ts">Ver. 1.1.1 (2026-03-13 TST)</div>
 </div>
 
 <div id="gbar">
@@ -1727,67 +1788,47 @@ function closeRankSheet(){
 
 /* ══ 複製 & CSV（多層級） ══ */
 function copyList(){
-  var depth=drillStack.length;
   var surveyName=SURVEYS[curSurvey]?SURVEYS[curSurvey].name:'';
-  var lines=[];
   var breadcrumb=drillStack.map(function(d){return d.key;}).join(' › ');
-  var header='📋 '+surveyName+(breadcrumb?' ｜ '+breadcrumb:'');
+  var lines=[];
 
-  if(depth===0){
-    /* 總級：各處統計 */
-    var rows=visible();
-    var s=stat(rows);
-    lines.push(header);
-    lines.push('🔴 未填寫 '+s.u+'\t🟡 未上架 '+s.n+'\t✅ 上架 '+s.l);
-    lines.push('');
-    var m=groupBy(rows,'area');
-    sortArea(Object.keys(m)).forEach(function(k){
-      var ms=stat(m[k]);
-      lines.push('📍 '+k+'　未填寫 '+ms.u+'　未上架 '+ms.n+'　上架 '+ms.l);
-    });
-  } else if(depth===1){
-    /* 處級：各所統計 */
-    var rows=visible().filter(function(r){return gv(r,'area')===drillStack[0].key;});
-    var s=stat(rows);
-    lines.push(header);
-    lines.push('🔴 未填寫 '+s.u+'\t🟡 未上架 '+s.n+'\t✅ 上架 '+s.l);
-    lines.push('');
-    var m=groupBy(rows,'office');
-    Object.keys(m).sort(function(a,b){return stat(m[b]).u-stat(m[a]).u;}).forEach(function(k){
-      var ms=stat(m[k]);
-      lines.push('🏢 '+k+'　未填寫 '+ms.u+'　未上架 '+ms.n+'　上架 '+ms.l);
-    });
-  } else if(depth===2){
-    /* 所級：各人統計 */
-    var rows=visible().filter(function(r){
-      return gv(r,'area')===drillStack[0].key&&gv(r,'office')===drillStack[1].key;
-    });
-    var s=stat(rows);
-    lines.push(header);
-    lines.push('🔴 未填寫 '+s.u+'\t🟡 未上架 '+s.n+'\t✅ 上架 '+s.l);
-    lines.push('');
-    var m=groupBy(rows,'staff');
-    Object.keys(m).sort(function(a,b){return stat(m[b]).u-stat(m[a]).u;}).forEach(function(k){
-      var ms=stat(m[k]);var mt=ms.t||1;
-      lines.push('👤 '+k+'　未填寫 '+ms.u+' ('+pct(ms.u,mt)+'%)　未上架 '+ms.n+'　上架 '+ms.l);
-    });
-  } else {
-    /* 人級：店家清單 */
-    var rows=window._storeRows||[];
-    if(!rows.length)return;
-    var s=stat(rows);
-    lines.push(header);
-    lines.push('🔴 未填寫 '+s.u+'\t🟡 未上架 '+s.n+'\t✅ 上架 '+s.l);
-    lines.push('');
-    var order={u:0,n:1,l:2};
-    rows.slice().sort(function(a,b){
+  /* 取得當前層的所有 row（依三燈篩選），再進一步依 drillStack 縮窄範圍 */
+  var rows=visible();
+  if(drillStack.length>=1)rows=rows.filter(function(r){return gv(r,'area')===drillStack[0].key;});
+  if(drillStack.length>=2)rows=rows.filter(function(r){return gv(r,'office')===drillStack[1].key;});
+  if(drillStack.length>=3)rows=rows.filter(function(r){return gv(r,'staff')===drillStack[2].key;});
+
+  if(!rows.length)return;
+
+  /* 標題列：📋 問卷名 ｜ 麵包屑 */
+  lines.push('📋 '+surveyName+(breadcrumb?' ｜ '+breadcrumb:''));
+
+  /* 彙總統計 */
+  var ts=stat(rows);
+  lines.push('🔴 未填寫 '+ts.u+'　🟡 未上架 '+ts.n+'　✅ 上架 '+ts.l);
+  lines.push('');
+
+  /* 依人員分組輸出（人名在上，店家在下） */
+  var order={u:0,n:1,l:2};
+  var staffMap=groupBy(rows,'staff');
+  /* 人員排序：未填寫家數由高到低 */
+  var staffKeys=Object.keys(staffMap).sort(function(a,b){
+    return stat(staffMap[b]).u - stat(staffMap[a]).u;
+  });
+  staffKeys.forEach(function(staffName){
+    var sRows=staffMap[staffName];
+    var ss=stat(sRows);
+    lines.push('👤 '+staffName+'　🔴'+ss.u+'　🟡'+ss.n+'　✅'+ss.l);
+    /* 店家：先未填寫、再未上架、再上架，同類依店名排序 */
+    sRows.slice().sort(function(a,b){
       var od=order[gs(a)]-order[gs(b)];
       return od!==0?od:gv(a,'store').localeCompare(gv(b,'store'),'zh-TW');
     }).forEach(function(r){
       var icon=gs(r)==='u'?'🔴':gs(r)==='n'?'🟡':'✅';
       lines.push('   '+icon+' '+gv(r,'channel')+'｜'+gv(r,'store'));
     });
-  }
+    lines.push('');
+  });
 
   var text=lines.join('\n').trim();
   if(navigator.clipboard&&navigator.clipboard.writeText){
