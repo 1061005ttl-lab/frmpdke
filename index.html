@@ -76,7 +76,7 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);}
 #stage{flex:1;min-height:0;display:flex;overflow:hidden;position:relative;}
 .col-side{
   flex-shrink:0;overflow-y:auto;overflow-x:hidden;
-  padding:10px 8px;gap:5px;display:flex;flex-direction:column;
+  padding:10px 10px;gap:5px;display:flex;flex-direction:column;
   background:var(--bg);border-right:1px solid var(--border);
 }
 .col-side::-webkit-scrollbar{width:3px;}
@@ -84,18 +84,31 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);}
 .col-main{
   flex:1;min-width:0;overflow-y:auto;overflow-x:hidden;
   padding:28px 32px;display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(360px,1fr));
+  grid-template-columns:repeat(3,1fr);
   gap:24px;align-content:start;
   grid-auto-rows:minmax(auto,auto);
 }
 .col-main.area-view{
-  grid-template-columns:repeat(4,1fr);
-  gap:24px 28px;
+  grid-template-columns:repeat(2,1fr);
+  gap:28px 32px;
   padding:32px 36px;
 }
+.col-main.area-view .bc-name{font-size:32px;font-weight:900;letter-spacing:-.5px;overflow:visible;}
+.col-main.area-view .bc-total{font-size:60px;letter-spacing:-3px;}
+.col-main.area-view .bc-head{min-width:170px;max-width:220px;}
+.col-main.area-view .bc-st-num{font-size:24px;}
+.col-main.area-view .bc-st-lbl{font-size:11px;}
+.col-main.area-view .bc-st-pct{font-size:12px;}
+.col-main.area-view .bc-track{height:10px;}
+.col-main.area-view .big-card{padding:24px 26px;gap:22px;}
+.col-main.office-view .bc-name{font-size:22px;font-weight:900;}
+.col-main.office-view .bc-total{font-size:48px;}
+.col-main.office-view .bc-head{min-width:150px;max-width:190px;}
+.col-main.office-view .bc-track{height:9px;}
 .col-main.office-view{
-  grid-template-columns:repeat(auto-fill,minmax(360px,1fr));
-  gap:24px;
+  grid-template-columns:repeat(3,1fr);
+  gap:24px 28px;
+  padding:28px 32px;
 }
 .col-main::-webkit-scrollbar{width:5px;}
 .col-main::-webkit-scrollbar-thumb{background:var(--border);border-radius:5px;}
@@ -137,7 +150,7 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);}
 .big-card:hover{border-color:var(--primary);box-shadow:0 8px 24px var(--shadow);transform:translateY(-3px);}
 .big-card.sel{border-color:var(--primary);box-shadow:0 0 0 3px rgba(139,166,144,.2),0 6px 20px var(--shadow);}
 /* 左側：名稱+大數字 */
-.bc-head{display:flex;flex-direction:column;justify-content:center;min-width:130px;max-width:165px;border-right:1px solid var(--border);padding-right:18px;flex-shrink:0;}
+.bc-head{display:flex;flex-direction:column;justify-content:center;min-width:140px;max-width:200px;border-right:1px solid var(--border);padding-right:18px;flex-shrink:0;}
 .bc-name{font-size:22px;font-weight:900;color:var(--text-main);line-height:1.2;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .bc-total{font-size:48px;font-weight:900;color:var(--primary);line-height:1;letter-spacing:-2px;}
 /* 右側：進度條+統計 */
@@ -242,7 +255,8 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);}
 
 .store-panel{
   background:var(--card);border:1.5px solid var(--border);border-radius:var(--r);
-  overflow:hidden;transition:opacity .22s;animation:panelFade .3s var(--ease) both;
+  overflow:visible;transition:opacity .22s;animation:panelFade .3s var(--ease) both;
+  border-radius:var(--r);overflow:hidden;
 }
 .store-panel.hidden{display:none;}
 .store-panel.sg{border-left:5px solid var(--green);}
@@ -262,7 +276,13 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);}
 .store-panel.sy .sp-pct{background:var(--yellow-bg);color:#7a5500;}
 .store-panel.sr .sp-pct{background:var(--red-bg);color:#9e1f18;}
 .sp-arrow{font-size:11px;color:var(--sub);width:14px;flex-shrink:0;}
-.sp-body{overflow:visible;} /* 不限高度，完整顯示所有行 */
+.sp-body{
+  max-height:320px; /* 約顯示8~10行，超過就出現滾軸 */
+  overflow-y:auto;
+  overflow-x:hidden;
+}
+.sp-body::-webkit-scrollbar{width:5px;}
+.sp-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:5px;}
 .store-tbl{width:100%;border-collapse:collapse;table-layout:fixed;}
 .store-tbl th{
   padding:7px 14px;font-size:10px;font-weight:700;letter-spacing:.5px;text-align:left;
@@ -728,21 +748,21 @@ function buildStage(container,rows){
     var main=makeMain();buildAreaCards(main,rows);container.appendChild(main);
   }else if(depth===1){
     var aRows=rows.filter(function(r){return gv(r,'area')===drillStack[0].key;});
-    var s0=makeSide(220);buildSideAreas(s0,rows,drillStack[0].key);container.appendChild(s0);container.appendChild(makeDivider());
+    var s0=makeSide(240);buildSideAreas(s0,rows,drillStack[0].key);container.appendChild(s0);container.appendChild(makeDivider());
     var main=makeMain();buildOfficeCards(main,aRows);container.appendChild(main);
   }else if(depth===2){
     var aRows=rows.filter(function(r){return gv(r,'area')===drillStack[0].key;});
     var oRows=aRows.filter(function(r){return gv(r,'office')===drillStack[1].key;});
-    var s0=makeSide(210);buildSideAreas(s0,rows,drillStack[0].key);container.appendChild(s0);container.appendChild(makeDivider());
-    var s1=makeSide(220);buildSideOffices(s1,aRows,drillStack[1].key);container.appendChild(s1);container.appendChild(makeDivider());
+    var s0=makeSide(230);buildSideAreas(s0,rows,drillStack[0].key);container.appendChild(s0);container.appendChild(makeDivider());
+    var s1=makeSide(240);buildSideOffices(s1,aRows,drillStack[1].key);container.appendChild(s1);container.appendChild(makeDivider());
     var main=makeMain();main.classList.add('staff-view');buildStaffCards(main,oRows);container.appendChild(main);
   }else if(depth>=3){
     var aRows=rows.filter(function(r){return gv(r,'area')===drillStack[0].key;});
     var oRows=aRows.filter(function(r){return gv(r,'office')===drillStack[1].key;});
     var sRows=oRows.filter(function(r){return gv(r,'staff')===drillStack[2].key;});
-    var s0=makeSide(195);buildSideAreas(s0,rows,drillStack[0].key);container.appendChild(s0);container.appendChild(makeDivider());
-    var s1=makeSide(205);buildSideOffices(s1,aRows,drillStack[1].key);container.appendChild(s1);container.appendChild(makeDivider());
-    var s2=makeSide(220);buildSideStaff(s2,oRows,drillStack[2].key);container.appendChild(s2);container.appendChild(makeDivider());
+    var s0=makeSide(215);buildSideAreas(s0,rows,drillStack[0].key);container.appendChild(s0);container.appendChild(makeDivider());
+    var s1=makeSide(225);buildSideOffices(s1,aRows,drillStack[1].key);container.appendChild(s1);container.appendChild(makeDivider());
+    var s2=makeSide(240);buildSideStaff(s2,oRows,drillStack[2].key);container.appendChild(s2);container.appendChild(makeDivider());
     var main=makeMain();main.classList.add('store-view');buildStoreCards(main,sRows);container.appendChild(main);
   }
 }
