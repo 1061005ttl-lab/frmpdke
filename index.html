@@ -232,24 +232,31 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);}
 }
 .staff-card:hover{border-color:var(--primary);box-shadow:0 6px 20px var(--shadow);transform:translateY(-3px);}
 .staff-card.sel{border-color:var(--primary);background:rgba(139,166,144,.05);}
-.sc-accent{height:6px;width:100%;transition:background .3s;}
-.sc-head{padding:12px 14px 8px;display:flex;justify-content:space-between;align-items:center;}
-.sc-name{font-size:16px;font-weight:800;}
-.sc-meta{font-size:10px;color:var(--sub);}
-.sc-total-wrap{text-align:right;}
-.sc-total{font-size:38px;font-weight:900;color:var(--primary);line-height:1;letter-spacing:-1.5px;}
-.sc-total-sub{font-size:10px;color:var(--sub);}
-.sc-bar{margin:0 14px 8px;height:5px;background:rgba(0,0,0,.07);border-radius:99px;overflow:hidden;display:flex;position:relative;}
-.sc-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;border-top:1px solid var(--border);}
-.sc-st{padding:8px 10px;display:flex;flex-direction:column;align-items:flex-start;gap:3px;border-right:1px solid var(--border);}
+/* ══ 人員卡 重構版 ══ */
+.staff-card{overflow:hidden;display:flex;flex-direction:column;}
+.sc-head{padding:13px 14px 10px;display:flex;justify-content:space-between;align-items:flex-start;}
+.sc-name{font-size:15px;font-weight:800;color:var(--text);line-height:1.3;}
+/* 右上角：大數字 + 小百分比 */
+.sc-corner{text-align:right;flex-shrink:0;margin-left:8px;}
+.sc-corner-num{font-size:32px;font-weight:900;color:var(--primary);line-height:1;letter-spacing:-1px;display:block;}
+.sc-corner-pct{font-size:10px;font-weight:700;color:var(--sub);display:block;margin-top:1px;}
+/* 統計三格 */
+.sc-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;border-top:1px solid var(--border);flex:1;}
+.sc-st{padding:9px 10px 11px;display:flex;flex-direction:column;align-items:flex-start;gap:3px;border-right:1px solid var(--border);}
 .sc-st:last-child{border-right:none;}
-.sc-st-lbl{font-size:11px;font-weight:700;color:var(--sub);white-space:nowrap;}
-.sc-st-row{display:flex;align-items:baseline;gap:4px;}
+.sc-st-lbl{font-size:10px;font-weight:700;color:var(--sub);white-space:nowrap;letter-spacing:.3px;}
 .sc-st-num{font-size:22px;font-weight:900;line-height:1;letter-spacing:-0.5px;white-space:nowrap;}
-.sc-st-pct{font-size:12px;font-weight:700;opacity:.75;white-space:nowrap;}
+.sc-st-pct{font-size:11px;font-weight:700;opacity:.8;white-space:nowrap;}
 .sc-st.g .sc-st-num{color:var(--green);}.sc-st.g .sc-st-pct{color:var(--green);}
 .sc-st.y .sc-st-num{color:var(--yellow);}.sc-st.y .sc-st-pct{color:var(--yellow);}
 .sc-st.r .sc-st-num{color:var(--red);}.sc-st.r .sc-st-pct{color:var(--red);}
+/* ── 樣式①：底部細長條 8px（有軌道背景） ── */
+.sc-bar-s1{height:8px;width:100%;background:rgba(0,0,0,.07);flex-shrink:0;}
+.sc-bar-s1-track{height:100%;}
+/* ── 樣式②：底部粗色帶 18px ── */
+.sc-bar-s2{height:18px;width:100%;flex-shrink:0;}
+/* ── 樣式③：底部邊框（4px solid gradient 模擬） ── */
+.sc-bar-s3{height:5px;width:100%;flex-shrink:0;}
 
 /* ══ 店家層 ══ */
 .col-main.store-view{grid-template-columns:1fr;grid-auto-rows:auto;padding:16px;gap:12px;}
@@ -408,6 +415,11 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);}
   <div class="gb-path" id="gb-path"></div>
   <div class="gb-right">
     <span class="gb-sync" id="gb-sync"></span>
+    <span id="style-toggle" style="display:none;font-size:11px;font-weight:700;color:var(--sub);margin-right:4px;">卡片樣式：
+      <button onclick="setCardStyle(1)" id="cs-1" style="padding:2px 8px;border-radius:6px;border:1.5px solid var(--primary);background:var(--primary);color:#fff;font-size:11px;font-weight:700;cursor:pointer;margin:0 2px;">①</button>
+      <button onclick="setCardStyle(2)" id="cs-2" style="padding:2px 8px;border-radius:6px;border:1.5px solid var(--border);background:transparent;font-size:11px;font-weight:700;cursor:pointer;margin:0 2px;">②</button>
+      <button onclick="setCardStyle(3)" id="cs-3" style="padding:2px 8px;border-radius:6px;border:1.5px solid var(--border);background:transparent;font-size:11px;font-weight:700;cursor:pointer;margin:0 2px;">③</button>
+    </span>
     <button class="gb-btn" id="copy-btn" onclick="copyList()">📋 複製</button>
     <button class="gb-btn" id="csv-btn" onclick="downloadCSV()">📥 CSV</button>
   </div>
@@ -442,6 +454,7 @@ var curSurvey=-1;
 var _oMap={},_sMap={};
 var _runRaf=null;
 var _syncTime='';
+var _cardStyle=1; /* 人員卡底部 bar 樣式：1=細條,2=粗帶,3=邊框 */
 /* 店家層狀態過濾（哪些狀態顯示） */
 var _visibleStatus={l:true,n:true,u:true};
 
@@ -827,9 +840,9 @@ function makeMiniCard(name,rows,onClick,isSel){
     '<div class="mc-top"><span class="mc-name">'+esc(displayName)+'</span><span class="mc-total">'+s.t+'</span></div>'
     +'<div class="mc-bar">'+segs(s)+'</div>'
     +'<div class="mc-sts">'
-      +'<span class="mc-s g">✅'+s.l+' <small>('+pct(s.l,t)+'%)</small></span>'
-      +'<span class="mc-s y">🟡'+s.n+' <small>('+pct(s.n,t)+'%)</small></span>'
-      +'<span class="mc-s r">🔴'+s.u+' <small>('+pct(s.u,t)+'%)</small></span>'
+      +'<span class="mc-s g">✅'+s.l+'</span>'
+      +'<span class="mc-s y">🟡'+s.n+'</span>'
+      +'<span class="mc-s r">🔴'+s.u+'</span>'
     +'</div>';
   el.addEventListener('click',onClick);
   return el;
@@ -905,18 +918,29 @@ function buildStaffCards(c,rows){
     else if(s.n>0 && nPct>0.3)mainSt='var(--yellow)';
     else mainSt='var(--green)';
     var card=document.createElement('div');card.className='staff-card'+(isSel?' sel':'');
+    /* 底部 bar gradient */
+    var gl=pct(s.l,t),gln=pct(s.l+s.n,t);
+    var barGrad='linear-gradient(90deg,'
+      +'var(--green) 0%,var(--green) '+gl+'%,'
+      +'var(--yellow) '+gl+'%,var(--yellow) '+gln+'%,'
+      +'var(--red) '+gln+'%,var(--red) 100%)';
+    /* style=1 細長條, style=2 粗色帶, style=3 底部邊框 */
+    var barHTML={
+      1:'<div class="sc-bar-s1"><div class="sc-bar-s1-track" style="background:'+barGrad+'"></div></div>',
+      2:'<div class="sc-bar-s2" style="background:'+barGrad+'"></div>',
+      3:'<div class="sc-bar-s3" style="background:'+barGrad+'"></div>'
+    }[_cardStyle]||'';
     card.innerHTML=
-      '<div class="sc-accent" style="background:'+mainSt+'"></div>'
-      +'<div class="sc-head">'
-        +'<div><div class="sc-name">👤 '+esc(k)+'</div><div class="sc-meta">佔所 '+pct(s.t,tt)+'%</div></div>'
-        +'<div class="sc-total-wrap"><div class="sc-total">'+s.t+'</div><div class="sc-total-sub">家</div></div>'
+      '<div class="sc-head">'
+        +'<div class="sc-name">👤 '+esc(k)+'</div>'
+        +'<div class="sc-corner"><span class="sc-corner-num">'+s.t+'</span><span class="sc-corner-pct">佔所'+pct(s.t,tt)+'%</span></div>'
       +'</div>'
-      +'<div class="sc-bar">'+segs(s)+'</div>'
       +'<div class="sc-stats">'
-        +'<div class="sc-st g"><div class="sc-st-lbl">✅ 上架</div><div class="sc-st-row"><span class="sc-st-num">'+s.l+'</span><span class="sc-st-pct">'+pct(s.l,t)+'%</span></div></div>'
-        +'<div class="sc-st y"><div class="sc-st-lbl">🟡 未上架</div><div class="sc-st-row"><span class="sc-st-num">'+s.n+'</span><span class="sc-st-pct">'+pct(s.n,t)+'%</span></div></div>'
-        +'<div class="sc-st r"><div class="sc-st-lbl">🔴 未填寫</div><div class="sc-st-row"><span class="sc-st-num">'+s.u+'</span><span class="sc-st-pct">'+pct(s.u,t)+'%</span></div></div>'
-      +'</div>';
+        +'<div class="sc-st g"><div class="sc-st-lbl">✅ 上架</div><div class="sc-st-num">'+s.l+'</div><div class="sc-st-pct">'+pct(s.l,t)+'%</div></div>'
+        +'<div class="sc-st y"><div class="sc-st-lbl">🟡 未上架</div><div class="sc-st-num">'+s.n+'</div><div class="sc-st-pct">'+pct(s.n,t)+'%</div></div>'
+        +'<div class="sc-st r"><div class="sc-st-lbl">🔴 未填寫</div><div class="sc-st-num">'+s.u+'</div><div class="sc-st-pct">'+pct(s.u,t)+'%</div></div>'
+      +'</div>'
+      +barHTML;
     card.addEventListener('click',function(){drillInto('staff',k);});
     c.appendChild(card);
   });
@@ -1041,6 +1065,17 @@ function updateCF(rows){
   }).join('');
   cfEl.style.display='';
 }
+function setCardStyle(n){
+  _cardStyle=n;
+  [1,2,3].forEach(function(i){
+    var b=document.getElementById('cs-'+i);if(!b)return;
+    b.style.background=i===n?'var(--primary)':'transparent';
+    b.style.color=i===n?'#fff':'inherit';
+    b.style.borderColor=i===n?'var(--primary)':'var(--border)';
+  });
+  /* 人員層在場才重 render */
+  if(drillStack.length===2)render('none');
+}
 function toggleCF(){
   var b=document.getElementById('cf-body');
   if(!b)return;
@@ -1092,6 +1127,9 @@ function togglePanel(k){
   if(arrow){arrow.textContent=_visibleStatus[k]?'▾':'▸';}
 }
 function updateGlobalBar(){
+  /* 僅人員層顯示樣式切換按鈕 */
+  var st=document.getElementById('style-toggle');
+  if(st)st.style.display=drillStack.length===2?'':'none';
   var path=document.getElementById('gb-path');
   var sync=document.getElementById('gb-sync');
   if(!path)return;
