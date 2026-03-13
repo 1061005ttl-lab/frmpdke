@@ -535,6 +535,47 @@ body.p5-mode #rank-toggle:hover{background:rgba(232,0,26,.25) !important;}
 .wc-st.y .wc-st-num{color:#fdd261;} .wc-st.y .wc-st-pct{color:#fdd261;}
 .wc-st.r .wc-st-num{color:#ff7b6b;} .wc-st.r .wc-st-pct{color:#ff7b6b;}
 
+
+/* ── 處/所級主卡前3名特效 ── */
+.big-card.bc-top1,.big-card.bc-top2,.big-card.bc-top3{
+  position:relative;
+}
+.big-card.bc-top1::after,.big-card.bc-top2::after,.big-card.bc-top3::after{
+  content:'';position:absolute;inset:0;border-radius:var(--r);pointer-events:none;
+  animation:cardGlow 3s ease-in-out infinite;
+}
+.big-card.bc-top1::after{
+  box-shadow:0 0 0 2px rgba(220,38,38,.55),0 4px 20px rgba(220,38,38,.25);
+  animation-delay:0s;
+}
+.big-card.bc-top2::after{
+  box-shadow:0 0 0 1.5px rgba(234,88,12,.45),0 4px 16px rgba(234,88,12,.18);
+  animation-delay:.5s;
+}
+.big-card.bc-top3::after{
+  box-shadow:0 0 0 1.5px rgba(202,138,4,.4),0 4px 14px rgba(202,138,4,.15);
+  animation-delay:1s;
+}
+@keyframes cardGlow{
+  0%,100%{opacity:.55;}
+  50%{opacity:1;}
+}
+/* 前3名角落徽章 */
+.big-card.bc-top1 .bc-head::after,.big-card.bc-top2 .bc-head::after,.big-card.bc-top3 .bc-head::after{
+  content:attr(data-rank);
+  display:inline-flex;align-items:center;justify-content:center;
+  width:22px;height:22px;border-radius:7px;
+  font-size:12px;font-weight:900;color:#fff;
+  flex-shrink:0;margin-left:6px;
+}
+.big-card.bc-top1 .bc-head::after{content:'1';background:linear-gradient(135deg,#7f1d1d,#ef4444);box-shadow:0 2px 8px rgba(239,68,68,.45);}
+.big-card.bc-top2 .bc-head::after{content:'2';background:linear-gradient(135deg,#7c2d12,#f97316);box-shadow:0 2px 6px rgba(249,115,22,.4);}
+.big-card.bc-top3 .bc-head::after{content:'3';background:linear-gradient(135deg,#78350f,#f59e0b);box-shadow:0 2px 6px rgba(245,158,11,.35);}
+body.p5-mode .big-card.bc-top1::after{box-shadow:0 0 0 2px rgba(232,0,26,.7),0 4px 20px rgba(232,0,26,.35);animation:cardGlowP5 3s ease-in-out infinite;}
+body.p5-mode .big-card.bc-top2::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.5),0 4px 16px rgba(232,0,26,.22);animation:cardGlowP5 3s ease-in-out infinite .5s;}
+body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),0 4px 14px rgba(232,0,26,.15);animation:cardGlowP5 3s ease-in-out infinite 1s;}
+@keyframes cardGlowP5{0%,100%{opacity:.5;}50%{opacity:1;}}
+
 /* 一般大卡 */
 .big-card{
   background:#fff;border-radius:var(--r);
@@ -604,17 +645,22 @@ body.p5-mode #rank-toggle:hover{background:rgba(232,0,26,.25) !important;}
 .area-view .big-card.whole .wc-st-pct{font-size:15px;}
 
 /* office-view */
-.office-view .bc-name{font-size:20px;}
-.office-view .bc-total{font-size:44px;}
-.office-view .bc-st-num{font-size:24px;}
-.office-view .bc-st-pct{font-size:13px;}
-.office-view .bc-st-lbl{font-size:12px;}
-.office-view .bc-track{height:10px;}
-.office-view .big-card.whole .wc-total{font-size:64px;}
-.office-view .big-card.whole .wc-st-num{font-size:34px;}
-.office-view .big-card.whole .wc-label{font-size:17px;}
-.office-view .big-card.whole .wc-st-lbl{font-size:13px;}
-.office-view .big-card.whole .wc-st-pct{font-size:14px;}
+.office-view .bc-name{font-size:18px;}
+.office-view .bc-total{font-size:40px;}
+.office-view .bc-track{height:8px;}
+.office-view .big-card{padding:14px 16px;gap:8px;}
+/* 所級統計列：emoji + 數字(%) 緊排一行 */
+.office-view .bc-stats{display:flex;gap:0;border-radius:8px;}
+.office-view .bc-st{flex:1;padding:7px 10px;display:flex;flex-direction:row;align-items:center;gap:5px;overflow:hidden;}
+.office-view .bc-st-lbl{font-size:12px;font-weight:700;white-space:nowrap;flex-shrink:0;}
+.office-view .bc-st-row{display:flex;align-items:baseline;gap:3px;flex-wrap:nowrap;white-space:nowrap;flex:1;}
+.office-view .bc-st-num{font-size:20px;font-weight:900;line-height:1;}
+.office-view .bc-st-pct{font-size:12px;font-weight:700;}
+.office-view .big-card.whole .wc-total{font-size:60px;}
+.office-view .big-card.whole .wc-st-num{font-size:30px;}
+.office-view .big-card.whole .wc-label{font-size:16px;}
+.office-view .big-card.whole .wc-st-lbl{font-size:12px;}
+.office-view .big-card.whole .wc-st-pct{font-size:13px;}
 
 /* ══ 人員層卡片 ══ */
 .staff-summary{
@@ -787,7 +833,7 @@ body.p5-mode #rank-toggle:hover{background:rgba(232,0,26,.25) !important;}
   </div>
   <button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
   <button id="p5-toggle" onclick="toggleP5()">⚡ P5</button>
-  <div id="ver-ts">Ver. 1.0.5 (2026-03-13 TST)</div>
+  <div id="ver-ts">Ver. 1.0.6 (2026-03-13 TST)</div>
 </div>
 
 <div id="gbar">
@@ -1333,7 +1379,14 @@ function buildAreaCards(c,rows){
   var sel=drillStack[0]?drillStack[0].key:null;
   c.appendChild(makeWholeCard('整體',rows));
   var m=groupBy(rows,'area');
-  sortArea(Object.keys(m)).forEach(function(k){c.appendChild(makeBigCard(k,m[k],function(){drillInto('area',k);},sel===k));});
+  var sorted=sortArea(Object.keys(m)).slice().sort(function(a,b){
+    return stat(m[b]).u - stat(m[a]).u;
+  });
+  sorted.forEach(function(k,i){
+    var card=makeBigCard(k,m[k],function(){drillInto('area',k);},sel===k);
+    if(i<3)card.classList.add('bc-top'+(i+1));
+    c.appendChild(card);
+  });
   if(!Object.keys(m).length)c.appendChild(makeEmpty('沒有符合條件的資料'));
 }
 function buildSideAreas(c,rows,sel){
@@ -1347,7 +1400,12 @@ function buildOfficeCards(c,rows){
   var aName=drillStack[0]?drillStack[0].key:'';
   c.appendChild(makeWholeCard(aName+' 整體',rows));
   var m=groupBy(rows,'office');
-  Object.keys(m).sort(function(a,b){return a.localeCompare(b,'zh-TW');}).forEach(function(k){c.appendChild(makeBigCard(k,m[k],function(){drillInto('office',k);},sel===k));});
+  var sorted=Object.keys(m).sort(function(a,b){return stat(m[b]).u - stat(m[a]).u;});
+  sorted.forEach(function(k,i){
+    var card=makeBigCard(k,m[k],function(){drillInto('office',k);},sel===k);
+    if(i<3)card.classList.add('bc-top'+(i+1));
+    c.appendChild(card);
+  });
   if(!Object.keys(m).length)c.appendChild(makeEmpty('此處無資料'));
 }
 function buildSideOffices(c,rows,sel){
