@@ -807,109 +807,107 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
 
 /* ══ 手機漢堡 ══ */
 #hamburger{display:none;background:none;border:none;cursor:pointer;padding:6px;flex-shrink:0;color:var(--text);margin-left:auto;}
-#tb-filters{display:contents;}
+
+/* 手機選單（桌機隱藏） */
+#mobile-menu{
+  display:none;
+  position:fixed;top:48px;left:0;right:0;z-index:199;
+  flex-direction:column;gap:10px;padding:14px;
+  background:rgba(240,237,230,0.97);
+  border-bottom:1px solid rgba(0,0,0,.1);
+  box-shadow:0 8px 24px rgba(0,0,0,.15);
+  overflow-y:auto;max-height:80vh;
+}
+#mobile-menu.open{display:flex;}
+.mm-row{display:flex;align-items:center;gap:6px;width:100%;flex-wrap:wrap;}
+.mm-row .tb-label{font-size:12px;color:var(--sub);flex-shrink:0;white-space:nowrap;}
+.mm-row .tb-sel{flex:1;min-width:80px;font-size:13px;}
+#mm-clear,#mm-p5{padding:4px 10px;border-radius:7px;font-size:12px;font-weight:700;border:1px solid rgba(0,0,0,.12);background:rgba(255,255,255,.7);cursor:pointer;font-family:inherit;}
 
 /* ══ MOBILE ══ */
 @media(max-width:768px){
-  /* topbar：只顯示 title + hamburger，其餘收入 dropdown */
   #topbar{
-    min-height:48px;padding:0 14px;gap:8px;
-    position:relative;z-index:200;flex-wrap:nowrap;overflow:visible;
+    min-height:48px;padding:0 14px;gap:6px;
+    flex-wrap:nowrap;overflow:hidden;
+    position:relative;z-index:200;
   }
-  #title{font-size:14px;flex-shrink:0;}
-  #ver-ts{display:none;}
+  /* 桌機用元素在手機全部隱藏 */
+  #topbar .sep,
+  #topbar .tb-label,
+  #topbar .tb-sel,
+  #chips,
+  #clear-btn,
+  #p5-toggle,
+  #ver-ts { display:none !important; }
+
+  #title{font-size:14px;flex-shrink:0;white-space:nowrap;}
   #hamburger{display:flex;align-items:center;justify-content:center;}
 
-  /* tb-filters：隱藏，點漢堡後展開為 dropdown */
-  #tb-filters{
-    display:none !important;
-    position:fixed;top:48px;left:0;right:0;z-index:199;
-    background:var(--glass);
-    backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
-    border-bottom:2px solid rgba(0,0,0,.08);
-    padding:12px 14px 16px;
-    flex-direction:column !important;gap:10px;
-    box-shadow:0 10px 30px rgba(0,0,0,.15);
-    overflow-y:auto;max-height:calc(100vh - 48px);
-  }
-  #tb-filters.open{display:flex !important;}
-  #tb-filters .sep{display:none;}
-  .tb-row{display:flex;align-items:center;gap:6px;width:100%;}
-  .tb-row .tb-label{font-size:12px;flex-shrink:0;min-width:28px;}
-  .tb-row .tb-sel{flex:1;min-width:0;font-size:13px;}
-  #chips{display:flex;gap:6px;flex-wrap:wrap;}
-  #chips .chip{font-size:12px;padding:5px 12px;}
-  #clear-btn{font-size:12px;}
-  #p5-toggle{font-size:12px;padding:4px 10px;}
-
   /* gbar */
-  #gbar{padding:0 12px;min-height:36px;}
-  .gb-btn{padding:3px 9px;font-size:11px;}
+  #gbar{padding:0 12px;min-height:38px;gap:6px;}
+  .gb-btn{padding:4px 10px;font-size:11px;}
   .gb-sync{display:none;}
-  .gb-seg{font-size:11px;}
+  .gb-seg{font-size:11px;padding:2px 5px;}
+  .gb-seg strong{font-size:11px;}
 
-  /* content-wrap: 全螢幕單欄 */
+  /* layout */
   #content-wrap{flex-direction:column;}
-  .col-side{display:none !important;}
-  .divider{display:none !important;}
-  #rank-drawer{display:none !important;}
-  #stage{width:100%;flex-direction:column;overflow-y:auto;}
+  .col-side,.divider,#rank-drawer{display:none !important;}
+  #stage{width:100%;flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch;}
 
-  /* col-main */
+  /* col-main grid */
   .col-main{
-    width:100% !important;
-    padding:10px 10px !important;
-    grid-template-columns:1fr 1fr !important;
-    gap:10px !important;
+    width:100% !important;padding:10px !important;
+    grid-template-columns:1fr 1fr !important;gap:10px !important;
   }
   .col-main.area-view{grid-template-columns:1fr !important;}
   .col-main.store-view{grid-template-columns:1fr !important;}
-  .col-main.staff-view{grid-template-columns:1fr 1fr !important;}
+  .col-main.staff-view,.col-main.office-view{grid-template-columns:1fr 1fr !important;}
 
   /* 整體卡 */
-  .big-card.whole{flex-direction:column;gap:8px;padding:14px;}
-  .wc-divider{width:100%;height:1px;}
-  .wc-left{flex-direction:row;align-items:baseline;gap:10px;min-width:0;}
-  .wc-label{font-size:14px !important;}
-  .wc-total{font-size:34px;}
-  .wc-stats{flex-wrap:wrap;gap:0;}
-  .wc-st{flex:1;min-width:90px;padding:5px 8px;}
-  .wc-st-num{font-size:18px;}
-  .wc-st-pct{font-size:10px;}
-  .area-view .big-card.whole .wc-total{font-size:36px;}
-  .area-view .big-card.whole .wc-st-num{font-size:20px;}
+  .big-card.whole{flex-direction:column;gap:8px;padding:12px;}
+  .wc-left{flex-direction:row;align-items:baseline;gap:8px;}
+  .wc-label{font-size:12px !important;}
+  .wc-total{font-size:30px;}
+  .wc-divider{width:100%;height:1px;flex-shrink:0;}
+  .wc-stats{flex-wrap:nowrap;gap:0;}
+  .wc-st{padding:4px 6px;}
+  .wc-st-num{font-size:15px;}
+  .wc-st-pct{font-size:9px;}
+  .wc-st-lbl{font-size:9px !important;}
 
   /* 大卡 */
-  .big-card{padding:12px 12px;gap:8px;}
-  .bc-name{font-size:13px;}
-  .bc-total{font-size:26px;}
-  .bc-st-num{font-size:14px;}
-  .bc-st-pct{font-size:9px;}
-  .area-view .bc-name{font-size:13px;}
-  .area-view .bc-total{font-size:26px;}
-  .area-view .bc-st-num{font-size:14px;}
+  .big-card{padding:10px;gap:6px;}
+  .bc-head{margin-bottom:2px;}
+  .bc-name{font-size:12px;}
+  .bc-total{font-size:22px;}
+  .bc-st{padding:5px 6px;}
+  .bc-st-num{font-size:13px;}
+  .bc-st-pct{font-size:8px;}
+  .bc-st-lbl{font-size:8px;}
 
   /* 人員層 */
-  .staff-summary{flex-wrap:wrap;gap:8px;padding:10px 12px;}
-  .ss-title{font-size:12px;}
-  .ss-total{font-size:20px;}
+  .staff-summary{flex-wrap:wrap;gap:6px;padding:10px;}
   .staff-card{gap:0;}
-  .sc-head{padding:10px 11px 7px;}
-  .sc-name{font-size:13px;}
-  .sc-corner-num{font-size:20px;}
-  .sc-corner-pct{font-size:9px;}
-  .sc-st-num{font-size:14px;}
-  .sc-st-pct{font-size:9px;}
+  .sc-head{padding:9px 10px 6px;}
+  .sc-name{font-size:12px;}
+  .sc-corner-num{font-size:18px;}
+  .sc-corner-pct{font-size:8px;}
+  .sc-st{padding:5px 6px 7px;}
   .sc-st-lbl{font-size:8px;}
+  .sc-st-num{font-size:13px;}
+  .sc-st-pct{font-size:8px;}
 
   /* 店家層 */
-  .store-header{flex-direction:column;align-items:flex-start;gap:8px;padding:12px;}
-  .sh-name{font-size:15px;}
-  .sh-tabs{flex-wrap:wrap;gap:6px;}
-  .sh-tab{padding:6px 12px;font-size:12px;}
-  .store-tbl th{padding:5px 8px;font-size:9px;}
-  .store-tbl td{padding:6px 8px;font-size:12px;}
-  .sp-body{max-height:none;}
+  .store-header{flex-direction:column;align-items:flex-start;gap:8px;padding:11px;}
+  .sh-name{font-size:14px;}
+  .sh-tabs{flex-wrap:wrap;gap:5px;}
+  .sh-tab{padding:5px 10px;font-size:11px;}
+  .store-tbl th{padding:4px 6px;font-size:9px;}
+  .store-tbl td{padding:5px 6px;font-size:11px;}
+  .sp-head{padding:9px 12px;}
+  .sp-title{font-size:11px;}
+  .sp-cnt,.sp-pct{font-size:10px;}
 
   /* 排行 FAB */
   #rank-fab{
@@ -927,25 +925,15 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
     display:block !important;
     position:fixed;bottom:0;left:0;right:0;z-index:400;
     background:rgba(255,255,255,.98);
-    backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-    border-top:1px solid rgba(0,0,0,.1);
-    border-radius:18px 18px 0 0;
-    transform:translateY(100%);
-    transition:transform .35s cubic-bezier(.34,1.05,.64,1);
-    max-height:72vh;overflow-y:auto;
+    border-top:1px solid rgba(0,0,0,.1);border-radius:18px 18px 0 0;
+    transform:translateY(100%);transition:transform .35s cubic-bezier(.34,1.05,.64,1);
+    max-height:72vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
     padding-bottom:env(safe-area-inset-bottom,16px);
   }
   #rank-sheet.open{transform:translateY(0);}
-  #rank-sheet-handle{
-    display:flex;align-items:center;justify-content:center;
-    padding:14px;cursor:pointer;flex-shrink:0;
-  }
-  #rank-sheet-handle::before{
-    content:'';width:40px;height:4px;border-radius:2px;background:rgba(0,0,0,.15);
-  }
-  #rank-sheet-overlay{
-    display:none;position:fixed;inset:0;z-index:390;background:rgba(0,0,0,.4);
-  }
+  #rank-sheet-handle{display:flex;align-items:center;justify-content:center;padding:14px;cursor:pointer;}
+  #rank-sheet-handle::before{content:'';width:40px;height:4px;border-radius:2px;background:rgba(0,0,0,.15);}
+  #rank-sheet-overlay{display:none;position:fixed;inset:0;z-index:390;background:rgba(0,0,0,.4);}
   #rank-sheet-overlay.open{display:block;}
 }
 
@@ -953,8 +941,7 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
   #rank-fab{display:none !important;}
   #rank-sheet{display:none !important;}
   #rank-sheet-overlay{display:none !important;}
-  .tb-row{display:contents;}
-  #tb-filters{display:contents !important;}
+  #mobile-menu{display:none !important;}
 }
 </style>
 </head>
@@ -972,40 +959,59 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
       <line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/>
     </svg>
   </button>
-  <div id="tb-filters">
-    <div class="sep"></div>
-    <div class="tb-row">
-      <span class="tb-label">問卷</span>
-      <select class="tb-sel" id="sel-survey" onchange="onSurveyChange()" disabled><option>載入中…</option></select>
-    </div>
-    <div class="sep"></div>
-    <div class="tb-row">
-      <span class="tb-label">營業處</span>
-      <select class="tb-sel" id="sel-area" onchange="onAreaFilter()" disabled><option value="">全部</option></select>
-      <span class="tb-label">營業所</span>
-      <select class="tb-sel" id="sel-office" onchange="onOfficeFilter()" disabled><option value="">全部</option></select>
-      <span class="tb-label">人員</span>
-      <select class="tb-sel" id="sel-staff" onchange="onStaffFilter()" disabled><option value="">全部</option></select>
-    </div>
-    <div class="sep"></div>
-    <div class="tb-row">
-      <span class="tb-label">通路</span>
-      <select class="tb-sel" id="sel-channel" onchange="onFilterChange()" disabled><option value="">全部</option></select>
-      <span class="tb-label">型態</span>
-      <select class="tb-sel" id="sel-type" onchange="onFilterChange()" disabled><option value="">全部</option></select>
-    </div>
-    <div class="sep"></div>
-    <div class="tb-row">
-      <div id="chips">
-        <button class="chip g on" id="chip-l" onclick="toggleChip('l')">✅ 上架</button>
-        <button class="chip y on" id="chip-n" onclick="toggleChip('n')">🟡 未上架</button>
-        <button class="chip r on" id="chip-u" onclick="toggleChip('u')">🔴 未填寫</button>
-      </div>
-      <button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <button id="p5-toggle" onclick="toggleP5()">⚡ P5</button>
-    </div>
+  <div class="sep" id="sep1"></div>
+  <span class="tb-label">問卷</span>
+  <select class="tb-sel" id="sel-survey" onchange="onSurveyChange()" disabled><option>載入中…</option></select>
+  <div class="sep" id="sep2"></div>
+  <span class="tb-label">營業處</span>
+  <select class="tb-sel" id="sel-area" onchange="onAreaFilter()" disabled><option value="">全部</option></select>
+  <span class="tb-label">營業所</span>
+  <select class="tb-sel" id="sel-office" onchange="onOfficeFilter()" disabled><option value="">全部</option></select>
+  <span class="tb-label">人員</span>
+  <select class="tb-sel" id="sel-staff" onchange="onStaffFilter()" disabled><option value="">全部</option></select>
+  <div class="sep" id="sep3"></div>
+  <span class="tb-label">通路</span>
+  <select class="tb-sel" id="sel-channel" onchange="onFilterChange()" disabled><option value="">全部</option></select>
+  <span class="tb-label">型態</span>
+  <select class="tb-sel" id="sel-type" onchange="onFilterChange()" disabled><option value="">全部</option></select>
+  <div class="sep" id="sep4"></div>
+  <div id="chips">
+    <button class="chip g on" id="chip-l" onclick="toggleChip('l')">✅ 上架</button>
+    <button class="chip y on" id="chip-n" onclick="toggleChip('n')">🟡 未上架</button>
+    <button class="chip r on" id="chip-u" onclick="toggleChip('u')">🔴 未填寫</button>
   </div>
-  <div id="ver-ts">Ver. 1.1.1 (2026-03-13 TST)</div>
+  <button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
+  <button id="p5-toggle" onclick="toggleP5()">⚡ P5</button>
+  <div id="ver-ts">Ver. 1.1.2 (2026-03-13 TST)</div>
+</div>
+
+<!-- 手機專用篩選 dropdown（JS 會把內容 clone 進來） -->
+<div id="mobile-menu">
+  <div class="mm-row">
+    <span class="tb-label">問卷</span>
+    <select class="tb-sel" id="mm-survey" onchange="mmSurvey(this)" disabled><option>載入中…</option></select>
+  </div>
+  <div class="mm-row">
+    <span class="tb-label">營業處</span>
+    <select class="tb-sel" id="mm-area" onchange="mmArea(this)" disabled><option value="">全部</option></select>
+    <span class="tb-label">營業所</span>
+    <select class="tb-sel" id="mm-office" onchange="mmOffice(this)" disabled><option value="">全部</option></select>
+    <span class="tb-label">人員</span>
+    <select class="tb-sel" id="mm-staff" onchange="mmStaff(this)" disabled><option value="">全部</option></select>
+  </div>
+  <div class="mm-row">
+    <span class="tb-label">通路</span>
+    <select class="tb-sel" id="mm-channel" onchange="mmFilter(this,'ch')" disabled><option value="">全部</option></select>
+    <span class="tb-label">型態</span>
+    <select class="tb-sel" id="mm-type" onchange="mmFilter(this,'type')" disabled><option value="">全部</option></select>
+  </div>
+  <div class="mm-row">
+    <button class="chip g on" id="mm-chip-l" onclick="toggleChip('l');syncMmChips()">✅ 上架</button>
+    <button class="chip y on" id="mm-chip-n" onclick="toggleChip('n');syncMmChips()">🟡 未上架</button>
+    <button class="chip r on" id="mm-chip-u" onclick="toggleChip('u');syncMmChips()">🔴 未填寫</button>
+    <button id="mm-clear" onclick="clearAllFilters();syncMmSelects()" style="margin-left:auto">✕ 清除</button>
+    <button id="mm-p5" onclick="toggleP5()">⚡ P5</button>
+  </div>
 </div>
 
 <div id="gbar">
@@ -1429,7 +1435,7 @@ function doRender(dir,clickedCard){
   var stage=document.getElementById('stage');
 
   if(dir==='none'){
-    stage.innerHTML='';buildStage(stage,rows);return;
+    stage.innerHTML='';buildStage(stage,rows);syncMmSelects();return;
   }
 
   var newWrap=document.createElement('div');
@@ -1755,17 +1761,58 @@ function updateGlobalBar(){
   if(sync)sync.textContent=_syncTime?'📊 資料同步 '+_syncTime:'';
 }
 
-/* ══ 漢堡選單 ══ */
+/* ══ 漢堡 & 手機選單 ══ */
 function toggleHamburger(){
-  var f=document.getElementById('tb-filters');
-  if(f)f.classList.toggle('open');
+  var m=document.getElementById('mobile-menu');
+  if(!m)return;
+  m.classList.toggle('open');
 }
-/* 點擊其他地方關閉 */
 document.addEventListener('click',function(e){
+  var m=document.getElementById('mobile-menu');
   var tb=document.getElementById('topbar');
-  var f=document.getElementById('tb-filters');
-  if(f&&f.classList.contains('open')&&!tb.contains(e.target)){f.classList.remove('open');}
+  if(m&&m.classList.contains('open')&&!m.contains(e.target)&&!tb.contains(e.target)){
+    m.classList.remove('open');
+  }
 });
+
+/* 手機選單同步主 select */
+function syncMmSelects(){
+  ['survey','area','office','staff','channel','type'].forEach(function(k){
+    var main=document.getElementById('sel-'+k);
+    var mm=document.getElementById('mm-'+k);
+    if(main&&mm){
+      /* 同步 options */
+      mm.innerHTML=main.innerHTML;
+      mm.value=main.value;
+      mm.disabled=main.disabled;
+    }
+  });
+}
+function syncMmChips(){
+  ['l','n','u'].forEach(function(k){
+    var mc=document.getElementById('mm-chip-'+k);
+    var dc=document.getElementById('chip-'+k);
+    if(mc&&dc)mc.className=dc.className;
+  });
+}
+function mmSurvey(el){
+  var s=document.getElementById('sel-survey');if(s){s.value=el.value;onSurveyChange();}
+}
+function mmArea(el){
+  var s=document.getElementById('sel-area');if(s){s.value=el.value;onAreaFilter();}setTimeout(syncMmSelects,100);
+}
+function mmOffice(el){
+  var s=document.getElementById('sel-office');if(s){s.value=el.value;onOfficeFilter();}setTimeout(syncMmSelects,100);
+}
+function mmStaff(el){
+  var s=document.getElementById('sel-staff');if(s){s.value=el.value;onStaffFilter();}
+}
+function mmFilter(el,k){
+  var id=k==='ch'?'sel-channel':'sel-type';
+  var s=document.getElementById(id);if(s){s.value=el.value;onFilterChange();}
+}
+/* 每次 render 後同步手機選單 */
+var _origDoRender=null;
 
 /* ══ 手機排行 Sheet ══ */
 function openRankSheet(){
@@ -1825,7 +1872,7 @@ function copyList(){
       return od!==0?od:gv(a,'store').localeCompare(gv(b,'store'),'zh-TW');
     }).forEach(function(r){
       var icon=gs(r)==='u'?'🔴':gs(r)==='n'?'🟡':'✅';
-      lines.push('   '+icon+' '+gv(r,'channel')+'｜'+gv(r,'store'));
+      lines.push('   '+icon+' '+gv(r,'type')+'｜'+gv(r,'store'));
     });
     lines.push('');
   });
