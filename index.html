@@ -90,8 +90,8 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);}
 }
 .col-main.area-view{
   grid-template-columns:repeat(2,1fr);
-  gap:28px 32px;
-  padding:32px 36px;
+  gap:20px 24px;
+  padding:20px 24px;
 }
 .col-main.area-view .bc-name{font-size:32px;font-weight:900;letter-spacing:-.5px;overflow:visible;}
 .col-main.area-view .bc-total{font-size:60px;letter-spacing:-3px;}
@@ -99,17 +99,20 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);}
 .col-main.area-view .bc-st-num{font-size:24px;}
 .col-main.area-view .bc-st-lbl{font-size:11px;}
 .col-main.area-view .bc-st-pct{font-size:12px;}
-.col-main.area-view .bc-track{height:10px;}
+.col-main.area-view .bc-track{height:12px;}
 .col-main.area-view .big-card{padding:24px 26px;gap:22px;}
 .col-main.office-view .bc-name{font-size:22px;font-weight:900;}
 .col-main.office-view .bc-total{font-size:48px;}
 .col-main.office-view .bc-head{min-width:150px;max-width:190px;}
-.col-main.office-view .bc-track{height:9px;}
+.col-main.office-view .bc-track{height:12px;}
 .col-main.office-view{
   grid-template-columns:repeat(3,1fr);
-  gap:24px 28px;
-  padding:28px 32px;
+  gap:20px 24px;
+  padding:20px 24px;
 }
+.col-main.office-view .bc-st-lbl{font-size:13px;}
+.col-main.office-view .bc-st-num{font-size:24px;}
+.col-main.office-view .bc-st-pct{font-size:13px;}
 .col-main::-webkit-scrollbar{width:5px;}
 .col-main::-webkit-scrollbar-thumb{background:var(--border);border-radius:5px;}
 .divider{flex-shrink:0;width:1px;background:var(--border);}
@@ -149,6 +152,27 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);}
 .big-card:hover::before,.big-card.sel::before{opacity:1;}
 .big-card:hover{border-color:var(--primary);box-shadow:0 8px 24px var(--shadow);transform:translateY(-3px);}
 .big-card.sel{border-color:var(--primary);box-shadow:0 0 0 3px rgba(139,166,144,.2),0 6px 20px var(--shadow);}
+/* 整體卡獨佔一整行 */
+.big-card.whole{grid-column:1/-1;cursor:default;}
+.big-card.whole:hover{transform:none;box-shadow:0 2px 8px rgba(0,0,0,.05);}
+/* 整體卡字體更大 */
+.area-view .big-card.whole .bc-name{font-size:36px;font-weight:900;}
+.area-view .big-card.whole .bc-total{font-size:72px;letter-spacing:-4px;}
+.area-view .big-card.whole .bc-head{min-width:200px;max-width:280px;}
+.area-view .big-card.whole .bc-st-num{font-size:28px;}
+.area-view .big-card.whole .bc-st-lbl{font-size:13px;}
+.area-view .big-card.whole .bc-st-pct{font-size:13px;}
+.area-view .big-card.whole .bc-track{height:14px;}
+.area-view .big-card.whole{padding:28px 32px;}
+/* 處級整體卡 */
+.office-view .big-card.whole .bc-name{font-size:28px;font-weight:900;}
+.office-view .big-card.whole .bc-total{font-size:60px;}
+.office-view .big-card.whole .bc-head{min-width:180px;max-width:250px;}
+.office-view .big-card.whole .bc-st-num{font-size:26px;}
+.office-view .big-card.whole .bc-st-lbl{font-size:13px;}
+.office-view .big-card.whole .bc-st-pct{font-size:13px;}
+.office-view .big-card.whole .bc-track{height:14px;}
+.office-view .big-card.whole{padding:24px 28px;}
 /* 左側：名稱+大數字 */
 .bc-head{display:flex;flex-direction:column;justify-content:center;min-width:140px;max-width:200px;border-right:1px solid var(--border);padding-right:18px;flex-shrink:0;}
 .bc-name{font-size:22px;font-weight:900;color:var(--text-main);line-height:1.2;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -186,9 +210,9 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);}
 
 /* ══ 人員層：3欄方形卡 ══ */
 .col-main.staff-view{
-  grid-template-columns:repeat(auto-fill,minmax(300px,1fr));
-  grid-auto-rows:auto;padding:22px;gap:16px;
-  overflow-y:auto; /* 人員層可上下滾動 */
+  grid-template-columns:repeat(4,1fr);
+  grid-auto-rows:auto;padding:20px 24px;gap:16px;
+  overflow-y:auto;
   align-content:start;
 }
 .staff-summary{grid-column:1/-1;background:var(--card);border:1.5px solid var(--border);border-radius:var(--r);padding:14px 18px;display:flex;align-items:center;gap:18px;animation:panelFade .28s var(--ease) both;}
@@ -217,11 +241,12 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);}
 .sc-total-sub{font-size:10px;color:var(--sub);}
 .sc-bar{margin:0 14px 8px;height:5px;background:rgba(0,0,0,.07);border-radius:99px;overflow:hidden;display:flex;position:relative;}
 .sc-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;border-top:1px solid var(--border);}
-.sc-st{padding:8px 10px;display:flex;flex-direction:row;align-items:center;gap:6px;border-right:1px solid var(--border);}
+.sc-st{padding:8px 10px;display:flex;flex-direction:column;align-items:flex-start;gap:3px;border-right:1px solid var(--border);}
 .sc-st:last-child{border-right:none;}
 .sc-st-lbl{font-size:11px;font-weight:700;color:var(--sub);white-space:nowrap;}
-.sc-st-num{font-size:22px;font-weight:900;line-height:1;letter-spacing:-0.5px;}
-.sc-st-pct{font-size:12px;font-weight:700;opacity:.75;}
+.sc-st-row{display:flex;align-items:baseline;gap:4px;}
+.sc-st-num{font-size:22px;font-weight:900;line-height:1;letter-spacing:-0.5px;white-space:nowrap;}
+.sc-st-pct{font-size:12px;font-weight:700;opacity:.75;white-space:nowrap;}
 .sc-st.g .sc-st-num{color:var(--green);}.sc-st.g .sc-st-pct{color:var(--green);}
 .sc-st.y .sc-st-num{color:var(--yellow);}.sc-st.y .sc-st-pct{color:var(--yellow);}
 .sc-st.r .sc-st-num{color:var(--red);}.sc-st.r .sc-st-pct{color:var(--red);}
@@ -774,10 +799,10 @@ function makeDivider(){var d=document.createElement('div');d.className='divider'
 function makeEmpty(msg){var d=document.createElement('div');d.className='empty';d.innerHTML='<div style="font-size:32px">🔍</div><div>'+esc(msg)+'</div>';return d;}
 
 /* ══ 大卡片 ══ */
-function makeBigCard(name,rows,onClick,isSel){
+function makeBigCard(name,rows,onClick,isSel,isWhole){
   var s=stat(rows);var t=s.t||1;
   var el=document.createElement('div');
-  el.className='big-card'+(isSel?' sel':'');
+  el.className='big-card'+(isSel?' sel':'')+(isWhole?' whole':'');
   el.innerHTML=
     '<div class="bc-head"><div class="bc-name">'+esc(name)+'</div><div class="bc-total">'+s.t+'</div></div>'
     +'<div class="bc-right">'
@@ -814,7 +839,7 @@ function makeMiniCard(name,rows,onClick,isSel){
 function buildAreaCards(c,rows){
   c.classList.add('area-view');
   var sel=drillStack[0]?drillStack[0].key:null;
-  c.appendChild(makeBigCard('整體',rows,null,false));
+  c.appendChild(makeBigCard('整體',rows,null,false,true));
   var m=groupBy(rows,'area');
   sortArea(Object.keys(m)).forEach(function(k){c.appendChild(makeBigCard(k,m[k],function(){drillInto('area',k);},sel===k));});
   if(!Object.keys(m).length)c.appendChild(makeEmpty('沒有符合條件的資料'));
@@ -828,7 +853,7 @@ function buildOfficeCards(c,rows){
   c.classList.add('office-view');
   var sel=drillStack[1]?drillStack[1].key:null;
   var aName=drillStack[0]?drillStack[0].key:'';
-  c.appendChild(makeBigCard(aName+' 整體',rows,null,false));
+  c.appendChild(makeBigCard(aName+' 整體',rows,null,false,true));
   var m=groupBy(rows,'office');
   Object.keys(m).sort(function(a,b){return a.localeCompare(b,'zh-TW');}).forEach(function(k){c.appendChild(makeBigCard(k,m[k],function(){drillInto('office',k);},sel===k));});
   if(!Object.keys(m).length)c.appendChild(makeEmpty('此處無資料'));
@@ -888,9 +913,9 @@ function buildStaffCards(c,rows){
       +'</div>'
       +'<div class="sc-bar">'+segs(s)+'</div>'
       +'<div class="sc-stats">'
-        +'<div class="sc-st g"><div class="sc-st-lbl">✅ 上架</div><div class="sc-st-num">'+s.l+'</div><div class="sc-st-pct">'+pct(s.l,t)+'%</div></div>'
-        +'<div class="sc-st y"><div class="sc-st-lbl">🟡 未上架</div><div class="sc-st-num">'+s.n+'</div><div class="sc-st-pct">'+pct(s.n,t)+'%</div></div>'
-        +'<div class="sc-st r"><div class="sc-st-lbl">🔴 未填寫</div><div class="sc-st-num">'+s.u+'</div><div class="sc-st-pct">'+pct(s.u,t)+'%</div></div>'
+        +'<div class="sc-st g"><div class="sc-st-lbl">✅ 上架</div><div class="sc-st-row"><span class="sc-st-num">'+s.l+'</span><span class="sc-st-pct">'+pct(s.l,t)+'%</span></div></div>'
+        +'<div class="sc-st y"><div class="sc-st-lbl">🟡 未上架</div><div class="sc-st-row"><span class="sc-st-num">'+s.n+'</span><span class="sc-st-pct">'+pct(s.n,t)+'%</span></div></div>'
+        +'<div class="sc-st r"><div class="sc-st-lbl">🔴 未填寫</div><div class="sc-st-row"><span class="sc-st-num">'+s.u+'</span><span class="sc-st-pct">'+pct(s.u,t)+'%</span></div></div>'
       +'</div>';
     card.addEventListener('click',function(){drillInto('staff',k);});
     c.appendChild(card);
