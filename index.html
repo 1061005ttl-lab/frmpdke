@@ -127,10 +127,10 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);}
 .mini-card.sel{border-color:var(--primary);background:rgba(139,166,144,.07);}
 .mc-top{display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:6px;}
 .mc-name{font-size:12px;font-weight:700;color:var(--text);word-break:break-all;line-height:1.2;}
-.mc-total{font-size:18px;font-weight:900;color:var(--primary);line-height:1;flex-shrink:0;letter-spacing:-1px;}
+.mc-total{font-size:20px;font-weight:900;color:var(--primary);line-height:1;flex-shrink:0;letter-spacing:-1px;}
 .mc-bar{height:4px;background:rgba(0,0,0,.07);border-radius:99px;overflow:hidden;display:flex;margin-bottom:6px;position:relative;width:100%;}
-.mc-sts{display:flex;justify-content:space-between;gap:4px;}
-.mc-s{font-size:10px;font-weight:700;white-space:nowrap;overflow:visible;}
+.mc-sts{display:flex;justify-content:space-between;gap:6px;}
+.mc-s{font-size:13px;font-weight:800;white-space:nowrap;overflow:visible;}
 .mc-s small{font-size:9px;opacity:.75;font-weight:600;}
 .mc-s.g{color:var(--green);}.mc-s.y{color:var(--yellow);}.mc-s.r{color:var(--red);}
 
@@ -237,9 +237,9 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);}
 .sc-head{padding:13px 14px 10px;display:flex;justify-content:space-between;align-items:flex-start;}
 .sc-name{font-size:15px;font-weight:800;color:var(--text);line-height:1.3;}
 /* 右上角：大數字 + 小百分比 */
-.sc-corner{text-align:right;flex-shrink:0;margin-left:8px;}
-.sc-corner-num{font-size:32px;font-weight:900;color:var(--primary);line-height:1;letter-spacing:-1px;display:block;}
-.sc-corner-pct{font-size:10px;font-weight:700;color:var(--sub);display:block;margin-top:1px;}
+.sc-corner{text-align:right;flex-shrink:0;margin-left:8px;white-space:nowrap;}
+.sc-corner-num{font-size:30px;font-weight:900;color:var(--primary);line-height:1;letter-spacing:-1px;display:block;}
+.sc-corner-pct{font-size:10px;font-weight:700;color:var(--sub);display:block;margin-top:2px;white-space:nowrap;}
 /* 統計三格 */
 .sc-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;border-top:1px solid var(--border);flex:1;}
 .sc-st{padding:9px 10px 11px;display:flex;flex-direction:column;align-items:flex-start;gap:3px;border-right:1px solid var(--border);}
@@ -250,13 +250,16 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);}
 .sc-st.g .sc-st-num{color:var(--green);}.sc-st.g .sc-st-pct{color:var(--green);}
 .sc-st.y .sc-st-num{color:var(--yellow);}.sc-st.y .sc-st-pct{color:var(--yellow);}
 .sc-st.r .sc-st-num{color:var(--red);}.sc-st.r .sc-st-pct{color:var(--red);}
-/* ── 樣式①：底部細長條 8px（有軌道背景） ── */
-.sc-bar-s1{height:8px;width:100%;background:rgba(0,0,0,.07);flex-shrink:0;}
-.sc-bar-s1-track{height:100%;}
-/* ── 樣式②：底部粗色帶 18px ── */
-.sc-bar-s2{height:18px;width:100%;flex-shrink:0;}
-/* ── 樣式③：底部邊框（4px solid gradient 模擬） ── */
-.sc-bar-s3{height:5px;width:100%;flex-shrink:0;}
+/* ── 樣式①：分段膠囊條（主推） ── */
+.sc-bar-s1{height:10px;width:100%;flex-shrink:0;display:flex;align-items:center;gap:3px;padding:0 12px 10px;box-sizing:border-box;}
+.sc-bar-s1-seg{height:7px;border-radius:99px;flex-shrink:0;min-width:3px;}
+.sc-bar-s1-seg.g{background:var(--green);opacity:.9;}
+.sc-bar-s1-seg.y{background:var(--yellow);opacity:.9;}
+.sc-bar-s1-seg.r{background:var(--red);opacity:.9;}
+/* ── 樣式②：底部漸層色帶（中等高度，磨砂感） ── */
+.sc-bar-s2{height:12px;width:100%;flex-shrink:0;opacity:.85;}
+/* ── 樣式③：底部極細線 ── */
+.sc-bar-s3{height:4px;width:100%;flex-shrink:0;}
 
 /* ══ 店家層 ══ */
 .col-main.store-view{grid-template-columns:1fr;grid-auto-rows:auto;padding:16px;gap:12px;}
@@ -925,8 +928,15 @@ function buildStaffCards(c,rows){
       +'var(--yellow) '+gl+'%,var(--yellow) '+gln+'%,'
       +'var(--red) '+gln+'%,var(--red) 100%)';
     /* style=1 細長條, style=2 粗色帶, style=3 底部邊框 */
+    /* 樣式①：三個膠囊 — 寬度依佔比，最小2% */
+    var glMin=Math.max(gl,2),gnMin=Math.max(pct(s.n,t),2),grMin=Math.max(pct(s.u,t),2);
+    var s1html='<div class="sc-bar-s1">'
+      +(s.l?'<div class="sc-bar-s1-seg g" style="flex:'+s.l+'"></div>':'')
+      +(s.n?'<div class="sc-bar-s1-seg y" style="flex:'+s.n+'"></div>':'')
+      +(s.u?'<div class="sc-bar-s1-seg r" style="flex:'+s.u+'"></div>':'')
+      +'</div>';
     var barHTML={
-      1:'<div class="sc-bar-s1"><div class="sc-bar-s1-track" style="background:'+barGrad+'"></div></div>',
+      1:s1html,
       2:'<div class="sc-bar-s2" style="background:'+barGrad+'"></div>',
       3:'<div class="sc-bar-s3" style="background:'+barGrad+'"></div>'
     }[_cardStyle]||'';
