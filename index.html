@@ -811,18 +811,37 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
 /* 手機選單（桌機隱藏） */
 #mobile-menu{
   display:none;
-  position:fixed;top:48px;left:0;right:0;z-index:199;
-  flex-direction:column;gap:10px;padding:14px;
-  background:rgba(240,237,230,0.97);
-  border-bottom:1px solid rgba(0,0,0,.1);
-  box-shadow:0 8px 24px rgba(0,0,0,.15);
-  overflow-y:auto;max-height:80vh;
+  position:fixed;top:48px;left:0;right:0;z-index:300;
+  flex-direction:column;gap:0;
+  background:var(--bg);
+  border-bottom:2px solid rgba(0,0,0,.1);
+  box-shadow:0 8px 32px rgba(0,0,0,.2);
+  overflow-y:auto;max-height:calc(100vh - 48px);
 }
 #mobile-menu.open{display:flex;}
-.mm-row{display:flex;align-items:center;gap:6px;width:100%;flex-wrap:wrap;}
-.mm-row .tb-label{font-size:12px;color:var(--sub);flex-shrink:0;white-space:nowrap;}
-.mm-row .tb-sel{flex:1;min-width:80px;font-size:13px;}
-#mm-clear,#mm-p5{padding:4px 10px;border-radius:7px;font-size:12px;font-weight:700;border:1px solid rgba(0,0,0,.12);background:rgba(255,255,255,.7);cursor:pointer;font-family:inherit;}
+#mm-overlay{
+  display:none;position:fixed;inset:0;top:48px;z-index:299;
+  background:rgba(0,0,0,.4);
+}
+#mm-overlay.open{display:block;}
+.mm-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 16px 10px;border-bottom:1px solid rgba(0,0,0,.07);
+  background:rgba(255,255,255,.6);
+}
+.mm-title{font-size:13px;font-weight:800;color:var(--text);}
+#mm-close-btn{
+  background:none;border:none;cursor:pointer;padding:4px 8px;
+  font-size:18px;color:var(--sub);line-height:1;
+}
+.mm-section{padding:10px 14px;border-bottom:1px solid rgba(0,0,0,.05);display:flex;flex-direction:column;gap:6px;}
+.mm-row{display:flex;align-items:center;gap:8px;width:100%;}
+.mm-row .tb-label{font-size:11px;font-weight:700;color:var(--sub);flex-shrink:0;white-space:nowrap;width:34px;text-align:right;}
+.mm-row .tb-sel{flex:1;min-width:0;font-size:13px;padding:6px 8px;border-radius:7px;}
+#mm-chips-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:10px 14px 12px;}
+#mm-chips-row .chip{font-size:12px;padding:5px 12px;}
+#mm-chips-row #mm-clear,#mm-chips-row #mm-p5{padding:5px 11px;border-radius:99px;font-size:12px;font-weight:700;border:1.5px solid rgba(0,0,0,.12);background:rgba(255,255,255,.7);cursor:pointer;font-family:inherit;white-space:nowrap;}
+#mm-chips-row #mm-clear{margin-left:auto;color:#c62828;border-color:rgba(198,40,40,.3);}
 
 /* ══ MOBILE ══ */
 @media(max-width:768px){
@@ -878,9 +897,17 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
 
   /* 大卡 */
   .big-card{padding:10px;gap:6px;}
-  .bc-head{margin-bottom:2px;}
-  .bc-name{font-size:12px;}
-  .bc-total{font-size:22px;}
+  /* 雙欄時：名稱上、數字下，不截斷 */
+  .office-view .bc-head,.staff-view .bc-head{flex-direction:column;align-items:flex-start;gap:2px;}
+  .office-view .bc-name,.staff-view .bc-name{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;}
+  .office-view .bc-total,.staff-view .bc-total{font-size:28px;}
+  /* 單欄 area-view 還是左右並排，字可大一點 */
+  .area-view .bc-head{flex-direction:row;}
+  .area-view .bc-name{font-size:14px;}
+  .area-view .bc-total{font-size:32px;}
+  /* 預設雙欄 */
+  .bc-name{font-size:13px;}
+  .bc-total{font-size:24px;}
   .bc-st{padding:5px 6px;}
   .bc-st-num{font-size:13px;}
   .bc-st-pct{font-size:8px;}
@@ -942,6 +969,7 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
   #rank-sheet{display:none !important;}
   #rank-sheet-overlay{display:none !important;}
   #mobile-menu{display:none !important;}
+  #mm-overlay{display:none !important;}
 }
 </style>
 </head>
@@ -982,35 +1010,52 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
   </div>
   <button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
   <button id="p5-toggle" onclick="toggleP5()">⚡ P5</button>
-  <div id="ver-ts">Ver. 1.1.2 (2026-03-13 TST)</div>
+  <div id="ver-ts">Ver. 1.1.3 (2026-03-13 TST)</div>
 </div>
 
 <!-- 手機專用篩選 dropdown（JS 會把內容 clone 進來） -->
+<div id="mm-overlay" onclick="toggleHamburger()"></div>
 <div id="mobile-menu">
-  <div class="mm-row">
-    <span class="tb-label">問卷</span>
-    <select class="tb-sel" id="mm-survey" onchange="mmSurvey(this)" disabled><option>載入中…</option></select>
+  <div class="mm-header">
+    <span class="mm-title">⚙️ 篩選設定</span>
+    <button id="mm-close-btn" onclick="toggleHamburger()">✕</button>
   </div>
-  <div class="mm-row">
-    <span class="tb-label">營業處</span>
-    <select class="tb-sel" id="mm-area" onchange="mmArea(this)" disabled><option value="">全部</option></select>
-    <span class="tb-label">營業所</span>
-    <select class="tb-sel" id="mm-office" onchange="mmOffice(this)" disabled><option value="">全部</option></select>
-    <span class="tb-label">人員</span>
-    <select class="tb-sel" id="mm-staff" onchange="mmStaff(this)" disabled><option value="">全部</option></select>
+  <div class="mm-section">
+    <div class="mm-row">
+      <span class="tb-label">問卷</span>
+      <select class="tb-sel" id="mm-survey" onchange="mmSurvey(this)" disabled><option>載入中…</option></select>
+    </div>
   </div>
-  <div class="mm-row">
-    <span class="tb-label">通路</span>
-    <select class="tb-sel" id="mm-channel" onchange="mmFilter(this,'ch')" disabled><option value="">全部</option></select>
-    <span class="tb-label">型態</span>
-    <select class="tb-sel" id="mm-type" onchange="mmFilter(this,'type')" disabled><option value="">全部</option></select>
+  <div class="mm-section">
+    <div class="mm-row">
+      <span class="tb-label">營業處</span>
+      <select class="tb-sel" id="mm-area" onchange="mmArea(this)" disabled><option value="">全部</option></select>
+    </div>
+    <div class="mm-row">
+      <span class="tb-label">營業所</span>
+      <select class="tb-sel" id="mm-office" onchange="mmOffice(this)" disabled><option value="">全部</option></select>
+    </div>
+    <div class="mm-row">
+      <span class="tb-label">人員</span>
+      <select class="tb-sel" id="mm-staff" onchange="mmStaff(this)" disabled><option value="">全部</option></select>
+    </div>
   </div>
-  <div class="mm-row">
+  <div class="mm-section">
+    <div class="mm-row">
+      <span class="tb-label">通路</span>
+      <select class="tb-sel" id="mm-channel" onchange="mmFilter(this,'ch')" disabled><option value="">全部</option></select>
+    </div>
+    <div class="mm-row">
+      <span class="tb-label">型態</span>
+      <select class="tb-sel" id="mm-type" onchange="mmFilter(this,'type')" disabled><option value="">全部</option></select>
+    </div>
+  </div>
+  <div id="mm-chips-row">
     <button class="chip g on" id="mm-chip-l" onclick="toggleChip('l');syncMmChips()">✅ 上架</button>
     <button class="chip y on" id="mm-chip-n" onclick="toggleChip('n');syncMmChips()">🟡 未上架</button>
     <button class="chip r on" id="mm-chip-u" onclick="toggleChip('u');syncMmChips()">🔴 未填寫</button>
-    <button id="mm-clear" onclick="clearAllFilters();syncMmSelects()" style="margin-left:auto">✕ 清除</button>
     <button id="mm-p5" onclick="toggleP5()">⚡ P5</button>
+    <button id="mm-clear" onclick="clearAllFilters();syncMmSelects()">✕ 清除篩選</button>
   </div>
 </div>
 
@@ -1764,14 +1809,18 @@ function updateGlobalBar(){
 /* ══ 漢堡 & 手機選單 ══ */
 function toggleHamburger(){
   var m=document.getElementById('mobile-menu');
+  var o=document.getElementById('mm-overlay');
   if(!m)return;
-  m.classList.toggle('open');
+  var isOpen=m.classList.toggle('open');
+  if(o)o.classList.toggle('open',isOpen);
 }
 document.addEventListener('click',function(e){
   var m=document.getElementById('mobile-menu');
+  var o=document.getElementById('mm-overlay');
   var tb=document.getElementById('topbar');
   if(m&&m.classList.contains('open')&&!m.contains(e.target)&&!tb.contains(e.target)){
     m.classList.remove('open');
+    if(o)o.classList.remove('open');
   }
 });
 
