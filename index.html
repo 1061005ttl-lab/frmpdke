@@ -103,16 +103,16 @@ body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);}
 .col-main{
   flex:1;min-width:0;overflow-y:auto;overflow-x:hidden;
   padding:20px 24px;display:grid;
-  grid-template-columns:repeat(3,1fr);
+  grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
   gap:16px;align-content:start;
   grid-auto-rows:minmax(auto,auto);
 }
 /* ── area-view ── */
-.col-main.area-view{grid-template-columns:repeat(3,1fr);gap:16px;padding:20px 24px;}
+.col-main.area-view{grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;padding:20px 24px;}
 /* ── office-view ── */
-.col-main.office-view{grid-template-columns:repeat(3,1fr);gap:16px;padding:20px 24px;}
+.col-main.office-view{grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;padding:20px 24px;}
 /* ── staff-view ── */
-.col-main.staff-view{grid-template-columns:repeat(4,1fr);grid-auto-rows:auto;padding:16px 20px;gap:14px;overflow-y:auto;align-content:start;}
+.col-main.staff-view{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));grid-auto-rows:auto;padding:16px 20px;gap:14px;overflow-y:auto;align-content:start;}
 /* ── store-view ── */
 .col-main.store-view{grid-template-columns:1fr;grid-auto-rows:auto;padding:14px 16px;gap:10px;}
 
@@ -718,7 +718,13 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
   box-shadow:0 2px 8px rgba(0,0,0,.04);
   gap:12px;flex-wrap:nowrap;overflow:hidden;
 }
-.sh-left{display:flex;align-items:center;gap:12px;flex-shrink:0;overflow:hidden;flex-wrap:wrap;}
+.sh-toggle{
+  padding:5px 14px;border-radius:7px;border:1px solid rgba(0,0,0,.12);
+  background:rgba(255,255,255,.7);color:var(--text);font-size:12px;font-weight:700;
+  cursor:pointer;white-space:nowrap;font-family:inherit;flex-shrink:0;
+  transition:all .14s;
+}
+.sh-toggle:hover{border-color:var(--primary);color:var(--primary-d);}
 .sh-name{font-size:16px;font-weight:900;color:var(--text);white-space:nowrap;}
 .sh-stats{display:flex;gap:8px;flex-shrink:0;}
 .sh-s{font-size:12px;font-weight:700;white-space:nowrap;}
@@ -874,14 +880,16 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
   .col-side,.divider,#rank-drawer{display:none !important;}
   #stage{width:100%;flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch;}
 
-  /* col-main grid */
+  /* col-main grid — 手機優先單欄/雙欄由 minmax 決定 */
   .col-main{
-    width:100% !important;padding:10px !important;
-    grid-template-columns:1fr 1fr !important;gap:10px !important;
+    width:100% !important;padding:8px !important;
+    grid-template-columns:repeat(auto-fill,minmax(150px,1fr)) !important;
+    gap:8px !important;
   }
   .col-main.area-view{grid-template-columns:1fr !important;}
   .col-main.store-view{grid-template-columns:1fr !important;}
-  .col-main.staff-view,.col-main.office-view{grid-template-columns:1fr 1fr !important;}
+  .col-main.staff-view{grid-template-columns:repeat(auto-fill,minmax(140px,1fr)) !important;}
+  .col-main.office-view{grid-template-columns:repeat(auto-fill,minmax(150px,1fr)) !important;}
 
   /* 整體卡 */
   .big-card.whole{flex-direction:column;gap:8px;padding:12px;}
@@ -1010,7 +1018,7 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
   </div>
   <button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
   <button id="p5-toggle" onclick="toggleP5()">⚡ P5</button>
-  <div id="ver-ts">Ver. 1.1.3 (2026-03-13 TST)</div>
+  <div id="ver-ts">Ver. 1.2.0 (2026-03-13 TST)</div>
 </div>
 
 <!-- 手機專用篩選 dropdown（JS 會把內容 clone 進來） -->
@@ -1665,11 +1673,8 @@ function buildStaffCards(c,rows){
   if(!Object.keys(m).length){c.appendChild(makeEmpty('此所無資料'));return;}
   Object.keys(m).sort(function(a,b){
     var sa=stat(m[a]),sb=stat(m[b]);
-    var ta=sa.t||1,tb=sb.t||1;
-    var ua=sa.u/ta,ub=sb.u/tb;
-    if(Math.abs(ua-ub)>0.005)return ub-ua;
-    var na=sa.n/ta,nb=sb.n/tb;
-    if(Math.abs(na-nb)>0.005)return nb-na;
+    if(sb.u!==sa.u)return sb.u-sa.u;
+    if(sb.n!==sa.n)return sb.n-sa.n;
     return a.localeCompare(b,'zh-TW');
   }).forEach(function(k){
     var sr=m[k];var s=stat(sr);var t=s.t||1;
@@ -1710,80 +1715,65 @@ function buildSideStaff(c,rows,sel){
 function buildStoreCards(c,rows){
   var s=stat(rows);var t=s.t||1;
   var staffName=drillStack[2]?drillStack[2].key:'';
-  var officeName=drillStack[1]?drillStack[1].key:'';
-  var parentRows=allRows.filter(function(r){
-    var ok=chips[gs(r)];
-    if(fCh&&gv(r,'channel')!==fCh)ok=false;
-    if(fType&&gv(r,'type')!==fType)ok=false;
-    if(drillStack[0]&&gv(r,'area')!==drillStack[0].key)ok=false;
-    if(drillStack[1]&&gv(r,'office')!==drillStack[1].key)ok=false;
-    return ok;
-  });
-  var ps=stat(parentRows);
+
+  /* ── 標頭 ── */
   var header=document.createElement('div');header.className='store-header';
   header.innerHTML=
-    '<div class="sh-left"><div class="sh-name">👤 '+esc(staffName)+'</div>'
-    +'<div class="sh-stats">'
-      +'<span class="sh-s g">✅ '+s.l+'</span>'
-      +'<span class="sh-s y">🟡 '+s.n+'</span>'
-      +'<span class="sh-s r">🔴 '+s.u+'</span>'
-    +'</div></div>'
-    +'<div class="sh-tabs">'
-      +'<button class="sh-tab g'+(s.l?'':' dim')+' '+((_visibleStatus.l)?'':'tab-off')+'" id="tab-l" onclick="togglePanel(\'l\')">✅ 上架 <strong>'+s.l+'</strong></button>'
-      +'<button class="sh-tab y'+(s.n?'':' dim')+' '+((_visibleStatus.n)?'':'tab-off')+'" id="tab-n" onclick="togglePanel(\'n\')">🟡 未上架 <strong>'+s.n+'</strong></button>'
-      +'<button class="sh-tab r'+(s.u?'':' dim')+' '+((_visibleStatus.u)?'':'tab-off')+'" id="tab-u" onclick="togglePanel(\'u\')">🔴 未填寫 <strong>'+s.u+'</strong></button>'
-    +'</div>';
+    '<div class="sh-left">'
+      +'<div class="sh-name">👤 '+esc(staffName)+'</div>'
+      +'<div class="sh-stats">'
+        +'<span class="sh-s g">✅ '+s.l+'</span>'
+        +'<span class="sh-s y">🟡 '+s.n+'</span>'
+        +'<span class="sh-s r">🔴 '+s.u+'</span>'
+      +'</div>'
+    +'</div>'
+    +'<button class="sh-toggle" id="store-toggle-btn" onclick="toggleStoreList()">▾ 收合清冊</button>';
   c.appendChild(header);
 
-  var GRPS=[{k:'l',cls:'sg',lbl:'✅ 上架'},{k:'n',cls:'sy',lbl:'🟡 未上架'},{k:'u',cls:'sr',lbl:'🔴 未填寫'}];
-  var hasAny=false;
-  GRPS.forEach(function(g){
-    var gr=rows.filter(function(r){return gs(r)===g.k;});
-    if(!gr.length)return;hasAny=true;
-    gr.sort(function(a,b){return gv(a,'store').localeCompare(gv(b,'store'),'zh-TW');});
-    var panel=document.createElement('div');
-    panel.className='store-panel '+g.cls;
-    panel.id='store-panel-'+g.k;
-    if(!_visibleStatus[g.k])panel.classList.add('hidden');
-    var pv=pct(gr.length,t);
-    var isOpen=_visibleStatus[g.k];
-    var html='<div class="sp-head" onclick="togglePanel(\''+g.k+'\')">'
-      +'<span class="sp-arrow">'+(isOpen?'▾':'▸')+'</span>'
-      +'<span class="sp-title">'+g.lbl+'</span>'
-      +'<span class="sp-cnt">'+gr.length+' 家</span>'
-      +'<span class="sp-pct">佔 '+pv+'%</span></div>'
-      +'<div class="sp-body"'+(isOpen?'':' style="display:none"')+'>'
-      +'<table class="store-tbl"><thead><tr>'
-      +'<th style="width:24px"></th>'
-      +'<th style="width:22%">店家名稱</th>'
-      +'<th style="width:15%">通路</th>'
-      +'<th style="width:14%">型態</th>'
-      +'<th style="width:10%">等級</th>'
-      +'<th style="width:20%">店家代碼</th>'
-      +'</tr></thead><tbody>';
-    gr.forEach(function(r){
-      html+='<tr><td><span class="dot '+g.k+'"></span></td>'
-        +'<td class="td-name">'+esc(gv(r,'store'))+'</td>'
-        +'<td class="td-sub">'+esc(gv(r,'channel'))+'</td>'
-        +'<td class="td-sub">'+esc(gv(r,'type'))+'</td>'
-        +'<td class="td-sub">'+esc(gv(r,'grade'))+'</td>'
-        +'<td class="td-sub">'+esc(gv(r,'code'))+'</td></tr>';
-    });
-    html+='</tbody></table></div>';panel.innerHTML=html;c.appendChild(panel);
+  /* ── 單一清冊（預設展開） ── */
+  var wrap=document.createElement('div');
+  wrap.className='store-panel sg';wrap.id='store-list-wrap';
+  var order={u:0,n:1,l:2};
+  var sorted=rows.slice().sort(function(a,b){
+    var od=order[gs(a)]-order[gs(b)];
+    return od!==0?od:gv(a,'store').localeCompare(gv(b,'store'),'zh-TW');
   });
-  if(!hasAny)c.appendChild(makeEmpty('沒有符合條件的店家'));
+
+  var html='<div class="sp-body" id="store-list-body">'
+    +'<table class="store-tbl"><thead><tr>'
+    +'<th style="width:20px"></th>'
+    +'<th>店家名稱</th>'
+    +'<th style="width:13%">通路</th>'
+    +'<th style="width:13%">型態</th>'
+    +'<th style="width:9%">等級</th>'
+    +'<th style="width:18%">店家代碼</th>'
+    +'</tr></thead><tbody>';
+  sorted.forEach(function(r){
+    var k=gs(r);
+    html+='<tr><td><span class="dot '+k+'"></span></td>'
+      +'<td class="td-name">'+esc(gv(r,'store'))+'</td>'
+      +'<td class="td-sub">'+esc(gv(r,'channel'))+'</td>'
+      +'<td class="td-sub">'+esc(gv(r,'type'))+'</td>'
+      +'<td class="td-sub">'+esc(gv(r,'grade'))+'</td>'
+      +'<td class="td-sub">'+esc(gv(r,'code'))+'</td></tr>';
+  });
+  html+='</tbody></table></div>';
+  wrap.innerHTML=html;
+  if(!sorted.length)wrap.innerHTML='';c.appendChild(wrap);
+  if(!sorted.length)c.appendChild(makeEmpty('沒有符合條件的店家'));
+
   window._storeRows=rows;
   window._storeLabel=(SURVEYS[curSurvey]?SURVEYS[curSurvey].name:'')+' ｜ '+drillStack.map(function(d){return d.key;}).join(' › ');
+  window._storeListOpen=true;
 }
 
-function togglePanel(k){
-  _visibleStatus[k]=!_visibleStatus[k];
-  var body=document.querySelector('#store-panel-'+k+' .sp-body');
-  var arrow=document.querySelector('#store-panel-'+k+' .sp-arrow');
-  var tab=document.getElementById('tab-'+k);
-  if(body)body.style.display=_visibleStatus[k]?'':'none';
-  if(arrow)arrow.textContent=_visibleStatus[k]?'▾':'▸';
-  if(tab)tab.classList.toggle('tab-off',!_visibleStatus[k]);
+function toggleStoreList(){
+  var body=document.getElementById('store-list-body');
+  var btn=document.getElementById('store-toggle-btn');
+  if(!body||!btn)return;
+  window._storeListOpen=!window._storeListOpen;
+  body.style.display=window._storeListOpen?'':'none';
+  btn.textContent=window._storeListOpen?'▾ 收合清冊':'▸ 展開清冊 ('+((window._storeRows||[]).length)+' 家)';
 }
 
 /* ══ global bar ══ */
