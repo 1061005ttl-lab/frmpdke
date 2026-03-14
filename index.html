@@ -868,7 +868,13 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
 #mm-chips-row #mm-clear{margin-left:auto;color:#c62828;border-color:rgba(198,40,40,.3);}
 
 /* ══ MOBILE ══ */
+/*
+  手機版設計哲學：放棄 grid 卡片，改用緊湊 list-row。
+  每列 ~76px，單行顯示名稱 + 數字 + 三燈統計。
+  最大化有限螢幕內的資訊密度。
+*/
 @media(max-width:768px){
+
   /* ── topbar ── */
   #topbar{min-height:48px;padding:0 14px;gap:6px;flex-wrap:nowrap;overflow:hidden;position:relative;z-index:200;}
   #topbar .sep,#topbar .tb-label,#topbar .tb-sel,
@@ -877,108 +883,197 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
   #hamburger{display:flex;align-items:center;justify-content:center;}
 
   /* ── gbar ── */
-  #gbar{padding:0 12px;min-height:38px;gap:6px;}
-  .gb-btn{padding:4px 10px;font-size:11px;}
+  #gbar{padding:0 12px;min-height:38px;gap:4px;flex-wrap:nowrap;}
+  .gb-btn{padding:3px 9px;font-size:11px;}
   .gb-sync{display:none;}
-  .gb-seg{font-size:11px;padding:2px 5px;}
+  .gb-seg{font-size:11px;padding:2px 4px;}
   .gb-seg strong{font-size:11px;}
+  .gb-arrow{padding:0;}
 
   /* ── layout ── */
   #content-wrap{flex-direction:column;}
   .col-side,.divider,#rank-drawer{display:none !important;}
   #stage{width:100%;flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch;}
 
-  /* ── col-main：align-items:start 是關鍵，防止 grid stretch 截斷卡片 ── */
+  /* ── col-main：完全平鋪，不 grid ── */
   .col-main{
-    width:100% !important;padding:8px !important;gap:8px !important;
-    align-items:start !important;
-    align-content:start !important;
-    grid-auto-rows:auto !important;
+    width:100% !important;
+    padding:0 !important;
+    display:flex !important;
+    flex-direction:column !important;
+    gap:0 !important;
+    overflow-y:visible !important;
   }
-  .col-main.area-view{grid-template-columns:1fr !important;}
-  .col-main.office-view{grid-template-columns:repeat(2,1fr) !important;}
-  .col-main.staff-view{grid-template-columns:repeat(2,1fr) !important;}
-  .col-main.store-view{grid-template-columns:1fr !important;}
 
-  /* ── 大卡基礎：height:auto + align-self:start 防止被拉伸 ── */
-  .big-card{
-    padding:11px 12px;gap:7px;
+  /* ══════════════════════════════════
+     整體大卡（深色）：保留卡片外觀但更緊湊
+  ══════════════════════════════════ */
+  .big-card.whole{
+    flex-direction:row !important;
+    padding:14px 16px !important;
+    margin:8px 8px 0 !important;
+    border-radius:12px !important;
+    gap:12px !important;
     height:auto !important;
-    align-self:start !important;
+    align-items:center !important;
   }
-  .bc-head{gap:6px;}
-  .bc-name{font-size:13px;}
-  .bc-total{font-size:26px;}
-  .bc-track{height:5px;}
-  .bc-stats{gap:1px;}
-  .bc-st{padding:5px 7px;gap:2px;}
-  .bc-st-lbl{font-size:9px;}
-  .bc-st-num{font-size:13px;}
-  .bc-st-pct{font-size:9px;}
+  .wc-left{flex-direction:column;align-items:flex-start;gap:0;flex-shrink:0;}
+  .wc-label{font-size:11px !important;opacity:.7;}
+  .wc-total{font-size:38px;line-height:1;}
+  .wc-divider{display:none !important;}
+  .wc-right{flex:1;min-width:0;gap:6px;}
+  .wc-track{height:6px;border-radius:3px;}
+  .wc-stats{display:flex;flex-direction:row;gap:0;flex-wrap:nowrap;}
+  .wc-st{flex:1;padding:4px 6px;min-width:0;}
+  .wc-st-lbl{font-size:9px !important;white-space:nowrap;}
+  .wc-st-num{font-size:16px;}
+  .wc-st-pct{font-size:9px;}
 
-  /* ── 總級卡 (area-view)：1欄，左右並排，字較大 ── */
-  .area-view .big-card{padding:14px 16px;gap:9px;align-self:auto !important;}
-  .area-view .bc-head{flex-direction:row;align-items:flex-start;}
-  .area-view .bc-name{font-size:16px;}
-  .area-view .bc-total{font-size:36px;}
-  .area-view .bc-track{height:7px;}
-  .area-view .bc-st{padding:7px 10px;}
-  .area-view .bc-st-lbl{font-size:11px;}
-  .area-view .bc-st-num{font-size:18px;}
-  .area-view .bc-st-pct{font-size:10px;}
+  /* ══════════════════════════════════
+     LIST ROW：取代 big-card 在手機的角色
+     每個普通 big-card 變成緊湊橫列
+  ══════════════════════════════════ */
+  .big-card:not(.whole){
+    display:flex !important;
+    flex-direction:column !important;
+    padding:10px 16px 8px !important;
+    margin:0 !important;
+    border-radius:0 !important;
+    border:none !important;
+    border-bottom:1px solid rgba(0,0,0,.06) !important;
+    box-shadow:none !important;
+    background:#fff !important;
+    gap:5px !important;
+    height:auto !important;
+    transform:none !important;
+    cursor:pointer;
+  }
+  .big-card:not(.whole):active{background:rgba(139,166,144,.08) !important;}
+  /* bc-top 高亮：只留左邊色條 */
+  .bc-top1:not(.whole){border-left:3px solid #f59e0b !important;padding-left:13px !important;}
+  .bc-top2:not(.whole){border-left:3px solid #94a3b8 !important;padding-left:13px !important;}
+  .bc-top3:not(.whole){border-left:3px solid #b45309 !important;padding-left:13px !important;}
+  /* 徽章 */
+  .bc-badge{font-size:14px !important;width:20px !important;height:20px !important;top:8px !important;right:10px !important;}
 
-  /* ── 整體卡 (area-view) ── */
-  .area-view .big-card.whole{padding:14px 16px;gap:9px;flex-direction:column;}
-  .wc-left{flex-direction:row;align-items:baseline;gap:10px;}
-  .wc-label{font-size:13px !important;}
-  .wc-total{font-size:36px;}
-  .wc-divider{width:100%;height:1px;flex-shrink:0;}
-  .wc-stats{flex-wrap:nowrap;gap:0;}
-  .wc-st{padding:6px 8px;}
-  .wc-st-num{font-size:18px;}
-  .wc-st-pct{font-size:10px;}
-  .wc-st-lbl{font-size:10px !important;}
+  /* row 上半：名稱 + 總數 */
+  .bc-head{
+    display:flex !important;
+    flex-direction:row !important;
+    justify-content:space-between !important;
+    align-items:baseline !important;
+    gap:8px !important;
+  }
+  .bc-name{font-size:15px !important;font-weight:800 !important;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .bc-total{font-size:28px !important;font-weight:900 !important;letter-spacing:-1px !important;flex-shrink:0;}
 
-  /* ── 處級卡 (office-view)：2欄，垂直堆疊 ── */
-  .office-view .big-card{padding:10px 10px;gap:5px;}
-  .office-view .bc-head{flex-direction:column;align-items:flex-start;gap:1px;}
-  .office-view .bc-name{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;}
-  .office-view .bc-total{font-size:28px;letter-spacing:-1px;}
-  .office-view .bc-track{height:4px;}
-  .office-view .bc-st{padding:4px 5px;gap:1px;}
-  .office-view .bc-st-lbl{font-size:8px;}
-  .office-view .bc-st-num{font-size:12px;}
-  .office-view .bc-st-pct{font-size:8px;}
-  .office-view .big-card.whole{grid-column:1/-1;padding:12px 14px;align-self:auto !important;}
-  .office-view .big-card.whole .wc-total{font-size:32px;}
-  .office-view .big-card.whole .wc-st-num{font-size:16px;}
-  .office-view .big-card.whole .wc-label{font-size:12px;}
-  .office-view .big-card.whole .wc-st-lbl{font-size:9px;}
-  .office-view .big-card.whole .wc-st-pct{font-size:9px;}
+  /* 進度條 */
+  .bc-track{height:4px !important;border-radius:2px !important;}
 
-  /* ── 所級 (staff-view) ── */
-  .staff-summary{flex-wrap:wrap;gap:6px;padding:10px;grid-column:1/-1;}
-  .ss-title{font-size:11px;}
-  .ss-total{font-size:20px;}
-  .staff-card{gap:0;}
-  .sc-head{padding:9px 10px 6px;}
-  .sc-name{font-size:12px;}
-  .sc-corner-num{font-size:18px;}
-  .sc-corner-pct{font-size:8px;}
-  .sc-st{padding:5px 6px 7px;}
-  .sc-st-lbl{font-size:8px;}
-  .sc-st-num{font-size:13px;}
-  .sc-st-pct{font-size:8px;}
+  /* 三燈統計：一行橫排 */
+  .bc-stats{
+    display:flex !important;
+    flex-direction:row !important;
+    gap:0 !important;
+    background:transparent !important;
+    border-radius:0 !important;
+    overflow:visible !important;
+  }
+  .bc-st{
+    flex:1 !important;
+    padding:3px 0 !important;
+    background:transparent !important;
+    flex-direction:row !important;
+    align-items:baseline !important;
+    gap:3px !important;
+    border-right:1px solid rgba(0,0,0,.06);
+    overflow:visible !important;
+  }
+  .bc-st:last-child{border-right:none;}
+  .bc-st-lbl{font-size:10px !important;flex-shrink:0;white-space:nowrap;}
+  .bc-st-row{flex-direction:row !important;align-items:baseline !important;gap:2px !important;}
+  .bc-st-num{font-size:14px !important;line-height:1 !important;}
+  .bc-st-pct{font-size:9px !important;opacity:.8;}
 
-  /* ── 店家層 ── */
-  .store-header{flex-direction:column;align-items:flex-start;gap:8px;padding:11px;}
-  .sh-name{font-size:14px;}
-  .sh-tabs{flex-wrap:wrap;gap:5px;}
-  .sh-tab{padding:5px 10px;font-size:11px;}
-  .store-tbl th{padding:5px 7px;font-size:9px;}
-  .store-tbl td{padding:6px 7px;font-size:11px;vertical-align:top;}
-  .td-name{font-size:12px;}
-  .td-sub{font-size:10px;}
+  /* 首列整體大卡後面加分隔 */
+  .col-main > .big-card.whole{
+    margin-bottom:8px !important;
+  }
+
+  /* ══════════════════════════════════
+     所級 list（staff-view）：人員卡也改 list row
+  ══════════════════════════════════ */
+  .staff-summary{
+    padding:12px 16px !important;
+    margin:8px 8px 0 !important;
+    border-radius:12px !important;
+    flex-wrap:nowrap !important;
+    gap:10px !important;
+  }
+  .ss-title{font-size:12px !important;white-space:nowrap;}
+  .ss-total{font-size:28px !important;}
+  .ss-bar-wrap{flex:1;min-width:0;}
+  .ss-bar{height:5px !important;margin-bottom:4px !important;}
+  .ss-s{font-size:11px !important;}
+  .ss-sts{gap:8px !important;}
+
+  /* staff-card → list row */
+  .staff-card{
+    display:flex !important;
+    flex-direction:column !important;
+    padding:10px 16px 8px !important;
+    margin:0 !important;
+    border-radius:0 !important;
+    border:none !important;
+    border-bottom:1px solid rgba(0,0,0,.06) !important;
+    box-shadow:none !important;
+    background:#fff !important;
+    gap:5px !important;
+    cursor:pointer;
+  }
+  .staff-card:active{background:rgba(139,166,144,.08) !important;}
+  .sc-head{
+    display:flex !important;flex-direction:row !important;
+    justify-content:space-between !important;align-items:baseline !important;
+    padding:0 !important;
+  }
+  .sc-name{font-size:15px !important;font-weight:800 !important;}
+  .sc-corner{text-align:right;flex-shrink:0;}
+  .sc-corner-num{font-size:26px !important;line-height:1 !important;}
+  .sc-corner-pct{font-size:9px !important;}
+  .sc-bar{height:4px !important;border-radius:2px !important;margin:2px 0 !important;}
+  /* sc-stats → 一行橫排 */
+  .sc-stats{
+    display:flex !important;flex-direction:row !important;gap:0 !important;
+  }
+  .sc-st{
+    flex:1 !important;padding:3px 0 !important;background:transparent !important;
+    flex-direction:row !important;align-items:baseline !important;gap:3px !important;
+    border-right:1px solid rgba(0,0,0,.06);
+  }
+  .sc-st:last-child{border-right:none;}
+  .sc-st-lbl{font-size:10px !important;flex-shrink:0;white-space:nowrap;}
+  .sc-st-num{font-size:14px !important;line-height:1 !important;}
+  .sc-st-pct{font-size:9px !important;opacity:.8;}
+
+  /* ══════════════════════════════════
+     店家層
+  ══════════════════════════════════ */
+  .store-header{
+    flex-direction:row !important;align-items:center !important;
+    gap:8px !important;padding:10px 14px !important;
+    flex-wrap:nowrap !important;
+  }
+  .sh-left{flex:1;min-width:0;}
+  .sh-name{font-size:15px !important;}
+  .sh-stats{gap:6px !important;}
+  .sh-s{font-size:12px !important;}
+  .sh-toggle{padding:4px 10px !important;font-size:11px !important;}
+  .store-tbl th{padding:5px 8px;font-size:9px;}
+  .store-tbl td{padding:6px 8px;font-size:11px;vertical-align:top;}
+  .td-status{font-size:10px !important;}
+  .td-name{font-size:12px !important;}
+  .td-sub{font-size:10px !important;}
 
   /* ── 排行 FAB ── */
   #rank-fab{
@@ -989,8 +1084,6 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
     box-shadow:0 4px 20px rgba(0,0,0,.3);transition:transform .15s;
   }
   #rank-fab:active{transform:scale(.9);}
-
-  /* ── 排行 Sheet ── */
   #rank-sheet{
     display:block !important;position:fixed;bottom:0;left:0;right:0;z-index:400;
     background:rgba(255,255,255,.98);
@@ -1052,7 +1145,7 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
   </div>
   <button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
   <button id="p5-toggle" onclick="toggleP5()">⚡ P5</button>
-  <div id="ver-ts">Ver. 1.2.3 (2026-03-13 TST)</div>
+  <div id="ver-ts">Ver. 1.3.0 (2026-03-13 TST)</div>
 </div>
 
 <!-- 手機專用篩選 dropdown（JS 會把內容 clone 進來） -->
