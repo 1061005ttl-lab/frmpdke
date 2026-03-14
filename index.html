@@ -867,110 +867,159 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
 #mm-chips-row #mm-clear,#mm-chips-row #mm-p5{padding:5px 11px;border-radius:99px;font-size:12px;font-weight:700;border:1.5px solid rgba(0,0,0,.12);background:rgba(255,255,255,.7);cursor:pointer;font-family:inherit;white-space:nowrap;}
 #mm-chips-row #mm-clear{margin-left:auto;color:#c62828;border-color:rgba(198,40,40,.3);}
 
-/* ══ MOBILE ══ */
-/*
-  手機版設計哲學：放棄 grid 卡片，改用緊湊 list-row。
-  每列 ~76px，單行顯示名稱 + 數字 + 三燈統計。
-  最大化有限螢幕內的資訊密度。
-*/
+/* ══ MOBILE v1.3 ══
+   設計哲學：清單行（List Row）取代卡片 Grid
+   每行 3 層資訊：① 名稱 + 總數  ② 三色進度條  ③ 三燈統計
+   最重要數字（🔴 未填寫）視覺最突出
+   整體卡保留深色英雄區塊，其他全部扁平化
+   ══════════════════════════════════════ */
 @media(max-width:768px){
 
-  /* ── topbar ── */
-  #topbar{min-height:48px;padding:0 14px;gap:6px;flex-wrap:nowrap;overflow:hidden;position:relative;z-index:200;}
+  /* ════ 基礎佈局 ════ */
+  #topbar{
+    min-height:52px;padding:0 16px;gap:6px;
+    flex-wrap:nowrap;overflow:hidden;z-index:200;
+  }
   #topbar .sep,#topbar .tb-label,#topbar .tb-sel,
   #chips,#clear-btn,#p5-toggle,#ver-ts{display:none !important;}
-  #title{font-size:14px;flex-shrink:0;white-space:nowrap;}
-  #hamburger{display:flex;align-items:center;justify-content:center;}
+  #title{font-size:15px;font-weight:900;flex-shrink:0;}
+  #hamburger{display:flex;align-items:center;justify-content:center;margin-left:auto;}
 
-  /* ── gbar ── */
-  #gbar{padding:0 12px;min-height:38px;gap:4px;flex-wrap:nowrap;}
-  .gb-btn{padding:3px 9px;font-size:11px;}
+  #gbar{
+    padding:0 14px;min-height:40px;gap:4px;
+    border-bottom:1px solid rgba(0,0,0,.07);
+  }
+  .gb-btn{
+    padding:5px 12px;font-size:12px;font-weight:700;
+    border-radius:8px;white-space:nowrap;
+  }
   .gb-sync{display:none;}
-  .gb-seg{font-size:11px;padding:2px 4px;}
-  .gb-seg strong{font-size:11px;}
-  .gb-arrow{padding:0;}
+  .gb-seg{font-size:12px;font-weight:600;padding:2px 4px;}
+  .gb-seg strong{font-size:12px;}
+  .gb-arrow{font-size:11px;}
 
-  /* ── layout ── */
   #content-wrap{flex-direction:column;}
   .col-side,.divider,#rank-drawer{display:none !important;}
-  #stage{width:100%;flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+  #stage{
+    width:100%;display:flex;flex-direction:column;
+    overflow-y:auto;-webkit-overflow-scrolling:touch;
+    background:var(--bg);
+  }
 
-  /* ── col-main：完全平鋪，不 grid ── */
+  /* ════ col-main：變成普通的 flex 直欄 ════ */
   .col-main{
     width:100% !important;
+    display:flex !important;
+    flex-direction:column !important;
     padding:0 !important;
-    display:flex !important;
-    flex-direction:column !important;
     gap:0 !important;
-    overflow-y:visible !important;
+    background:var(--bg);
+    overflow:visible !important;
   }
 
-  /* ══════════════════════════════════
-     整體大卡（深色）：保留卡片外觀但更緊湊
-  ══════════════════════════════════ */
+  /* ════ 整體大卡（英雄區塊）：保留深色，精簡佈局 ════ */
   .big-card.whole{
-    flex-direction:row !important;
-    padding:14px 16px !important;
-    margin:8px 8px 0 !important;
-    border-radius:12px !important;
-    gap:12px !important;
-    height:auto !important;
-    align-items:center !important;
-  }
-  .wc-left{flex-direction:column;align-items:flex-start;gap:0;flex-shrink:0;}
-  .wc-label{font-size:11px !important;opacity:.7;}
-  .wc-total{font-size:38px;line-height:1;}
-  .wc-divider{display:none !important;}
-  .wc-right{flex:1;min-width:0;gap:6px;}
-  .wc-track{height:6px;border-radius:3px;}
-  .wc-stats{display:flex;flex-direction:row;gap:0;flex-wrap:nowrap;}
-  .wc-st{flex:1;padding:4px 6px;min-width:0;}
-  .wc-st-lbl{font-size:9px !important;white-space:nowrap;}
-  .wc-st-num{font-size:16px;}
-  .wc-st-pct{font-size:9px;}
-
-  /* ══════════════════════════════════
-     LIST ROW：取代 big-card 在手機的角色
-     每個普通 big-card 變成緊湊橫列
-  ══════════════════════════════════ */
-  .big-card:not(.whole){
-    display:flex !important;
     flex-direction:column !important;
-    padding:10px 16px 8px !important;
+    margin:12px 12px 4px !important;
+    padding:14px 16px !important;
+    border-radius:14px !important;
+    gap:10px !important;
+    height:auto !important;
+  }
+  /* 左側：標籤 + 超大總數橫排 */
+  .wc-left{
+    flex-direction:row !important;
+    align-items:baseline !important;
+    gap:10px !important;
+  }
+  .wc-label{font-size:13px !important;opacity:.65;}
+  .wc-total{font-size:42px !important;line-height:1 !important;letter-spacing:-2px !important;}
+  .wc-divider{display:none !important;}
+  /* 右側 */
+  .wc-right{gap:8px !important;}
+  .wc-track{height:7px !important;border-radius:4px !important;}
+  .wc-stats{gap:0 !important;flex-wrap:nowrap !important;}
+  .wc-st{flex:1 !important;padding:6px 8px !important;}
+  .wc-st-lbl{font-size:10px !important;white-space:nowrap;}
+  .wc-st-row{gap:4px !important;flex-wrap:nowrap !important;}
+  .wc-st-num{font-size:20px !important;letter-spacing:-1px !important;}
+  .wc-st-pct{font-size:11px !important;}
+
+  /* ════ LIST ROW：普通 big-card 全改為扁平列表行 ════ */
+  .big-card:not(.whole){
+    /* 重置所有桌機樣式 */
+    display:block !important;
+    height:auto !important;
     margin:0 !important;
+    padding:11px 16px 10px !important;
     border-radius:0 !important;
     border:none !important;
-    border-bottom:1px solid rgba(0,0,0,.06) !important;
+    border-bottom:1px solid rgba(0,0,0,.055) !important;
     box-shadow:none !important;
-    background:#fff !important;
-    gap:5px !important;
-    height:auto !important;
+    background:#ffffff !important;
     transform:none !important;
     cursor:pointer;
+    /* 選取回饋 */
+    -webkit-tap-highlight-color:rgba(139,166,144,.12);
+    transition:background .1s !important;
   }
-  .big-card:not(.whole):active{background:rgba(139,166,144,.08) !important;}
-  /* bc-top 高亮：只留左邊色條 */
-  .bc-top1:not(.whole){border-left:3px solid #f59e0b !important;padding-left:13px !important;}
-  .bc-top2:not(.whole){border-left:3px solid #94a3b8 !important;padding-left:13px !important;}
-  .bc-top3:not(.whole){border-left:3px solid #b45309 !important;padding-left:13px !important;}
-  /* 徽章 */
-  .bc-badge{font-size:14px !important;width:20px !important;height:20px !important;top:8px !important;right:10px !important;}
+  .big-card:not(.whole):active{background:#f5f8f5 !important;}
+  .big-card:not(.whole).sel{
+    background:#f0f7f1 !important;
+    border-left:3px solid var(--primary) !important;
+    padding-left:13px !important;
+  }
 
-  /* row 上半：名稱 + 總數 */
+  /* 排行徽章（手機縮小） */
+  .bc-badge{
+    width:20px !important;height:20px !important;
+    font-size:11px !important;top:9px !important;right:12px !important;
+  }
+  .bc-top1:not(.whole),.bc-top2:not(.whole),.bc-top3:not(.whole){
+    border-left:none !important; /* 改用 badge 就好，不要左邊色條 */
+  }
+  /* 隱藏桌機版 ::after 徽章（手機重畫） */
+  .big-card.bc-top1::after,.big-card.bc-top2::after,.big-card.bc-top3::after{
+    display:none !important;
+  }
+
+  /* ── 第一行：名稱 左 ／ 總數 右 ── */
   .bc-head{
     display:flex !important;
     flex-direction:row !important;
     justify-content:space-between !important;
     align-items:baseline !important;
     gap:8px !important;
+    margin-bottom:5px !important;
   }
-  .bc-name{font-size:15px !important;font-weight:800 !important;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .bc-total{font-size:28px !important;font-weight:900 !important;letter-spacing:-1px !important;flex-shrink:0;}
+  .bc-name{
+    font-size:15px !important;
+    font-weight:800 !important;
+    white-space:nowrap !important;
+    overflow:hidden !important;
+    text-overflow:ellipsis !important;
+    flex:1 !important;
+    min-width:0 !important;
+    letter-spacing:0 !important;
+    color:var(--text) !important;
+  }
+  .bc-total{
+    font-size:24px !important;
+    font-weight:900 !important;
+    letter-spacing:-1px !important;
+    line-height:1 !important;
+    flex-shrink:0 !important;
+    color:var(--primary-d) !important;
+  }
 
-  /* 進度條 */
-  .bc-track{height:4px !important;border-radius:2px !important;}
+  /* ── 第二行：三色進度條 ── */
+  .bc-track{
+    height:5px !important;
+    border-radius:3px !important;
+    margin-bottom:6px !important;
+  }
 
-  /* 三燈統計：一行橫排 */
+  /* ── 第三行：三燈統計橫排（✅ N  N% │ 🟡 N  N% │ 🔴 N  N%） ── */
   .bc-stats{
     display:flex !important;
     flex-direction:row !important;
@@ -981,121 +1030,203 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
   }
   .bc-st{
     flex:1 !important;
-    padding:3px 0 !important;
-    background:transparent !important;
+    display:flex !important;
     flex-direction:row !important;
     align-items:baseline !important;
-    gap:3px !important;
-    border-right:1px solid rgba(0,0,0,.06);
+    gap:4px !important;
+    padding:0 !important;
+    padding-right:10px !important;
+    background:transparent !important;
     overflow:visible !important;
+    min-width:0 !important;
   }
-  .bc-st:last-child{border-right:none;}
-  .bc-st-lbl{font-size:10px !important;flex-shrink:0;white-space:nowrap;}
-  .bc-st-row{flex-direction:row !important;align-items:baseline !important;gap:2px !important;}
-  .bc-st-num{font-size:14px !important;line-height:1 !important;}
-  .bc-st-pct{font-size:9px !important;opacity:.8;}
+  .bc-st:last-child{padding-right:0 !important;}
+  /* 文字標籤 (✅ / 🟡 / 🔴) */
+  .bc-st-lbl{
+    font-size:11px !important;
+    font-weight:600 !important;
+    flex-shrink:0 !important;
+    white-space:nowrap !important;
+    opacity:1 !important;
+  }
+  /* 數字 */
+  .bc-st-row{
+    display:flex !important;
+    flex-direction:row !important;
+    align-items:baseline !important;
+    gap:2px !important;
+    flex-wrap:nowrap !important;
+    min-width:0 !important;
+  }
+  .bc-st-num{
+    font-size:14px !important;
+    font-weight:900 !important;
+    line-height:1 !important;
+    white-space:nowrap !important;
+  }
+  .bc-st-pct{
+    font-size:10px !important;
+    font-weight:600 !important;
+    opacity:.75 !important;
+    white-space:nowrap !important;
+  }
+  /* 🔴 未填寫那格：數字放大，更突出 */
+  .bc-st.r .bc-st-num{font-size:16px !important;font-weight:900 !important;}
+  .bc-st.r .bc-st-pct{font-size:10px !important;opacity:.85 !important;}
 
-  /* 首列整體大卡後面加分隔 */
-  .col-main > .big-card.whole{
-    margin-bottom:8px !important;
+  /* 整體卡後加一點間距 */
+  .col-main > .big-card.whole + .big-card:not(.whole),
+  .area-view > .big-card.whole + .big-card:not(.whole),
+  .office-view > .big-card.whole + .big-card:not(.whole){
+    margin-top:6px !important;
   }
 
-  /* ══════════════════════════════════
-     所級 list（staff-view）：人員卡也改 list row
-  ══════════════════════════════════ */
+  /* ════ 所級（staff-view）：人員卡也是 list row ════ */
   .staff-summary{
-    padding:12px 16px !important;
-    margin:8px 8px 0 !important;
-    border-radius:12px !important;
+    margin:12px 12px 0 !important;
+    padding:12px 14px !important;
+    border-radius:14px !important;
     flex-wrap:nowrap !important;
     gap:10px !important;
+    overflow:hidden !important;
   }
-  .ss-title{font-size:12px !important;white-space:nowrap;}
-  .ss-total{font-size:28px !important;}
+  .ss-title{font-size:12px;flex-shrink:0;}
+  .ss-total{font-size:26px;flex-shrink:0;}
   .ss-bar-wrap{flex:1;min-width:0;}
-  .ss-bar{height:5px !important;margin-bottom:4px !important;}
-  .ss-s{font-size:11px !important;}
-  .ss-sts{gap:8px !important;}
+  .ss-bar{height:5px;margin-bottom:4px;}
+  .ss-sts{gap:8px;flex-wrap:nowrap;}
+  .ss-s{font-size:11px;}
 
-  /* staff-card → list row */
+  /* staff-card → list row（同 big-card 邏輯） */
   .staff-card{
-    display:flex !important;
-    flex-direction:column !important;
-    padding:10px 16px 8px !important;
+    display:block !important;
     margin:0 !important;
+    padding:11px 16px 10px !important;
     border-radius:0 !important;
     border:none !important;
-    border-bottom:1px solid rgba(0,0,0,.06) !important;
+    border-bottom:1px solid rgba(0,0,0,.055) !important;
     box-shadow:none !important;
     background:#fff !important;
-    gap:5px !important;
+    transform:none !important;
     cursor:pointer;
+    -webkit-tap-highlight-color:rgba(139,166,144,.12);
+    transition:background .1s !important;
   }
-  .staff-card:active{background:rgba(139,166,144,.08) !important;}
+  .staff-card:active{background:#f5f8f5 !important;}
+  .staff-card.sel{
+    background:#f0f7f1 !important;
+    border-left:3px solid var(--primary) !important;
+    padding-left:13px !important;
+  }
+  /* 上半：姓名 + 數字 */
   .sc-head{
-    display:flex !important;flex-direction:row !important;
-    justify-content:space-between !important;align-items:baseline !important;
+    display:flex !important;
+    flex-direction:row !important;
+    justify-content:space-between !important;
+    align-items:baseline !important;
     padding:0 !important;
+    margin-bottom:5px !important;
   }
   .sc-name{font-size:15px !important;font-weight:800 !important;}
   .sc-corner{text-align:right;flex-shrink:0;}
-  .sc-corner-num{font-size:26px !important;line-height:1 !important;}
-  .sc-corner-pct{font-size:9px !important;}
-  .sc-bar{height:4px !important;border-radius:2px !important;margin:2px 0 !important;}
-  /* sc-stats → 一行橫排 */
+  .sc-corner-num{font-size:24px !important;font-weight:900 !important;letter-spacing:-1px !important;}
+  .sc-corner-pct{font-size:10px !important;}
+  /* 進度條 */
+  .sc-bar{
+    display:flex !important;
+    height:5px !important;
+    border-radius:3px !important;
+    overflow:hidden !important;
+    margin-bottom:6px !important;
+    background:rgba(0,0,0,.06) !important;
+  }
+  /* 統計三燈（同 bc-stats 邏輯） */
   .sc-stats{
-    display:flex !important;flex-direction:row !important;gap:0 !important;
+    display:flex !important;
+    flex-direction:row !important;
+    gap:0 !important;
   }
   .sc-st{
-    flex:1 !important;padding:3px 0 !important;background:transparent !important;
-    flex-direction:row !important;align-items:baseline !important;gap:3px !important;
-    border-right:1px solid rgba(0,0,0,.06);
+    flex:1 !important;
+    display:flex !important;
+    flex-direction:row !important;
+    align-items:baseline !important;
+    gap:4px !important;
+    padding:0 !important;
+    padding-right:10px !important;
+    background:transparent !important;
+    border:none !important;
+    overflow:visible !important;
+    min-width:0 !important;
   }
-  .sc-st:last-child{border-right:none;}
-  .sc-st-lbl{font-size:10px !important;flex-shrink:0;white-space:nowrap;}
-  .sc-st-num{font-size:14px !important;line-height:1 !important;}
-  .sc-st-pct{font-size:9px !important;opacity:.8;}
+  .sc-st:last-child{padding-right:0 !important;}
+  .sc-st-lbl{font-size:11px !important;font-weight:600 !important;flex-shrink:0;}
+  .sc-st-num{font-size:14px !important;font-weight:900 !important;line-height:1 !important;}
+  .sc-st-pct{font-size:10px !important;font-weight:600 !important;opacity:.75 !important;}
+  .sc-st.r .sc-st-num{font-size:16px !important;font-weight:900 !important;}
 
-  /* ══════════════════════════════════
-     店家層
-  ══════════════════════════════════ */
+  /* 所級整體卡後加間距 */
+  .staff-summary + .staff-card{margin-top:6px !important;}
+
+  /* ════ 店家層（store-view）════ */
   .store-header{
-    flex-direction:row !important;align-items:center !important;
-    gap:8px !important;padding:10px 14px !important;
+    flex-direction:row !important;
+    align-items:center !important;
     flex-wrap:nowrap !important;
+    gap:8px !important;
+    padding:12px 16px !important;
+    margin:12px 12px 4px !important;
+    border-radius:14px !important;
   }
-  .sh-left{flex:1;min-width:0;}
-  .sh-name{font-size:15px !important;}
-  .sh-stats{gap:6px !important;}
-  .sh-s{font-size:12px !important;}
-  .sh-toggle{padding:4px 10px !important;font-size:11px !important;}
-  .store-tbl th{padding:5px 8px;font-size:9px;}
-  .store-tbl td{padding:6px 8px;font-size:11px;vertical-align:top;}
-  .td-status{font-size:10px !important;}
-  .td-name{font-size:12px !important;}
+  .sh-left{flex:1;min-width:0;gap:4px !important;}
+  .sh-name{font-size:16px !important;font-weight:900 !important;}
+  .sh-stats{gap:8px !important;}
+  .sh-s{font-size:13px !important;}
+  .sh-toggle{
+    padding:6px 12px !important;font-size:12px !important;
+    flex-shrink:0 !important;
+  }
+  /* 清冊表格 */
+  #store-list-wrap{margin:0 12px 12px !important;border-radius:12px !important;overflow:hidden !important;}
+  .store-tbl th{padding:6px 10px;font-size:10px;}
+  .store-tbl td{padding:7px 10px;font-size:12px;vertical-align:top;}
+  .td-status{font-size:10px !important;padding:7px 7px !important;}
+  .td-name{font-size:12px !important;font-weight:700 !important;}
   .td-sub{font-size:10px !important;}
 
-  /* ── 排行 FAB ── */
+  /* ════ 排行 FAB + Sheet ════ */
   #rank-fab{
-    display:flex !important;position:fixed;bottom:20px;right:16px;z-index:300;
-    width:50px;height:50px;border-radius:50%;
+    display:flex !important;
+    position:fixed;bottom:24px;right:16px;z-index:300;
+    width:52px;height:52px;border-radius:50%;
     background:var(--primary-d);color:#fff;border:none;cursor:pointer;
-    align-items:center;justify-content:center;font-size:22px;
-    box-shadow:0 4px 20px rgba(0,0,0,.3);transition:transform .15s;
+    align-items:center;justify-content:center;font-size:24px;
+    box-shadow:0 4px 24px rgba(0,0,0,.28);transition:transform .15s,box-shadow .15s;
   }
-  #rank-fab:active{transform:scale(.9);}
+  #rank-fab:active{transform:scale(.9);box-shadow:0 2px 10px rgba(0,0,0,.2);}
   #rank-sheet{
-    display:block !important;position:fixed;bottom:0;left:0;right:0;z-index:400;
-    background:rgba(255,255,255,.98);
-    border-top:1px solid rgba(0,0,0,.1);border-radius:18px 18px 0 0;
-    transform:translateY(100%);transition:transform .35s cubic-bezier(.34,1.05,.64,1);
-    max-height:72vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
+    display:block !important;
+    position:fixed;bottom:0;left:0;right:0;z-index:400;
+    background:#fff;
+    border-top:1px solid rgba(0,0,0,.08);
+    border-radius:20px 20px 0 0;
+    transform:translateY(100%);
+    transition:transform .32s cubic-bezier(.34,1.05,.64,1);
+    max-height:75vh;overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
     padding-bottom:env(safe-area-inset-bottom,16px);
   }
   #rank-sheet.open{transform:translateY(0);}
-  #rank-sheet-handle{display:flex;align-items:center;justify-content:center;padding:14px;cursor:pointer;}
-  #rank-sheet-handle::before{content:'';width:40px;height:4px;border-radius:2px;background:rgba(0,0,0,.15);}
-  #rank-sheet-overlay{display:none;position:fixed;inset:0;z-index:390;background:rgba(0,0,0,.4);}
+  #rank-sheet-handle{
+    display:flex;align-items:center;justify-content:center;
+    padding:14px 14px 8px;cursor:pointer;
+  }
+  #rank-sheet-handle::before{
+    content:'';width:40px;height:4px;border-radius:2px;background:rgba(0,0,0,.12);
+  }
+  #rank-sheet-overlay{
+    display:none;position:fixed;inset:0;z-index:390;background:rgba(0,0,0,.4);
+  }
   #rank-sheet-overlay.open{display:block;}
 }
 
@@ -1145,7 +1276,7 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
   </div>
   <button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
   <button id="p5-toggle" onclick="toggleP5()">⚡ P5</button>
-  <div id="ver-ts">Ver. 1.3.0 (2026-03-13 TST)</div>
+  <div id="ver-ts">Ver. 1.3.0 (2026-03-15 TST)</div>
 </div>
 
 <!-- 手機專用篩選 dropdown（JS 會把內容 clone 進來） -->
