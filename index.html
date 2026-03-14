@@ -787,7 +787,7 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
 }
 .store-tbl td{
   padding:8px 10px;font-size:12px;border-bottom:1px solid rgba(0,0,0,.04);
-  vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  vertical-align:top;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
 .store-tbl tbody tr:nth-child(even) td{background:rgba(0,0,0,.012);}
 .store-tbl tr:last-child td{border-bottom:none;}
@@ -869,78 +869,97 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
 
 /* ══ MOBILE ══ */
 @media(max-width:768px){
-  #topbar{
-    min-height:48px;padding:0 14px;gap:6px;
-    flex-wrap:nowrap;overflow:hidden;
-    position:relative;z-index:200;
-  }
-  /* 桌機用元素在手機全部隱藏 */
-  #topbar .sep,
-  #topbar .tb-label,
-  #topbar .tb-sel,
-  #chips,
-  #clear-btn,
-  #p5-toggle,
-  #ver-ts { display:none !important; }
-
+  /* ── topbar ── */
+  #topbar{min-height:48px;padding:0 14px;gap:6px;flex-wrap:nowrap;overflow:hidden;position:relative;z-index:200;}
+  #topbar .sep,#topbar .tb-label,#topbar .tb-sel,
+  #chips,#clear-btn,#p5-toggle,#ver-ts{display:none !important;}
   #title{font-size:14px;flex-shrink:0;white-space:nowrap;}
   #hamburger{display:flex;align-items:center;justify-content:center;}
 
-  /* gbar */
+  /* ── gbar ── */
   #gbar{padding:0 12px;min-height:38px;gap:6px;}
   .gb-btn{padding:4px 10px;font-size:11px;}
   .gb-sync{display:none;}
   .gb-seg{font-size:11px;padding:2px 5px;}
   .gb-seg strong{font-size:11px;}
 
-  /* layout */
+  /* ── layout ── */
   #content-wrap{flex-direction:column;}
   .col-side,.divider,#rank-drawer{display:none !important;}
   #stage{width:100%;flex-direction:column;overflow-y:auto;-webkit-overflow-scrolling:touch;}
 
-  /* col-main grid — 手機優先單欄/雙欄由 minmax 決定 */
+  /* ── col-main：align-items:start 是關鍵，防止 grid stretch 截斷卡片 ── */
   .col-main{
-    width:100% !important;padding:8px !important;
-    grid-template-columns:repeat(auto-fill,minmax(150px,1fr)) !important;
-    gap:8px !important;
+    width:100% !important;padding:8px !important;gap:8px !important;
+    align-items:start !important;
+    align-content:start !important;
+    grid-auto-rows:auto !important;
   }
   .col-main.area-view{grid-template-columns:1fr !important;}
+  .col-main.office-view{grid-template-columns:repeat(2,1fr) !important;}
+  .col-main.staff-view{grid-template-columns:repeat(2,1fr) !important;}
   .col-main.store-view{grid-template-columns:1fr !important;}
-  .col-main.staff-view{grid-template-columns:repeat(auto-fill,minmax(140px,1fr)) !important;}
-  .col-main.office-view{grid-template-columns:repeat(auto-fill,minmax(150px,1fr)) !important;}
 
-  /* 整體卡 */
-  .big-card.whole{flex-direction:column;gap:8px;padding:12px;}
-  .wc-left{flex-direction:row;align-items:baseline;gap:8px;}
-  .wc-label{font-size:12px !important;}
-  .wc-total{font-size:30px;}
+  /* ── 大卡基礎：height:auto + align-self:start 防止被拉伸 ── */
+  .big-card{
+    padding:11px 12px;gap:7px;
+    height:auto !important;
+    align-self:start !important;
+  }
+  .bc-head{gap:6px;}
+  .bc-name{font-size:13px;}
+  .bc-total{font-size:26px;}
+  .bc-track{height:5px;}
+  .bc-stats{gap:1px;}
+  .bc-st{padding:5px 7px;gap:2px;}
+  .bc-st-lbl{font-size:9px;}
+  .bc-st-num{font-size:13px;}
+  .bc-st-pct{font-size:9px;}
+
+  /* ── 總級卡 (area-view)：1欄，左右並排，字較大 ── */
+  .area-view .big-card{padding:14px 16px;gap:9px;align-self:auto !important;}
+  .area-view .bc-head{flex-direction:row;align-items:flex-start;}
+  .area-view .bc-name{font-size:16px;}
+  .area-view .bc-total{font-size:36px;}
+  .area-view .bc-track{height:7px;}
+  .area-view .bc-st{padding:7px 10px;}
+  .area-view .bc-st-lbl{font-size:11px;}
+  .area-view .bc-st-num{font-size:18px;}
+  .area-view .bc-st-pct{font-size:10px;}
+
+  /* ── 整體卡 (area-view) ── */
+  .area-view .big-card.whole{padding:14px 16px;gap:9px;flex-direction:column;}
+  .wc-left{flex-direction:row;align-items:baseline;gap:10px;}
+  .wc-label{font-size:13px !important;}
+  .wc-total{font-size:36px;}
   .wc-divider{width:100%;height:1px;flex-shrink:0;}
   .wc-stats{flex-wrap:nowrap;gap:0;}
-  .wc-st{padding:4px 6px;}
-  .wc-st-num{font-size:15px;}
-  .wc-st-pct{font-size:9px;}
-  .wc-st-lbl{font-size:9px !important;}
+  .wc-st{padding:6px 8px;}
+  .wc-st-num{font-size:18px;}
+  .wc-st-pct{font-size:10px;}
+  .wc-st-lbl{font-size:10px !important;}
 
-  /* 大卡 */
-  .big-card{padding:10px;gap:6px;}
-  /* 雙欄時：名稱上、數字下，不截斷 */
-  .office-view .bc-head,.staff-view .bc-head{flex-direction:column;align-items:flex-start;gap:2px;}
-  .office-view .bc-name,.staff-view .bc-name{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;}
-  .office-view .bc-total,.staff-view .bc-total{font-size:28px;}
-  /* 單欄 area-view 還是左右並排，字可大一點 */
-  .area-view .bc-head{flex-direction:row;}
-  .area-view .bc-name{font-size:14px;}
-  .area-view .bc-total{font-size:32px;}
-  /* 預設雙欄 */
-  .bc-name{font-size:13px;}
-  .bc-total{font-size:24px;}
-  .bc-st{padding:5px 6px;}
-  .bc-st-num{font-size:13px;}
-  .bc-st-pct{font-size:8px;}
-  .bc-st-lbl{font-size:8px;}
+  /* ── 處級卡 (office-view)：2欄，垂直堆疊 ── */
+  .office-view .big-card{padding:10px 10px;gap:5px;}
+  .office-view .bc-head{flex-direction:column;align-items:flex-start;gap:1px;}
+  .office-view .bc-name{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%;}
+  .office-view .bc-total{font-size:28px;letter-spacing:-1px;}
+  .office-view .bc-track{height:4px;}
+  .office-view .bc-st{padding:4px 5px;gap:1px;}
+  .office-view .bc-st-lbl{font-size:8px;}
+  .office-view .bc-st-num{font-size:12px;}
+  .office-view .bc-st-pct{font-size:8px;}
+  .office-view .big-card.whole{grid-column:1/-1;padding:12px 14px;align-self:auto !important;}
+  .office-view .big-card.whole .wc-total{font-size:32px;}
+  .office-view .big-card.whole .wc-st-num{font-size:16px;}
+  .office-view .big-card.whole .wc-label{font-size:12px;}
+  .office-view .big-card.whole .wc-st-lbl{font-size:9px;}
+  .office-view .big-card.whole .wc-st-pct{font-size:9px;}
 
-  /* 人員層 */
-  .staff-summary{flex-wrap:wrap;gap:6px;padding:10px;}
+  /* ── 所級 (staff-view) ── */
+  .staff-summary{flex-wrap:wrap;gap:6px;padding:10px;grid-column:1/-1;}
+  .ss-title{font-size:11px;}
+  .ss-total{font-size:20px;}
   .staff-card{gap:0;}
   .sc-head{padding:9px 10px 6px;}
   .sc-name{font-size:12px;}
@@ -951,21 +970,19 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
   .sc-st-num{font-size:13px;}
   .sc-st-pct{font-size:8px;}
 
-  /* 店家層 */
+  /* ── 店家層 ── */
   .store-header{flex-direction:column;align-items:flex-start;gap:8px;padding:11px;}
   .sh-name{font-size:14px;}
   .sh-tabs{flex-wrap:wrap;gap:5px;}
   .sh-tab{padding:5px 10px;font-size:11px;}
-  .store-tbl th{padding:4px 6px;font-size:9px;}
-  .store-tbl td{padding:5px 6px;font-size:11px;}
-  .sp-head{padding:9px 12px;}
-  .sp-title{font-size:11px;}
-  .sp-cnt,.sp-pct{font-size:10px;}
+  .store-tbl th{padding:5px 7px;font-size:9px;}
+  .store-tbl td{padding:6px 7px;font-size:11px;vertical-align:top;}
+  .td-name{font-size:12px;}
+  .td-sub{font-size:10px;}
 
-  /* 排行 FAB */
+  /* ── 排行 FAB ── */
   #rank-fab{
-    display:flex !important;
-    position:fixed;bottom:20px;right:16px;z-index:300;
+    display:flex !important;position:fixed;bottom:20px;right:16px;z-index:300;
     width:50px;height:50px;border-radius:50%;
     background:var(--primary-d);color:#fff;border:none;cursor:pointer;
     align-items:center;justify-content:center;font-size:22px;
@@ -973,10 +990,9 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
   }
   #rank-fab:active{transform:scale(.9);}
 
-  /* 排行 Sheet */
+  /* ── 排行 Sheet ── */
   #rank-sheet{
-    display:block !important;
-    position:fixed;bottom:0;left:0;right:0;z-index:400;
+    display:block !important;position:fixed;bottom:0;left:0;right:0;z-index:400;
     background:rgba(255,255,255,.98);
     border-top:1px solid rgba(0,0,0,.1);border-radius:18px 18px 0 0;
     transform:translateY(100%);transition:transform .35s cubic-bezier(.34,1.05,.64,1);
@@ -1036,7 +1052,7 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
   </div>
   <button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
   <button id="p5-toggle" onclick="toggleP5()">⚡ P5</button>
-  <div id="ver-ts">Ver. 1.2.2 (2026-03-13 TST)</div>
+  <div id="ver-ts">Ver. 1.2.3 (2026-03-13 TST)</div>
 </div>
 
 <!-- 手機專用篩選 dropdown（JS 會把內容 clone 進來） -->
