@@ -829,7 +829,66 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
 /* ══ clear btn ══ */
 #clear-btn{display:none;padding:4px 11px;border-radius:7px;border:1.5px solid #c62828;background:#fff5f5;color:#c62828;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;}
 
-/* ══ 手機漢堡 ══ */
+/* ══ Multi-Select 通路/型態 ══ */
+.ms-wrap{position:relative;display:inline-flex;flex-direction:column;flex-shrink:0;}
+.ms-btn{
+  text-align:left;cursor:pointer;
+  min-width:90px;max-width:150px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.ms-btn:disabled{opacity:.45;cursor:default;}
+.ms-btn.has-filter{
+  border-color:var(--primary) !important;
+  color:var(--primary-d) !important;
+  background:rgba(139,166,144,.1) !important;
+}
+.ms-drop{
+  display:none;
+  position:absolute;top:calc(100% + 4px);left:0;z-index:500;
+  background:#fff;
+  border:1px solid rgba(0,0,0,.12);
+  border-radius:10px;
+  box-shadow:0 8px 28px rgba(0,0,0,.14);
+  padding:6px 0;
+  min-width:160px;max-width:240px;
+  max-height:320px;overflow-y:auto;
+  white-space:nowrap;
+}
+.ms-drop.open{display:block;}
+.ms-drop-mm{
+  position:static !important;
+  width:100% !important;
+  max-width:100% !important;
+  border-radius:8px;
+  margin-top:4px;
+  box-shadow:0 4px 12px rgba(0,0,0,.1);
+}
+.ms-drop-actions{
+  display:flex;gap:6px;padding:6px 10px 4px;
+  border-bottom:1px solid rgba(0,0,0,.06);
+}
+.ms-act-btn{
+  padding:3px 10px;border-radius:6px;font-size:11px;font-weight:700;
+  border:1px solid rgba(0,0,0,.12);background:rgba(0,0,0,.04);
+  cursor:pointer;font-family:inherit;flex:1;
+  transition:all .12s;
+}
+.ms-act-btn:hover{background:rgba(139,166,144,.15);border-color:var(--primary);}
+.ms-item{
+  display:flex;align-items:center;gap:8px;
+  padding:6px 12px;cursor:pointer;
+  font-size:12px;font-weight:600;color:var(--text);
+  transition:background .1s;
+  user-select:none;
+}
+.ms-item:hover{background:rgba(139,166,144,.1);}
+.ms-item input[type=checkbox]{
+  width:14px;height:14px;cursor:pointer;accent-color:var(--primary-d);
+  flex-shrink:0;
+}
+.ms-item label{cursor:pointer;flex:1;}
+
+
 #hamburger{display:none;background:none;border:none;cursor:pointer;padding:6px;flex-shrink:0;color:var(--text);margin-left:auto;}
 
 /* 手機選單（桌機隱藏） */
@@ -1265,9 +1324,15 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
   <select class="tb-sel" id="sel-staff" onchange="onStaffFilter()" disabled><option value="">全部</option></select>
   <div class="sep" id="sep3"></div>
   <span class="tb-label">通路</span>
-  <select class="tb-sel" id="sel-channel" onchange="onFilterChange()" disabled><option value="">全部</option></select>
+  <div class="ms-wrap" id="ms-ch-wrap">
+    <button class="ms-btn tb-sel" id="ms-ch-btn" onclick="toggleMsDropdown('ch')" disabled>全部</button>
+    <div class="ms-drop" id="ms-ch-drop"></div>
+  </div>
   <span class="tb-label">型態</span>
-  <select class="tb-sel" id="sel-type" onchange="onFilterChange()" disabled><option value="">全部</option></select>
+  <div class="ms-wrap" id="ms-tp-wrap">
+    <button class="ms-btn tb-sel" id="ms-tp-btn" onclick="toggleMsDropdown('tp')" disabled>全部</button>
+    <div class="ms-drop" id="ms-tp-drop"></div>
+  </div>
   <div class="sep" id="sep4"></div>
   <div id="chips">
     <button class="chip g on" id="chip-l" onclick="toggleChip('l')">✅ 上架</button>
@@ -1276,7 +1341,7 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
   </div>
   <button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
   <button id="p5-toggle" onclick="toggleP5()">⚡ P5</button>
-  <div id="ver-ts">Ver. 1.3.0 (2026-03-15 TST)</div>
+  <div id="ver-ts">Ver. 1.3.1 (2026-03-18 TST)</div>
 </div>
 
 <!-- 手機專用篩選 dropdown（JS 會把內容 clone 進來） -->
@@ -1309,11 +1374,13 @@ body.p5-mode .big-card.bc-top3::after{box-shadow:0 0 0 1.5px rgba(232,0,26,.38),
   <div class="mm-section">
     <div class="mm-row">
       <span class="tb-label">通路</span>
-      <select class="tb-sel" id="mm-channel" onchange="mmFilter(this,'ch')" disabled><option value="">全部</option></select>
+      <button class="ms-btn tb-sel" id="mm-ch-btn" onclick="toggleMsDropdown('ch')" disabled style="width:100%">全部</button>
+      <div class="ms-drop ms-drop-mm" id="mm-ch-drop"></div>
     </div>
     <div class="mm-row">
       <span class="tb-label">型態</span>
-      <select class="tb-sel" id="mm-type" onchange="mmFilter(this,'type')" disabled><option value="">全部</option></select>
+      <button class="ms-btn tb-sel" id="mm-tp-btn" onclick="toggleMsDropdown('tp')" disabled style="width:100%">全部</button>
+      <div class="ms-drop ms-drop-mm" id="mm-tp-drop"></div>
     </div>
   </div>
   <div id="mm-chips-row">
@@ -1357,7 +1424,9 @@ var AREA_ORDER=['北部','桃園','臺中','嘉義','臺南','高雄','花蓮','
 /* ══ 狀態 ══ */
 var allRows=[],allHeaders=[];
 var chips={l:true,n:true,u:true};
-var fArea='',fOffice='',fStaff='',fCh='',fType='';
+var fArea='',fOffice='',fStaff='';
+/* 多選：用 Set 存已勾選的值，null 表示「全選（未初始化）」 */
+var fChSet=null, fTpSet=null;
 var drillStack=[];
 var curSurvey=-1;
 var _oMap={},_sMap={};
@@ -1550,8 +1619,8 @@ function visible(){
     if(fArea&&gv(r,'area')!==fArea)return false;
     if(fOffice&&gv(r,'office')!==fOffice)return false;
     if(fStaff&&gv(r,'staff')!==fStaff)return false;
-    if(fCh&&gv(r,'channel')!==fCh)return false;
-    if(fType&&gv(r,'type')!==fType)return false;
+    if(fChSet!==null&&!fChSet.has(gv(r,'channel')))return false;
+    if(fTpSet!==null&&!fTpSet.has(gv(r,'type')))return false;
     return chips[gs(r)];
   });
 }
@@ -1648,6 +1717,7 @@ function fetchSheet(id,sheet,ok,fail){
 
 /* ══ 篩選器 ══ */
 var _chTypeMap={};
+var _allCh=[], _allTp=[];
 function buildFilters(){
   var aSet=new Set();_oMap={};_sMap={};var chSet=new Set(),tpSet=new Set();
   _chTypeMap={};
@@ -1660,9 +1730,15 @@ function buildFilters(){
     if(tp)tpSet.add(tp);
   });
   fillSel('sel-area',Array.from(aSet));
-  fillSel('sel-channel',Array.from(chSet));
-  fillSel('sel-type',Array.from(tpSet));
-  ['sel-area','sel-channel','sel-type'].forEach(function(id){document.getElementById(id).disabled=false;});
+  _allCh=Array.from(chSet).sort(function(a,b){return a.localeCompare(b,'zh-TW');});
+  _allTp=Array.from(tpSet).sort(function(a,b){return a.localeCompare(b,'zh-TW');});
+  fChSet=null;fTpSet=null;
+  buildMsDrop('ch',_allCh);
+  buildMsDrop('tp',_allTp);
+  ['ms-ch-btn','ms-tp-btn','mm-ch-btn','mm-tp-btn'].forEach(function(id){
+    var el=document.getElementById(id);if(el)el.disabled=false;
+  });
+  document.getElementById('sel-area').disabled=false;
   onAreaFilter(false);
 }
 function fillSel(id,items){
@@ -1691,35 +1767,178 @@ function onOfficeFilter(doRender){
 }
 function onStaffFilter(){fStaff=document.getElementById('sel-staff').value;render('none');}
 function onFilterChange(){
-  fCh=document.getElementById('sel-channel').value;
-  var oldType=document.getElementById('sel-type').value;
-  if(fCh&&_chTypeMap[fCh]){
-    var types=Array.from(_chTypeMap[fCh]);
-    fillSel('sel-type',types);
-    if(oldType&&!_chTypeMap[fCh].has(oldType))document.getElementById('sel-type').value='';
-  }else{
-    var allTypes=new Set();allRows.forEach(function(r){if(gv(r,'type'))allTypes.add(gv(r,'type'));});
-    fillSel('sel-type',Array.from(allTypes));
-  }
-  fType=document.getElementById('sel-type').value;
   updateClearBtn();render('none');
 }
 function updateClearBtn(){
   var btn=document.getElementById('clear-btn');if(!btn)return;
-  var hasFilter=fArea||fOffice||fStaff||fCh||fType||!chips.l||!chips.n||!chips.u;
+  var hasFilter=fArea||fOffice||fStaff||fChSet!==null||fTpSet!==null||!chips.l||!chips.n||!chips.u;
   btn.style.display=hasFilter?'':'none';
 }
 function clearAllFilters(){
-  fArea='';fOffice='';fStaff='';fCh='';fType='';
-  ['sel-area','sel-office','sel-staff','sel-channel','sel-type'].forEach(function(id){
+  fArea='';fOffice='';fStaff='';fChSet=null;fTpSet=null;
+  ['sel-area','sel-office','sel-staff'].forEach(function(id){
     var el=document.getElementById(id);if(el)el.value='';
   });
   chips={l:true,n:true,u:true};
   ['l','n','u'].forEach(function(t){var el=document.getElementById('chip-'+t);if(el)el.classList.add('on');});
-  var allTypes=new Set();allRows.forEach(function(r){if(gv(r,'type'))allTypes.add(gv(r,'type'));});
-  fillSel('sel-type',Array.from(allTypes));
+  /* 重建 dropdown（全選） */
+  buildMsDrop('ch',_allCh);
+  buildMsDrop('tp',_allTp);
   updateClearBtn();render('none');updateRankDrawer();
 }
+/* ══ 多選 Dropdown（通路 / 型態） ══ */
+function buildMsDrop(key,items){
+  /* key: 'ch' or 'tp' */
+  var isChKey = (key==='ch');
+  var currentSet = isChKey ? fChSet : fTpSet;
+  var dropIds = ['ms-'+key+'-drop','mm-'+key+'-drop'];
+  var btnIds  = ['ms-'+key+'-btn','mm-'+key+'-btn'];
+
+  dropIds.forEach(function(dropId){
+    var drop = document.getElementById(dropId);
+    if(!drop) return;
+    drop.innerHTML='';
+
+    /* 全選 / 全不選 按鈕列 */
+    var actions = document.createElement('div');
+    actions.className='ms-drop-actions';
+    var allBtn = document.createElement('button');
+    allBtn.className='ms-act-btn'; allBtn.textContent='全選';
+    allBtn.onclick=function(e){e.stopPropagation();msSelectAll(key,true);};
+    var noneBtn = document.createElement('button');
+    noneBtn.className='ms-act-btn'; noneBtn.textContent='全不選';
+    noneBtn.onclick=function(e){e.stopPropagation();msSelectAll(key,false);};
+    actions.appendChild(allBtn); actions.appendChild(noneBtn);
+    drop.appendChild(actions);
+
+    /* 每個選項 */
+    items.forEach(function(val){
+      var isChecked = currentSet===null || currentSet.has(val);
+      var row = document.createElement('div'); row.className='ms-item';
+      var cb  = document.createElement('input');
+      cb.type='checkbox'; cb.id=dropId+'-'+val.replace(/\s/g,'_');
+      cb.checked=isChecked;
+      cb.addEventListener('change',function(){ msToggleItem(key,val,cb.checked); });
+      var lbl = document.createElement('label');
+      lbl.htmlFor=cb.id; lbl.textContent=val;
+      row.appendChild(cb); row.appendChild(lbl);
+      /* 點整行也切換 */
+      row.addEventListener('click',function(e){
+        if(e.target!==cb&&e.target!==lbl){cb.checked=!cb.checked;msToggleItem(key,val,cb.checked);}
+      });
+      drop.appendChild(row);
+    });
+  });
+
+  updateMsBtnLabel(key,items);
+}
+
+function msToggleItem(key,val,checked){
+  var isChKey=(key==='ch');
+  var currentSet = isChKey ? fChSet : fTpSet;
+  var allItems   = isChKey ? _allCh  : _allTp;
+
+  /* 如果是全選狀態（null），先展開成完整 set */
+  if(currentSet===null) currentSet = new Set(allItems);
+  if(checked) currentSet.add(val);
+  else        currentSet.delete(val);
+
+  /* 如果全部勾選，恢復 null（效能：表示全選不過濾） */
+  if(currentSet.size===allItems.length) currentSet=null;
+
+  if(isChKey) fChSet=currentSet; else fTpSet=currentSet;
+
+  /* 同步兩個 dropdown 的 checkbox 狀態 */
+  syncMsCheckboxes(key,allItems);
+  updateMsBtnLabel(key,allItems);
+
+  /* 通路更動時，同步更新型態的可用選項 */
+  if(isChKey){
+    var availTp = fChSet===null ? _allTp : (function(){
+      var s=new Set();
+      fChSet.forEach(function(ch){
+        (_chTypeMap[ch]||new Set()).forEach(function(tp){s.add(tp);});
+      });
+      return _allTp.filter(function(tp){return s.has(tp);});
+    })();
+    /* 如果目前型態篩選有不在新可用列表的，移除 */
+    if(fTpSet!==null){
+      fTpSet.forEach(function(tp){ if(availTp.indexOf(tp)<0) fTpSet.delete(tp); });
+      if(fTpSet.size===availTp.length) fTpSet=null;
+    }
+    buildMsDrop('tp', availTp);
+  }
+
+  updateClearBtn();render('none');
+}
+
+function msSelectAll(key,selectAll){
+  var isChKey=(key==='ch');
+  var allItems = isChKey ? _allCh : _allTp;
+  if(isChKey) fChSet = selectAll?null:new Set();
+  else        fTpSet = selectAll?null:new Set();
+  syncMsCheckboxes(key,allItems);
+  updateMsBtnLabel(key,allItems);
+  updateClearBtn();render('none');
+}
+
+function syncMsCheckboxes(key,allItems){
+  var isChKey=(key==='ch');
+  var currentSet=isChKey?fChSet:fTpSet;
+  ['ms-'+key+'-drop','mm-'+key+'-drop'].forEach(function(dropId){
+    var drop=document.getElementById(dropId);if(!drop)return;
+    allItems.forEach(function(val){
+      var cb=document.getElementById(dropId+'-'+val.replace(/\s/g,'_'));
+      if(cb) cb.checked=(currentSet===null||currentSet.has(val));
+    });
+  });
+}
+
+function updateMsBtnLabel(key,allItems){
+  var isChKey=(key==='ch');
+  var currentSet=isChKey?fChSet:fTpSet;
+  var label, hasFilter;
+  if(currentSet===null||currentSet.size===allItems.length){
+    label='全部'; hasFilter=false;
+  } else if(currentSet.size===0){
+    label='（無）'; hasFilter=true;
+  } else {
+    var arr=Array.from(currentSet);
+    label=arr.length===1?arr[0]:arr.length+'項已選';
+    hasFilter=true;
+  }
+  ['ms-'+key+'-btn','mm-'+key+'-btn'].forEach(function(id){
+    var btn=document.getElementById(id);if(!btn)return;
+    btn.textContent=label;
+    btn.classList.toggle('has-filter',hasFilter);
+  });
+}
+
+/* 點 dropdown 按鈕 */
+var _msOpenKey=null;
+function toggleMsDropdown(key){
+  var dropId='ms-'+key+'-drop';
+  var drop=document.getElementById(dropId);
+  if(!drop)return;
+  var isOpen=drop.classList.contains('open');
+  /* 關閉所有 */
+  document.querySelectorAll('.ms-drop').forEach(function(d){d.classList.remove('open');});
+  _msOpenKey=null;
+  if(!isOpen){
+    drop.classList.add('open');
+    _msOpenKey=key;
+  }
+}
+/* 點外部關閉 */
+document.addEventListener('click',function(e){
+  if(!_msOpenKey)return;
+  var wrap=document.getElementById('ms-'+_msOpenKey+'-wrap');
+  if(wrap&&!wrap.contains(e.target)){
+    document.querySelectorAll('.ms-drop').forEach(function(d){d.classList.remove('open');});
+    _msOpenKey=null;
+  }
+});
+
 function toggleChip(t){chips[t]=!chips[t];document.getElementById('chip-'+t).classList.toggle('on',chips[t]);render('none');}
 
 /* ══ 下鑽 ══ */
@@ -2077,15 +2296,11 @@ document.addEventListener('click',function(e){
 
 /* 手機選單同步主 select */
 function syncMmSelects(){
-  ['survey','area','office','staff','channel','type'].forEach(function(k){
+  /* 只同步 area/office/staff/survey，ch 和 tp 由 buildMsDrop 處理 */
+  ['survey','area','office','staff'].forEach(function(k){
     var main=document.getElementById('sel-'+k);
     var mm=document.getElementById('mm-'+k);
-    if(main&&mm){
-      /* 同步 options */
-      mm.innerHTML=main.innerHTML;
-      mm.value=main.value;
-      mm.disabled=main.disabled;
-    }
+    if(main&&mm){mm.innerHTML=main.innerHTML;mm.value=main.value;mm.disabled=main.disabled;}
   });
 }
 function syncMmChips(){
@@ -2108,8 +2323,8 @@ function mmStaff(el){
   var s=document.getElementById('sel-staff');if(s){s.value=el.value;onStaffFilter();}
 }
 function mmFilter(el,k){
-  var id=k==='ch'?'sel-channel':'sel-type';
-  var s=document.getElementById(id);if(s){s.value=el.value;onFilterChange();}
+  /* 舊版相容：手機版現在直接用 toggleMsDropdown */
+  toggleMsDropdown(k==='ch'?'ch':'tp');
 }
 /* 每次 render 後同步手機選單 */
 var _origDoRender=null;
