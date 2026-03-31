@@ -3,8 +3,16 @@
   <head>
     <meta charset="UTF-8">
     <script>
-      (function() { // 合併詢問：直接問公司簡稱，輸入正確 (TTL) 才能看資料var input = prompt("請輸入公司英文簡稱(大小寫不分)：", "");// 驗證失敗 (沒輸入、點取消、或輸入非 ttl)：直接關閉網頁if (!input || input.toLowerCase() !== "ttl") {alert("驗證失敗");window.location.replace("about:blank");}// 驗證成功：保持沈默，直接往下加載「業務王」看板內容})();
-
+      (function () {
+        // 合併詢問：直接問公司簡稱，輸入正確 (TTL) 才能看資料
+        var input = prompt("請輸入公司英文簡稱(大小寫不分)：", "");
+        // 驗證失敗 (沒輸入、點取消、或輸入非 ttl)：直接關閉網頁
+        if (!input || input.toLowerCase() !== "ttl") {
+          alert("驗證失敗");
+          window.location.replace("about:blank");
+        }
+        // 驗證成功：保持沈默，直接往下加載「業務王」看板內容
+      })();
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
     <title>業務王進度看板</title>
@@ -369,7 +377,7 @@
       }
 
       .col-main.staff-view {
-        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
         grid-auto-rows: auto;
         padding: 16px 20px;
         gap: 14px;
@@ -3590,14 +3598,13 @@
       }
 
       function chDrillInto(level, key) {
-        if (level === 'ch') _chDrillStack = [{
-          level: 'ch',
-          key: key
-        }];
-        else _chDrillStack = [_chDrillStack[0], {
-          level: 'area',
-          key: key
-        }];
+        if (level === 'ch') {
+          _chDrillStack = [{ level: 'ch', key: key }];
+        } else if (level === 'type') {
+          _chDrillStack = [_chDrillStack[0], { level: 'type', key: key }];
+        } else if (level === 'area') {
+          _chDrillStack = [_chDrillStack[0], _chDrillStack[1], { level: 'area', key: key }];
+        }
         doRender('forward', null);
       }
 
@@ -3611,39 +3618,60 @@
         container.innerHTML = '';
         var depth = _chDrillStack.length;
         if (depth === 0) {
+          // 整體：通路卡片
           var main = makeMain();
           main.classList.add('ch-view');
           buildChCards(main, rows);
           container.appendChild(main);
         } else if (depth === 1) {
+          // 通路 > 型態卡片
           var ch = _chDrillStack[0].key;
-          var chRows = rows.filter(function(r) {
-            return gv(r, 'channel') === ch;
-          });
+          var chRows = rows.filter(function(r) { return gv(r, 'channel') === ch; });
           var side = makeSide(220);
           buildChSide(side, rows, ch);
           container.appendChild(side);
           container.appendChild(makeDivider());
           var main = makeMain();
           main.classList.add('area-view');
-          buildChAreaCards(main, chRows, ch);
+          buildChTypeCards(main, chRows, ch);
           container.appendChild(main);
-        } else {
+        } else if (depth === 2) {
+          // 通路 > 型態 > 大區卡片
           var ch = _chDrillStack[0].key;
-          var area = _chDrillStack[1].key;
-          var chRows = rows.filter(function(r) {
-            return gv(r, 'channel') === ch;
-          });
-          var aRows = chRows.filter(function(r) {
-            return gv(r, 'area') === area;
-          });
+          var tp = _chDrillStack[1].key;
+          var chRows = rows.filter(function(r) { return gv(r, 'channel') === ch; });
+          var tRows = chRows.filter(function(r) { return gv(r, 'type') === tp; });
           var side = makeSide(220);
           buildChSide(side, rows, ch);
           container.appendChild(side);
           container.appendChild(makeDivider());
           var side2 = makeSide(210);
-          buildChAreaSide(side2, chRows, area, ch);
+          buildChTypeSide(side2, chRows, tp, ch);
           container.appendChild(side2);
+          container.appendChild(makeDivider());
+          var main = makeMain();
+          main.classList.add('area-view');
+          buildChAreaCards(main, tRows, ch + ' · ' + tp);
+          container.appendChild(main);
+        } else {
+          // 通路 > 型態 > 大區 > 店家列表
+          var ch = _chDrillStack[0].key;
+          var tp = _chDrillStack[1].key;
+          var area = _chDrillStack[2].key;
+          var chRows = rows.filter(function(r) { return gv(r, 'channel') === ch; });
+          var tRows = chRows.filter(function(r) { return gv(r, 'type') === tp; });
+          var aRows = tRows.filter(function(r) { return gv(r, 'area') === area; });
+          var side = makeSide(220);
+          buildChSide(side, rows, ch);
+          container.appendChild(side);
+          container.appendChild(makeDivider());
+          var side2 = makeSide(210);
+          buildChTypeSide(side2, chRows, tp, ch);
+          container.appendChild(side2);
+          container.appendChild(makeDivider());
+          var side3 = makeSide(200);
+          buildChAreaSide(side3, tRows, area, tp);
+          container.appendChild(side3);
           container.appendChild(makeDivider());
           var main = makeMain();
           main.classList.add('store-view');
@@ -3680,6 +3708,38 @@
           c.appendChild(makeMiniCard(k, m[k], function() {
             chDrillInto('ch', k);
           }, k === selCh));
+        });
+      }
+
+
+      function buildChTypeCards(c, rows, chName) {
+        c.appendChild(makeWholeCard(chName + ' 整體', rows));
+        var m = groupBy(rows, 'type');
+        var lastKey = curStatuses[curStatuses.length - 1].key;
+        var sorted = Object.keys(m).sort(function(a, b) {
+          return (stat(m[b])[lastKey] || 0) - (stat(m[a])[lastKey] || 0);
+        });
+        sorted.forEach(function(k) {
+          c.appendChild(makeBigCard(k, m[k], function() {
+            chDrillInto('type', k);
+          }, false));
+        });
+        if (!sorted.length) c.appendChild(makeEmpty('沒有符合條件的資料'));
+      }
+
+      function buildChTypeSide(c, rows, selTp, chName) {
+        var m = groupBy(rows, 'type');
+        var lastKey = curStatuses[curStatuses.length - 1].key;
+        var sorted = Object.keys(m).sort(function(a, b) {
+          return (stat(m[b])[lastKey] || 0) - (stat(m[a])[lastKey] || 0);
+        });
+        c.appendChild(makeMiniCard(chName + ' 整體', rows, function() {
+          chGoToDepth(1);
+        }, false));
+        sorted.forEach(function(k) {
+          c.appendChild(makeMiniCard(k, m[k], function() {
+            chDrillInto('type', k);
+          }, k === selTp));
         });
       }
 
@@ -4063,32 +4123,27 @@
         if (_viewMode === 'ch') {
           var rows = visible();
           var total = rows.length;
-          var parts = [{
-            lbl: '整體',
-            n: total,
-            chDepth: 0
-          }];
+          var parts = [{ lbl: '整體', n: total, chDepth: 0 }];
           if (_chDrillStack.length >= 1) {
             var ch = _chDrillStack[0].key;
-            var cn = rows.filter(function(r) {
-              return gv(r, 'channel') === ch;
-            }).length;
-            parts.push({
-              lbl: ch,
-              n: cn,
-              chDepth: 1
-            });
+            var cn = rows.filter(function(r) { return gv(r, 'channel') === ch; }).length;
+            parts.push({ lbl: ch, n: cn, chDepth: 1 });
           }
           if (_chDrillStack.length >= 2) {
-            var ar = _chDrillStack[1].key;
-            var an = rows.filter(function(r) {
-              return gv(r, 'channel') === _chDrillStack[0].key && gv(r, 'area') === ar;
+            var tp = _chDrillStack[1].key;
+            var tn = rows.filter(function(r) {
+              return gv(r, 'channel') === _chDrillStack[0].key && gv(r, 'type') === tp;
             }).length;
-            parts.push({
-              lbl: ar,
-              n: an,
-              chDepth: 2
-            });
+            parts.push({ lbl: tp, n: tn, chDepth: 2 });
+          }
+          if (_chDrillStack.length >= 3) {
+            var ar = _chDrillStack[2].key;
+            var an = rows.filter(function(r) {
+              return gv(r, 'channel') === _chDrillStack[0].key &&
+                     gv(r, 'type') === _chDrillStack[1].key &&
+                     gv(r, 'area') === ar;
+            }).length;
+            parts.push({ lbl: ar, n: an, chDepth: 3 });
           }
           path.innerHTML = parts.map(function(p, i) {
             var isLast = (i === parts.length - 1);
