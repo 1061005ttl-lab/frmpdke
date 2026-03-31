@@ -3598,12 +3598,27 @@
       }
 
       function chDrillInto(level, key) {
+        var rows = visible();
+        var skip = chSkipLayers(rows);
         if (level === 'ch') {
           _chDrillStack = [{ level: 'ch', key: key }];
         } else if (level === 'type') {
-          _chDrillStack = [_chDrillStack[0], { level: 'type', key: key }];
+          // 若通路層被跳過，自動補入唯一通路
+          var autoCh = skip.skipCh ? Object.keys(groupBy(rows, 'channel'))[0] : null;
+          var chEntry = _chDrillStack[0] || (autoCh ? { level: 'ch', key: autoCh } : null);
+          _chDrillStack = chEntry
+            ? [chEntry, { level: 'type', key: key }]
+            : [{ level: 'type', key: key }];
         } else if (level === 'area') {
-          _chDrillStack = [_chDrillStack[0], _chDrillStack[1], { level: 'area', key: key }];
+          // 若型態層被跳過，自動補入唯一型態
+          var chRows = _chDrillStack[0]
+            ? rows.filter(function(r) { return gv(r, 'channel') === _chDrillStack[0].key; })
+            : rows;
+          var autoTp = skip.skipType ? Object.keys(groupBy(chRows, 'type'))[0] : null;
+          var tpEntry = _chDrillStack[1] || (autoTp ? { level: 'type', key: autoTp } : null);
+          _chDrillStack = tpEntry
+            ? [_chDrillStack[0], tpEntry, { level: 'area', key: key }]
+            : [_chDrillStack[0], { level: 'area', key: key }];
         }
         doRender('forward', null);
       }
@@ -3614,69 +3629,133 @@
         doRender('back', null);
       }
 
+      /* ── 計算哪些層可跳過（單一值）──
+ * 回傳 { skipCh, skipType }
+ * skipCh=true  → 通路只有一種，直接從型態開始
+ * skipType=true → 型態只有一種，直接從大區開始
+ */
+      function chSkipLayers(rows) {
+        var chs = Object.keys(groupBy(rows, 'channel'));
+        var skipCh = chs.length <= 1;
+        // 決定要檢查型態的資料範圍
+        var tpRows = skipCh ? rows : rows; // 通路層若跳過，型態仍看全部
+        var tps = Object.keys(groupBy(tpRows, 'type'));
+        var skipType = tps.length <= 1;
+        return { skipCh: skipCh, skipType: skipType };
+      }
+
       function buildChStage(container, rows) {
         container.innerHTML = '';
-        var depth = _chDrillStack.length;
-        if (depth === 0) {
-          // 整體：通路卡片
+        var skip = chSkipLayers(rows);
+        var stack = _chDrillStack;
+
+        // 把 stack 轉換成 { ch, tp, area } 方便取值
+        var selCh   = stack[0] ? stack[0].key : null;
+        var selTp   = stack[1] ? stack[1].key : null;
+        var selArea = stack[2] ? stack[2].key : null;
+
+        // 根據 skip 決定「有效 drill depth」
+        // effective depth = stack 中屬於「非跳過層」的條目數
+        var effDepth = 0;
+        if (selCh   && !skip.skipCh)   effDepth = Math.max(effDepth, 1);
+        if (selCh)                     effDepth = Math.max(effDepth, skip.skipCh ? 0 : 1);
+        if (selTp   && !skip.skipType) effDepth = Math.max(effDepth, (skip.skipCh ? 1 : 2));
+        if (selTp)                     effDepth = Math.max(effDepth, skip.skipCh ? 1 : 2);
+        if (selArea)                   effDepth = Math.max(effDepth, skip.skipCh && skip.skipType ? 1 : skip.skipCh ? 2 : 3);
+
+        // 篩出各層資料
+        var chRows   = selCh   ? rows.filter(function(r) { return gv(r, 'channel') === selCh; })   : rows;
+        var tpRows2  = selTp   ? chRows.filter(function(r) { return gv(r, 'type')    === selTp; })  : chRows;
+        var aRows    = selArea ? tpRows2.filter(function(r) { return gv(r, 'area')   === selArea; }) : tpRows2;
+
+        // 計算首層標題（跳過的層自動帶入其唯一值）
+        var autoCh = skip.skipCh   ? Object.keys(groupBy(rows,   'channel'))[0] : null;
+        var autoTp = skip.skipType ? Object.keys(groupBy(chRows, 'type'))[0]    : null;
+
+        // 首層顯示名稱（用於整體卡標題）
+        function firstLabel() {
+          if (!skip.skipCh) return '整體';
+          if (!skip.skipType) return (autoCh || '整體');
+          return (autoTp || '整體');
+        }
+
+        // ── 渲染邏輯 ──
+        if (!selCh && !selTp && !selArea) {
+          // 完全未 drill：顯示第一個非跳過層的卡片
           var main = makeMain();
           main.classList.add('ch-view');
-          buildChCards(main, rows);
+          if (!skip.skipCh) {
+            buildChCards(main, rows);
+          } else if (!skip.skipType) {
+            // 通路只有一個，直接顯示型態卡
+            var chLabel = autoCh || '整體';
+            buildChTypeCards(main, rows, chLabel);
+          } else {
+            // 通路+型態都只有一個，直接顯示大區卡
+            var label = [autoTp, autoCh].filter(Boolean).join(' · ');
+            buildChAreaCards(main, rows, label || '整體');
+          }
           container.appendChild(main);
-        } else if (depth === 1) {
-          // 通路 > 型態卡片
-          var ch = _chDrillStack[0].key;
-          var chRows = rows.filter(function(r) { return gv(r, 'channel') === ch; });
+          return;
+        }
+
+        // 已 drill 進通路（且通路未跳過）
+        if (selCh && !skip.skipCh && !selTp) {
           var side = makeSide(220);
-          buildChSide(side, rows, ch);
+          buildChSide(side, rows, selCh);
           container.appendChild(side);
           container.appendChild(makeDivider());
           var main = makeMain();
           main.classList.add('area-view');
-          buildChTypeCards(main, chRows, ch);
+          buildChTypeCards(main, chRows, selCh);
           container.appendChild(main);
-        } else if (depth === 2) {
-          // 通路 > 型態 > 大區卡片
-          var ch = _chDrillStack[0].key;
-          var tp = _chDrillStack[1].key;
-          var chRows = rows.filter(function(r) { return gv(r, 'channel') === ch; });
-          var tRows = chRows.filter(function(r) { return gv(r, 'type') === tp; });
-          var side = makeSide(220);
-          buildChSide(side, rows, ch);
-          container.appendChild(side);
-          container.appendChild(makeDivider());
+          return;
+        }
+
+        // 已 drill 進型態（通路可能被跳過）
+        var ctRows = selCh ? chRows : rows; // 通路被跳過時用全部
+        if (selTp && !selArea) {
+          if (!skip.skipCh) {
+            var side = makeSide(220);
+            buildChSide(side, rows, selCh);
+            container.appendChild(side);
+            container.appendChild(makeDivider());
+          }
           var side2 = makeSide(210);
-          buildChTypeSide(side2, chRows, tp, ch);
+          buildChTypeSide(side2, ctRows, selTp, selCh || autoTp || '');
           container.appendChild(side2);
           container.appendChild(makeDivider());
           var main = makeMain();
           main.classList.add('area-view');
-          buildChAreaCards(main, tRows, ch + ' · ' + tp);
+          var label2 = [selCh || autoTp, selTp].filter(Boolean).join(' · ');
+          buildChAreaCards(main, tpRows2, label2);
           container.appendChild(main);
-        } else {
-          // 通路 > 型態 > 大區 > 店家列表
-          var ch = _chDrillStack[0].key;
-          var tp = _chDrillStack[1].key;
-          var area = _chDrillStack[2].key;
-          var chRows = rows.filter(function(r) { return gv(r, 'channel') === ch; });
-          var tRows = chRows.filter(function(r) { return gv(r, 'type') === tp; });
-          var aRows = tRows.filter(function(r) { return gv(r, 'area') === area; });
-          var side = makeSide(220);
-          buildChSide(side, rows, ch);
-          container.appendChild(side);
-          container.appendChild(makeDivider());
-          var side2 = makeSide(210);
-          buildChTypeSide(side2, chRows, tp, ch);
-          container.appendChild(side2);
-          container.appendChild(makeDivider());
+          return;
+        }
+
+        // 已 drill 進大區 → 店家列表
+        if (selArea) {
+          if (!skip.skipCh) {
+            var side = makeSide(220);
+            buildChSide(side, rows, selCh);
+            container.appendChild(side);
+            container.appendChild(makeDivider());
+          }
+          if (!skip.skipType) {
+            var side2 = makeSide(210);
+            buildChTypeSide(side2, ctRows, selTp, selCh || autoTp || '');
+            container.appendChild(side2);
+            container.appendChild(makeDivider());
+          }
           var side3 = makeSide(200);
-          buildChAreaSide(side3, tRows, area, tp);
+          buildChAreaSide(side3, tpRows2, selArea, selTp || autoTp || '');
           container.appendChild(side3);
           container.appendChild(makeDivider());
           var main = makeMain();
           main.classList.add('store-view');
           buildStoreCards(main, aRows);
           container.appendChild(main);
+          return;
         }
       }
 
@@ -4122,28 +4201,38 @@
         if (!path) return;
         if (_viewMode === 'ch') {
           var rows = visible();
+          var skip = chSkipLayers(rows);
           var total = rows.length;
           var parts = [{ lbl: '整體', n: total, chDepth: 0 }];
-          if (_chDrillStack.length >= 1) {
+          // 只在通路未被跳過、且 stack 有通路記錄時才顯示通路節點
+          if (_chDrillStack.length >= 1 && !skip.skipCh) {
             var ch = _chDrillStack[0].key;
             var cn = rows.filter(function(r) { return gv(r, 'channel') === ch; }).length;
             parts.push({ lbl: ch, n: cn, chDepth: 1 });
           }
-          if (_chDrillStack.length >= 2) {
-            var tp = _chDrillStack[1].key;
+          // 型態節點
+          var tpEntry = _chDrillStack[1] || (_chDrillStack[0] && _chDrillStack[0].level === 'type' ? _chDrillStack[0] : null);
+          if (tpEntry && !skip.skipType) {
+            var chKey = (_chDrillStack[0] && _chDrillStack[0].level === 'ch') ? _chDrillStack[0].key : null;
             var tn = rows.filter(function(r) {
-              return gv(r, 'channel') === _chDrillStack[0].key && gv(r, 'type') === tp;
+              return (!chKey || gv(r, 'channel') === chKey) && gv(r, 'type') === tpEntry.key;
             }).length;
-            parts.push({ lbl: tp, n: tn, chDepth: 2 });
+            parts.push({ lbl: tpEntry.key, n: tn, chDepth: skip.skipCh ? 1 : 2 });
           }
-          if (_chDrillStack.length >= 3) {
-            var ar = _chDrillStack[2].key;
+          // 大區節點
+          var areaEntry = _chDrillStack[2] ||
+            (_chDrillStack[1] && _chDrillStack[1].level === 'area' ? _chDrillStack[1] : null) ||
+            (_chDrillStack[0] && _chDrillStack[0].level === 'area' ? _chDrillStack[0] : null);
+          if (areaEntry) {
+            var chKey2 = (_chDrillStack[0] && _chDrillStack[0].level === 'ch') ? _chDrillStack[0].key : null;
+            var tpKey2 = tpEntry ? tpEntry.key : null;
             var an = rows.filter(function(r) {
-              return gv(r, 'channel') === _chDrillStack[0].key &&
-                     gv(r, 'type') === _chDrillStack[1].key &&
-                     gv(r, 'area') === ar;
+              return (!chKey2 || gv(r, 'channel') === chKey2) &&
+                     (!tpKey2 || gv(r, 'type') === tpKey2) &&
+                     gv(r, 'area') === areaEntry.key;
             }).length;
-            parts.push({ lbl: ar, n: an, chDepth: 3 });
+            var aDepth = parts.length; // depth = current parts count (before push)
+            parts.push({ lbl: areaEntry.key, n: an, chDepth: aDepth });
           }
           path.innerHTML = parts.map(function(p, i) {
             var isLast = (i === parts.length - 1);
