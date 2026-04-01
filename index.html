@@ -3,16 +3,14 @@
   <head>
     <meta charset="UTF-8">
     <script>
-      (function () {
-        // 合併詢問：直接問公司簡稱，輸入正確 (TTL) 才能看資料
+      (function() {
         var input = prompt("請輸入公司英文簡稱(大小寫不分)：", "");
-        // 驗證失敗 (沒輸入、點取消、或輸入非 ttl)：直接關閉網頁
         if (!input || input.toLowerCase() !== "ttl") {
           alert("驗證失敗");
           window.location.replace("about:blank");
         }
-        // 驗證成功：保持沈默，直接往下加載「業務王」看板內容
       })();
+
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
     <title>業務王進度看板</title>
@@ -2188,9 +2186,7 @@
       }
 
       /* ══ MOBILE ══ */
-      /* ══ 直式版面（手機 + 直立平板）══ */
-      @media (max-width: 768px), (min-width: 769px) and (orientation: portrait) {
-
+      @media(max-width:768px), (min-width:769px) and (orientation:portrait) {
         #topbar {
           min-height: 52px;
           padding: 0 16px;
@@ -2711,30 +2707,61 @@
           display: block;
         }
 
-        /* 直式（手機/平板直立）：隱藏通路和等級，保留狀態+名稱+型態+代碼 */
-        .store-tbl .col-ch,
-        .store-tbl .col-grade {
+        .store-tbl .col-grade,
+        .store-tbl .col-code {
           display: none !important;
         }
+
+        .store-tbl .col-status {
+          width: 68px !important;
+        }
+
         .store-tbl .col-name {
           width: auto !important;
         }
-        .store-tbl .col-status {
+
+        .store-tbl .col-ch {
           width: 72px !important;
         }
+
         .store-tbl .col-tp {
           width: 72px !important;
         }
-        .store-tbl .col-code {
-          width: 110px !important;
-        }
       }
 
-      /* ══ 橫式桌機與平板 ══ */
-      @media (min-width: 769px) and (orientation: landscape) {
-
+      @media(min-width:769px) and (orientation:landscape) {
         #rank-fab {
-          display: none !important;
+          display:none !impo.view-toggle {
+            display: flex;
+            align-items: center;
+            background: rgba(0, 0, 0, .06);
+            border-radius: 8px;
+            padding: 2px;
+            gap: 1px;
+            flex-shrink: 0;
+          }
+
+          .vt-btn {
+            padding: 4px 10px;
+            border-radius: 6px;
+            border: none;
+            background: transparent;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--sub);
+            cursor: pointer;
+            font-family: inherit;
+            transition: all .15s;
+            white-space: nowrap;
+          }
+
+          .vt-btn.on {
+            background: #fff;
+            color: var(--primary-d);
+            box-shadow: 0 1px 4px rgba(0, 0, 0, .12);
+          }
+
+          rtant;
         }
 
         #rank-sheet {
@@ -2752,37 +2779,6 @@
         #mm-overlay {
           display: none !important;
         }
-      }
-
-
-      .view-toggle {
-        display: flex;
-        align-items: center;
-        background: rgba(0, 0, 0, .06);
-        border-radius: 8px;
-        padding: 2px;
-        gap: 1px;
-        flex-shrink: 0;
-      }
-
-      .vt-btn {
-        padding: 4px 10px;
-        border-radius: 6px;
-        border: none;
-        background: transparent;
-        font-size: 11px;
-        font-weight: 700;
-        color: var(--sub);
-        cursor: pointer;
-        font-family: inherit;
-        transition: all .15s;
-        white-space: nowrap;
-      }
-
-      .vt-btn.on {
-        background: #fff;
-        color: var(--primary-d);
-        box-shadow: 0 1px 4px rgba(0, 0, 0, .12);
       }
 
     </style>
@@ -2817,7 +2813,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 2.1.0 (2026-03-31)</div>
+      <div id="ver-ts">Ver. 3.0.0 (2026-03-31)</div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
     </div>
@@ -2902,8 +2898,6 @@
       var _runRaf = null;
       var _syncTime = '';
       var _rankDrawerOpen = true;
-      var _viewMode = 'org';
-      var _chDrillStack = [];
       var _chTypeMap = {};
       var _allCh = [],
         _allTp = []; /* ══ 自動辨識狀態欄 ══ */
@@ -3606,270 +3600,6 @@
         doRender('back', null);
       }
 
-      function setViewMode(m) {
-        if (_viewMode === m) return;
-        _viewMode = m;
-        _chDrillStack = [];
-        var btnOrg = document.getElementById('vt-org');
-        var btnCh = document.getElementById('vt-ch');
-        if (btnOrg && btnCh) {
-          btnOrg.className = 'vt-btn' + (m === 'org' ? ' on' : '');
-          btnCh.className = 'vt-btn' + (m === 'ch' ? ' on' : '');
-        }
-        updateGlobalBar();
-        render('none');
-      }
-
-      function chDrillInto(level, key) {
-        var rows = visible();
-        var skip = chSkipLayers(rows);
-        if (level === 'ch') {
-          _chDrillStack = [{ level: 'ch', key: key }];
-        } else if (level === 'type') {
-          // 若通路層被跳過，自動補入唯一通路
-          var autoCh = skip.skipCh ? Object.keys(groupBy(rows, 'channel'))[0] : null;
-          var chEntry = _chDrillStack[0] || (autoCh ? { level: 'ch', key: autoCh } : null);
-          _chDrillStack = chEntry
-            ? [chEntry, { level: 'type', key: key }]
-            : [{ level: 'type', key: key }];
-        } else if (level === 'area') {
-          // 若型態層被跳過，自動補入唯一型態
-          var chRows = _chDrillStack[0]
-            ? rows.filter(function(r) { return gv(r, 'channel') === _chDrillStack[0].key; })
-            : rows;
-          var autoTp = skip.skipType ? Object.keys(groupBy(chRows, 'type'))[0] : null;
-          var tpEntry = _chDrillStack[1] || (autoTp ? { level: 'type', key: autoTp } : null);
-          _chDrillStack = tpEntry
-            ? [_chDrillStack[0], tpEntry, { level: 'area', key: key }]
-            : [_chDrillStack[0], { level: 'area', key: key }];
-        }
-        doRender('forward', null);
-      }
-
-      function chGoToDepth(d) {
-        if (_chDrillStack.length === d) return;
-        _chDrillStack = _chDrillStack.slice(0, d);
-        doRender('back', null);
-      }
-
-      /* ── 計算哪些層可跳過（單一值）──
- * 回傳 { skipCh, skipType }
- * skipCh=true  → 通路只有一種，直接從型態開始
- * skipType=true → 型態只有一種，直接從大區開始
- */
-      function chSkipLayers(rows) {
-        var chs = Object.keys(groupBy(rows, 'channel'));
-        var skipCh = chs.length <= 1;
-        // 決定要檢查型態的資料範圍
-        var tpRows = skipCh ? rows : rows; // 通路層若跳過，型態仍看全部
-        var tps = Object.keys(groupBy(tpRows, 'type'));
-        var skipType = tps.length <= 1;
-        return { skipCh: skipCh, skipType: skipType };
-      }
-
-      function buildChStage(container, rows) {
-        container.innerHTML = '';
-        var skip = chSkipLayers(rows);
-        var stack = _chDrillStack;
-
-        // 把 stack 轉換成 { ch, tp, area } 方便取值
-        var selCh   = stack[0] ? stack[0].key : null;
-        var selTp   = stack[1] ? stack[1].key : null;
-        var selArea = stack[2] ? stack[2].key : null;
-
-        // 根據 skip 決定「有效 drill depth」
-        // effective depth = stack 中屬於「非跳過層」的條目數
-        var effDepth = 0;
-        if (selCh   && !skip.skipCh)   effDepth = Math.max(effDepth, 1);
-        if (selCh)                     effDepth = Math.max(effDepth, skip.skipCh ? 0 : 1);
-        if (selTp   && !skip.skipType) effDepth = Math.max(effDepth, (skip.skipCh ? 1 : 2));
-        if (selTp)                     effDepth = Math.max(effDepth, skip.skipCh ? 1 : 2);
-        if (selArea)                   effDepth = Math.max(effDepth, skip.skipCh && skip.skipType ? 1 : skip.skipCh ? 2 : 3);
-
-        // 篩出各層資料
-        var chRows   = selCh   ? rows.filter(function(r) { return gv(r, 'channel') === selCh; })   : rows;
-        var tpRows2  = selTp   ? chRows.filter(function(r) { return gv(r, 'type')    === selTp; })  : chRows;
-        var aRows    = selArea ? tpRows2.filter(function(r) { return gv(r, 'area')   === selArea; }) : tpRows2;
-
-        // 計算首層標題（跳過的層自動帶入其唯一值）
-        var autoCh = skip.skipCh   ? Object.keys(groupBy(rows,   'channel'))[0] : null;
-        var autoTp = skip.skipType ? Object.keys(groupBy(chRows, 'type'))[0]    : null;
-
-        // 首層顯示名稱（用於整體卡標題）
-        function firstLabel() {
-          if (!skip.skipCh) return '整體';
-          if (!skip.skipType) return (autoCh || '整體');
-          return (autoTp || '整體');
-        }
-
-        // ── 渲染邏輯 ──
-        if (!selCh && !selTp && !selArea) {
-          // 完全未 drill：顯示第一個非跳過層的卡片
-          var main = makeMain();
-          main.classList.add('ch-view');
-          if (!skip.skipCh) {
-            buildChCards(main, rows);
-          } else if (!skip.skipType) {
-            // 通路只有一個，直接顯示型態卡
-            var chLabel = autoCh || '整體';
-            buildChTypeCards(main, rows, chLabel);
-          } else {
-            // 通路+型態都只有一個，直接顯示大區卡
-            var label = [autoTp, autoCh].filter(Boolean).join(' · ');
-            buildChAreaCards(main, rows, label || '整體');
-          }
-          container.appendChild(main);
-          return;
-        }
-
-        // 已 drill 進通路（且通路未跳過）
-        if (selCh && !skip.skipCh && !selTp) {
-          var side = makeSide(220);
-          buildChSide(side, rows, selCh);
-          container.appendChild(side);
-          container.appendChild(makeDivider());
-          var main = makeMain();
-          main.classList.add('area-view');
-          buildChTypeCards(main, chRows, selCh);
-          container.appendChild(main);
-          return;
-        }
-
-        // 已 drill 進型態（通路可能被跳過）
-        var ctRows = selCh ? chRows : rows; // 通路被跳過時用全部
-        if (selTp && !selArea) {
-          if (!skip.skipCh) {
-            var side = makeSide(220);
-            buildChSide(side, rows, selCh);
-            container.appendChild(side);
-            container.appendChild(makeDivider());
-          }
-          var side2 = makeSide(210);
-          buildChTypeSide(side2, ctRows, selTp, selCh || autoTp || '');
-          container.appendChild(side2);
-          container.appendChild(makeDivider());
-          var main = makeMain();
-          main.classList.add('area-view');
-          var label2 = [selCh || autoTp, selTp].filter(Boolean).join(' · ');
-          buildChAreaCards(main, tpRows2, label2);
-          container.appendChild(main);
-          return;
-        }
-
-        // 已 drill 進大區 → 店家列表
-        if (selArea) {
-          if (!skip.skipCh) {
-            var side = makeSide(220);
-            buildChSide(side, rows, selCh);
-            container.appendChild(side);
-            container.appendChild(makeDivider());
-          }
-          if (!skip.skipType) {
-            var side2 = makeSide(210);
-            buildChTypeSide(side2, ctRows, selTp, selCh || autoTp || '');
-            container.appendChild(side2);
-            container.appendChild(makeDivider());
-          }
-          var side3 = makeSide(200);
-          buildChAreaSide(side3, tpRows2, selArea, selTp || autoTp || '');
-          container.appendChild(side3);
-          container.appendChild(makeDivider());
-          var main = makeMain();
-          main.classList.add('store-view');
-          buildStoreCards(main, aRows);
-          container.appendChild(main);
-          return;
-        }
-      }
-
-      function buildChCards(c, rows) {
-        c.appendChild(makeWholeCard('整體', rows));
-        var m = groupBy(rows, 'channel');
-        var lastKey = curStatuses[curStatuses.length - 1].key;
-        var sorted = Object.keys(m).sort(function(a, b) {
-          return (stat(m[b])[lastKey] || 0) - (stat(m[a])[lastKey] || 0);
-        });
-        sorted.forEach(function(k) {
-          c.appendChild(makeBigCard(k, m[k], function() {
-            chDrillInto('ch', k);
-          }, false));
-        });
-        if (!sorted.length) c.appendChild(makeEmpty('沒有符合條件的資料'));
-      }
-
-      function buildChSide(c, rows, selCh) {
-        var m = groupBy(rows, 'channel');
-        var lastKey = curStatuses[curStatuses.length - 1].key;
-        var sorted = Object.keys(m).sort(function(a, b) {
-          return (stat(m[b])[lastKey] || 0) - (stat(m[a])[lastKey] || 0);
-        });
-        c.appendChild(makeMiniCard('整體', rows, function() {
-          chGoToDepth(0);
-        }, false));
-        sorted.forEach(function(k) {
-          c.appendChild(makeMiniCard(k, m[k], function() {
-            chDrillInto('ch', k);
-          }, k === selCh));
-        });
-      }
-
-
-      function buildChTypeCards(c, rows, chName) {
-        c.appendChild(makeWholeCard(chName + ' 整體', rows));
-        var m = groupBy(rows, 'type');
-        var lastKey = curStatuses[curStatuses.length - 1].key;
-        var sorted = Object.keys(m).sort(function(a, b) {
-          return (stat(m[b])[lastKey] || 0) - (stat(m[a])[lastKey] || 0);
-        });
-        sorted.forEach(function(k) {
-          c.appendChild(makeBigCard(k, m[k], function() {
-            chDrillInto('type', k);
-          }, false));
-        });
-        if (!sorted.length) c.appendChild(makeEmpty('沒有符合條件的資料'));
-      }
-
-      function buildChTypeSide(c, rows, selTp, chName) {
-        var m = groupBy(rows, 'type');
-        var lastKey = curStatuses[curStatuses.length - 1].key;
-        var sorted = Object.keys(m).sort(function(a, b) {
-          return (stat(m[b])[lastKey] || 0) - (stat(m[a])[lastKey] || 0);
-        });
-        c.appendChild(makeMiniCard(chName + ' 整體', rows, function() {
-          chGoToDepth(1);
-        }, false));
-        sorted.forEach(function(k) {
-          c.appendChild(makeMiniCard(k, m[k], function() {
-            chDrillInto('type', k);
-          }, k === selTp));
-        });
-      }
-
-      function buildChAreaCards(c, rows, chName) {
-        c.appendChild(makeWholeCard(chName + ' 整體', rows));
-        var m = groupBy(rows, 'area');
-        var sorted = sortArea(Object.keys(m));
-        sorted.forEach(function(k) {
-          c.appendChild(makeBigCard(k, m[k], function() {
-            chDrillInto('area', k);
-          }, false));
-        });
-        if (!sorted.length) c.appendChild(makeEmpty('沒有符合條件的資料'));
-      }
-
-      function buildChAreaSide(c, rows, selArea, chName) {
-        var m = groupBy(rows, 'area');
-        var sorted = sortArea(Object.keys(m));
-        c.appendChild(makeMiniCard(chName + ' 整體', rows, function() {
-          chGoToDepth(1);
-        }, false));
-        sorted.forEach(function(k) {
-          c.appendChild(makeMiniCard(k, m[k], function() {
-            chDrillInto('area', k);
-          }, k === selArea));
-        });
-      }
-
       function render(dir) {
         doRender(dir || 'none', null);
       } /* ══ 渲染引擎 ══ */
@@ -4193,17 +3923,10 @@
         curStatuses.forEach(function(st) {
           statusClsMap[st.key] = STATUS_CLS_MAP[st.cls] || 'td-st-r';
         });
-        var html = '<div class="sp-body" id="store-list-body">' + '<table class="store-tbl"><thead><tr>' + '<th style="width:100px">狀態</th><th>店家名稱</th>' + '<th style="width:100px">通路</th><th style="width:80px">型態</th>' + '<th style="width:55px">等級</th><th style="width:130px">店家代碼</th>' + '</tr></thead><tbody>';
+        var html = '<div class="sp-body" id="store-list-body">' + '<table class="store-tbl"><thead><tr>' + '<th class="col-status" style="width:72px">狀態</th>' + '<th class="col-name">店家名稱</th>' + '<th class="col-ch" style="width:90px">通路別</th>' + '<th class="col-tp" style="width:80px">店家型態</th>' + '<th class="col-grade" style="width:50px">等級</th>' + '<th class="col-code" style="width:120px">店家代碼</th>' + '</tr></thead><tbody>';
         sorted.forEach(function(r) {
           var k = gs(r);
-          html += '<tr>' +
-            '<td class="col-status ' + (statusClsMap[k] || '') + ' td-status">' + esc(statusLabelMap[k] || k) + '</td>' +
-            '<td class="col-name td-name">' + esc(gv(r, 'store')) + '</td>' +
-            '<td class="col-tp td-sub">' + esc(gv(r, 'type')) + '</td>' +
-            '<td class="col-code td-sub">' + esc(gv(r, 'code')) + '</td>' +
-            '<td class="col-ch td-sub">' + esc(gv(r, 'channel')) + '</td>' +
-            '<td class="col-grade td-sub">' + esc(gv(r, 'grade')) + '</td>' +
-            '</tr>';
+          html += '<tr>' + '<td class="col-status ' + (statusClsMap[k] || '') + ' td-status">' + esc(statusLabelMap[k] || k) + '</td>' + '<td class="col-name td-name">' + esc(gv(r, 'store')) + '</td>' + '<td class="col-ch td-sub">' + esc(gv(r, 'channel')) + '</td>' + '<td class="col-tp td-sub">' + esc(gv(r, 'type')) + '</td>' + '<td class="col-grade td-sub">' + esc(gv(r, 'grade')) + '</td>' + '<td class="col-code td-sub">' + esc(gv(r, 'code')) + '</td>' + '</tr>';
         });
         html += '</tbody></table></div>';
         wrap.innerHTML = html;
@@ -4233,36 +3956,46 @@
           var rows = visible();
           var skip = chSkipLayers(rows);
           var total = rows.length;
-          var parts = [{ lbl: '整體', n: total, chDepth: 0 }];
-          // 只在通路未被跳過、且 stack 有通路記錄時才顯示通路節點
+          var parts = [{
+            lbl: '整體',
+            n: total,
+            chDepth: 0
+          }];
           if (_chDrillStack.length >= 1 && !skip.skipCh) {
             var ch = _chDrillStack[0].key;
-            var cn = rows.filter(function(r) { return gv(r, 'channel') === ch; }).length;
-            parts.push({ lbl: ch, n: cn, chDepth: 1 });
+            var cn = rows.filter(function(r) {
+              return gv(r, 'channel') === ch;
+            }).length;
+            parts.push({
+              lbl: ch,
+              n: cn,
+              chDepth: 1
+            });
           }
-          // 型態節點
           var tpEntry = _chDrillStack[1] || (_chDrillStack[0] && _chDrillStack[0].level === 'type' ? _chDrillStack[0] : null);
           if (tpEntry && !skip.skipType) {
             var chKey = (_chDrillStack[0] && _chDrillStack[0].level === 'ch') ? _chDrillStack[0].key : null;
             var tn = rows.filter(function(r) {
               return (!chKey || gv(r, 'channel') === chKey) && gv(r, 'type') === tpEntry.key;
             }).length;
-            parts.push({ lbl: tpEntry.key, n: tn, chDepth: skip.skipCh ? 1 : 2 });
+            parts.push({
+              lbl: tpEntry.key,
+              n: tn,
+              chDepth: skip.skipCh ? 1 : 2
+            });
           }
-          // 大區節點
-          var areaEntry = _chDrillStack[2] ||
-            (_chDrillStack[1] && _chDrillStack[1].level === 'area' ? _chDrillStack[1] : null) ||
-            (_chDrillStack[0] && _chDrillStack[0].level === 'area' ? _chDrillStack[0] : null);
+          var areaEntry = _chDrillStack[2] || (_chDrillStack[1] && _chDrillStack[1].level === 'area' ? _chDrillStack[1] : null) || (_chDrillStack[0] && _chDrillStack[0].level === 'area' ? _chDrillStack[0] : null);
           if (areaEntry) {
             var chKey2 = (_chDrillStack[0] && _chDrillStack[0].level === 'ch') ? _chDrillStack[0].key : null;
             var tpKey2 = tpEntry ? tpEntry.key : null;
             var an = rows.filter(function(r) {
-              return (!chKey2 || gv(r, 'channel') === chKey2) &&
-                     (!tpKey2 || gv(r, 'type') === tpKey2) &&
-                     gv(r, 'area') === areaEntry.key;
+              return (!chKey2 || gv(r, 'channel') === chKey2) && (!tpKey2 || gv(r, 'type') === tpKey2) && gv(r, 'area') === areaEntry.key;
             }).length;
-            var aDepth = parts.length; // depth = current parts count (before push)
-            parts.push({ lbl: areaEntry.key, n: an, chDepth: aDepth });
+            parts.push({
+              lbl: areaEntry.key,
+              n: an,
+              chDepth: parts.length
+            });
           }
           path.innerHTML = parts.map(function(p, i) {
             var isLast = (i === parts.length - 1);
@@ -4807,6 +4540,253 @@
       }
       showLoading();
       onSurveyChange();
+      /* ══ 視角切換 ══ */
+      function setViewMode(m) {
+        if (_viewMode === m) return;
+        _viewMode = m;
+        _chDrillStack = [];
+        var a = document.getElementById('vt-org'),
+          b = document.getElementById('vt-ch');
+        if (a && b) {
+          a.className = 'vt-btn' + (m === 'org' ? ' on' : '');
+          b.className = 'vt-btn' + (m === 'ch' ? ' on' : '');
+        }
+        updateGlobalBar();
+        render('none');
+      }
+
+      function chDrillInto(level, key) {
+        var rows = visible();
+        var skip = chSkipLayers(rows);
+        if (level === 'ch') {
+          _chDrillStack = [{
+            level: 'ch',
+            key: key
+          }];
+        } else if (level === 'type') {
+          var autoCh = skip.skipCh ? Object.keys(groupBy(rows, 'channel'))[0] : null;
+          var chEntry = _chDrillStack[0] || (autoCh ? {
+            level: 'ch',
+            key: autoCh
+          } : null);
+          _chDrillStack = chEntry ? [chEntry, {
+            level: 'type',
+            key: key
+          }] : [{
+            level: 'type',
+            key: key
+          }];
+        } else if (level === 'area') {
+          var chRows = _chDrillStack[0] ? rows.filter(function(r) {
+            return gv(r, 'channel') === _chDrillStack[0].key;
+          }) : rows;
+          var autoTp = skip.skipType ? Object.keys(groupBy(chRows, 'type'))[0] : null;
+          var tpEntry = _chDrillStack[1] || (autoTp ? {
+            level: 'type',
+            key: autoTp
+          } : null);
+          _chDrillStack = tpEntry ? [_chDrillStack[0], tpEntry, {
+            level: 'area',
+            key: key
+          }] : [_chDrillStack[0], {
+            level: 'area',
+            key: key
+          }];
+        }
+        doRender('forward', null);
+      }
+
+      function chGoToDepth(d) {
+        if (_chDrillStack.length === d) return;
+        _chDrillStack = _chDrillStack.slice(0, d);
+        doRender('back', null);
+      }
+
+      function chSkipLayers(rows) {
+        var chs = Object.keys(groupBy(rows, 'channel'));
+        var skipCh = chs.length <= 1;
+        var chRows = skipCh ? rows : rows;
+        var tps = Object.keys(groupBy(chRows, 'type'));
+        var skipType = tps.length <= 1;
+        return {
+          skipCh: skipCh,
+          skipType: skipType
+        };
+      }
+
+      function buildChStage(container, rows) {
+        container.innerHTML = '';
+        var skip = chSkipLayers(rows);
+        var selCh = _chDrillStack[0] ? _chDrillStack[0].key : null;
+        var selTp = _chDrillStack[1] ? _chDrillStack[1].key : null;
+        var selArea = _chDrillStack[2] ? _chDrillStack[2].key : null;
+        var autoCh = skip.skipCh ? Object.keys(groupBy(rows, 'channel'))[0] : null;
+        var chRows = selCh ? rows.filter(function(r) {
+          return gv(r, 'channel') === selCh;
+        }) : rows;
+        var autoTp = skip.skipType ? Object.keys(groupBy(chRows, 'type'))[0] : null;
+        var tpRows = selTp ? chRows.filter(function(r) {
+          return gv(r, 'type') === selTp;
+        }) : chRows;
+        var aRows = selArea ? tpRows.filter(function(r) {
+          return gv(r, 'area') === selArea;
+        }) : tpRows;
+        /* 未 drill：顯示第一個非跳過層 */
+        if (!selCh && !selTp && !selArea) {
+          var main = makeMain();
+          main.classList.add('ch-view');
+          if (!skip.skipCh) {
+            buildChCards(main, rows);
+          } else if (!skip.skipType) {
+            buildChTypeCards(main, rows, autoCh || '整體');
+          } else {
+            var lbl = [autoTp, autoCh].filter(Boolean).join(' · ');
+            buildChAreaCards(main, rows, lbl || '整體');
+          }
+          container.appendChild(main);
+          return;
+        }
+        /* drill 進通路（未跳過）*/
+        if (selCh && !skip.skipCh && !selTp) {
+          var side = makeSide(220);
+          buildChSide(side, rows, selCh);
+          container.appendChild(side);
+          container.appendChild(makeDivider());
+          var main = makeMain();
+          main.classList.add('area-view');
+          buildChTypeCards(main, chRows, selCh);
+          container.appendChild(main);
+          return;
+        }
+        /* drill 進型態 */
+        if (selTp && !selArea) {
+          if (!skip.skipCh) {
+            var side = makeSide(220);
+            buildChSide(side, rows, selCh);
+            container.appendChild(side);
+            container.appendChild(makeDivider());
+          }
+          var side2 = makeSide(210);
+          buildChTypeSide(side2, chRows, selTp, selCh || autoCh || '');
+          container.appendChild(side2);
+          container.appendChild(makeDivider());
+          var main = makeMain();
+          main.classList.add('area-view');
+          buildChAreaCards(main, tpRows, [selCh || autoCh, selTp].filter(Boolean).join(' · '));
+          container.appendChild(main);
+          return;
+        }
+        /* drill 進大區 → 店家 */
+        if (selArea) {
+          if (!skip.skipCh) {
+            var side = makeSide(220);
+            buildChSide(side, rows, selCh);
+            container.appendChild(side);
+            container.appendChild(makeDivider());
+          }
+          if (!skip.skipType) {
+            var side2 = makeSide(210);
+            buildChTypeSide(side2, chRows, selTp, selCh || autoCh || '');
+            container.appendChild(side2);
+            container.appendChild(makeDivider());
+          }
+          var side3 = makeSide(200);
+          buildChAreaSide(side3, tpRows, selArea, selTp || autoTp || '');
+          container.appendChild(side3);
+          container.appendChild(makeDivider());
+          var main = makeMain();
+          main.classList.add('store-view');
+          buildStoreCards(main, aRows);
+          container.appendChild(main);
+        }
+      }
+
+      function buildChCards(c, rows) {
+        c.appendChild(makeWholeCard('整體', rows));
+        var m = groupBy(rows, 'channel');
+        var lastKey = curStatuses[curStatuses.length - 1].key;
+        var sorted = Object.keys(m).sort(function(a, b) {
+          return (stat(m[b])[lastKey] || 0) - (stat(m[a])[lastKey] || 0);
+        });
+        sorted.forEach(function(k) {
+          c.appendChild(makeBigCard(k, m[k], function() {
+            chDrillInto('ch', k);
+          }, false));
+        });
+        if (!sorted.length) c.appendChild(makeEmpty('沒有符合條件的資料'));
+      }
+
+      function buildChSide(c, rows, selCh) {
+        var m = groupBy(rows, 'channel');
+        var lastKey = curStatuses[curStatuses.length - 1].key;
+        var sorted = Object.keys(m).sort(function(a, b) {
+          return (stat(m[b])[lastKey] || 0) - (stat(m[a])[lastKey] || 0);
+        });
+        c.appendChild(makeMiniCard('整體', rows, function() {
+          chGoToDepth(0);
+        }, false));
+        sorted.forEach(function(k) {
+          c.appendChild(makeMiniCard(k, m[k], function() {
+            chDrillInto('ch', k);
+          }, k === selCh));
+        });
+      }
+
+      function buildChTypeCards(c, rows, chName) {
+        c.appendChild(makeWholeCard(chName + ' 整體', rows));
+        var m = groupBy(rows, 'type');
+        var lastKey = curStatuses[curStatuses.length - 1].key;
+        var sorted = Object.keys(m).sort(function(a, b) {
+          return (stat(m[b])[lastKey] || 0) - (stat(m[a])[lastKey] || 0);
+        });
+        sorted.forEach(function(k) {
+          c.appendChild(makeBigCard(k, m[k], function() {
+            chDrillInto('type', k);
+          }, false));
+        });
+        if (!sorted.length) c.appendChild(makeEmpty('沒有符合條件的資料'));
+      }
+
+      function buildChTypeSide(c, rows, selTp, chName) {
+        var m = groupBy(rows, 'type');
+        var lastKey = curStatuses[curStatuses.length - 1].key;
+        var sorted = Object.keys(m).sort(function(a, b) {
+          return (stat(m[b])[lastKey] || 0) - (stat(m[a])[lastKey] || 0);
+        });
+        c.appendChild(makeMiniCard(chName + ' 整體', rows, function() {
+          chGoToDepth(1);
+        }, false));
+        sorted.forEach(function(k) {
+          c.appendChild(makeMiniCard(k, m[k], function() {
+            chDrillInto('type', k);
+          }, k === selTp));
+        });
+      }
+
+      function buildChAreaCards(c, rows, label) {
+        c.appendChild(makeWholeCard(label + ' 整體', rows));
+        var m = groupBy(rows, 'area');
+        var sorted = sortArea(Object.keys(m));
+        sorted.forEach(function(k) {
+          c.appendChild(makeBigCard(k, m[k], function() {
+            chDrillInto('area', k);
+          }, false));
+        });
+        if (!sorted.length) c.appendChild(makeEmpty('沒有符合條件的資料'));
+      }
+
+      function buildChAreaSide(c, rows, selArea, tpName) {
+        var m = groupBy(rows, 'area');
+        var sorted = sortArea(Object.keys(m));
+        c.appendChild(makeMiniCard(tpName + ' 整體', rows, function() {
+          chGoToDepth(2);
+        }, false));
+        sorted.forEach(function(k) {
+          c.appendChild(makeMiniCard(k, m[k], function() {
+            chDrillInto('area', k);
+          }, k === selArea));
+        });
+      }
 
     </script>
   </body>
