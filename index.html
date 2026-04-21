@@ -294,9 +294,18 @@
       }
 
       .gb-sync {
-        font-size: 10px;
+        font-size: 11px;
         color: var(--sub);
         white-space: nowrap;
+      }
+      .gb-sync.month-badge {
+        background: rgba(139, 166, 144, .18);
+        color: #4a7a55;
+        font-weight: 800;
+        font-size: 12px;
+        padding: 2px 10px;
+        border-radius: 99px;
+        border: 1.5px solid rgba(106, 138, 112, .35);
       }
 
       .gb-btn {
@@ -1744,6 +1753,27 @@
         background: rgba(139, 166, 144, .08) !important;
       }
 
+      /* 拜訪次數 badge */
+      .bc-visits {
+        font-size: 11px;
+        font-weight: 700;
+        color: #4a7a55;
+        padding: 3px 8px 5px;
+        background: rgba(139, 166, 144, .1);
+        border-top: 1px solid rgba(139, 166, 144, .15);
+        text-align: center;
+        margin: 4px -18px -16px -18px;
+      }
+      .bc-visits strong { font-size: 14px; color: #3a6a45; }
+      .sc-visits {
+        display: block;
+        font-size: 10px;
+        font-weight: 700;
+        color: #6a8a70;
+        margin-top: 2px;
+        white-space: nowrap;
+      }
+
       .td-name {
         font-weight: 700;
         font-size: 13px;
@@ -2813,7 +2843,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 3.1.0 (2026-04-21)</div>
+      <div id="ver-ts">Ver. 3.2.0 (2026-04-21)</div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
     </div>
@@ -3012,7 +3042,8 @@
           code: ['店家代碼'],
           channel: ['通路別'],
           type: ['店家型態', '店家型態名稱'],
-          grade: ['店家等級', '店家階級']
+          grade: ['店家等級', '店家階級'],
+          visits: [] /* 動態設定，見 initCIVisits() */
         };
         Object.keys(MAP).forEach(function(k) {
           CI[k] = -1;
@@ -3027,6 +3058,15 @@
             if (i >= 0) CI[k] = i;
           });
         });
+      }
+
+      /* 動態設定 visits 欄（根據 monthCol 名稱） */
+      function initCIVisits(monthColName) {
+        CI['visits'] = -1;
+        if (!monthColName) return;
+        var i = allHeaders.findIndex(function(h) { return h === monthColName; });
+        if (i < 0) i = allHeaders.findIndex(function(h) { return h.indexOf(monthColName) >= 0; });
+        CI['visits'] = i;
       }
 
       function gv(row, key) {
@@ -3055,6 +3095,23 @@
 
       function pct(a, b) {
         return b > 0 ? Math.round(a / b * 100) : 0;
+      }
+
+      /* 計算拜訪次數加總（只在有 visits 欄時有效） */
+      function visitsSum(rows) {
+        if (CI['visits'] < 0) return -1;
+        var sum = 0;
+        rows.forEach(function(r) {
+          var v = parseFloat(gv(r, 'visits')) || 0;
+          sum += v;
+        });
+        return sum;
+      }
+
+      /* 人名截斷：「陳崧-1131059」→「陳崧」 */
+      function trimName(s) {
+        var idx = String(s || '').indexOf('-');
+        return idx > 0 ? s.slice(0, idx) : s;
       }
 
       function esc(s) {
@@ -3164,6 +3221,8 @@
             allRows = res[0].rows;
             curStatuses = res[0].statuses;
             initCI();
+            /* 如果有月份欄（拜訪次數），動態設定 visits 欄位 */
+            if (cfg.monthCol) initCIVisits(cfg.monthCol);
             rebuildChips();
             buildFilters();
           } catch (e) {
@@ -3260,24 +3319,8 @@
           var monthColIdx  = hdrs.findIndex(function(h) { return h === cfg.monthCol; });
           if (statusColIdx < 0) throw new Error('找不到狀態欄：' + cfg.statusCol);
 
-          /* 讀取月份值（從第一筆有值的列） */
-          var monthValue = '';
-          if (monthColIdx >= 0) {
-            for (var ri = 0; ri < rawRows.length; ri++) {
-              var mv = (rawRows[ri][monthColIdx] || '').trim();
-              if (mv) { monthValue = mv; break; }
-            }
-            /* 解析 Date(2026,3,...) 格式 */
-            var dm = monthValue.match(/^Date\((\d+),(\d+)/);
-            if (dm) {
-              var mNum = Number(dm[2]) + 1;
-              monthValue = mNum + '月';
-            } else {
-              /* 嘗試抓數字月份 */
-              var mm2 = monthValue.match(/(\d+)[月\/]/);
-              if (mm2) monthValue = mm2[1] + '月';
-            }
-          }
+          /* 月份名稱直接用欄位 header（如「4月」），不解析資料值 */
+          var monthValue = cfg.monthCol || '';
 
           /* 建立兩個狀態（達成=l, 未達=u；fallback 對應 statusMap） */
           var statusMap = cfg.statusMap || {};
@@ -3287,9 +3330,9 @@
             { key: 'u', colIdx: statusColIdx, col: cfg.statusCol, label: '🔴 未達', labelShort: '未達', cls: 'r', emoji: '🔴' }
           ];
 
-          /* 排除狀態欄和月份欄的 headers */
+          /* 排除狀態欄，月份欄保留（作為拜訪次數顯示） */
           var excludeIdx = new Set([statusColIdx]);
-          if (monthColIdx >= 0) excludeIdx.add(monthColIdx);
+          /* 不排除 monthColIdx，讓 visits 欄保留在資料中 */
           var keepHdrs = hdrs.filter(function(h, i) { return !excludeIdx.has(i); });
 
           var processedRows = rawRows.map(function(vals) {
@@ -3851,6 +3894,16 @@
         el.innerHTML = '<div class="bc-head"><div class="bc-name">' + esc(name) + '</div><div class="bc-total">' + s.t + '</div></div>' + '<div class="bc-track">' + segs(s) + '</div>' + '<div class="bc-stats ' + colsClass(n) + '">' + curStatuses.map(function(st) {
           return '<div class="bc-st ' + st.cls + '">' + '<div class="bc-st-lbl">' + esc(st.label) + '</div>' + '<div class="bc-st-row"><span class="bc-st-num">' + (s[st.key] || 0) + '</span>' + '<span class="bc-st-pct">(' + pct(s[st.key] || 0, t) + '%)</span></div></div>';
         }).join('') + '</div>';
+        /* 拜訪次數 badge（只在有 visits 欄的專案顯示） */
+        if (CI['visits'] >= 0) {
+          var vsum = visitsSum(rows);
+          if (vsum >= 0) {
+            var vbar = document.createElement('div');
+            vbar.className = 'bc-visits';
+            vbar.innerHTML = '🗓 拜訪 <strong>' + vsum + '</strong> 次';
+            el.appendChild(vbar);
+          }
+        }
         if (onClick) el.addEventListener('click', onClick);
         return el;
       } /* ══ 側欄小卡 ══ */
@@ -3956,7 +4009,7 @@
           var isSel = sel === k;
           var card = document.createElement('div');
           card.className = 'staff-card' + (isSel ? ' sel' : '');
-          card.innerHTML = '<div class="sc-head">' + '<div class="sc-name">👤 ' + esc(k) + '</div>' + '<div class="sc-corner"><span class="sc-corner-num">' + s.t + '</span><span class="sc-corner-pct">佔所' + pct(s.t, tt) + '%</span></div>' + '</div>' + '<div class="sc-stats ' + colsClass(n) + '">' + curStatuses.map(function(st) {
+          card.innerHTML = '<div class="sc-head">' + '<div class="sc-name">👤 ' + esc(trimName(k)) + '</div>' + '<div class="sc-corner"><span class="sc-corner-num">' + s.t + '</span><span class="sc-corner-pct">佔所' + pct(s.t, tt) + '%</span>' + (CI["visits"] >= 0 ? '<span class="sc-visits">🗓' + visitsSum(sr) + '次</span>' : '') + '</div>' + '</div>' + '<div class="sc-stats ' + colsClass(n) + '">' + curStatuses.map(function(st) {
             return '<div class="sc-st ' + st.cls + '">' + '<div class="sc-st-lbl">' + esc(st.labelShort) + '</div>' + '<div class="sc-st-row"><span class="sc-st-num">' + (s[st.key] || 0) + '</span>' + '<span class="sc-st-pct">(' + pct(s[st.key] || 0, t) + '%)</span></div></div>';
           }).join('') + '</div>' + '<div class="sc-bar">' + curStatuses.map(function(st) {
             var v = s[st.key] || 0;
@@ -3975,7 +4028,7 @@
         Object.keys(m).sort(function(a, b) {
           return (stat(m[b])[lastKey] || 0) - (stat(m[a])[lastKey] || 0);
         }).forEach(function(k) {
-          c.appendChild(makeMiniCard('👤 ' + k, m[k], function() {
+          c.appendChild(makeMiniCard('👤 ' + trimName(k), m[k], function() {
             drillInto('staff', k);
           }, sel === k));
         });
@@ -3985,7 +4038,7 @@
         var staffName = drillStack[2] ? drillStack[2].key : '';
         var header = document.createElement('div');
         header.className = 'store-header';
-        header.innerHTML = '<div class="sh-left">' + '<div class="sh-name">👤 ' + esc(staffName) + '</div>' + '<div class="sh-stats">' + curStatuses.map(function(st) {
+        header.innerHTML = '<div class="sh-left">' + '<div class="sh-name">👤 ' + esc(trimName(staffName)) + '</div>' + '<div class="sh-stats">' + curStatuses.map(function(st) {
           return '<span class="sh-s ' + st.cls + '">' + esc(st.emoji) + ' ' + (s[st.key] || 0) + '</span>';
         }).join('') + '</div>' + '</div>' + '<button class="sh-toggle" id="store-toggle-btn" onclick="toggleStoreList()">▾ 收合清冊</button>';
         c.appendChild(header);
@@ -4020,10 +4073,10 @@
         curStatuses.forEach(function(st) {
           statusClsMap[st.key] = STATUS_CLS_MAP[st.cls] || 'td-st-r';
         });
-        var html = '<div class="sp-body" id="store-list-body">' + '<table class="store-tbl"><thead><tr>' + '<th class="col-status" style="width:72px">狀態</th>' + '<th class="col-name">店家名稱</th>' + '<th class="col-ch" style="width:90px">通路別</th>' + '<th class="col-tp" style="width:80px">店家型態</th>' + '<th class="col-grade" style="width:50px">等級</th>' + '<th class="col-code" style="width:120px">店家代碼</th>' + '</tr></thead><tbody>';
+        var html = '<div class="sp-body" id="store-list-body">' + '<table class="store-tbl"><thead><tr>' + '<th class="col-status" style="width:72px">狀態</th>' + '<th class="col-name">店家名稱</th>' + '<th class="col-ch" style="width:90px">通路別</th>' + '<th class="col-tp" style="width:80px">店家型態</th>' + '<th class="col-grade" style="width:50px">等級</th>' + '<th class="col-code" style="width:120px">店家代碼</th>' + (CI['visits'] >= 0 ? '<th class="col-visits" style="width:55px">拜訪</th>' : '') + '</tr></thead><tbody>';
         sorted.forEach(function(r) {
           var k = gs(r);
-          html += '<tr>' + '<td class="col-status ' + (statusClsMap[k] || '') + ' td-status">' + esc(statusLabelMap[k] || k) + '</td>' + '<td class="col-name td-name">' + esc(gv(r, 'store')) + '</td>' + '<td class="col-ch td-sub">' + esc(gv(r, 'channel')) + '</td>' + '<td class="col-tp td-sub">' + esc(gv(r, 'type')) + '</td>' + '<td class="col-grade td-sub">' + esc(gv(r, 'grade')) + '</td>' + '<td class="col-code td-sub">' + esc(gv(r, 'code')) + '</td>' + '</tr>';
+          html += '<tr>' + '<td class="col-status ' + (statusClsMap[k] || '') + ' td-status">' + esc(statusLabelMap[k] || k) + '</td>' + '<td class="col-name td-name">' + esc(gv(r, 'store')) + '</td>' + '<td class="col-ch td-sub">' + esc(gv(r, 'channel')) + '</td>' + '<td class="col-tp td-sub">' + esc(gv(r, 'type')) + '</td>' + '<td class="col-grade td-sub">' + esc(gv(r, 'grade')) + '</td>' + '<td class="col-code td-sub">' + esc(gv(r, 'code')) + '</td>' + (CI['visits'] >= 0 ? '<td class="col-visits td-sub" style="text-align:center">' + esc(gv(r, 'visits')) + '</td>' : '') + '</tr>';
         });
         html += '</tbody></table></div>';
         wrap.innerHTML = html;
@@ -4099,7 +4152,15 @@
             var arrow = i > 0 ? '<span class="gb-arrow"> › </span>' : '';
             return arrow + '<span class="gb-seg' + (isLast ? ' cur' : '') + '"' + (isLast ? '' : ' onclick="chGoToDepth(' + p.chDepth + ')"') + '>' + esc(p.lbl) + ' <strong>' + p.n + '</strong></span>';
           }).join('');
-          if (sync) sync.textContent = _syncTime || '';
+          if (sync) {
+          sync.textContent = _syncTime || '';
+          /* 月份顯示加特殊樣式 */
+          if (_syncTime && _syncTime.indexOf('資料月份') >= 0) {
+            sync.classList.add('month-badge');
+          } else {
+            sync.classList.remove('month-badge');
+          }
+        }
           return;
         }
         var total = allRows.length;
@@ -4146,7 +4207,15 @@
           var arrow = i > 0 ? '<span class="gb-arrow"> › </span>' : '';
           return arrow + '<span class="gb-seg' + (isLast ? ' cur' : '') + '"' + (isLast ? '' : ' onclick="goToDepth(' + p.depth + ')"') + '>' + esc(p.lbl) + ' <strong>' + p.n + '</strong></span>';
         }).join('');
-        if (sync) sync.textContent = _syncTime || '';
+        if (sync) {
+          sync.textContent = _syncTime || '';
+          /* 月份顯示加特殊樣式 */
+          if (_syncTime && _syncTime.indexOf('資料月份') >= 0) {
+            sync.classList.add('month-badge');
+          } else {
+            sync.classList.remove('month-badge');
+          }
+        }
       } /* ══ 排行抽屜 ══ */
       function initRankDrawer() {
         var existing = document.getElementById('rank-drawer');
@@ -4413,7 +4482,7 @@
         }).forEach(function(staffName) {
           var sRows = staffMap[staffName];
           var ss = stat(sRows);
-          lines.push('👤 ' + staffName + '　' + curStatuses.map(function(st) {
+          lines.push('👤 ' + trimName(staffName) + '　' + curStatuses.map(function(st) {
             return st.emoji + (ss[st.key] || 0);
           }).join('　'));
           sRows.slice().sort(function(a, b) {
