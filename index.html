@@ -2794,7 +2794,7 @@
           <line x1="3" y1="10" x2="17" y2="10" />
           <line x1="3" y1="15" x2="17" y2="15" />
         </svg></button>
-      <div class="sep"></div><span class="tb-label">問卷</span><select class="tb-sel" id="sel-survey" onchange="onSurveyChange()" disabled>
+      <div class="sep"></div><span class="tb-label">專案</span><select class="tb-sel" id="sel-survey" onchange="onSurveyChange()" disabled>
         <option>載入中…</option>
       </select>
       <div class="sep"></div><span class="tb-label">營業處</span><select class="tb-sel" id="sel-area" onchange="onAreaFilter()" disabled>
@@ -2813,7 +2813,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 3.0.0 (2026-03-31)</div>
+      <div id="ver-ts">Ver. 3.1.0 (2026-04-21)</div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
     </div>
@@ -2821,7 +2821,7 @@
     <div id="mobile-menu">
       <div class="mm-header"><span class="mm-title">⚙️ 篩選設定</span><button id="mm-close-btn" onclick="toggleHamburger()">✕</button></div>
       <div class="mm-section">
-        <div class="mm-row"><span class="tb-label">問卷</span><select class="tb-sel" id="mm-survey" onchange="mmSurvey(this)" disabled>
+        <div class="mm-row"><span class="tb-label">專案</span><select class="tb-sel" id="mm-survey" onchange="mmSurvey(this)" disabled>
             <option>載入中…</option>
           </select></div>
       </div>
@@ -2878,6 +2878,16 @@
         sheet: '店家名冊',
         syncSheet: '輔助',
         syncCell: 'B1'
+      }, {
+        name: '主要通路巡訪',
+        id: '1OFquyYqZ5RPwmR2VUu5Jdjny4WZqWEXuQH_GrQONYGA',
+        sheet: '主要通路分離名冊',
+        range: 'A:J',
+        statusMode: 'text',
+        statusCol: '訪況',
+        statusMap: { '達成': 'l', '未達': 'u' },
+        monthCol: '4月',
+        /* 無 syncSheet，月份直接從 I 欄讀 */
       }];
       var AREA_ORDER = ['北部', '桃園', '臺中', '嘉義', '臺南', '高雄', '花蓮']; /* 燈號顏色依位置：最後一個永遠紅，其餘按順序 */
       var STATUS_CLS_ORDER = ['g', 'y', 'p', 'o'];
@@ -3001,8 +3011,8 @@
           store: ['店家名稱', '店家'],
           code: ['店家代碼'],
           channel: ['通路別'],
-          type: ['店家型態'],
-          grade: ['店家等級']
+          type: ['店家型態', '店家型態名稱'],
+          grade: ['店家等級', '店家階級']
         };
         Object.keys(MAP).forEach(function(k) {
           CI[k] = -1;
@@ -3146,7 +3156,7 @@
         showLoading();
         var cfg = SURVEYS[idx];
         if (!cfg) return;
-        var p1 = fetchSheetP(cfg.id, cfg.sheet);
+        var p1 = fetchSheetP(cfg.id, cfg.sheet, cfg);
         var p2 = cfg.syncSheet ? fetchSyncTime(cfg.id, cfg.syncSheet, cfg.syncCell) : Promise.resolve('');
         Promise.all([p1, p2]).then(function(res) {
           try {
@@ -3159,7 +3169,14 @@
           } catch (e) {
             console.error(e);
           }
-          _syncTime = res[1] || '';
+          /* 月份資訊（僅 statusMode:'text' 的專案會有） */
+          var monthVal = res[0].monthValue || '';
+          /* syncTime：優先用月份資訊，否則用 syncSheet 時間 */
+          if (monthVal) {
+            _syncTime = '📅 資料月份：' + monthVal;
+          } else {
+            _syncTime = res[1] ? '📊 資料同步 ' + res[1] : '';
+          }
           curSurvey = idx;
           hideLoading();
           if (allRows.length) {
@@ -3211,9 +3228,87 @@
         });
       }
 
-      function fetchSheetP(id, sheet) {
+      function fetchSheetP(id, sheet, cfg) {
         return new Promise(function(ok, fail) {
-          fetchSheet(id, sheet, ok, fail);
+          if (cfg && cfg.statusMode === 'text') {
+            fetchSheetText(id, sheet, cfg, ok, fail);
+          } else {
+            fetchSheet(id, sheet, ok, fail);
+          }
+        });
+      }
+
+      /* ══ 文字狀態欄模式（如：訪況 = 達成/未達） ══ */
+      function fetchSheetText(id, sheet, cfg, ok, fail) {
+        var url = 'https://docs.google.com/spreadsheets/d/' + id + '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheet);
+        fetch(url).then(function(r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.text();
+        }).then(function(txt) {
+          var s = txt.indexOf('{'), e = txt.lastIndexOf('}');
+          if (s < 0 || e < 0) throw new Error('回應格式錯誤');
+          var json = JSON.parse(txt.slice(s, e + 1));
+          var tbl = json.table;
+          if (!tbl || !tbl.cols) throw new Error('無資料');
+          var hdrs = tbl.cols.map(function(c) { return c.label || ''; });
+          var rawRows = (tbl.rows || []).map(function(row) {
+            return (row.c || []).map(function(c) { return c && c.v != null ? String(c.v) : ''; });
+          }).filter(function(r) { return !r.every(function(v) { return !v.trim(); }); });
+
+          /* 找到狀態欄和月份欄的 index */
+          var statusColIdx = hdrs.findIndex(function(h) { return h === cfg.statusCol; });
+          var monthColIdx  = hdrs.findIndex(function(h) { return h === cfg.monthCol; });
+          if (statusColIdx < 0) throw new Error('找不到狀態欄：' + cfg.statusCol);
+
+          /* 讀取月份值（從第一筆有值的列） */
+          var monthValue = '';
+          if (monthColIdx >= 0) {
+            for (var ri = 0; ri < rawRows.length; ri++) {
+              var mv = (rawRows[ri][monthColIdx] || '').trim();
+              if (mv) { monthValue = mv; break; }
+            }
+            /* 解析 Date(2026,3,...) 格式 */
+            var dm = monthValue.match(/^Date\((\d+),(\d+)/);
+            if (dm) {
+              var mNum = Number(dm[2]) + 1;
+              monthValue = mNum + '月';
+            } else {
+              /* 嘗試抓數字月份 */
+              var mm2 = monthValue.match(/(\d+)[月\/]/);
+              if (mm2) monthValue = mm2[1] + '月';
+            }
+          }
+
+          /* 建立兩個狀態（達成=l, 未達=u；fallback 對應 statusMap） */
+          var statusMap = cfg.statusMap || {};
+          /* 決定 statuses 結構（只有「達成」和「未達」兩種） */
+          var statuses = [
+            { key: 'l', colIdx: statusColIdx, col: cfg.statusCol, label: '✅ 達成', labelShort: '達成', cls: 'g', emoji: '✅' },
+            { key: 'u', colIdx: statusColIdx, col: cfg.statusCol, label: '🔴 未達', labelShort: '未達', cls: 'r', emoji: '🔴' }
+          ];
+
+          /* 排除狀態欄和月份欄的 headers */
+          var excludeIdx = new Set([statusColIdx]);
+          if (monthColIdx >= 0) excludeIdx.add(monthColIdx);
+          var keepHdrs = hdrs.filter(function(h, i) { return !excludeIdx.has(i); });
+
+          var processedRows = rawRows.map(function(vals) {
+            var rawStatus = (vals[statusColIdx] || '').trim();
+            var assignedKey = statusMap[rawStatus] || 'u'; /* 無法辨識的都算未達 */
+            var keep = vals.filter(function(v, i) { return !excludeIdx.has(i); });
+            keep.push(assignedKey);
+            return keep;
+          });
+
+          ok({
+            headers: keepHdrs,
+            rows: processedRows,
+            statuses: statuses,
+            monthValue: monthValue   /* 傳遞月份資訊 */
+          });
+        }).catch(function(e) {
+          console.error('fetchSheetText:', e);
+          fail(e.message || String(e));
         });
       }
 
@@ -4004,7 +4099,7 @@
             var arrow = i > 0 ? '<span class="gb-arrow"> › </span>' : '';
             return arrow + '<span class="gb-seg' + (isLast ? ' cur' : '') + '"' + (isLast ? '' : ' onclick="chGoToDepth(' + p.chDepth + ')"') + '>' + esc(p.lbl) + ' <strong>' + p.n + '</strong></span>';
           }).join('');
-          if (sync) sync.textContent = _syncTime ? '📊 資料同步 ' + _syncTime : '';
+          if (sync) sync.textContent = _syncTime || '';
           return;
         }
         var total = allRows.length;
@@ -4051,7 +4146,7 @@
           var arrow = i > 0 ? '<span class="gb-arrow"> › </span>' : '';
           return arrow + '<span class="gb-seg' + (isLast ? ' cur' : '') + '"' + (isLast ? '' : ' onclick="goToDepth(' + p.depth + ')"') + '>' + esc(p.lbl) + ' <strong>' + p.n + '</strong></span>';
         }).join('');
-        if (sync) sync.textContent = _syncTime ? '📊 資料同步 ' + _syncTime : '';
+        if (sync) sync.textContent = _syncTime || '';
       } /* ══ 排行抽屜 ══ */
       function initRankDrawer() {
         var existing = document.getElementById('rank-drawer');
