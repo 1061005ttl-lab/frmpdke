@@ -294,11 +294,18 @@
       }
 
       .gb-sync {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+      .gb-sync-item {
         font-size: 11px;
         color: var(--sub);
         white-space: nowrap;
       }
-      .gb-sync.month-badge {
+      .gb-sync-item.month-badge {
         background: rgba(139, 166, 144, .18);
         color: #4a7a55;
         font-weight: 800;
@@ -306,6 +313,15 @@
         padding: 2px 10px;
         border-radius: 99px;
         border: 1.5px solid rgba(106, 138, 112, .35);
+      }
+      .gb-sync-item.time-badge {
+        background: rgba(100, 130, 200, .1);
+        color: #3a5a99;
+        font-weight: 700;
+        font-size: 11px;
+        padding: 2px 9px;
+        border-radius: 99px;
+        border: 1px solid rgba(100, 130, 200, .28);
       }
 
       .gb-btn {
@@ -2843,7 +2859,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 3.2.0 (2026-04-21)</div>
+      <div id="ver-ts">Ver. 3.2.1 (2026-04-22)</div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
     </div>
@@ -2891,6 +2907,17 @@
     <script>
       /* ══ 設定 ══ */
       var SURVEYS = [{
+        name: '主要通路巡訪',
+        id: '1OFquyYqZ5RPwmR2VUu5Jdjny4WZqWEXuQH_GrQONYGA',
+        sheet: '主要通路分離名冊',
+        range: 'A:J',
+        statusMode: 'text',
+        statusCol: '訪況',
+        statusMap: { '達成': 'l', '未達': 'u' },
+        monthCol: '4月',
+        dataTimeSheet: '資料來源',
+        dataTimeCell: 'E2'
+      }, {
         name: '特販米酒PET調查',
         id: '1ftAAjWsibhNFjaro5ZONFfu2Ru7CmMq9VfSUArdckLc',
         sheet: '店家名冊',
@@ -2908,16 +2935,6 @@
         sheet: '店家名冊',
         syncSheet: '輔助',
         syncCell: 'B1'
-      }, {
-        name: '主要通路巡訪',
-        id: '1OFquyYqZ5RPwmR2VUu5Jdjny4WZqWEXuQH_GrQONYGA',
-        sheet: '主要通路分離名冊',
-        range: 'A:J',
-        statusMode: 'text',
-        statusCol: '訪況',
-        statusMap: { '達成': 'l', '未達': 'u' },
-        monthCol: '4月',
-        /* 無 syncSheet，月份直接從 I 欄讀 */
       }];
       var AREA_ORDER = ['北部', '桃園', '臺中', '嘉義', '臺南', '高雄', '花蓮']; /* 燈號顏色依位置：最後一個永遠紅，其餘按順序 */
       var STATUS_CLS_ORDER = ['g', 'y', 'p', 'o'];
@@ -2937,6 +2954,7 @@
         _sMap = {};
       var _runRaf = null;
       var _syncTime = '';
+      var _dataTime = ''; /* 資料來源時間（主要通路巡訪用） */
       var _rankDrawerOpen = true;
       var _viewMode = 'org';
       var _chDrillStack = [];
@@ -3215,7 +3233,8 @@
         if (!cfg) return;
         var p1 = fetchSheetP(cfg.id, cfg.sheet, cfg);
         var p2 = cfg.syncSheet ? fetchSyncTime(cfg.id, cfg.syncSheet, cfg.syncCell) : Promise.resolve('');
-        Promise.all([p1, p2]).then(function(res) {
+        var p3 = cfg.dataTimeSheet ? fetchSyncTime(cfg.id, cfg.dataTimeSheet, cfg.dataTimeCell) : Promise.resolve('');
+        Promise.all([p1, p2, p3]).then(function(res) {
           try {
             allHeaders = res[0].headers;
             allRows = res[0].rows;
@@ -3236,6 +3255,8 @@
           } else {
             _syncTime = res[1] ? '📊 資料同步 ' + res[1] : '';
           }
+          /* 資料來源時間（主要通路巡訪的 E2） */
+          _dataTime = res[2] || '';
           curSurvey = idx;
           hideLoading();
           if (allRows.length) {
@@ -4153,12 +4174,19 @@
             return arrow + '<span class="gb-seg' + (isLast ? ' cur' : '') + '"' + (isLast ? '' : ' onclick="chGoToDepth(' + p.chDepth + ')"') + '>' + esc(p.lbl) + ' <strong>' + p.n + '</strong></span>';
           }).join('');
           if (sync) {
-          sync.textContent = _syncTime || '';
-          /* 月份顯示加特殊樣式 */
-          if (_syncTime && _syncTime.indexOf('資料月份') >= 0) {
-            sync.classList.add('month-badge');
-          } else {
-            sync.classList.remove('month-badge');
+          /* 月份 + 資料時間：分兩個 span 顯示 */
+          sync.innerHTML = '';
+          if (_syncTime) {
+            var s1 = document.createElement('span');
+            s1.className = 'gb-sync-item' + (_syncTime.indexOf('資料月份') >= 0 ? ' month-badge' : '');
+            s1.textContent = _syncTime;
+            sync.appendChild(s1);
+          }
+          if (_dataTime) {
+            var s2 = document.createElement('span');
+            s2.className = 'gb-sync-item time-badge';
+            s2.textContent = '🕐 ' + _dataTime;
+            sync.appendChild(s2);
           }
         }
           return;
@@ -4208,12 +4236,19 @@
           return arrow + '<span class="gb-seg' + (isLast ? ' cur' : '') + '"' + (isLast ? '' : ' onclick="goToDepth(' + p.depth + ')"') + '>' + esc(p.lbl) + ' <strong>' + p.n + '</strong></span>';
         }).join('');
         if (sync) {
-          sync.textContent = _syncTime || '';
-          /* 月份顯示加特殊樣式 */
-          if (_syncTime && _syncTime.indexOf('資料月份') >= 0) {
-            sync.classList.add('month-badge');
-          } else {
-            sync.classList.remove('month-badge');
+          /* 月份 + 資料時間：分兩個 span 顯示 */
+          sync.innerHTML = '';
+          if (_syncTime) {
+            var s1 = document.createElement('span');
+            s1.className = 'gb-sync-item' + (_syncTime.indexOf('資料月份') >= 0 ? ' month-badge' : '');
+            s1.textContent = _syncTime;
+            sync.appendChild(s1);
+          }
+          if (_dataTime) {
+            var s2 = document.createElement('span');
+            s2.className = 'gb-sync-item time-badge';
+            s2.textContent = '🕐 ' + _dataTime;
+            sync.appendChild(s2);
           }
         }
       } /* ══ 排行抽屜 ══ */
