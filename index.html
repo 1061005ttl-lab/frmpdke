@@ -1790,6 +1790,36 @@
         white-space: nowrap;
       }
 
+      /* 加權數字角標 */
+      .wt-badge {
+        display: inline-block;
+        font-size: 10px;
+        font-weight: 800;
+        color: #3a6aaa;
+        background: rgba(58, 106, 170, .1);
+        border: 1px solid rgba(58, 106, 170, .25);
+        border-radius: 5px;
+        padding: 1px 5px;
+        margin-left: 4px;
+        vertical-align: middle;
+        white-space: nowrap;
+        letter-spacing: 0;
+      }
+      /* 整體卡裡的加權角標（白底版） */
+      .wc-badge {
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 800;
+        color: #7ab0f0;
+        background: rgba(122, 176, 240, .15);
+        border: 1px solid rgba(122, 176, 240, .3);
+        border-radius: 5px;
+        padding: 1px 6px;
+        margin-left: 6px;
+        vertical-align: middle;
+        white-space: nowrap;
+      }
+
       .td-name {
         font-weight: 700;
         font-size: 13px;
@@ -2859,7 +2889,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 3.2.2 (2026-04-22)</div>
+      <div id="ver-ts">Ver. 3.3.0 (2026-04-22)</div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
     </div>
@@ -2916,7 +2946,9 @@
         statusMap: { '達成': 'l', '未達': 'u' },
         monthCol: '4月',
         dataTimeSheet: '資料來源',
-        dataTimeCell: 'E2'
+        dataTimeCell: 'E2',
+        cvsWeightChannel: 'CVS通路',  /* 加權通路名稱 */
+        cvsWeightCap: 0.7             /* 達到此比例即視同100% */
       }, {
         name: '特販米酒PET調查',
         id: '1ftAAjWsibhNFjaro5ZONFfu2Ru7CmMq9VfSUArdckLc',
@@ -2956,6 +2988,7 @@
       var _syncTime = '';
       var _dataTime = ''; /* 資料來源時間（主要通路巡訪用） */
       var _rankDrawerOpen = false;
+      var _curCfg = null; /* 目前專案的設定物件 */
       var _viewMode = 'org';
       var _chDrillStack = [];
       var _chTypeMap = {};
@@ -3126,6 +3159,53 @@
         return sum;
       }
 
+      /* ══ 加權統計 ══
+         CVS通路達到 cap(70%) 即視同 100%，加權達成數上限為該通路總家數
+         回傳 { wl: 加權達成數, wu: 加權未達數, wt: 總家數, hasWeight: bool }
+      */
+      function statWeighted(rows) {
+        var cfg = _curCfg;
+        if (!cfg || !cfg.cvsWeightChannel || !cfg.cvsWeightCap) {
+          return null; /* 無加權設定 */
+        }
+        var cap = cfg.cvsWeightCap;
+        var cvsCh = cfg.cvsWeightChannel;
+        var wl = 0, wu = 0, wt = 0;
+        /* 依通路分組計算 */
+        var groups = {};
+        rows.forEach(function(r) {
+          var ch = gv(r, 'channel') || '（其他）';
+          if (!groups[ch]) groups[ch] = { l: 0, u: 0, t: 0 };
+          groups[ch].t++;
+          if (gs(r) === 'l') groups[ch].l++;
+          else groups[ch].u++;
+        });
+        Object.keys(groups).forEach(function(ch) {
+          var g = groups[ch];
+          if (ch === cvsCh) {
+            /* CVS加權：達成數 ÷ cap，但不超過總家數 */
+            var wAdj = Math.min(Math.round(g.l / cap), g.t);
+            wl += wAdj;
+            wu += g.t - wAdj;
+          } else {
+            /* 非CVS：真實數字 */
+            wl += g.l;
+            wu += g.u;
+          }
+          wt += g.t;
+        });
+        return { wl: wl, wu: wu, wt: wt };
+      }
+
+      /* 加權標籤 HTML（插在達成數旁邊） */
+      function weightedBadgeHtml(rows, realL, totalT) {
+        var w = statWeighted(rows);
+        if (!w) return '';
+        if (w.wl === realL) return ''; /* 加權結果與真實相同則不顯示 */
+        var wpct = pct(w.wl, w.wt);
+        return '<span class="wt-badge">→ ' + w.wl + ' (' + wpct + '%)</span>';
+      }
+
       /* 人名截斷：「陳崧-1131059」→「陳崧」 */
       function trimName(s) {
         var idx = String(s || '').indexOf('-');
@@ -3242,6 +3322,7 @@
             initCI();
             /* 如果有月份欄（拜訪次數），動態設定 visits 欄位 */
             if (cfg.monthCol) initCIVisits(cfg.monthCol);
+            _curCfg = cfg; /* 儲存目前專案設定 */
             rebuildChips();
             buildFilters();
           } catch (e) {
@@ -3901,8 +3982,15 @@
         var t = s.t || 1;
         var el = document.createElement('div');
         el.className = 'big-card whole';
+        var ww = statWeighted(rows);
         el.innerHTML = '<div class="wc-left"><div class="wc-label">' + esc(name) + '</div><div class="wc-total">' + s.t + '</div></div>' + '<div class="wc-divider"></div>' + '<div class="wc-right">' + '<div class="wc-track">' + segs(s) + '</div>' + '<div class="wc-stats">' + curStatuses.map(function(st) {
-          return '<div class="wc-st ' + st.cls + '">' + '<div class="wc-st-lbl">' + esc(st.label) + '</div>' + '<div class="wc-st-row">' + '<span class="wc-st-num">' + (s[st.key] || 0) + '</span>' + '<span class="wc-st-pct">(' + pct(s[st.key] || 0, t) + '%)</span>' + '</div></div>';
+          var numHtml = '<span class="wc-st-num">' + (s[st.key] || 0) + '</span>';
+          var pctHtml = '<span class="wc-st-pct">(' + pct(s[st.key] || 0, t) + '%)</span>';
+          var wbadge = '';
+          if (ww && st.key === 'l' && ww.wl !== (s[st.key] || 0)) {
+            wbadge = '<span class="wc-badge">→ ' + ww.wl + ' (' + pct(ww.wl, ww.wt) + '%)</span>';
+          }
+          return '<div class="wc-st ' + st.cls + '">' + '<div class="wc-st-lbl">' + esc(st.label) + '</div>' + '<div class="wc-st-row">' + numHtml + pctHtml + wbadge + '</div></div>';
         }).join('') + '</div>' + '</div>';
         return el;
       } /* ══ 一般大卡 ══ */
@@ -3912,8 +4000,13 @@
         var n = curStatuses.length;
         var el = document.createElement('div');
         el.className = 'big-card' + (isSel ? ' sel' : '');
+        var ww = statWeighted(rows);
         el.innerHTML = '<div class="bc-head"><div class="bc-name">' + esc(name) + '</div><div class="bc-total">' + s.t + '</div></div>' + '<div class="bc-track">' + segs(s) + '</div>' + '<div class="bc-stats ' + colsClass(n) + '">' + curStatuses.map(function(st) {
-          return '<div class="bc-st ' + st.cls + '">' + '<div class="bc-st-lbl">' + esc(st.label) + '</div>' + '<div class="bc-st-row"><span class="bc-st-num">' + (s[st.key] || 0) + '</span>' + '<span class="bc-st-pct">(' + pct(s[st.key] || 0, t) + '%)</span></div></div>';
+          var wbadge = '';
+          if (ww && st.key === 'l' && ww.wl !== (s[st.key] || 0)) {
+            wbadge = '<span class="wt-badge">→ ' + ww.wl + ' (' + pct(ww.wl, ww.wt) + '%)</span>';
+          }
+          return '<div class="bc-st ' + st.cls + '">' + '<div class="bc-st-lbl">' + esc(st.label) + '</div>' + '<div class="bc-st-row"><span class="bc-st-num">' + (s[st.key] || 0) + '</span>' + '<span class="bc-st-pct">(' + pct(s[st.key] || 0, t) + '%)</span>' + wbadge + '</div></div>';
         }).join('') + '</div>';
         /* 拜訪次數 badge（只在有 visits 欄的專案顯示） */
         if (CI['visits'] >= 0) {
@@ -4005,8 +4098,13 @@
         var lastKey = curStatuses[curStatuses.length - 1].key;
         var summary = document.createElement('div');
         summary.className = 'staff-summary';
+        var wws = statWeighted(rows);
         summary.innerHTML = '<div class="ss-title">👥 ' + esc(aName) + ' · ' + esc(oName) + '</div>' + '<div class="ss-total">' + ts.t + '</div>' + '<div class="ss-bar-wrap">' + '<div class="ss-bar">' + segs(ts) + '</div>' + '<div class="ss-sts">' + curStatuses.map(function(st) {
-          return '<span class="ss-s ' + st.cls + '">' + esc(st.label) + ' ' + (ts[st.key] || 0) + ' (' + pct(ts[st.key] || 0, tt) + '%)</span>';
+          var wbadge = '';
+          if (wws && st.key === 'l' && wws.wl !== (ts[st.key] || 0)) {
+            wbadge = '<span class="wt-badge">→ ' + wws.wl + ' (' + pct(wws.wl, wws.wt) + '%)</span>';
+          }
+          return '<span class="ss-s ' + st.cls + '">' + esc(st.label) + ' ' + (ts[st.key] || 0) + ' (' + pct(ts[st.key] || 0, tt) + '%)' + wbadge + '</span>';
         }).join('') + '</div>' + '</div>';
         c.appendChild(summary);
         var m = groupBy(rows, 'staff');
@@ -4030,8 +4128,13 @@
           var isSel = sel === k;
           var card = document.createElement('div');
           card.className = 'staff-card' + (isSel ? ' sel' : '');
+          var wsc = statWeighted(sr);
           card.innerHTML = '<div class="sc-head">' + '<div class="sc-name">👤 ' + esc(trimName(k)) + '</div>' + '<div class="sc-corner"><span class="sc-corner-num">' + s.t + '</span><span class="sc-corner-pct">佔所' + pct(s.t, tt) + '%</span>' + (CI["visits"] >= 0 ? '<span class="sc-visits">🗓' + visitsSum(sr) + '次</span>' : '') + '</div>' + '</div>' + '<div class="sc-stats ' + colsClass(n) + '">' + curStatuses.map(function(st) {
-            return '<div class="sc-st ' + st.cls + '">' + '<div class="sc-st-lbl">' + esc(st.labelShort) + '</div>' + '<div class="sc-st-row"><span class="sc-st-num">' + (s[st.key] || 0) + '</span>' + '<span class="sc-st-pct">(' + pct(s[st.key] || 0, t) + '%)</span></div></div>';
+            var wbadge = '';
+            if (wsc && st.key === 'l' && wsc.wl !== (s[st.key] || 0)) {
+              wbadge = '<span class="wt-badge">→ ' + wsc.wl + ' (' + pct(wsc.wl, wsc.wt) + '%)</span>';
+            }
+            return '<div class="sc-st ' + st.cls + '">' + '<div class="sc-st-lbl">' + esc(st.labelShort) + '</div>' + '<div class="sc-st-row"><span class="sc-st-num">' + (s[st.key] || 0) + '</span>' + '<span class="sc-st-pct">(' + pct(s[st.key] || 0, t) + '%)</span>' + wbadge + '</div></div>';
           }).join('') + '</div>' + '<div class="sc-bar">' + curStatuses.map(function(st) {
             var v = s[st.key] || 0;
             return v ? '<div class="sc-bar-' + st.cls + '" style="flex:' + v + '"></div>' : ''
@@ -4059,8 +4162,13 @@
         var staffName = drillStack[2] ? drillStack[2].key : '';
         var header = document.createElement('div');
         header.className = 'store-header';
+        var wsh = statWeighted(rows);
         header.innerHTML = '<div class="sh-left">' + '<div class="sh-name">👤 ' + esc(trimName(staffName)) + '</div>' + '<div class="sh-stats">' + curStatuses.map(function(st) {
-          return '<span class="sh-s ' + st.cls + '">' + esc(st.emoji) + ' ' + (s[st.key] || 0) + '</span>';
+          var wbadge = '';
+          if (wsh && st.key === 'l' && wsh.wl !== (s[st.key] || 0)) {
+            wbadge = '<span class="wt-badge">→ ' + wsh.wl + ' (' + pct(wsh.wl, wsh.wt) + '%)</span>';
+          }
+          return '<span class="sh-s ' + st.cls + '">' + esc(st.emoji) + ' ' + (s[st.key] || 0) + wbadge + '</span>';
         }).join('') + '</div>' + '</div>' + '<button class="sh-toggle" id="store-toggle-btn" onclick="toggleStoreList()">▾ 收合清冊</button>';
         c.appendChild(header);
         var wrap = document.createElement('div');
