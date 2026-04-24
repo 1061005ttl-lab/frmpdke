@@ -2889,7 +2889,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 3.3.0 (2026-04-22)</div>
+      <div id="ver-ts">Ver. 3.3.1 (2026-04-22)</div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
     </div>
@@ -3160,18 +3160,27 @@
       }
 
       /* ══ 加權統計 ══
-         CVS通路達到 cap(70%) 即視同 100%，加權達成數上限為該通路總家數
-         回傳 { wl: 加權達成數, wu: 加權未達數, wt: 總家數, hasWeight: bool }
+         邏輯：CVS通路達到 cap(70%) 門檻，其「未達家數」從總數中移除
+               → 總家數縮小，達成比例提升，但不虛增達成數
+
+         例：CVS 總100，達成70（70%）→ 達到門檻
+             加權後 CVS：達成70，未達0，有效總數70
+             非CVS 總100，達成80 → 維持真實
+             加權整體：達成150/170（88%）← 總家數縮小了
+
+         若 CVS 未達門檻（達成率 < 70%）：照真實數字計算，不做調整
+
+         回傳 { wl: 加權達成, wu: 加權未達, wt: 加權總家數 }
+         若無加權設定或加權後結果與真實相同，回傳 null
       */
       function statWeighted(rows) {
         var cfg = _curCfg;
-        if (!cfg || !cfg.cvsWeightChannel || !cfg.cvsWeightCap) {
-          return null; /* 無加權設定 */
-        }
+        if (!cfg || !cfg.cvsWeightChannel || !cfg.cvsWeightCap) return null;
         var cap = cfg.cvsWeightCap;
         var cvsCh = cfg.cvsWeightChannel;
         var wl = 0, wu = 0, wt = 0;
-        /* 依通路分組計算 */
+
+        /* 依通路分組 */
         var groups = {};
         rows.forEach(function(r) {
           var ch = gv(r, 'channel') || '（其他）';
@@ -3180,30 +3189,35 @@
           if (gs(r) === 'l') groups[ch].l++;
           else groups[ch].u++;
         });
+
         Object.keys(groups).forEach(function(ch) {
           var g = groups[ch];
-          if (ch === cvsCh) {
-            /* CVS加權：達成數 ÷ cap，但不超過總家數 */
-            var wAdj = Math.min(Math.round(g.l / cap), g.t);
-            wl += wAdj;
-            wu += g.t - wAdj;
+          if (ch === cvsCh && g.t > 0) {
+            var rate = g.l / g.t;
+            if (rate >= cap) {
+              /* 達到門檻：未達家數從總數移除，只計算已達成的家數 */
+              wl += g.l;
+              wu += 0;          /* 未達歸零 */
+              wt += g.l;        /* 有效總數縮減為達成數 */
+            } else {
+              /* 未達門檻：照真實計算 */
+              wl += g.l;
+              wu += g.u;
+              wt += g.t;
+            }
           } else {
             /* 非CVS：真實數字 */
             wl += g.l;
             wu += g.u;
+            wt += g.t;
           }
-          wt += g.t;
         });
-        return { wl: wl, wu: wu, wt: wt };
-      }
 
-      /* 加權標籤 HTML（插在達成數旁邊） */
-      function weightedBadgeHtml(rows, realL, totalT) {
-        var w = statWeighted(rows);
-        if (!w) return '';
-        if (w.wl === realL) return ''; /* 加權結果與真實相同則不顯示 */
-        var wpct = pct(w.wl, w.wt);
-        return '<span class="wt-badge">→ ' + w.wl + ' (' + wpct + '%)</span>';
+        /* 若加權結果與真實完全相同，不需顯示 */
+        var realS = stat(rows);
+        if (wl === realS.l && wt === realS.t) return null;
+
+        return { wl: wl, wu: wu, wt: wt };
       }
 
       /* 人名截斷：「陳崧-1131059」→「陳崧」 */
