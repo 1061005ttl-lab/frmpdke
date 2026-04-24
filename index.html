@@ -2889,7 +2889,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 3.3.2 (2026-04-22)</div>
+      <div id="ver-ts">Ver. 3.3.3 (2026-04-23)</div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
     </div>
@@ -2947,7 +2947,7 @@
         monthCol: '4月',
         dataTimeSheet: '資料來源',
         dataTimeCell: 'E2',
-        cvsWeightChannel: 'CVS通路',  /* 加權通路名稱 */
+        cvsWeightChannel: ['CVS', 'cvs'],  /* 加權通路：名稱包含這些關鍵字 */
         cvsWeightCap: 0.7             /* 達到此比例即視同100% */
       }, {
         name: '特販米酒PET調查',
@@ -3190,15 +3190,21 @@
           else groups[ch].u++;
         });
 
+        /* 通路名稱比對：支援完整名稱或部分包含 */
+        function isCvsCh(ch) {
+          if (Array.isArray(cvsCh)) return cvsCh.some(function(v){ return ch.indexOf(v)>=0; });
+          return ch === cvsCh || ch.indexOf(cvsCh) >= 0;
+        }
+
         Object.keys(groups).forEach(function(ch) {
           var g = groups[ch];
-          if (ch === cvsCh && g.t > 0) {
+          if (isCvsCh(ch) && g.t > 0) {
             var rate = g.l / g.t;
             if (rate >= cap) {
               /* 達到門檻：未達家數從總數移除，只計算已達成的家數 */
               wl += g.l;
-              wu += 0;          /* 未達歸零 */
-              wt += g.l;        /* 有效總數縮減為達成數 */
+              wu += 0;
+              wt += g.l;
             } else {
               /* 未達門檻：照真實計算 */
               wl += g.l;
@@ -3206,7 +3212,6 @@
               wt += g.t;
             }
           } else {
-            /* 非CVS：真實數字 */
             wl += g.l;
             wu += g.u;
             wt += g.t;
@@ -3996,6 +4001,11 @@
         var t = s.t || 1;
         var el = document.createElement('div');
         el.className = 'big-card whole';
+        /* debug：印出通路清單，方便確認名稱 */
+        if (_curCfg && _curCfg.cvsWeightChannel) {
+          var chs = Object.keys((function(){ var m={}; rows.forEach(function(r){ m[gv(r,'channel')]=1; }); return m; })());
+          console.log('[加權] 資料通路清單:', chs, '| 設定匹配:', _curCfg.cvsWeightChannel);
+        }
         var ww = statWeighted(rows);
         el.innerHTML = '<div class="wc-left"><div class="wc-label">' + esc(name) + '</div><div class="wc-total">' + s.t + '</div></div>' + '<div class="wc-divider"></div>' + '<div class="wc-right">' + '<div class="wc-track">' + segs(s) + '</div>' + '<div class="wc-stats">' + curStatuses.map(function(st) {
           var numHtml = '<span class="wc-st-num">' + (s[st.key] || 0) + '</span>';
