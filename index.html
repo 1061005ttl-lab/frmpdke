@@ -1790,6 +1790,135 @@
         white-space: nowrap;
       }
 
+      /* ══ 雙欄對比列（真實 vs 加權） ══ */
+      .bc-dual {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1px;
+        background: rgba(0,0,0,.06);
+        border-radius: 9px;
+        overflow: hidden;
+        margin-top: 2px;
+      }
+      .bc-dual-col {
+        padding: 7px 10px 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        background: #fff;
+      }
+      .bc-dual-col.real { background: #f8faf9; }
+      .bc-dual-col.weighted { background: #f0f5ff; }
+      .bc-dual-hdr {
+        font-size: 9px;
+        font-weight: 900;
+        letter-spacing: .6px;
+        text-transform: uppercase;
+        margin-bottom: 2px;
+        white-space: nowrap;
+      }
+      .bc-dual-col.real .bc-dual-hdr { color: #5a7a60; }
+      .bc-dual-col.weighted .bc-dual-hdr { color: #3a60aa; }
+      .bc-dual-row {
+        display: flex;
+        align-items: baseline;
+        gap: 3px;
+        flex-wrap: nowrap;
+      }
+      .bc-dual-num {
+        font-size: clamp(12px, 1.3vw, 18px);
+        font-weight: 900;
+        line-height: 1;
+        letter-spacing: -.3px;
+        white-space: nowrap;
+      }
+      .bc-dual-pct {
+        font-size: clamp(8px, 0.75vw, 10px);
+        font-weight: 700;
+        opacity: .8;
+        white-space: nowrap;
+      }
+      .bc-dual-row.g .bc-dual-num { color: var(--green); }
+      .bc-dual-row.g .bc-dual-pct { color: var(--green); }
+      .bc-dual-row.r .bc-dual-num { color: var(--red); }
+      .bc-dual-row.r .bc-dual-pct { color: var(--red); }
+      .bc-dual-visits {
+        font-size: 10px;
+        font-weight: 700;
+        color: #5a7a60;
+        margin-top: 3px;
+        border-top: 1px solid rgba(0,0,0,.06);
+        padding-top: 4px;
+        white-space: nowrap;
+      }
+      .bc-dual-visits strong { color: #3a6a45; font-size: 12px; }
+      .bc-dual-col.weighted .bc-dual-visits { color: #3a60aa; }
+      .bc-dual-col.weighted .bc-dual-visits strong { color: #2a4a8a; }
+
+      /* 整體卡（dark hero）的雙欄 */
+      .wc-dual {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1px;
+        background: rgba(255,255,255,.1);
+        border-radius: 9px;
+        overflow: hidden;
+        margin-top: 4px;
+      }
+      .wc-dual-col {
+        padding: 7px 12px 9px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .wc-dual-col.real { background: rgba(255,255,255,.06); }
+      .wc-dual-col.weighted { background: rgba(100,160,255,.1); }
+      .wc-dual-hdr {
+        font-size: 9px;
+        font-weight: 900;
+        letter-spacing: .6px;
+        text-transform: uppercase;
+        margin-bottom: 2px;
+        white-space: nowrap;
+      }
+      .wc-dual-col.real .wc-dual-hdr { color: rgba(255,255,255,.5); }
+      .wc-dual-col.weighted .wc-dual-hdr { color: rgba(160,200,255,.75); }
+      .wc-dual-row {
+        display: flex;
+        align-items: baseline;
+        gap: 4px;
+        flex-wrap: nowrap;
+      }
+      .wc-dual-num {
+        font-size: clamp(14px, 1.6vw, 22px);
+        font-weight: 900;
+        line-height: 1;
+        letter-spacing: -.5px;
+        white-space: nowrap;
+      }
+      .wc-dual-pct {
+        font-size: clamp(9px, 0.85vw, 12px);
+        font-weight: 700;
+        opacity: .8;
+        white-space: nowrap;
+      }
+      .wc-dual-row.g .wc-dual-num { color: #5cf08a; }
+      .wc-dual-row.g .wc-dual-pct { color: #5cf08a; }
+      .wc-dual-row.r .wc-dual-num { color: #ff8080; }
+      .wc-dual-row.r .wc-dual-pct { color: #ff8080; }
+      .wc-dual-visits {
+        font-size: 10px;
+        font-weight: 700;
+        margin-top: 3px;
+        border-top: 1px solid rgba(255,255,255,.1);
+        padding-top: 4px;
+        white-space: nowrap;
+      }
+      .wc-dual-col.real .wc-dual-visits { color: rgba(255,255,255,.55); }
+      .wc-dual-col.real .wc-dual-visits strong { color: rgba(255,255,255,.9); font-size: 12px; }
+      .wc-dual-col.weighted .wc-dual-visits { color: rgba(160,200,255,.65); }
+      .wc-dual-col.weighted .wc-dual-visits strong { color: rgba(200,230,255,.95); font-size: 12px; }
+
       /* 加權數字角標 */
       .wt-badge {
         display: inline-block;
@@ -3159,6 +3288,31 @@
         return sum;
       }
 
+      /* 計算加權拜訪次數
+         邏輯：CVS通路若達到門檻，其訪頻次數仍全部計入（不打折）；
+               非CVS通路訪頻照真實計算。
+         回傳 { real: 真實總次數, weighted: 加權總次數, nonCvs: 非CVS次數, cvs: CVS次數 }
+         若無加權設定或 visits 欄不存在，回傳 null
+      */
+      function visitsWeightedDetail(rows) {
+        var cfg = _curCfg;
+        if (!cfg || !cfg.cvsWeightChannel || !cfg.cvsWeightCap) return null;
+        if (CI['visits'] < 0) return null;
+        var cvsCh = cfg.cvsWeightChannel;
+        var nonCvsVisits = 0, cvsVisits = 0;
+        rows.forEach(function(r) {
+          var ch = gv(r, 'channel') || '（其他）';
+          var v = parseFloat(gv(r, 'visits')) || 0;
+          if (ch === cvsCh) cvsVisits += v;
+          else nonCvsVisits += v;
+        });
+        return {
+          real: nonCvsVisits + cvsVisits,
+          nonCvs: nonCvsVisits,
+          cvs: cvsVisits
+        };
+      }
+
       /* ══ 加權統計 ══
          邏輯：CVS通路達到 cap(70%) 門檻，其「未達家數」從總數中移除
                → 總家數縮小，達成比例提升，但不虛增達成數
@@ -3996,21 +4150,46 @@
         var el = document.createElement('div');
         el.className = 'big-card whole';
         var ww = statWeighted(rows);
-        el.innerHTML = '<div class="wc-left"><div class="wc-label">' + esc(name) + '</div><div class="wc-total">' + s.t + '</div></div>' + '<div class="wc-divider"></div>' + '<div class="wc-right">' + '<div class="wc-track">' + segs(s) + '</div>' + '<div class="wc-stats">' + curStatuses.map(function(st) {
-          var realNum = s[st.key] || 0;
-          var realPct = pct(realNum, t);
-          var numHtml = '<span class="wc-st-num">' + realNum + '</span>';
-          var pctHtml = '<span class="wc-st-pct">(' + realPct + '%)</span>';
-          var wbadge = '';
-          if (ww) {
-            var wNum = (st.key === 'l') ? ww.wl : (st.key === 'u' || st.key === 'r') ? ww.wu : null;
-            if (wNum !== null && wNum !== realNum) {
-              var wPct = pct(wNum, ww.wt);
-              wbadge = '<span class="wc-badge">→ ' + wNum + ' (' + wPct + '%)</span>';
-            }
-          }
-          return '<div class="wc-st ' + st.cls + '">' + '<div class="wc-st-lbl">' + esc(st.label) + '</div>' + '<div class="wc-st-row">' + numHtml + pctHtml + wbadge + '</div></div>';
-        }).join('') + '</div>' + '</div>';
+        var vd = visitsWeightedDetail(rows);
+        var vReal = (CI['visits'] >= 0) ? visitsSum(rows) : -1;
+
+        var dualHtml = '';
+        if (ww) {
+          var cfg = _curCfg;
+          var cvsCh = cfg ? (cfg.cvsWeightChannel || 'CVS通路') : 'CVS通路';
+          var realCols = curStatuses.map(function(st) {
+            var num = s[st.key] || 0;
+            var rowCls = (st.cls === 'g') ? 'g' : (st.cls === 'r') ? 'r' : st.cls;
+            return '<div class="wc-dual-row ' + rowCls + '"><span class="wc-dual-num">' + num + '</span><span class="wc-dual-pct">(' + pct(num, t) + '%)</span></div>';
+          }).join('');
+          var realVisits = (vReal >= 0) ? '<div class="wc-dual-visits">\uD83D\uDDD3 拜訪 <strong>' + vReal + '</strong> 次</div>' : '';
+          var wCols = curStatuses.map(function(st) {
+            var wNum = (st.key === 'l') ? ww.wl : (st.key === 'u' || st.key === 'r') ? ww.wu : (s[st.key] || 0);
+            var rowCls = (st.cls === 'g') ? 'g' : (st.cls === 'r') ? 'r' : st.cls;
+            return '<div class="wc-dual-row ' + rowCls + '"><span class="wc-dual-num">' + wNum + '</span><span class="wc-dual-pct">(' + pct(wNum, ww.wt) + '%)</span></div>';
+          }).join('');
+          var wVisits = (vd && vReal >= 0)
+            ? '<div class="wc-dual-visits">\uD83D\uDDD3 非CVS <strong>' + vd.nonCvs + '</strong>＋CVS <strong>' + vd.cvs + '</strong> 次</div>' : '';
+          dualHtml = '<div class="wc-dual">' +
+            '<div class="wc-dual-col real"><div class="wc-dual-hdr">\uD83D\uDCCA 真實（全通路）</div>' + realCols + realVisits + '</div>' +
+            '<div class="wc-dual-col weighted"><div class="wc-dual-hdr">⚖️ 加權（含' + esc(cvsCh) + '）</div>' + wCols + wVisits + '</div>' +
+          '</div>';
+        }
+
+        el.innerHTML = '<div class="wc-left"><div class="wc-label">' + esc(name) + '</div><div class="wc-total">' + s.t + '</div></div>' +
+          '<div class="wc-divider"></div>' +
+          '<div class="wc-right">' +
+            '<div class="wc-track">' + segs(s) + '</div>' +
+            '<div class="wc-stats">' +
+              curStatuses.map(function(st) {
+                var realNum = s[st.key] || 0;
+                var realPct = pct(realNum, t);
+                return '<div class="wc-st ' + st.cls + '"><div class="wc-st-lbl">' + esc(st.label) + '</div>' +
+                  '<div class="wc-st-row"><span class="wc-st-num">' + realNum + '</span><span class="wc-st-pct">(' + realPct + '%)</span></div></div>';
+              }).join('') +
+            '</div>' +
+            dualHtml +
+          '</div>';
         return el;
       } /* ══ 一般大卡 ══ */
       function makeBigCard(name, rows, onClick, isSel) {
@@ -4020,27 +4199,66 @@
         var el = document.createElement('div');
         el.className = 'big-card' + (isSel ? ' sel' : '');
         var ww = statWeighted(rows);
-        el.innerHTML = '<div class="bc-head"><div class="bc-name">' + esc(name) + '</div><div class="bc-total">' + s.t + '</div></div>' + '<div class="bc-track">' + segs(s) + '</div>' + '<div class="bc-stats ' + colsClass(n) + '">' + curStatuses.map(function(st) {
-          var wbadge = '';
-          if (ww) {
-            var realNum = s[st.key] || 0;
-            var wNum = (st.key === 'l') ? ww.wl : (st.key === 'u' || st.key === 'r') ? ww.wu : null;
-            if (wNum !== null && wNum !== realNum) {
-              wbadge = '<span class="wt-badge">→ ' + wNum + ' (' + pct(wNum, ww.wt) + '%)</span>';
-            }
-          }
-          return '<div class="bc-st ' + st.cls + '">' + '<div class="bc-st-lbl">' + esc(st.label) + '</div>' + '<div class="bc-st-row"><span class="bc-st-num">' + (s[st.key] || 0) + '</span>' + '<span class="bc-st-pct">(' + pct(s[st.key] || 0, t) + '%)</span>' + wbadge + '</div></div>';
-        }).join('') + '</div>';
-        /* 拜訪次數 badge（只在有 visits 欄的專案顯示） */
-        if (CI['visits'] >= 0) {
+        var vd = visitsWeightedDetail(rows);
+
+        /* 主體統計格（移除 wt-badge，改用底部雙欄） */
+        el.innerHTML = '<div class="bc-head"><div class="bc-name">' + esc(name) + '</div><div class="bc-total">' + s.t + '</div></div>' +
+          '<div class="bc-track">' + segs(s) + '</div>' +
+          '<div class="bc-stats ' + colsClass(n) + '">' +
+            curStatuses.map(function(st) {
+              return '<div class="bc-st ' + st.cls + '">' +
+                '<div class="bc-st-lbl">' + esc(st.label) + '</div>' +
+                '<div class="bc-st-row"><span class="bc-st-num">' + (s[st.key] || 0) + '</span>' +
+                '<span class="bc-st-pct">(' + pct(s[st.key] || 0, t) + '%)</span></div></div>';
+            }).join('') +
+          '</div>';
+
+        /* 雙欄對比列：只在有加權且 visits 欄存在時顯示 */
+        if (ww) {
+          var cfg = _curCfg;
+          var cvsCh = cfg ? (cfg.cvsWeightChannel || 'CVS通路') : 'CVS通路';
+          var vReal = (CI['visits'] >= 0) ? visitsSum(rows) : -1;
+
+          /* 真實欄 */
+          var realCols = curStatuses.map(function(st) {
+            var num = s[st.key] || 0;
+            var rowCls = (st.cls === 'g') ? 'g' : (st.cls === 'r') ? 'r' : st.cls;
+            return '<div class="bc-dual-row ' + rowCls + '">' +
+              '<span class="bc-dual-num">' + num + '</span>' +
+              '<span class="bc-dual-pct">(' + pct(num, t) + '%)</span>' +
+            '</div>';
+          }).join('');
+          var realVisits = (vReal >= 0) ? '<div class="bc-dual-visits">\uD83D\uDDD3 拜訪 <strong>' + vReal + '</strong> 次</div>' : '';
+
+          /* 加權欄 */
+          var wCols = curStatuses.map(function(st) {
+            var wNum = (st.key === 'l') ? ww.wl : (st.key === 'u' || st.key === 'r') ? ww.wu : (s[st.key] || 0);
+            var rowCls = (st.cls === 'g') ? 'g' : (st.cls === 'r') ? 'r' : st.cls;
+            return '<div class="bc-dual-row ' + rowCls + '">' +
+              '<span class="bc-dual-num">' + wNum + '</span>' +
+              '<span class="bc-dual-pct">(' + pct(wNum, ww.wt) + '%)</span>' +
+            '</div>';
+          }).join('');
+          var wVisits = (vd && vReal >= 0)
+            ? '<div class="bc-dual-visits">\uD83D\uDDD3 非CVS <strong>' + vd.nonCvs + '</strong>＋CVS <strong>' + vd.cvs + '</strong> 次</div>' : '';
+
+          var dualEl = document.createElement('div');
+          dualEl.className = 'bc-dual';
+          dualEl.innerHTML =
+            '<div class="bc-dual-col real"><div class="bc-dual-hdr">\uD83D\uDCCA 真實（全通路）</div>' + realCols + realVisits + '</div>' +
+            '<div class="bc-dual-col weighted"><div class="bc-dual-hdr">⚖️ 加權（含' + esc(cvsCh) + '）</div>' + wCols + wVisits + '</div>';
+          el.appendChild(dualEl);
+        } else if (CI['visits'] >= 0) {
+          /* 無加權但有訪頻：沿用原本單列 badge */
           var vsum = visitsSum(rows);
           if (vsum >= 0) {
             var vbar = document.createElement('div');
             vbar.className = 'bc-visits';
-            vbar.innerHTML = '🗓 拜訪 <strong>' + vsum + '</strong> 次';
+            vbar.innerHTML = '\uD83D\uDDD3 拜訪 <strong>' + vsum + '</strong> 次';
             el.appendChild(vbar);
           }
         }
+
         if (onClick) el.addEventListener('click', onClick);
         return el;
       } /* ══ 側欄小卡 ══ */
