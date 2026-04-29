@@ -3108,10 +3108,10 @@
           </select></div>
       </div>
       <div class="mm-section">
-        <div class="mm-row"><span class="tb-label">通路</span><button class="ms-btn tb-sel" id="mm-ch-btn" onclick="toggleMsDropdown('ch')" disabled style="width:100%">全部</button>
+        <div class="mm-row"><span class="tb-label">通路</span><button class="ms-btn tb-sel" id="mm-ch-btn" onclick="toggleMsDropdown('ch',true)" disabled style="width:100%">全部</button>
           <div class="ms-drop ms-drop-mm" id="mm-ch-drop"></div>
         </div>
-        <div class="mm-row"><span class="tb-label">型態</span><button class="ms-btn tb-sel" id="mm-tp-btn" onclick="toggleMsDropdown('tp')" disabled style="width:100%">全部</button>
+        <div class="mm-row"><span class="tb-label">型態</span><button class="ms-btn tb-sel" id="mm-tp-btn" onclick="toggleMsDropdown('tp',true)" disabled style="width:100%">全部</button>
           <div class="ms-drop ms-drop-mm" id="mm-tp-drop"></div>
         </div>
       </div>
@@ -4052,8 +4052,9 @@
       }
       var _msOpenKey = null;
 
-      function toggleMsDropdown(key) {
-        var dropId = 'ms-' + key + '-drop';
+      function toggleMsDropdown(key, isMm) {
+        var prefix = isMm ? 'mm-' : 'ms-';
+        var dropId = prefix + key + '-drop';
         var drop = document.getElementById(dropId);
         if (!drop) return;
         var isOpen = drop.classList.contains('open');
@@ -4061,19 +4062,23 @@
           d.classList.remove('open');
         });
         _msOpenKey = null;
+        _msOpenMm = false;
         if (!isOpen) {
           drop.classList.add('open');
           _msOpenKey = key;
+          _msOpenMm = !!isMm;
         }
       }
+      var _msOpenMm = false;
       document.addEventListener('click', function(e) {
         if (!_msOpenKey) return;
-        var wrap = document.getElementById('ms-' + _msOpenKey + '-wrap');
-        if (wrap && !wrap.contains(e.target)) {
-          document.querySelectorAll('.ms-drop').forEach(function(d) {
-            d.classList.remove('open');
-          });
+        var dropEl = document.getElementById((_msOpenMm ? 'mm-' : 'ms-') + _msOpenKey + '-drop');
+        var btnEl  = document.getElementById((_msOpenMm ? 'mm-' : 'ms-') + _msOpenKey + '-btn');
+        var inside = (dropEl && dropEl.contains(e.target)) || (btnEl && btnEl.contains(e.target));
+        if (!inside) {
+          document.querySelectorAll('.ms-drop').forEach(function(d) { d.classList.remove('open'); });
           _msOpenKey = null;
+          _msOpenMm = false;
         }
       }); /* ══ 下鑽 ══ */
       var LEVEL_IDX = {
