@@ -1769,44 +1769,6 @@
         background: rgba(139, 166, 144, .08) !important;
       }
 
-      /* 加權雙行樣式 */
-      .wt-real-row { display: flex; align-items: baseline; gap: 4px; flex-wrap: nowrap; }
-      .wt-adj-row  { display: flex; align-items: baseline; gap: 4px; flex-wrap: nowrap; margin-top: 2px; }
-      .wt-lbl      { font-size: 10px; font-weight: 700; opacity: .5; flex-shrink: 0; white-space: nowrap; }
-      .wt-lbl.adj  { color: #7ab0f0; opacity: 1; }
-      .wt-adj-num  { font-size: 13px; font-weight: 900; color: #7ab0f0; letter-spacing: -.3px; white-space: nowrap; }
-      .wt-adj-pct  { font-size: 10px; font-weight: 700; color: #7ab0f0; opacity: .85; white-space: nowrap; }
-      /* 整體卡加權行 */
-      .wc-adj-row  { display: flex; align-items: baseline; gap: 5px; flex-wrap: nowrap; margin-top: 3px; }
-      .wc-adj-num  { font-size: 20px; font-weight: 900; color: #7ab0f0; letter-spacing: -1px; white-space: nowrap; }
-      .wc-adj-pct  { font-size: 11px; font-weight: 700; color: #7ab0f0; opacity: .85; white-space: nowrap; }
-      /* tooltip */
-      .wt-tooltip-wrap { position: relative; display: inline-block; }
-      .wt-q-btn {
-        display: inline-flex; align-items: center; justify-content: center;
-        width: 16px; height: 16px; border-radius: 50%;
-        background: rgba(122,176,240,.2); color: #7ab0f0;
-        font-size: 10px; font-weight: 900; cursor: pointer;
-        border: 1px solid rgba(122,176,240,.4); line-height: 1;
-        flex-shrink: 0; user-select: none;
-      }
-      .wt-tooltip {
-        display: none; position: absolute; z-index: 600;
-        bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
-        background: #1a1f2e; color: #e0e0e0;
-        font-size: 11px; line-height: 1.6;
-        padding: 10px 13px; border-radius: 8px;
-        min-width: 220px; max-width: 280px;
-        border: 1px solid rgba(255,255,255,.1);
-        box-shadow: 0 4px 20px rgba(0,0,0,.3);
-        pointer-events: none; white-space: normal;
-      }
-      .wt-tooltip.open { display: block; }
-      .wt-tooltip-title { font-size: 12px; font-weight: 700; color: #fff; margin-bottom: 6px; }
-      .wt-tooltip-code  { font-family: monospace; font-size: 10px; line-height: 1.7;
-        background: rgba(255,255,255,.06); border-radius: 5px; padding: 6px 8px; margin: 5px 0; }
-      .wt-tooltip-note  { font-size: 10px; opacity: .55; margin-top: 5px; }
-
       /* 拜訪次數 badge */
       .bc-visits {
         font-size: 11px;
@@ -2927,7 +2889,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 3.4.0 (2026-04-24)</div>
+      <div id="ver-ts">Ver. 3.3.5 (2026-04-24)</div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
     </div>
@@ -3255,43 +3217,6 @@
         if (wl === realS.l && wt === realS.t) return null;
 
         return { wl: wl, wu: wu, wt: wt };
-      }
-
-      /* 加權 tooltip HTML：說明計算過程 */
-      function weightedTooltipHtml(rows) {
-        var cfg = _curCfg;
-        if (!cfg || !cfg.cvsWeightChannel || !cfg.cvsWeightCap) return '';
-        var cap = cfg.cvsWeightCap;
-        var cvsCh = cfg.cvsWeightChannel;
-        var capPct = Math.round(cap * 100);
-        /* 找 CVS 通路資料 */
-        var cvsL = 0, cvsU = 0, cvsT = 0;
-        rows.forEach(function(r) {
-          if (gv(r, 'channel') === cvsCh) {
-            cvsT++;
-            if (gs(r) === 'l') cvsL++; else cvsU++;
-          }
-        });
-        if (cvsT === 0) return '';
-        var cvsRate = pct(cvsL, cvsT);
-        var reached = cvsRate >= capPct;
-        var uid = 'wtt-' + Math.random().toString(36).slice(2,7);
-        var detail = reached
-          ? cvsCh + '達成率 = ' + cvsL + '/' + cvsT + ' = ' + cvsRate + '% ≥ ' + capPct + '% → 達到門檻
-加權未達移除 = ' + cvsU + ' 家
-加權總家數 = ' + rows.length + ' − ' + cvsU + ' = ' + (rows.length - cvsU) + ' 家'
-          : cvsCh + '達成率 = ' + cvsL + '/' + cvsT + ' = ' + cvsRate + '% < ' + capPct + '% → 未達門檻
-照真實計算，無調整';
-        return '<div class="wt-tooltip-wrap">'
-          + '<span class="wt-q-btn" onclick="(function(e){e.stopPropagation();var t=document.getElementById('' + uid + '');if(t)t.classList.toggle('open');})(event)">?</span>'
-          + '<div class="wt-tooltip" id="' + uid + '">'
-          + '<div class="wt-tooltip-title">加權計算說明</div>'
-          + 'CVS通路達到 <strong>' + capPct + '%</strong> 門檻即視同完成<br>'
-          + '未達門檻家數從分母移除，總家數縮小<br>'
-          + '<div class="wt-tooltip-code">' + detail.replace(/
-/g, '<br>') + '</div>'
-          + '<div class="wt-tooltip-note">非' + cvsCh + ' 照真實計算</div>'
-          + '</div></div>';
       }
 
       /* 人名截斷：「陳崧-1131059」→「陳崧」 */
@@ -4071,37 +3996,21 @@
         var el = document.createElement('div');
         el.className = 'big-card whole';
         var ww = statWeighted(rows);
-        var tipHtml = ww ? weightedTooltipHtml(rows) : '';
-        el.innerHTML = '<div class="wc-left"><div class="wc-label">' + esc(name) + '</div><div class="wc-total">' + s.t + '</div></div>'
-          + '<div class="wc-divider"></div>'
-          + '<div class="wc-right">'
-          + '<div class="wc-track">' + segs(s) + '</div>'
-          + '<div class="wc-stats">'
-          + curStatuses.map(function(st) {
-              var realNum = s[st.key] || 0;
-              var realPct = pct(realNum, t);
-              var realRow = '<div class="wt-real-row">'
-                + '<span class="wt-lbl">真實</span>'
-                + '<span class="wc-st-num">' + realNum + '</span>'
-                + '<span class="wc-st-pct">(' + realPct + '%)</span>'
-                + '</div>';
-              var adjRow = '';
-              if (ww) {
-                var wNum = (st.key === 'l') ? ww.wl : (st.key === 'u' || st.key === 'r') ? ww.wu : null;
-                if (wNum !== null) {
-                  adjRow = '<div class="wc-adj-row">'
-                    + '<span class="wt-lbl adj">加權</span>'
-                    + '<span class="wc-adj-num">' + wNum + '</span>'
-                    + '<span class="wc-adj-pct">(' + pct(wNum, ww.wt) + '%)</span>'
-                    + (st.key === 'l' ? ' ' + tipHtml : '')
-                    + '</div>';
-                }
-              }
-              return '<div class="wc-st ' + st.cls + '">'
-                + '<div class="wc-st-lbl">' + esc(st.label) + '</div>'
-                + realRow + adjRow + '</div>';
-            }).join('')
-          + '</div></div>';
+        el.innerHTML = '<div class="wc-left"><div class="wc-label">' + esc(name) + '</div><div class="wc-total">' + s.t + '</div></div>' + '<div class="wc-divider"></div>' + '<div class="wc-right">' + '<div class="wc-track">' + segs(s) + '</div>' + '<div class="wc-stats">' + curStatuses.map(function(st) {
+          var realNum = s[st.key] || 0;
+          var realPct = pct(realNum, t);
+          var numHtml = '<span class="wc-st-num">' + realNum + '</span>';
+          var pctHtml = '<span class="wc-st-pct">(' + realPct + '%)</span>';
+          var wbadge = '';
+          if (ww) {
+            var wNum = (st.key === 'l') ? ww.wl : (st.key === 'u' || st.key === 'r') ? ww.wu : null;
+            if (wNum !== null && wNum !== realNum) {
+              var wPct = pct(wNum, ww.wt);
+              wbadge = '<span class="wc-badge">→ ' + wNum + ' (' + wPct + '%)</span>';
+            }
+          }
+          return '<div class="wc-st ' + st.cls + '">' + '<div class="wc-st-lbl">' + esc(st.label) + '</div>' + '<div class="wc-st-row">' + numHtml + pctHtml + wbadge + '</div></div>';
+        }).join('') + '</div>' + '</div>';
         return el;
       } /* ══ 一般大卡 ══ */
       function makeBigCard(name, rows, onClick, isSel) {
@@ -4112,20 +4021,15 @@
         el.className = 'big-card' + (isSel ? ' sel' : '');
         var ww = statWeighted(rows);
         el.innerHTML = '<div class="bc-head"><div class="bc-name">' + esc(name) + '</div><div class="bc-total">' + s.t + '</div></div>' + '<div class="bc-track">' + segs(s) + '</div>' + '<div class="bc-stats ' + colsClass(n) + '">' + curStatuses.map(function(st) {
-          var adjRow = '';
+          var wbadge = '';
           if (ww) {
+            var realNum = s[st.key] || 0;
             var wNum = (st.key === 'l') ? ww.wl : (st.key === 'u' || st.key === 'r') ? ww.wu : null;
-            if (wNum !== null) {
-              adjRow = '<div class="wt-adj-row"><span class="wt-lbl adj">加權</span>'
-                + '<span class="wt-adj-num">' + wNum + '</span>'
-                + '<span class="wt-adj-pct">(' + pct(wNum, ww.wt) + '%)</span></div>';
+            if (wNum !== null && wNum !== realNum) {
+              wbadge = '<span class="wt-badge">→ ' + wNum + ' (' + pct(wNum, ww.wt) + '%)</span>';
             }
           }
-          return '<div class="bc-st ' + st.cls + '">'
-            + '<div class="bc-st-lbl">' + esc(st.label) + '</div>'
-            + '<div class="wt-real-row"><span class="bc-st-num">' + (s[st.key] || 0) + '</span>'
-            + '<span class="bc-st-pct">(' + pct(s[st.key] || 0, t) + '%)</span></div>'
-            + adjRow + '</div>';
+          return '<div class="bc-st ' + st.cls + '">' + '<div class="bc-st-lbl">' + esc(st.label) + '</div>' + '<div class="bc-st-row"><span class="bc-st-num">' + (s[st.key] || 0) + '</span>' + '<span class="bc-st-pct">(' + pct(s[st.key] || 0, t) + '%)</span>' + wbadge + '</div></div>';
         }).join('') + '</div>';
         /* 拜訪次數 badge（只在有 visits 欄的專案顯示） */
         if (CI['visits'] >= 0) {
@@ -4219,14 +4123,15 @@
         summary.className = 'staff-summary';
         var wws = statWeighted(rows);
         summary.innerHTML = '<div class="ss-title">👥 ' + esc(aName) + ' · ' + esc(oName) + '</div>' + '<div class="ss-total">' + ts.t + '</div>' + '<div class="ss-bar-wrap">' + '<div class="ss-bar">' + segs(ts) + '</div>' + '<div class="ss-sts">' + curStatuses.map(function(st) {
-          var adjSpan = '';
+          var wbadge = '';
           if (wws) {
+            var realNum = ts[st.key] || 0;
             var wNum = (st.key === 'l') ? wws.wl : (st.key === 'u' || st.key === 'r') ? wws.wu : null;
-            if (wNum !== null) {
-              adjSpan = ' <span style="font-size:10px;font-weight:800;color:#7ab0f0;">加權 ' + wNum + '(' + pct(wNum, wws.wt) + '%)</span>';
+            if (wNum !== null && wNum !== realNum) {
+              wbadge = '<span class="wt-badge">→ ' + wNum + ' (' + pct(wNum, wws.wt) + '%)</span>';
             }
           }
-          return '<span class="ss-s ' + st.cls + '">' + esc(st.label) + ' ' + (ts[st.key] || 0) + '(' + pct(ts[st.key] || 0, tt) + '%)' + adjSpan + '</span>';
+          return '<span class="ss-s ' + st.cls + '">' + esc(st.label) + ' ' + (ts[st.key] || 0) + ' (' + pct(ts[st.key] || 0, tt) + '%)' + wbadge + '</span>';
         }).join('') + '</div>' + '</div>';
         c.appendChild(summary);
         var m = groupBy(rows, 'staff');
@@ -4252,20 +4157,15 @@
           card.className = 'staff-card' + (isSel ? ' sel' : '');
           var wsc = statWeighted(sr);
           card.innerHTML = '<div class="sc-head">' + '<div class="sc-name">👤 ' + esc(trimName(k)) + '</div>' + '<div class="sc-corner"><span class="sc-corner-num">' + s.t + '</span><span class="sc-corner-pct">佔所' + pct(s.t, tt) + '%</span>' + (CI["visits"] >= 0 ? '<span class="sc-visits">🗓' + visitsSum(sr) + '次</span>' : '') + '</div>' + '</div>' + '<div class="sc-stats ' + colsClass(n) + '">' + curStatuses.map(function(st) {
-            var scAdjRow = '';
+            var wbadge = '';
             if (wsc) {
+              var realNum = s[st.key] || 0;
               var wNum = (st.key === 'l') ? wsc.wl : (st.key === 'u' || st.key === 'r') ? wsc.wu : null;
-              if (wNum !== null) {
-                scAdjRow = '<div class="wt-adj-row"><span class="wt-lbl adj">加權</span>'
-                  + '<span class="wt-adj-num">' + wNum + '</span>'
-                  + '<span class="wt-adj-pct">(' + pct(wNum, wsc.wt) + '%)</span></div>';
+              if (wNum !== null && wNum !== realNum) {
+                wbadge = '<span class="wt-badge">→ ' + wNum + ' (' + pct(wNum, wsc.wt) + '%)</span>';
               }
             }
-            return '<div class="sc-st ' + st.cls + '">'
-              + '<div class="sc-st-lbl">' + esc(st.labelShort) + '</div>'
-              + '<div class="sc-st-row"><span class="sc-st-num">' + (s[st.key] || 0) + '</span>'
-              + '<span class="sc-st-pct">(' + pct(s[st.key] || 0, t) + '%)</span></div>'
-              + scAdjRow + '</div>';
+            return '<div class="sc-st ' + st.cls + '">' + '<div class="sc-st-lbl">' + esc(st.labelShort) + '</div>' + '<div class="sc-st-row"><span class="sc-st-num">' + (s[st.key] || 0) + '</span>' + '<span class="sc-st-pct">(' + pct(s[st.key] || 0, t) + '%)</span>' + wbadge + '</div></div>';
           }).join('') + '</div>' + '<div class="sc-bar">' + curStatuses.map(function(st) {
             var v = s[st.key] || 0;
             return v ? '<div class="sc-bar-' + st.cls + '" style="flex:' + v + '"></div>' : ''
@@ -4295,14 +4195,15 @@
         header.className = 'store-header';
         var wsh = statWeighted(rows);
         header.innerHTML = '<div class="sh-left">' + '<div class="sh-name">👤 ' + esc(trimName(staffName)) + '</div>' + '<div class="sh-stats">' + curStatuses.map(function(st) {
-          var shAdj = '';
+          var wbadge = '';
           if (wsh) {
+            var realNum = s[st.key] || 0;
             var wNum = (st.key === 'l') ? wsh.wl : (st.key === 'u' || st.key === 'r') ? wsh.wu : null;
-            if (wNum !== null) {
-              shAdj = ' <span style="font-size:10px;font-weight:800;color:#7ab0f0;">加權 ' + wNum + '(' + pct(wNum, wsh.wt) + '%)</span>';
+            if (wNum !== null && wNum !== realNum) {
+              wbadge = '<span class="wt-badge">→ ' + wNum + ' (' + pct(wNum, wsh.wt) + '%)</span>';
             }
           }
-          return '<span class="sh-s ' + st.cls + '">' + esc(st.emoji) + ' ' + (s[st.key] || 0) + '(' + pct(s[st.key]||0, s.t||1) + '%)' + shAdj + '</span>';
+          return '<span class="sh-s ' + st.cls + '">' + esc(st.emoji) + ' ' + (s[st.key] || 0) + ' (' + pct(s[st.key]||0, s.t||1) + '%)' + wbadge + '</span>';
         }).join('') + '</div>' + '</div>' + '<button class="sh-toggle" id="store-toggle-btn" onclick="toggleStoreList()">▾ 收合清冊</button>';
         c.appendChild(header);
         var wrap = document.createElement('div');
