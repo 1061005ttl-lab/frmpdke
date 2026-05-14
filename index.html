@@ -3102,7 +3102,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 4.0.0 (2026-05-14 11:36)</div>
+      <div id="ver-ts">Ver. 3.3.5 (2026-04-24)</div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
     </div>
@@ -5215,7 +5215,20 @@
            分頁二：明細清冊
            欄位固定順序，依業務員分組（未達多的排前），組內未達排前
         ════════════════════════════════════════ */
-        var listHeader = ['營業處','營業所','業務員','通路別','店家型態','店家代碼','店家名稱','店家等級','狀態'];
+
+        /* 店家等級 → 標準拜訪次數對照表 */
+        var GRADE_STD = {
+          '量販A': 4, '量販B': 3, '量販C': 2,
+          'A': 2, 'B': 1,
+          '五大A': 8, '五大B': 4, '五大C': 2,
+          '連鎖超市A': 4, '連鎖超市B': 2, '連鎖超市C': 1,
+          'CVS': 1
+        };
+
+        /* 是否有拜訪欄 */
+        var hasVisits = CI['visits'] >= 0;
+
+        var listHeader = ['營業處','營業所','業務員','通路別','店家型態','店家代碼','店家名稱','店家等級','標準','拜訪','狀態'];
 
         var statusOrder = {};
         curStatuses.forEach(function(st, i){ statusOrder[st.key] = i + 1; });
@@ -5233,10 +5246,14 @@
             if (od !== 0) return od;
             return gv(a,'code').localeCompare(gv(b,'code'), 'zh-TW');
           }).forEach(function(r) {
+            var grade   = gv(r,'grade');
+            var std     = (grade !== '' && GRADE_STD[grade] !== undefined) ? GRADE_STD[grade] : '';
+            var visits  = hasVisits ? (parseFloat(gv(r,'visits')) || 0) : '';
             listRows.push([
               gv(r,'area'), gv(r,'office'), gv(r,'staff'),
               gv(r,'channel'), gv(r,'type'), gv(r,'code'),
-              gv(r,'store'), gv(r,'grade'),
+              gv(r,'store'), grade,
+              std, visits,
               statusLabelMap[gs(r)] || gs(r)
             ]);
           });
@@ -5253,7 +5270,8 @@
 
         wsList['!cols'] = [
           {wch:14},{wch:14},{wch:14},{wch:12},
-          {wch:12},{wch:14},{wch:24},{wch:8},{wch:10}
+          {wch:12},{wch:14},{wch:24},{wch:8},
+          {wch:6},{wch:6},{wch:10}
         ];
 
         XLSX.utils.book_append_sheet(wb, wsSum,  '匯整統計');
