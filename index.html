@@ -3102,7 +3102,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 3.3.5 (2026-04-24)</div>
+      <div id="ver-ts">Ver. 4.0.0 (2026-05-14 11:36)</div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
     </div>
@@ -5115,13 +5115,21 @@
           return;
         }
 
-        /* ── 依當前篩選取得資料（不受 drillStack 或 _chDrillStack 影響，直接用 visible()） ── */
-        var baseRows = visible();
-        if (!baseRows.length) { alert('沒有可匯出的資料'); return; }
-
         var surveyName = SURVEYS[curSurvey] ? SURVEYS[curSurvey].name : '';
         var stCols  = curStatuses.map(function(s) { return s.labelShort; });
         var lastKey = curStatuses[curStatuses.length - 1].key;
+
+        /* ── 依當前層級縮小資料範圍 ──
+           visible() 已套用 chip / 通路 / 型態 / 人員篩選器；
+           再依 drillStack 深度進一步過濾到當前畫面所在的單位。        */
+        var baseRows = visible();
+        if (drillStack.length >= 1) baseRows = baseRows.filter(function(r){ return gv(r,'area')   === drillStack[0].key; });
+        if (drillStack.length >= 2) baseRows = baseRows.filter(function(r){ return gv(r,'office') === drillStack[1].key; });
+        if (drillStack.length >= 3) baseRows = baseRows.filter(function(r){ return gv(r,'staff')  === drillStack[2].key; });
+        if (!baseRows.length) { alert('沒有可匯出的資料'); return; }
+
+        /* ── 建立檔名用的路徑標籤 ── */
+        var pathLabel = drillStack.map(function(d){ return d.key; }).join('_');
 
         /* 狀態顯示名稱對照 */
         var statusLabelMap = {};
@@ -5129,57 +5137,90 @@
 
         /* ════════════════════════════════════════
            分頁一：匯整統計
-           固定結構：整體合計列 + 分層明細（營業處 → 營業所 → 業務員）
-           無論目前在哪個視角或層級，永遠輸出完整四層
+           依當前層級決定分組維度，只展開「比當前層更細」的一層：
+             整體層  → 整體合計 + 各營業處小計 + 各營業所小計 + 各業務員小計
+             營業處層 → 該處合計 + 各營業所小計 + 各業務員小計
+             營業所層 → 該所合計 + 各業務員小計
+             業務員層 → 該員合計 + 各通路／型態小計
         ════════════════════════════════════════ */
         var sumHeader = ['層級', '營業處', '營業所', '業務員'].concat(stCols).concat(['總計']);
         var sumRows = [];
 
-        /* 整體合計 */
+        var fixedArea   = drillStack[0] ? drillStack[0].key : '';
+        var fixedOffice = drillStack[1] ? drillStack[1].key : '';
+        var fixedStaff  = drillStack[2] ? drillStack[2].key : '';
+
+        /* 當前範圍合計列 */
         var sAll = stat(baseRows);
-        sumRows.push(['整體', '', '', ''].concat(curStatuses.map(function(st){ return sAll[st.key]||0; })).concat([sAll.t]));
+        var topLabel = fixedStaff || fixedOffice || fixedArea || '整體';
+        var topLevel = fixedStaff ? '業務員' : fixedOffice ? '營業所' : fixedArea ? '營業處' : '整體';
+        sumRows.push([topLevel, fixedArea, fixedOffice, fixedStaff]
+          .concat(curStatuses.map(function(st){ return sAll[st.key]||0; }))
+          .concat([sAll.t]));
 
-        /* 依營業處 */
-        var areaMap = groupBy(baseRows, 'area');
-        sortArea(Object.keys(areaMap)).forEach(function(aKey) {
-          var aRows = areaMap[aKey];
-          var sA = stat(aRows);
-          sumRows.push(['營業處', aKey, '', ''].concat(curStatuses.map(function(st){ return sA[st.key]||0; })).concat([sA.t]));
-
-          /* 依營業所 */
-          var offMap = groupBy(aRows, 'office');
-          Object.keys(offMap).sort(function(a,b){
-            return (stat(offMap[b])[lastKey]||0) - (stat(offMap[a])[lastKey]||0);
-          }).forEach(function(oKey) {
-            var oRows = offMap[oKey];
-            var sO = stat(oRows);
-            sumRows.push(['營業所', aKey, oKey, ''].concat(curStatuses.map(function(st){ return sO[st.key]||0; })).concat([sO.t]));
-
-            /* 依業務員 */
-            var staffMap = groupBy(oRows, 'staff');
-            Object.keys(staffMap).sort(function(a,b){
-              return (stat(staffMap[b])[lastKey]||0) - (stat(staffMap[a])[lastKey]||0);
-            }).forEach(function(sKey) {
-              var sRows = staffMap[sKey];
-              var sS = stat(sRows);
-              sumRows.push(['業務員', aKey, oKey, sKey].concat(curStatuses.map(function(st){ return sS[st.key]||0; })).concat([sS.t]));
+        if (drillStack.length === 3) {
+          /* 業務員層：依通路 × 型態細分 */
+          var tpMap = {};
+          baseRows.forEach(function(r) {
+            var k = gv(r,'channel') + '\u00B7' + gv(r,'type');
+            if (!tpMap[k]) tpMap[k] = { ch: gv(r,'channel'), tp: gv(r,'type'), rows: [] };
+            tpMap[k].rows.push(r);
+          });
+          Object.keys(tpMap).sort().forEach(function(k) {
+            var g = tpMap[k]; var sT = stat(g.rows);
+            sumRows.push(['通路/型態', fixedArea, fixedOffice, fixedStaff + ' ▸ ' + g.ch + '·' + g.tp]
+              .concat(curStatuses.map(function(st){ return sT[st.key]||0; }))
+              .concat([sT.t]));
+          });
+        } else {
+          /* 整體 / 營業處 / 營業所層：展開到業務員 */
+          var areaKeys = fixedArea ? [fixedArea] : sortArea(Object.keys(groupBy(baseRows,'area')));
+          areaKeys.forEach(function(aKey) {
+            var aRows = baseRows.filter(function(r){ return gv(r,'area') === aKey; });
+            /* 若不是已在營業處層，補一列營業處合計 */
+            if (!fixedArea) {
+              var sA = stat(aRows);
+              sumRows.push(['營業處', aKey, '', '']
+                .concat(curStatuses.map(function(st){ return sA[st.key]||0; }))
+                .concat([sA.t]));
+            }
+            var officeKeys = fixedOffice ? [fixedOffice]
+              : Object.keys(groupBy(aRows,'office')).sort(function(a,b){
+                  return (stat(groupBy(aRows,'office')[b])[lastKey]||0) - (stat(groupBy(aRows,'office')[a])[lastKey]||0);
+                });
+            officeKeys.forEach(function(oKey) {
+              var oRows = aRows.filter(function(r){ return gv(r,'office') === oKey; });
+              /* 若不是已在營業所層，補一列營業所合計 */
+              if (!fixedOffice) {
+                var sO = stat(oRows);
+                sumRows.push(['營業所', aKey, oKey, '']
+                  .concat(curStatuses.map(function(st){ return sO[st.key]||0; }))
+                  .concat([sO.t]));
+              }
+              /* 業務員明細 */
+              var staffMap = groupBy(oRows,'staff');
+              Object.keys(staffMap).sort(function(a,b){
+                return (stat(staffMap[b])[lastKey]||0) - (stat(staffMap[a])[lastKey]||0);
+              }).forEach(function(sKey) {
+                var sRows = staffMap[sKey]; var sS = stat(sRows);
+                sumRows.push(['業務員', aKey, oKey, sKey]
+                  .concat(curStatuses.map(function(st){ return sS[st.key]||0; }))
+                  .concat([sS.t]));
+              });
             });
           });
-        });
+        }
 
         /* ════════════════════════════════════════
            分頁二：明細清冊
-           固定欄位順序：營業處、營業所、業務員、通路別、店家型態、店家代碼、店家名稱、店家等級、狀態
-           排序：先依業務員分組（未達多的業務員排前），組內未達排前、其他狀態居中、達成排後
+           欄位固定順序，依業務員分組（未達多的排前），組內未達排前
         ════════════════════════════════════════ */
         var listHeader = ['營業處','營業所','業務員','通路別','店家型態','店家代碼','店家名稱','店家等級','狀態'];
 
-        /* 狀態排序：最後一個狀態（通常為未達/未填寫）排第 0 位（最前），其餘依序往後 */
         var statusOrder = {};
         curStatuses.forEach(function(st, i){ statusOrder[st.key] = i + 1; });
         statusOrder[lastKey] = 0;
 
-        /* 業務員排序：未達（lastKey）數量多的排前面 */
         var staffGrouped = groupBy(baseRows, 'staff');
         var staffSorted = Object.keys(staffGrouped).sort(function(a, b) {
           return (stat(staffGrouped[b])[lastKey]||0) - (stat(staffGrouped[a])[lastKey]||0);
@@ -5187,9 +5228,7 @@
 
         var listRows = [];
         staffSorted.forEach(function(sKey) {
-          var sRows = staffGrouped[sKey];
-          /* 組內排序：狀態順序優先，次依店家代碼 */
-          sRows.slice().sort(function(a, b) {
+          staffGrouped[sKey].slice().sort(function(a, b) {
             var od = (statusOrder[gs(a)]||99) - (statusOrder[gs(b)]||99);
             if (od !== 0) return od;
             return gv(a,'code').localeCompare(gv(b,'code'), 'zh-TW');
@@ -5205,27 +5244,16 @@
 
         /* ════ 產生 Excel ════ */
         var wb = XLSX.utils.book_new();
-
         var wsSum  = XLSX.utils.aoa_to_sheet([sumHeader].concat(sumRows));
         var wsList = XLSX.utils.aoa_to_sheet([listHeader].concat(listRows));
 
-        /* 匯整分頁欄寬 */
-        wsSum['!cols'] = [
-          {wch:8},{wch:14},{wch:14},{wch:16},
-          /* 狀態欄 */
-        ].concat(stCols.map(function(){ return {wch:8}; })).concat([{wch:8}]);
+        wsSum['!cols'] = [{wch:8},{wch:14},{wch:14},{wch:22}]
+          .concat(stCols.map(function(){ return {wch:8}; }))
+          .concat([{wch:8}]);
 
-        /* 清冊分頁欄寬：對應固定九欄 */
         wsList['!cols'] = [
-          {wch:14}, /* 營業處 */
-          {wch:14}, /* 營業所 */
-          {wch:14}, /* 業務員 */
-          {wch:12}, /* 通路別 */
-          {wch:12}, /* 店家型態 */
-          {wch:14}, /* 店家代碼 */
-          {wch:24}, /* 店家名稱 */
-          {wch:8},  /* 店家等級 */
-          {wch:10}  /* 狀態 */
+          {wch:14},{wch:14},{wch:14},{wch:12},
+          {wch:12},{wch:14},{wch:24},{wch:8},{wch:10}
         ];
 
         XLSX.utils.book_append_sheet(wb, wsSum,  '匯整統計');
@@ -5233,7 +5261,7 @@
 
         var now = new Date();
         var ts = now.getFullYear() + ('0'+(now.getMonth()+1)).slice(-2) + ('0'+now.getDate()).slice(-2);
-        var fname = surveyName + '_' + ts + '.xlsx';
+        var fname = surveyName + (pathLabel ? '_' + pathLabel : '') + '_' + ts + '.xlsx';
         XLSX.writeFile(wb, fname);
         flash('csv-btn', '✅ 已下載', '📥 XLSX');
       }
