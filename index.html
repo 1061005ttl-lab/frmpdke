@@ -394,7 +394,19 @@
       }
 
       .col-main.ch-view {
-        grid-template-columns: repeat(auto-fill, minmax(clamp(240px, 28vw, 420px), 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(clamp(200px, 22vw, 340px), 1fr));
+      }
+      /* 通路視角卡片：縮減內距，名稱不撐滿 */
+      .col-main.ch-view .big-card {
+        padding: 12px 16px;
+        gap: 7px;
+      }
+      .col-main.ch-view .bc-name {
+        font-size: clamp(12px, 1.2vw, 15px);
+        flex: 0 1 auto;
+      }
+      .col-main.ch-view .bc-total {
+        font-size: clamp(22px, 2.4vw, 32px);
       }
 
       .col-main.office-view {
@@ -4272,7 +4284,7 @@
 
         var dualHtml = '';
         var sbc = statByChannel(rows);
-        var hasBothCh = sbc && sbc.nonCvs.t > 0 && sbc.cvs.t > 0;
+        var hasBothCh = sbc && sbc.cvs.t > 0;
         if (hasBothCh) {
           var nc = sbc.nonCvs, cv = sbc.cvs;
           var ncT = nc.t || 1;
@@ -4342,7 +4354,7 @@
         /* 雙欄對比列：只在資料同時含有 CVS 與非CVS 時才顯示；
            進入單一通路視角後（如「傳統通路」、「CVS通路」），一律改為單列拜訪顯示 */
         var sbc2 = statByChannel(rows);
-        var hasBothChannels = sbc2 && sbc2.nonCvs.t > 0 && sbc2.cvs.t > 0;
+        var hasBothChannels = sbc2 && sbc2.cvs.t > 0;
         if (hasBothChannels) {
           var nc = sbc2.nonCvs, cv = sbc2.cvs;
           var ncT = nc.t || 1;
@@ -4468,7 +4480,7 @@
         var wws = statWeighted(rows);
         var sbcS = statByChannel(rows);
         var dualSummaryHtml = '';
-        if (sbcS && sbcS.nonCvs.t > 0 && sbcS.cvs.t > 0) {
+        if (sbcS && sbcS.cvs.t > 0) {
           var ncS = sbcS.nonCvs, cvS = sbcS.cvs;
           var ncST = ncS.t || 1;
           var cvSWL = cvS.l, cvSWU = cvS.weighted ? 0 : cvS.u;
@@ -4525,7 +4537,7 @@
           card.className = 'staff-card' + (isSel ? ' sel' : '');
           var sbcC = statByChannel(sr);
           var dualCardHtml = '';
-          if (sbcC && sbcC.nonCvs.t > 0 && sbcC.cvs.t > 0) {
+          if (sbcC && sbcC.cvs.t > 0) {
             var ncC = sbcC.nonCvs, cvC = sbcC.cvs;
             var ncCT = ncC.t || 1;
             var cvCWL = cvC.l, cvCWU = cvC.weighted ? 0 : cvC.u;
@@ -4592,7 +4604,7 @@
         var wsh = statWeighted(rows);
         var wsh2 = statByChannel(rows);
         var shDualHtml = '';
-        if (wsh2 && wsh2.nonCvs.t > 0 && wsh2.cvs.t > 0) {
+        if (wsh2 && wsh2.cvs.t > 0) {
           var ncSH = wsh2.nonCvs, cvSH = wsh2.cvs;
           var ncSHT = ncSH.t || 1;
           var cvSHWL = cvSH.l, cvSHWU = cvSH.weighted ? 0 : cvSH.u;
