@@ -1741,6 +1741,13 @@
         table-layout: fixed;
       }
 
+      .store-tbl .col-name {
+        width: 200px !important;
+        max-width: 200px !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
       .store-tbl th {
         padding: 7px 10px;
         font-size: 11px;
@@ -2888,7 +2895,16 @@
           border-radius: 12px !important;
           overflow: hidden !important;
         }
+        /* 新增：限制店家名稱欄寬，解決網頁畫面稀疏問題 */
+        .store-tbl .col-name {
+          width: 200px !important;
+          max-width: 200px !important;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
 
+        
         .store-tbl th {
           padding: 6px 10px;
           font-size: 10px;
@@ -3053,6 +3069,7 @@
       }
 
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   </head>
 
   <body>
@@ -3119,7 +3136,7 @@
     </div>
     <div id="gbar">
       <div class="gb-path" id="gb-path"></div>
-      <div class="gb-right"><span class="gb-sync" id="gb-sync"></span><button class="gb-btn" id="copy-btn" onclick="copyList()">📋 複製</button><button class="gb-btn" id="csv-btn" onclick="downloadCSV()">📥 CSV</button></div>
+      <div class="gb-right"><span class="gb-sync" id="gb-sync"></span><button class="gb-btn" id="copy-btn" onclick="copyList()">📋 複製</button><button class="gb-btn" id="csv-btn" onclick="downloadCSV()">📥 XLSX</button></div>
     </div>
     <div id="content-wrap">
       <div id="stage"></div>
@@ -5092,98 +5109,132 @@
       }
 
       function downloadCSV() {
-        var depth = drillStack.length;
-        var surveyName = SURVEYS[curSurvey] ? SURVEYS[curSurvey].name : '';
-        var label = surveyName + (drillStack.length ? ' ｜ ' + drillStack.map(function(d) {
-          return d.key;
-        }).join(' › ') : '');
+        if (typeof XLSX === 'undefined') {
+          alert('SheetJS 尚未載入，請確認 <head> 中已加入 SheetJS CDN 連結。');
+          return;
+        }
 
-        function q(v) {
-          var s = String(v == null ? '' : v);
-          if (s.indexOf(',') >= 0 || s.indexOf('"') >= 0 || s.indexOf('\n') >= 0) return '"' + s.replace(/"/g, '""') + '"';
-          return s;
-        }
-        var stCols = curStatuses.map(function(s) {
-          return s.labelShort;
+        /* ── 依當前篩選取得資料（不受 drillStack 或 _chDrillStack 影響，直接用 visible()） ── */
+        var baseRows = visible();
+        if (!baseRows.length) { alert('沒有可匯出的資料'); return; }
+
+        var surveyName = SURVEYS[curSurvey] ? SURVEYS[curSurvey].name : '';
+        var stCols  = curStatuses.map(function(s) { return s.labelShort; });
+        var lastKey = curStatuses[curStatuses.length - 1].key;
+
+        /* 狀態顯示名稱對照 */
+        var statusLabelMap = {};
+        curStatuses.forEach(function(st){ statusLabelMap[st.key] = st.labelShort; });
+
+        /* ════════════════════════════════════════
+           分頁一：匯整統計
+           固定結構：整體合計列 + 分層明細（營業處 → 營業所 → 業務員）
+           無論目前在哪個視角或層級，永遠輸出完整四層
+        ════════════════════════════════════════ */
+        var sumHeader = ['層級', '營業處', '營業所', '業務員'].concat(stCols).concat(['總計']);
+        var sumRows = [];
+
+        /* 整體合計 */
+        var sAll = stat(baseRows);
+        sumRows.push(['整體', '', '', ''].concat(curStatuses.map(function(st){ return sAll[st.key]||0; })).concat([sAll.t]));
+
+        /* 依營業處 */
+        var areaMap = groupBy(baseRows, 'area');
+        sortArea(Object.keys(areaMap)).forEach(function(aKey) {
+          var aRows = areaMap[aKey];
+          var sA = stat(aRows);
+          sumRows.push(['營業處', aKey, '', ''].concat(curStatuses.map(function(st){ return sA[st.key]||0; })).concat([sA.t]));
+
+          /* 依營業所 */
+          var offMap = groupBy(aRows, 'office');
+          Object.keys(offMap).sort(function(a,b){
+            return (stat(offMap[b])[lastKey]||0) - (stat(offMap[a])[lastKey]||0);
+          }).forEach(function(oKey) {
+            var oRows = offMap[oKey];
+            var sO = stat(oRows);
+            sumRows.push(['營業所', aKey, oKey, ''].concat(curStatuses.map(function(st){ return sO[st.key]||0; })).concat([sO.t]));
+
+            /* 依業務員 */
+            var staffMap = groupBy(oRows, 'staff');
+            Object.keys(staffMap).sort(function(a,b){
+              return (stat(staffMap[b])[lastKey]||0) - (stat(staffMap[a])[lastKey]||0);
+            }).forEach(function(sKey) {
+              var sRows = staffMap[sKey];
+              var sS = stat(sRows);
+              sumRows.push(['業務員', aKey, oKey, sKey].concat(curStatuses.map(function(st){ return sS[st.key]||0; })).concat([sS.t]));
+            });
+          });
         });
-        var lines, rows;
-        if (depth === 0) {
-          rows = visible();
-          lines = [
-            ['營業處'].concat(stCols).concat(['總計']).map(q).join(',')
-          ];
-          var m = groupBy(rows, 'area');
-          sortArea(Object.keys(m)).forEach(function(k) {
-            var s = stat(m[k]);
-            lines.push([k].concat(curStatuses.map(function(st) {
-              return s[st.key] || 0;
-            })).concat([s.t]).map(q).join(','));
-          });
-        } else if (depth === 1) {
-          rows = visible().filter(function(r) {
-            return gv(r, 'area') === drillStack[0].key;
-          });
-          lines = [
-            ['營業處', '營業所'].concat(stCols).concat(['總計']).map(q).join(',')
-          ];
-          var m = groupBy(rows, 'office');
-          var lastKey = curStatuses[curStatuses.length - 1].key;
-          Object.keys(m).sort(function(a, b) {
-            return (stat(m[b])[lastKey] || 0) - (stat(m[a])[lastKey] || 0);
-          }).forEach(function(k) {
-            var s = stat(m[k]);
-            lines.push([drillStack[0].key, k].concat(curStatuses.map(function(st) {
-              return s[st.key] || 0;
-            })).concat([s.t]).map(q).join(','));
-          });
-        } else if (depth === 2) {
-          rows = visible().filter(function(r) {
-            return gv(r, 'area') === drillStack[0].key && gv(r, 'office') === drillStack[1].key;
-          });
-          lines = [
-            ['營業處', '營業所', '人員'].concat(stCols).concat(['總計']).map(q).join(',')
-          ];
-          var m = groupBy(rows, 'staff');
-          var lastKey = curStatuses[curStatuses.length - 1].key;
-          Object.keys(m).sort(function(a, b) {
-            return (stat(m[b])[lastKey] || 0) - (stat(m[a])[lastKey] || 0);
-          }).forEach(function(k) {
-            var s = stat(m[k]);
-            lines.push([drillStack[0].key, drillStack[1].key, k].concat(curStatuses.map(function(st) {
-              return s[st.key] || 0;
-            })).concat([s.t]).map(q).join(','));
-          });
-        } else {
-          rows = window._storeRows || [];
-          if (!rows.length) return;
-          lines = [
-            ['狀態', '店家名稱', '通路別', '店家型態', '店家等級', '店家代碼'].map(q).join(',')
-          ];
-          var statusLabelMap = {};
-          curStatuses.forEach(function(st) {
-            statusLabelMap[st.key] = st.labelShort;
-          });
-          rows.forEach(function(r) {
-            lines.push([statusLabelMap[gs(r)] || gs(r), gv(r, 'store'), gv(r, 'channel'), gv(r, 'type'), gv(r, 'grade'), gv(r, 'code')].map(q).join(','));
-          });
-        }
-        var blob = new Blob(['\uFEFF' + lines.join('\r\n')], {
-          type: 'text/csv;charset=utf-8;'
+
+        /* ════════════════════════════════════════
+           分頁二：明細清冊
+           固定欄位順序：營業處、營業所、業務員、通路別、店家型態、店家代碼、店家名稱、店家等級、狀態
+           排序：先依業務員分組（未達多的業務員排前），組內未達排前、其他狀態居中、達成排後
+        ════════════════════════════════════════ */
+        var listHeader = ['營業處','營業所','業務員','通路別','店家型態','店家代碼','店家名稱','店家等級','狀態'];
+
+        /* 狀態排序：最後一個狀態（通常為未達/未填寫）排第 0 位（最前），其餘依序往後 */
+        var statusOrder = {};
+        curStatuses.forEach(function(st, i){ statusOrder[st.key] = i + 1; });
+        statusOrder[lastKey] = 0;
+
+        /* 業務員排序：未達（lastKey）數量多的排前面 */
+        var staffGrouped = groupBy(baseRows, 'staff');
+        var staffSorted = Object.keys(staffGrouped).sort(function(a, b) {
+          return (stat(staffGrouped[b])[lastKey]||0) - (stat(staffGrouped[a])[lastKey]||0);
         });
-        var url = URL.createObjectURL(blob);
+
+        var listRows = [];
+        staffSorted.forEach(function(sKey) {
+          var sRows = staffGrouped[sKey];
+          /* 組內排序：狀態順序優先，次依店家代碼 */
+          sRows.slice().sort(function(a, b) {
+            var od = (statusOrder[gs(a)]||99) - (statusOrder[gs(b)]||99);
+            if (od !== 0) return od;
+            return gv(a,'code').localeCompare(gv(b,'code'), 'zh-TW');
+          }).forEach(function(r) {
+            listRows.push([
+              gv(r,'area'), gv(r,'office'), gv(r,'staff'),
+              gv(r,'channel'), gv(r,'type'), gv(r,'code'),
+              gv(r,'store'), gv(r,'grade'),
+              statusLabelMap[gs(r)] || gs(r)
+            ]);
+          });
+        });
+
+        /* ════ 產生 Excel ════ */
+        var wb = XLSX.utils.book_new();
+
+        var wsSum  = XLSX.utils.aoa_to_sheet([sumHeader].concat(sumRows));
+        var wsList = XLSX.utils.aoa_to_sheet([listHeader].concat(listRows));
+
+        /* 匯整分頁欄寬 */
+        wsSum['!cols'] = [
+          {wch:8},{wch:14},{wch:14},{wch:16},
+          /* 狀態欄 */
+        ].concat(stCols.map(function(){ return {wch:8}; })).concat([{wch:8}]);
+
+        /* 清冊分頁欄寬：對應固定九欄 */
+        wsList['!cols'] = [
+          {wch:14}, /* 營業處 */
+          {wch:14}, /* 營業所 */
+          {wch:14}, /* 業務員 */
+          {wch:12}, /* 通路別 */
+          {wch:12}, /* 店家型態 */
+          {wch:14}, /* 店家代碼 */
+          {wch:24}, /* 店家名稱 */
+          {wch:8},  /* 店家等級 */
+          {wch:10}  /* 狀態 */
+        ];
+
+        XLSX.utils.book_append_sheet(wb, wsSum,  '匯整統計');
+        XLSX.utils.book_append_sheet(wb, wsList, '明細清冊');
+
         var now = new Date();
-        var ts = now.getFullYear() + ('0' + (now.getMonth() + 1)).slice(-2) + ('0' + now.getDate()).slice(-2);
-        var a = document.createElement('a');
-        a.href = url;
-        a.download = label + '_' + ts + '.csv';
-        a.style.display = 'none';
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(function() {
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-        }, 500);
-        flash('csv-btn', '✅ 已下載', '📥 CSV');
+        var ts = now.getFullYear() + ('0'+(now.getMonth()+1)).slice(-2) + ('0'+now.getDate()).slice(-2);
+        var fname = surveyName + '_' + ts + '.xlsx';
+        XLSX.writeFile(wb, fname);
+        flash('csv-btn', '✅ 已下載', '📥 XLSX');
       }
 
       function flash(id, on, off) {
