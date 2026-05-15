@@ -393,69 +393,51 @@
         grid-template-columns: repeat(auto-fill, minmax(clamp(240px, 28vw, 420px), 1fr));
       }
 
-      /* ══ 通路視角：左右分欄佈局 ══
-         左欄：整體卡（豎式，固定寬度）
-         右欄：小卡 2 欄 grid，高度自適應              */
+      /* ══ 通路視角：整體卡全寬置頂，小卡 2 欄直式排列 ══ */
       .col-main.ch-view {
         display: flex;
-        flex-direction: row;
-        align-items: flex-start;
+        flex-direction: column;
+        align-items: stretch;
         gap: 16px;
         padding: 20px 24px;
         overflow-y: auto;
         overflow-x: hidden;
       }
       .ch-view-whole {
-        flex: 0 0 calc(50% - 8px);
-        max-width: calc(50% - 8px);
-        position: sticky;
-        top: 0;
-        align-self: flex-start;
+        width: 100%;
       }
-      /* 整體卡在通路視角改為直式 */
+      /* 整體卡在通路視角：全寬橫式，保持原本深色英雄樣式 */
       .ch-view-whole .big-card.whole {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 14px;
-        min-height: unset;
         grid-column: unset;
       }
+      /* 小卡區：columns 直式蛇行（1,3,5,7 左欄 / 2,4,6 右欄） */
       .ch-view-cards {
-        flex: 0 0 calc(50% - 8px);
-        max-width: calc(50% - 8px);
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 12px;
-        align-items: start;
+        column-count: 2;
+        column-gap: 16px;
       }
-      /* 小卡在通路視角：內距縮小，高度自適應，不截內容 */
       .ch-view-cards .big-card {
-        padding: 12px 14px;
-        gap: 6px;
+        break-inside: avoid;
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        margin-bottom: 16px;
+        padding: 14px 16px;
+        gap: 8px;
         overflow: visible;
-        min-height: 0;
+        box-sizing: border-box;
       }
       .ch-view-cards .bc-name {
-        font-size: clamp(11px, 1.1vw, 14px);
+        font-size: clamp(12px, 1.2vw, 15px);
         white-space: normal;
         word-break: break-all;
         flex: 1;
       }
       .ch-view-cards .bc-total {
-        font-size: clamp(20px, 2.2vw, 30px);
-      }
-      .ch-view-cards .bc-st-lbl {
-        font-size: 9px;
-      }
-      .ch-view-cards .bc-st-num {
-        font-size: clamp(14px, 1.4vw, 18px);
+        font-size: clamp(22px, 2.4vw, 32px);
       }
       .ch-view-cards .bc-visits {
-        margin: 4px -14px -12px -14px;
+        margin: 4px -16px -14px -16px;
         border-radius: 0 0 var(--r) var(--r);
-      }
-      .ch-view-cards .bc-dual {
-        margin-top: 4px;
       }
 
       .col-main.office-view {
