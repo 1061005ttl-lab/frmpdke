@@ -394,69 +394,16 @@
       }
 
       /* ══ 通路視角：黑卡左半全高，小卡上下各一往右延伸，整體不捲動 ══ */
-      /* 通路視角：黑卡固定寬度在左，小卡 2 列填滿剩餘空間 */
+      /* 通路視角：與組織視角相同的 grid，整體卡全寬，小卡自動填充 */
       .col-main.ch-view {
-        display: flex;
-        flex-direction: row;
-        align-items: stretch;
-        gap: 16px;
-        padding: 20px 24px;
-        overflow: hidden;
-        height: 100%;
-        box-sizing: border-box;
+        grid-template-columns: repeat(auto-fill, minmax(clamp(200px, 22vw, 320px), 1fr));
+        overflow-y: auto;
+        align-content: start;
       }
-      .ch-view-whole {
-        flex: 0 0 280px;
-        display: flex;
-        flex-direction: column;
+      /* 整體卡橫跨全寬 */
+      .col-main.ch-view .big-card.whole {
+        grid-column: 1 / -1;
       }
-      .ch-view-whole .big-card.whole {
-        flex: 1;
-        grid-column: unset;
-        flex-direction: column;
-        align-items: stretch;
-        gap: 16px;
-        min-height: 0;
-        overflow: hidden;
-      }
-      /* 小卡區：固定 2 列，JS 計算每張寬度填滿剩餘空間 */
-      .ch-view-cards {
-        flex: 1;
-        min-width: 0;
-        display: grid;
-        grid-template-rows: 1fr 1fr;
-        gap: 12px;
-        overflow: hidden;
-        align-items: stretch;
-      }
-      .ch-view-cards .big-card {
-        padding: 10px 14px;
-        gap: 6px;
-        overflow: hidden;
-        min-height: 0;
-        min-width: 0;
-        display: flex;
-        flex-direction: column;
-      }
-      .ch-view-cards .bc-head { flex-shrink: 0; }
-      .ch-view-cards .bc-track { flex-shrink: 0; }
-      .ch-view-cards .bc-stats { flex: 1; min-height: 0; }
-      .ch-view-cards .bc-name {
-        font-size: clamp(11px, 1.1vw, 14px);
-        white-space: normal;
-        word-break: break-all;
-        flex: 1;
-      }
-      .ch-view-cards .bc-total {
-        font-size: clamp(18px, 1.8vw, 26px);
-        flex-shrink: 0;
-      }
-      .ch-view-cards .bc-visits {
-        flex-shrink: 0;
-        margin: 4px -14px -10px -14px;
-        border-radius: 0 0 var(--r) var(--r);
-      }
-      .ch-view-cards .bc-dual { flex-shrink: 0; }
 
       .col-main.staff-view {
         grid-template-columns: repeat(auto-fill, minmax(clamp(180px, 22vw, 340px), 1fr));
@@ -5598,35 +5545,22 @@
         }
       }
 
-      /* 固定 2 列，依卡片總數算出需要幾欄，用 1fr 均分寬度 */
-      function setChCardsColumns(cardsCol, count) {
-        if (count <= 0) return;
-        var cols = Math.ceil(count / 2);
-        cardsCol.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
-        cardsCol.style.gridAutoFlow = 'row';
-      }
+      /* 依卡片數計算欄數（保留供未來使用） */
+      function setChCardsColumns(cardsCol, count) {}
 
       function buildChCards(c, rows) {
-        var wholeCol = document.createElement('div');
-        wholeCol.className = 'ch-view-whole';
-        wholeCol.appendChild(makeWholeCard('整體', rows));
-        c.appendChild(wholeCol);
-
-        var cardsCol = document.createElement('div');
-        cardsCol.className = 'ch-view-cards';
+        c.appendChild(makeWholeCard('整體', rows));
         var m = groupBy(rows, 'channel');
         var lastKey = curStatuses[curStatuses.length - 1].key;
         var sorted = Object.keys(m).sort(function(a, b) {
           return (stat(m[b])[lastKey] || 0) - (stat(m[a])[lastKey] || 0);
         });
         sorted.forEach(function(k) {
-          cardsCol.appendChild(makeBigCard(k, m[k], function() {
+          c.appendChild(makeBigCard(k, m[k], function() {
             chDrillInto('ch', k);
           }, false));
         });
-        if (!sorted.length) cardsCol.appendChild(makeEmpty('沒有符合條件的資料'));
-        setChCardsColumns(cardsCol, sorted.length);
-        c.appendChild(cardsCol);
+        if (!sorted.length) c.appendChild(makeEmpty('沒有符合條件的資料'));
       }
 
       function buildChSide(c, rows, selCh) {
@@ -5646,26 +5580,18 @@
       }
 
       function buildChTypeCards(c, rows, chName) {
-        var wholeCol = document.createElement('div');
-        wholeCol.className = 'ch-view-whole';
-        wholeCol.appendChild(makeWholeCard(chName + ' 整體', rows));
-        c.appendChild(wholeCol);
-
-        var cardsCol = document.createElement('div');
-        cardsCol.className = 'ch-view-cards';
+        c.appendChild(makeWholeCard(chName + ' 整體', rows));
         var m = groupBy(rows, 'type');
         var lastKey = curStatuses[curStatuses.length - 1].key;
         var sorted = Object.keys(m).sort(function(a, b) {
           return (stat(m[b])[lastKey] || 0) - (stat(m[a])[lastKey] || 0);
         });
         sorted.forEach(function(k) {
-          cardsCol.appendChild(makeBigCard(k, m[k], function() {
+          c.appendChild(makeBigCard(k, m[k], function() {
             chDrillInto('type', k);
           }, false));
         });
-        if (!sorted.length) cardsCol.appendChild(makeEmpty('沒有符合條件的資料'));
-        setChCardsColumns(cardsCol, sorted.length);
-        c.appendChild(cardsCol);
+        if (!sorted.length) c.appendChild(makeEmpty('沒有符合條件的資料'));
       }
 
       function buildChTypeSide(c, rows, selTp, chName) {
@@ -5685,23 +5611,15 @@
       }
 
       function buildChAreaCards(c, rows, label) {
-        var wholeCol = document.createElement('div');
-        wholeCol.className = 'ch-view-whole';
-        wholeCol.appendChild(makeWholeCard(label + ' 整體', rows));
-        c.appendChild(wholeCol);
-
-        var cardsCol = document.createElement('div');
-        cardsCol.className = 'ch-view-cards';
+        c.appendChild(makeWholeCard(label + ' 整體', rows));
         var m = groupBy(rows, 'area');
         var sorted = sortArea(Object.keys(m));
         sorted.forEach(function(k) {
-          cardsCol.appendChild(makeBigCard(k, m[k], function() {
+          c.appendChild(makeBigCard(k, m[k], function() {
             chDrillInto('area', k);
           }, false));
         });
-        if (!sorted.length) cardsCol.appendChild(makeEmpty('沒有符合條件的資料'));
-        setChCardsColumns(cardsCol, sorted.length);
-        c.appendChild(cardsCol);
+        if (!sorted.length) c.appendChild(makeEmpty('沒有符合條件的資料'));
       }
 
       function buildChAreaSide(c, rows, selArea, tpName) {
