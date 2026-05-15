@@ -394,6 +394,7 @@
       }
 
       /* ══ 通路視角：黑卡左半全高，小卡上下各一往右延伸，整體不捲動 ══ */
+      /* 通路視角：黑卡固定寬度在左，小卡 2 列填滿剩餘空間 */
       .col-main.ch-view {
         display: flex;
         flex-direction: row;
@@ -405,8 +406,7 @@
         box-sizing: border-box;
       }
       .ch-view-whole {
-        flex: 0 0 calc(50% - 8px);
-        min-width: 0;
+        flex: 0 0 280px;
         display: flex;
         flex-direction: column;
       }
@@ -419,25 +419,22 @@
         min-height: 0;
         overflow: hidden;
       }
-      /* 小卡區：往右排，撞右側自動換行，智能填滿空間 */
+      /* 小卡區：固定 2 列，JS 計算每張寬度填滿剩餘空間 */
       .ch-view-cards {
         flex: 1;
         min-width: 0;
-        display: flex;
-        flex-wrap: wrap;
-        align-content: flex-start;
+        display: grid;
+        grid-template-rows: 1fr 1fr;
         gap: 12px;
         overflow: hidden;
-      }
-      .ch-view-cards .big-card {
-        flex: 1 1 auto;
-        min-width: 160px;
+        align-items: stretch;
       }
       .ch-view-cards .big-card {
         padding: 10px 14px;
         gap: 6px;
         overflow: hidden;
         min-height: 0;
+        min-width: 0;
         display: flex;
         flex-direction: column;
       }
@@ -5601,25 +5598,12 @@
         }
       }
 
-      /* 依卡片數和容器寬度，智能計算每張卡的寬度
-         讓卡片剛好排滿畫面，撞右側自動換行 */
+      /* 固定 2 列，依卡片總數算出需要幾欄，用 1fr 均分寬度 */
       function setChCardsColumns(cardsCol, count) {
         if (count <= 0) return;
-        requestAnimationFrame(function() {
-          var gap = 12;
-          var containerW = cardsCol.offsetWidth;
-          if (!containerW) containerW = window.innerWidth * 0.5;
-          /* 理想每張卡最小寬度 180px，算出一排能放幾張 */
-          var perRow = Math.floor((containerW + gap) / (180 + gap));
-          if (perRow < 1) perRow = 1;
-          if (perRow > count) perRow = count;
-          var cardW = Math.floor((containerW - gap * (perRow - 1)) / perRow);
-          cardsCol.querySelectorAll('.big-card').forEach(function(el) {
-            el.style.flexBasis = cardW + 'px';
-            el.style.maxWidth  = cardW + 'px';
-            el.style.minWidth  = cardW + 'px';
-          });
-        });
+        var cols = Math.ceil(count / 2);
+        cardsCol.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
+        cardsCol.style.gridAutoFlow = 'column';
       }
 
       function buildChCards(c, rows) {
