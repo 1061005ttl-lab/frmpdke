@@ -393,26 +393,69 @@
         grid-template-columns: repeat(auto-fill, minmax(clamp(240px, 28vw, 420px), 1fr));
       }
 
+      /* ══ 通路視角：左右分欄佈局 ══
+         左欄：整體卡（豎式，固定寬度）
+         右欄：小卡 2 欄 grid，高度自適應              */
       .col-main.ch-view {
-        grid-template-columns: repeat(auto-fill, minmax(clamp(200px, 22vw, 340px), 1fr));
+        display: flex;
+        flex-direction: row;
+        align-items: flex-start;
+        gap: 16px;
+        padding: 20px 24px;
+        overflow-y: auto;
+        overflow-x: hidden;
+      }
+      .ch-view-whole {
+        flex: 0 0 calc(50% - 8px);
+        max-width: calc(50% - 8px);
+        position: sticky;
+        top: 0;
+        align-self: flex-start;
+      }
+      /* 整體卡在通路視角改為直式 */
+      .ch-view-whole .big-card.whole {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 14px;
+        min-height: unset;
+        grid-column: unset;
+      }
+      .ch-view-cards {
+        flex: 0 0 calc(50% - 8px);
+        max-width: calc(50% - 8px);
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
         align-items: start;
       }
-      /* 通路視角卡片：縮減內距，名稱不撐滿，高度由內容決定 */
-      .col-main.ch-view .big-card {
-        padding: 12px 16px;
-        gap: 7px;
+      /* 小卡在通路視角：內距縮小，高度自適應，不截內容 */
+      .ch-view-cards .big-card {
+        padding: 12px 14px;
+        gap: 6px;
         overflow: visible;
+        min-height: 0;
       }
-      .col-main.ch-view .bc-visits {
-        margin: 4px -16px -12px -16px;
+      .ch-view-cards .bc-name {
+        font-size: clamp(11px, 1.1vw, 14px);
+        white-space: normal;
+        word-break: break-all;
+        flex: 1;
+      }
+      .ch-view-cards .bc-total {
+        font-size: clamp(20px, 2.2vw, 30px);
+      }
+      .ch-view-cards .bc-st-lbl {
+        font-size: 9px;
+      }
+      .ch-view-cards .bc-st-num {
+        font-size: clamp(14px, 1.4vw, 18px);
+      }
+      .ch-view-cards .bc-visits {
+        margin: 4px -14px -12px -14px;
         border-radius: 0 0 var(--r) var(--r);
       }
-      .col-main.ch-view .bc-name {
-        font-size: clamp(12px, 1.2vw, 15px);
-        flex: 0 1 auto;
-      }
-      .col-main.ch-view .bc-total {
-        font-size: clamp(22px, 2.4vw, 32px);
+      .ch-view-cards .bc-dual {
+        margin-top: 4px;
       }
 
       .col-main.office-view {
@@ -5560,18 +5603,25 @@
       }
 
       function buildChCards(c, rows) {
-        c.appendChild(makeWholeCard('整體', rows));
+        var wholeCol = document.createElement('div');
+        wholeCol.className = 'ch-view-whole';
+        wholeCol.appendChild(makeWholeCard('整體', rows));
+        c.appendChild(wholeCol);
+
+        var cardsCol = document.createElement('div');
+        cardsCol.className = 'ch-view-cards';
         var m = groupBy(rows, 'channel');
         var lastKey = curStatuses[curStatuses.length - 1].key;
         var sorted = Object.keys(m).sort(function(a, b) {
           return (stat(m[b])[lastKey] || 0) - (stat(m[a])[lastKey] || 0);
         });
         sorted.forEach(function(k) {
-          c.appendChild(makeBigCard(k, m[k], function() {
+          cardsCol.appendChild(makeBigCard(k, m[k], function() {
             chDrillInto('ch', k);
           }, false));
         });
-        if (!sorted.length) c.appendChild(makeEmpty('沒有符合條件的資料'));
+        if (!sorted.length) cardsCol.appendChild(makeEmpty('沒有符合條件的資料'));
+        c.appendChild(cardsCol);
       }
 
       function buildChSide(c, rows, selCh) {
@@ -5591,18 +5641,25 @@
       }
 
       function buildChTypeCards(c, rows, chName) {
-        c.appendChild(makeWholeCard(chName + ' 整體', rows));
+        var wholeCol = document.createElement('div');
+        wholeCol.className = 'ch-view-whole';
+        wholeCol.appendChild(makeWholeCard(chName + ' 整體', rows));
+        c.appendChild(wholeCol);
+
+        var cardsCol = document.createElement('div');
+        cardsCol.className = 'ch-view-cards';
         var m = groupBy(rows, 'type');
         var lastKey = curStatuses[curStatuses.length - 1].key;
         var sorted = Object.keys(m).sort(function(a, b) {
           return (stat(m[b])[lastKey] || 0) - (stat(m[a])[lastKey] || 0);
         });
         sorted.forEach(function(k) {
-          c.appendChild(makeBigCard(k, m[k], function() {
+          cardsCol.appendChild(makeBigCard(k, m[k], function() {
             chDrillInto('type', k);
           }, false));
         });
-        if (!sorted.length) c.appendChild(makeEmpty('沒有符合條件的資料'));
+        if (!sorted.length) cardsCol.appendChild(makeEmpty('沒有符合條件的資料'));
+        c.appendChild(cardsCol);
       }
 
       function buildChTypeSide(c, rows, selTp, chName) {
@@ -5622,15 +5679,22 @@
       }
 
       function buildChAreaCards(c, rows, label) {
-        c.appendChild(makeWholeCard(label + ' 整體', rows));
+        var wholeCol = document.createElement('div');
+        wholeCol.className = 'ch-view-whole';
+        wholeCol.appendChild(makeWholeCard(label + ' 整體', rows));
+        c.appendChild(wholeCol);
+
+        var cardsCol = document.createElement('div');
+        cardsCol.className = 'ch-view-cards';
         var m = groupBy(rows, 'area');
         var sorted = sortArea(Object.keys(m));
         sorted.forEach(function(k) {
-          c.appendChild(makeBigCard(k, m[k], function() {
+          cardsCol.appendChild(makeBigCard(k, m[k], function() {
             chDrillInto('area', k);
           }, false));
         });
-        if (!sorted.length) c.appendChild(makeEmpty('沒有符合條件的資料'));
+        if (!sorted.length) cardsCol.appendChild(makeEmpty('沒有符合條件的資料'));
+        c.appendChild(cardsCol);
       }
 
       function buildChAreaSide(c, rows, selArea, tpName) {
