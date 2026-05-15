@@ -393,38 +393,44 @@
         grid-template-columns: repeat(auto-fill, minmax(clamp(240px, 28vw, 420px), 1fr));
       }
 
-      /* ══ 通路視角：整體卡全寬置頂，小卡 2 欄直式排列 ══ */
+      /* ══ 通路視角：黑卡左半全高，小卡右半 2 欄 ══ */
       .col-main.ch-view {
         display: flex;
-        flex-direction: column;
+        flex-direction: row;
         align-items: stretch;
         gap: 16px;
         padding: 20px 24px;
         overflow-y: auto;
         overflow-x: hidden;
+        min-height: 100%;
       }
       .ch-view-whole {
-        width: 100%;
-      }
-      /* 整體卡在通路視角：全寬橫式，保持原本深色英雄樣式 */
-      .ch-view-whole .big-card.whole {
-        grid-column: unset;
-      }
-      /* 小卡區：columns 直式蛇行（1,3,5,7 左欄 / 2,4,6 右欄） */
-      .ch-view-cards {
-        column-count: 2;
-        column-gap: 16px;
-      }
-      .ch-view-cards .big-card {
-        break-inside: avoid;
+        flex: 0 0 calc(50% - 8px);
         display: flex;
         flex-direction: column;
-        width: 100%;
-        margin-bottom: 16px;
+      }
+      /* 整體卡撐滿左欄高度 */
+      .ch-view-whole .big-card.whole {
+        flex: 1;
+        grid-column: unset;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 16px;
+        min-height: 0;
+      }
+      /* 右欄：小卡 2 欄 grid，高度自適應 */
+      .ch-view-cards {
+        flex: 0 0 calc(50% - 8px);
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 14px;
+        align-content: start;
+        align-items: start;
+      }
+      .ch-view-cards .big-card {
         padding: 14px 16px;
         gap: 8px;
         overflow: visible;
-        box-sizing: border-box;
       }
       .ch-view-cards .bc-name {
         font-size: clamp(12px, 1.2vw, 15px);
