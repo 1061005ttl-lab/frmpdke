@@ -419,16 +419,19 @@
         min-height: 0;
         overflow: hidden;
       }
-      /* 小卡區：每欄上下各 1 張，往右延伸，不捲動 */
+      /* 小卡區：往右排，撞右側自動換行，智能填滿空間 */
       .ch-view-cards {
         flex: 1;
         min-width: 0;
-        display: grid;
-        grid-template-rows: 1fr 1fr;
-        grid-auto-flow: column;
-        grid-auto-columns: minmax(160px, 1fr);
+        display: flex;
+        flex-wrap: wrap;
+        align-content: flex-start;
         gap: 12px;
         overflow: hidden;
+      }
+      .ch-view-cards .big-card {
+        flex: 1 1 auto;
+        min-width: 160px;
       }
       .ch-view-cards .big-card {
         padding: 10px 14px;
@@ -5598,11 +5601,25 @@
         }
       }
 
-      /* 依卡片數計算欄數，使所有卡片塞進 2 列不捲動 */
+      /* 依卡片數和容器寬度，智能計算每張卡的寬度
+         讓卡片剛好排滿畫面，撞右側自動換行 */
       function setChCardsColumns(cardsCol, count) {
-        var cols = Math.ceil(count / 2);
-        if (cols < 1) cols = 1;
-        cardsCol.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
+        if (count <= 0) return;
+        requestAnimationFrame(function() {
+          var gap = 12;
+          var containerW = cardsCol.offsetWidth;
+          if (!containerW) containerW = window.innerWidth * 0.5;
+          /* 理想每張卡最小寬度 180px，算出一排能放幾張 */
+          var perRow = Math.floor((containerW + gap) / (180 + gap));
+          if (perRow < 1) perRow = 1;
+          if (perRow > count) perRow = count;
+          var cardW = Math.floor((containerW - gap * (perRow - 1)) / perRow);
+          cardsCol.querySelectorAll('.big-card').forEach(function(el) {
+            el.style.flexBasis = cardW + 'px';
+            el.style.maxWidth  = cardW + 'px';
+            el.style.minWidth  = cardW + 'px';
+          });
+        });
       }
 
       function buildChCards(c, rows) {
