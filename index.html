@@ -1844,19 +1844,17 @@
         flex-wrap: nowrap;
       }
       .bc-dual-num {
-        font-size: clamp(10px, 0.95vw, 13px);
-        font-weight: 700;
+        font-size: clamp(12px, 1.3vw, 18px);
+        font-weight: 900;
         line-height: 1;
-        letter-spacing: -.2px;
+        letter-spacing: -.3px;
         white-space: nowrap;
-        opacity: .75;
       }
       .bc-dual-pct {
-        font-size: clamp(13px, 1.3vw, 18px);
-        font-weight: 900;
-        opacity: 1;
+        font-size: clamp(8px, 0.75vw, 10px);
+        font-weight: 700;
+        opacity: .8;
         white-space: nowrap;
-        letter-spacing: -.3px;
       }
       .bc-dual-row.g .bc-dual-num { color: var(--green); }
       .bc-dual-row.g .bc-dual-pct { color: var(--green); }
@@ -1910,19 +1908,17 @@
         flex-wrap: nowrap;
       }
       .wc-dual-num {
-        font-size: clamp(11px, 1.05vw, 14px);
-        font-weight: 700;
+        font-size: clamp(14px, 1.6vw, 22px);
+        font-weight: 900;
         line-height: 1;
-        letter-spacing: -.3px;
+        letter-spacing: -.5px;
         white-space: nowrap;
-        opacity: .75;
       }
       .wc-dual-pct {
-        font-size: clamp(14px, 1.5vw, 20px);
-        font-weight: 900;
-        opacity: 1;
+        font-size: clamp(9px, 0.85vw, 12px);
+        font-weight: 700;
+        opacity: .8;
         white-space: nowrap;
-        letter-spacing: -.4px;
       }
       .wc-dual-row.g .wc-dual-num { color: #5cf08a; }
       .wc-dual-row.g .wc-dual-pct { color: #5cf08a; }
@@ -3110,7 +3106,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 3.4.0 (2026-05-21)</div>
+      <div id="ver-ts">Ver. 3.3.5 (2026-04-24)</div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
     </div>
@@ -3171,18 +3167,24 @@
         cvsWeightChannel: 'CVS通路',        /* 加權通路名稱 */
         cvsWeightCap: 0.7             /* 達到此比例即視同100% */
       }, {
-        name: '特販米酒PET調查',
-        id: '1ftAAjWsibhNFjaro5ZONFfu2Ru7CmMq9VfSUArdckLc',
-        sheet: '店家名冊',
-        syncSheet: '輔助',
-        syncCell: 'B1'
-      }, {
         name: '全家巨人罐',
         id: '1v8Qs6TcyuwXviK_RiwMNdNi8toBn1iVhTnUz0IZS79A',
         sheet: '店家名冊',
         syncSheet: '輔助',
         syncCell: 'B1'
       }, {
+        name: 'CVS米酒PET商化',
+        id: '1pQPD5rMcus3WVbidbkxdp2kDwTry_y9vL-u9SC73Cds',
+        sheet: '店家名冊',
+        syncSheet: '輔助',
+        syncCell: 'B1'
+      }, {
+        name: '特販米酒PET調查',
+        id: '1ftAAjWsibhNFjaro5ZONFfu2Ru7CmMq9VfSUArdckLc',
+        sheet: '店家名冊',
+        syncSheet: '輔助',
+        syncCell: 'B1'
+      }, {        
         name: 'CVS釀酒季調查',
         id: '19QuxbkdHOknPXlA3bwN3u1E5o5R8nnSuWf-yFA0bRXY',
         sheet: '店家名冊',
@@ -3732,11 +3734,21 @@
             return keep;
           });
 
+          /* 補填空白營業所 */
+          var officeColIdx = keepHdrs.findIndex(function(h) {
+            return h === '營業所/課' || h === '營業所' || h.indexOf('營業所') >= 0;
+          });
+          if (officeColIdx >= 0) {
+            processedRows.forEach(function(r) {
+              if (!r[officeColIdx] || !r[officeColIdx].trim()) r[officeColIdx] = '行銷課';
+            });
+          }
+
           ok({
             headers: keepHdrs,
             rows: processedRows,
             statuses: statuses,
-            monthValue: monthValue   /* 傳遞月份資訊 */
+            monthValue: monthValue
           });
         }).catch(function(e) {
           console.error('fetchSheetText:', e);
@@ -3792,6 +3804,16 @@
           var keepHdrs = hdrs.filter(function(h, i) {
             return !statusColSet.has(i);
           });
+          /* 補填空白營業所 */
+          var officeColIdx = keepHdrs.findIndex(function(h) {
+            return h === '營業所/課' || h === '營業所' || h.indexOf('營業所') >= 0;
+          });
+          if (officeColIdx >= 0) {
+            processedRows.forEach(function(r) {
+              if (!r[officeColIdx] || !r[officeColIdx].trim()) r[officeColIdx] = '行銷課';
+            });
+          }
+
           ok({
             headers: keepHdrs,
             rows: processedRows,
@@ -4287,17 +4309,19 @@
           var cvWL = cv.l;
           var cvWU = cv.weighted ? 0 : cv.u;
           var cvWT = (cv.weighted ? cv.l : cv.t) || 1;
+          /* 非CVS真實欄 */
           var realCols = curStatuses.map(function(st) {
             var num = (st.key === 'l') ? nc.l : (st.key === 'u' || st.key === 'r') ? nc.u : 0;
             var rowCls = (st.cls === 'g') ? 'g' : (st.cls === 'r') ? 'r' : st.cls;
             return '<div class="wc-dual-row ' + rowCls + '"><span class="wc-dual-num">' + num + '</span><span class="wc-dual-pct">(' + pct(num, ncT) + '%)</span></div>';
           }).join('');
           var realVisits = (vd && vd.nonCvs >= 0) ? '<div class="wc-dual-visits">\uD83D\uDDD3 \u62dc\u8a2a <strong>' + vd.nonCvs + '</strong> \u6b21</div>' : '';
+          /* CVS加權欄 */
           var wCols = curStatuses.map(function(st) {
             var wNum = (st.key === 'l') ? cvWL : (st.key === 'u' || st.key === 'r') ? cvWU : 0;
             var rowCls = (st.cls === 'g') ? 'g' : (st.cls === 'r') ? 'r' : st.cls;
             var note = (st.key === 'u' && cv.weighted) ? '<span style="font-size:9px;opacity:.6;margin-left:3px;">(\u5df2\u9054\u9580\u6ebb)</span>' : '';
-            return '<div class="wc-dual-row ' + rowCls + '"><span class="wc-dual-num">' + wNum + '</span>' + note + '<span class="wc-dual-pct">(' + pct(wNum, cvWT) + '%)</span></div>';
+            return '<div class="wc-dual-row ' + rowCls + '"><span class="wc-dual-num">' + wNum + '</span><span class="wc-dual-pct">(' + pct(wNum, cvWT) + '%)' + note + '</span></div>';
           }).join('');
           var wVisits = (vd && vd.cvs >= 0) ? '<div class="wc-dual-visits">\uD83D\uDDD3 \u62dc\u8a2a <strong>' + vd.cvs + '</strong> \u6b21</div>' : '';
           var hdrL = '\uD83D\uDCCA \u975eCVS\uff08' + nc.t + '\u5bb6\uff09';
@@ -4307,6 +4331,7 @@
             '<div class="wc-dual-col weighted"><div class="wc-dual-hdr">' + hdrR + '</div>' + wCols + wVisits + '</div>' +
           '</div>';
         }
+
         el.innerHTML = '<div class="wc-left"><div class="wc-label">' + esc(name) + '</div><div class="wc-total">' + s.t + '</div></div>' +
           '<div class="wc-divider"></div>' +
           '<div class="wc-right">' +
@@ -4398,7 +4423,7 @@
         var el = document.createElement('div');
         el.className = 'mini-card' + (isSel ? ' sel' : '');
         el.innerHTML = '<div class="mc-top"><span class="mc-name">' + esc(name) + '</span><span class="mc-total">' + s.t + '</span></div>' + '<div class="mc-bar">' + segs(s) + '</div>' + '<div class="mc-sts">' + curStatuses.map(function(st) {
-          return '<span class="mc-s ' + st.cls + '">' + esc(st.emoji) + ' ' + pct(s[st.key] || 0, s.t || 1) + '%</span>';
+          return '<span class="mc-s ' + st.cls + '">' + esc(st.emoji) + (s[st.key] || 0) + '</span>';
         }).join('') + '</div>';
         el.addEventListener('click', onClick);
         return el;
@@ -4620,7 +4645,7 @@
           '<div class="sh-name">\uD83D\uDC64 ' + esc(trimName(staffName)) + '</div>' +
           '<div class="sh-stats">' +
             curStatuses.map(function(st) {
-              return '<span class="sh-s ' + st.cls + '">' + esc(st.emoji) + ' ' + esc(st.labelShort) + ' <strong>' + pct(s[st.key]||0, s.t||1) + '%</strong> (' + (s[st.key]||0) + ')</span>';
+              return '<span class="sh-s ' + st.cls + '">' + esc(st.emoji) + ' ' + (s[st.key] || 0) + ' (' + pct(s[st.key]||0, s.t||1) + '%)</span>';
             }).join('') +
           '</div>' +
           shDualHtml +
