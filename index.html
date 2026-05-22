@@ -869,14 +869,14 @@
       .wc-stats {
         display: flex;
         gap: 0;
-        flex-wrap: nowrap;
+        flex-wrap: wrap;
+        align-items: center;
       }
 
       .wc-st {
-        flex: 1;
-        padding: 4px 10px;
+        padding: 4px 12px;
         border-right: 1px solid rgba(255, 255, 255, .08);
-        min-width: 0;
+        flex-shrink: 0;
       }
 
       .wc-st:last-child {
@@ -884,37 +884,34 @@
       }
 
       .wc-st-lbl {
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 700;
         letter-spacing: .3px;
         color: rgba(255, 255, 255, .55);
-        margin-bottom: 4px;
+        margin-bottom: 3px;
         white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
       }
 
       .wc-st-row {
         display: flex;
         flex-direction: row;
         align-items: baseline;
-        gap: 5px;
+        gap: 4px;
         flex-wrap: nowrap;
       }
 
       .wc-st-pct {
-        font-size: 28px;
+        font-size: 22px;
         font-weight: 900;
         line-height: 1;
-        letter-spacing: -1px;
         white-space: nowrap;
       }
 
       .wc-st-num {
-        font-size: 16px;
+        font-size: 22px;
         font-weight: 700;
         white-space: nowrap;
-        opacity: .75;
+        opacity: .85;
       }
 
       .wc-st.g .wc-st-num {
@@ -1063,10 +1060,10 @@
         position: relative;
         display: flex;
         flex-direction: column;
-        gap: 10px;
+        gap: 8px;
         transition: border-color .2s, box-shadow .2s, transform .22s var(--ease);
         animation: cardPop .34s var(--ease) both;
-        padding: 16px 20px;
+        padding: 14px 16px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, .05), 0 1px 0 rgba(255, 255, 255, .9) inset;
       }
 
@@ -1102,8 +1099,9 @@
       .bc-head {
         display: flex;
         justify-content: space-between;
-        align-items: flex-start;
-        gap: 8px;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
       }
 
       .bc-name {
@@ -1118,11 +1116,11 @@
       }
 
       .bc-total {
-        font-size: clamp(26px, 3vw, 38px);
+        font-size: clamp(22px, 2.5vw, 32px);
         font-weight: 900;
         color: var(--primary-d);
         line-height: 1;
-        letter-spacing: -2px;
+        letter-spacing: -1.5px;
         flex-shrink: 0;
       }
 
@@ -1133,32 +1131,63 @@
         overflow: hidden;
         display: flex;
         width: 100%;
+        margin-top: 4px;
       }
 
-      /* ══ 統計格：動態欄數 ══ */
+      /* ══ 統計格：行內橫排 ══ */
       .bc-stats {
-        display: grid;
-        gap: 1px;
-        background: rgba(0, 0, 0, .05);
-        border-radius: 8px;
-        overflow: hidden;
+        display: none; /* 已改為行內顯示 */
       }
 
-      .bc-stats.cols-2 {
-        grid-template-columns: repeat(2, 1fr);
+      /* 行內統計列 */
+      .bc-inline-stats {
+        display: flex;
+        gap: 12px;
+        align-items: baseline;
+        flex-wrap: wrap;
       }
 
-      .bc-stats.cols-3 {
-        grid-template-columns: repeat(3, 1fr);
+      .bc-inline-st {
+        display: flex;
+        align-items: baseline;
+        gap: 3px;
+        white-space: nowrap;
+        flex-shrink: 0;
       }
 
-      .bc-stats.cols-4 {
-        grid-template-columns: repeat(4, 1fr);
+      .bc-inline-lbl {
+        font-size: clamp(9px, 0.85vw, 11px);
+        font-weight: 700;
+        margin-right: 2px;
       }
 
-      .bc-stats.cols-5 {
-        grid-template-columns: repeat(5, 1fr);
+      .bc-inline-pct {
+        font-size: clamp(13px, 1.4vw, 18px);
+        font-weight: 900;
       }
+
+      .bc-inline-num {
+        font-size: clamp(13px, 1.4vw, 18px);
+        font-weight: 700;
+        opacity: .85;
+      }
+
+      /* bc-inline 顏色 */
+      .bc-inline-st.g .bc-inline-lbl,
+      .bc-inline-st.g .bc-inline-pct,
+      .bc-inline-st.g .bc-inline-num { color: var(--green); }
+      .bc-inline-st.y .bc-inline-lbl,
+      .bc-inline-st.y .bc-inline-pct,
+      .bc-inline-st.y .bc-inline-num { color: var(--yellow); }
+      .bc-inline-st.r .bc-inline-lbl,
+      .bc-inline-st.r .bc-inline-pct,
+      .bc-inline-st.r .bc-inline-num { color: var(--red); }
+      .bc-inline-st.p .bc-inline-lbl,
+      .bc-inline-st.p .bc-inline-pct,
+      .bc-inline-st.p .bc-inline-num { color: var(--purple); }
+      .bc-inline-st.o .bc-inline-lbl,
+      .bc-inline-st.o .bc-inline-pct,
+      .bc-inline-st.o .bc-inline-num { color: var(--orange); }
 
       .bc-st {
         padding: 6px 7px;
@@ -1221,22 +1250,21 @@
         display: flex;
         flex-direction: row;
         align-items: baseline;
-        gap: 4px;
+        gap: 3px;
         flex-wrap: nowrap;
       }
 
       .bc-st-pct {
-        font-size: clamp(14px, 1.6vw, 22px);
+        font-size: clamp(12px, 1.3vw, 18px);
         font-weight: 900;
         line-height: 1.1;
-        letter-spacing: -.5px;
         white-space: nowrap;
       }
 
       .bc-st-num {
-        font-size: clamp(9px, 0.85vw, 12px);
+        font-size: clamp(12px, 1.3vw, 18px);
         font-weight: 700;
-        opacity: .75;
+        opacity: .85;
         white-space: nowrap;
       }
 
@@ -1435,6 +1463,7 @@
         overflow: hidden;
         display: flex;
         flex-direction: column;
+        gap: 0;
         transition: border-color .18s, box-shadow .18s, transform .18s;
         animation: cardPop .32s var(--ease) both;
         box-shadow: 0 2px 8px rgba(0, 0, 0, .05), 0 1px 0 rgba(255, 255, 255, .9) inset;
@@ -1451,36 +1480,35 @@
       }
 
       .sc-head {
-        padding: 11px 12px 8px;
+        padding: 10px 12px 8px;
         display: flex;
         justify-content: space-between;
-        align-items: flex-start;
-        gap: 6px;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
       }
 
       .sc-name {
-        font-size: clamp(11px, 1.1vw, 14px);
+        font-size: clamp(14px, 1.5vw, 20px);
         font-weight: 900;
         color: var(--text);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        flex: 1;
-        min-width: 0;
+        flex-shrink: 0;
       }
 
       .sc-corner {
         text-align: right;
         flex-shrink: 0;
-        margin-left: 4px;
       }
 
       .sc-corner-num {
-        font-size: clamp(20px, 2.4vw, 30px);
+        font-size: clamp(18px, 2vw, 26px);
         font-weight: 900;
         color: var(--primary-d);
         line-height: 1;
-        letter-spacing: -1.5px;
+        letter-spacing: -1px;
         display: block;
       }
 
@@ -1493,11 +1521,9 @@
         white-space: nowrap;
       }
 
-      /* 人員卡統計格：動態欄數 */
+      /* 人員卡統計格：改為行內 */
       .sc-stats {
-        display: grid;
-        gap: 0;
-        border-top: 1px solid rgba(0, 0, 0, .06);
+        display: none;
       }
 
       .sc-stats.cols-2 {
@@ -1553,25 +1579,24 @@
         display: flex;
         flex-direction: row;
         align-items: baseline;
-        gap: 4px;
+        gap: 3px;
         flex-wrap: nowrap;
         overflow: hidden;
         white-space: nowrap;
       }
 
       .sc-st-pct {
-        font-size: 17px;
+        font-size: 15px;
         font-weight: 900;
         line-height: 1;
-        letter-spacing: -.5px;
         white-space: nowrap;
         flex-shrink: 0;
       }
 
       .sc-st-num {
-        font-size: 11px;
+        font-size: 15px;
         font-weight: 700;
-        opacity: .75;
+        opacity: .85;
         white-space: nowrap;
         flex-shrink: 0;
       }
@@ -1615,6 +1640,58 @@
       .sc-st.r .sc-st-pct {
         color: var(--red);
       }
+
+      /* 人員卡行內統計 */
+      .sc-inline-stats {
+        display: flex;
+        gap: 10px;
+        align-items: baseline;
+        flex-wrap: wrap;
+        flex: 1;
+        min-width: 0;
+      }
+
+      .sc-inline-st {
+        display: flex;
+        align-items: baseline;
+        gap: 3px;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+
+      .sc-inline-lbl {
+        font-size: clamp(9px, 0.85vw, 11px);
+        font-weight: 700;
+        margin-right: 2px;
+      }
+
+      .sc-inline-pct {
+        font-size: 15px;
+        font-weight: 900;
+      }
+
+      .sc-inline-num {
+        font-size: 15px;
+        font-weight: 700;
+        opacity: .85;
+      }
+
+      /* sc-inline 顏色 */
+      .sc-inline-st.g .sc-inline-lbl,
+      .sc-inline-st.g .sc-inline-pct,
+      .sc-inline-st.g .sc-inline-num { color: var(--green); }
+      .sc-inline-st.y .sc-inline-lbl,
+      .sc-inline-st.y .sc-inline-pct,
+      .sc-inline-st.y .sc-inline-num { color: var(--yellow); }
+      .sc-inline-st.r .sc-inline-lbl,
+      .sc-inline-st.r .sc-inline-pct,
+      .sc-inline-st.r .sc-inline-num { color: var(--red); }
+      .sc-inline-st.p .sc-inline-lbl,
+      .sc-inline-st.p .sc-inline-pct,
+      .sc-inline-st.p .sc-inline-num { color: var(--purple); }
+      .sc-inline-st.o .sc-inline-lbl,
+      .sc-inline-st.o .sc-inline-pct,
+      .sc-inline-st.o .sc-inline-num { color: var(--orange); }
 
       .sc-bar {
         height: 5px;
@@ -1875,16 +1952,15 @@
         flex-wrap: nowrap;
       }
       .bc-dual-pct {
-        font-size: clamp(12px, 1.3vw, 18px);
+        font-size: clamp(11px, 1.1vw, 15px);
         font-weight: 900;
         line-height: 1;
-        letter-spacing: -.3px;
         white-space: nowrap;
       }
       .bc-dual-num {
-        font-size: clamp(9px, 0.75vw, 11px);
+        font-size: clamp(11px, 1.1vw, 15px);
         font-weight: 700;
-        opacity: .75;
+        opacity: .85;
         white-space: nowrap;
       }
       .bc-dual-row.g .bc-dual-num { color: var(--green); }
@@ -1939,16 +2015,15 @@
         flex-wrap: nowrap;
       }
       .wc-dual-pct {
-        font-size: clamp(14px, 1.6vw, 22px);
+        font-size: clamp(12px, 1.2vw, 17px);
         font-weight: 900;
         line-height: 1;
-        letter-spacing: -.5px;
         white-space: nowrap;
       }
       .wc-dual-num {
-        font-size: clamp(10px, 0.85vw, 13px);
+        font-size: clamp(12px, 1.2vw, 17px);
         font-weight: 700;
-        opacity: .75;
+        opacity: .85;
         white-space: nowrap;
       }
       .wc-dual-row.g .wc-dual-num { color: #5cf08a; }
@@ -2687,9 +2762,10 @@
           display: flex !important;
           flex-direction: row !important;
           justify-content: space-between !important;
-          align-items: baseline !important;
-          gap: 8px !important;
-          margin-bottom: 5px !important;
+          align-items: center !important;
+          gap: 6px !important;
+          flex-wrap: wrap !important;
+          margin-bottom: 4px !important;
         }
 
         .bc-name {
@@ -2717,59 +2793,18 @@
         }
 
         .bc-stats {
+          display: none !important;
+        }
+
+        .bc-inline-stats {
           display: flex !important;
-          flex-direction: row !important;
-          gap: 0 !important;
-          background: transparent !important;
-          border-radius: 0 !important;
-          overflow: visible !important;
+          gap: 8px !important;
+          flex-wrap: wrap !important;
         }
 
-        .bc-st {
-          flex: 1 !important;
-          display: flex !important;
-          flex-direction: row !important;
-          align-items: baseline !important;
-          gap: 3px !important;
-          padding: 0 8px 0 0 !important;
-          background: transparent !important;
-          overflow: visible !important;
-          min-width: 0 !important;
-        }
-
-        .bc-st:last-child {
-          padding-right: 0 !important;
-        }
-
-        .bc-st-lbl {
-          font-size: 10px !important;
-          font-weight: 600 !important;
-          flex-shrink: 0 !important;
-          white-space: nowrap !important;
-        }
-
-        .bc-st-row {
-          display: flex !important;
-          flex-direction: row !important;
-          align-items: baseline !important;
-          gap: 2px !important;
-          flex-wrap: nowrap !important;
-        }
-
-        .bc-st-pct {
-          font-size: 14px !important;
-          font-weight: 900 !important;
-          line-height: 1 !important;
-        }
-
-        .bc-st-num {
-          font-size: 10px !important;
-          font-weight: 700 !important;
-          opacity: .75 !important;
-        }
-
-        .bc-st.r .bc-st-num {
-          font-size: 16px !important;
+        .bc-inline-pct,
+        .bc-inline-num {
+          font-size: 13px !important;
         }
 
         .staff-summary {
@@ -2833,14 +2868,16 @@
           display: flex !important;
           flex-direction: row !important;
           justify-content: space-between !important;
-          align-items: baseline !important;
+          align-items: center !important;
+          flex-wrap: wrap !important;
           padding: 0 !important;
-          margin-bottom: 5px !important;
+          gap: 6px !important;
+          margin-bottom: 4px !important;
         }
 
         .sc-name {
-          font-size: 15px !important;
-          font-weight: 800 !important;
+          font-size: 18px !important;
+          font-weight: 900 !important;
         }
 
         .sc-corner-num {
@@ -2863,48 +2900,18 @@
         }
 
         .sc-stats {
+          display: none !important;
+        }
+
+        .sc-inline-stats {
           display: flex !important;
-          flex-direction: row !important;
-          gap: 0 !important;
+          gap: 8px !important;
+          flex-wrap: wrap !important;
         }
 
-        .sc-st {
-          flex: 1 !important;
-          display: flex !important;
-          flex-direction: row !important;
-          align-items: baseline !important;
-          gap: 3px !important;
-          padding: 0 8px 0 0 !important;
-          background: transparent !important;
-          border: none !important;
-          overflow: visible !important;
-          min-width: 0 !important;
-        }
-
-        .sc-st:last-child {
-          padding-right: 0 !important;
-        }
-
-        .sc-st-lbl {
-          font-size: 10px !important;
-          font-weight: 600 !important;
-          flex-shrink: 0;
-        }
-
-        .sc-st-pct {
-          font-size: 14px !important;
-          font-weight: 900 !important;
-          line-height: 1 !important;
-        }
-
-        .sc-st-num {
-          font-size: 10px !important;
-          font-weight: 700 !important;
-          opacity: .75 !important;
-        }
-
-        .sc-st.r .sc-st-num {
-          font-size: 16px !important;
+        .sc-inline-pct,
+        .sc-inline-num {
+          font-size: 13px !important;
         }
 
         .store-header {
@@ -4265,8 +4272,10 @@
               curStatuses.map(function(st) {
                 var realNum = s[st.key] || 0;
                 var realPct = pct(realNum, t);
-                return '<div class="wc-st ' + st.cls + '"><div class="wc-st-lbl">' + esc(st.label) + '</div>' +
-                  '<div class="wc-st-row"><span class="wc-st-pct">' + realPct + '%</span><span class="wc-st-num">(' + realNum + ')</span></div></div>';
+                return '<div class="wc-st ' + st.cls + '">' +
+                  '<div class="wc-st-lbl">' + esc(st.label) + '</div>' +
+                  '<div class="wc-st-row"><span class="wc-st-pct">' + realPct + '%</span><span class="wc-st-num">(' + realNum + ')</span></div>' +
+                  '</div>';
               }).join('') +
             '</div>' +
             dualHtml +
@@ -4284,16 +4293,14 @@
         var ww = statWeighted(rows);
         var vd = visitsWeightedDetail(rows);
 
-        el.innerHTML = '<div class="bc-head"><div class="bc-name">' + esc(name) + '</div><div class="bc-total">' + s.t + '</div></div>' +
-          '<div class="bc-track">' + segs(s) + '</div>' +
-          '<div class="bc-stats ' + colsClass(n) + '">' +
-            curStatuses.map(function(st) {
-              return '<div class="bc-st ' + st.cls + '">' +
-                '<div class="bc-st-lbl">' + esc(st.label) + '</div>' +
-                '<div class="bc-st-row"><span class="bc-st-pct">' + pct(s[st.key] || 0, t) + '%</span>' +
-                '<span class="bc-st-num">(' + (s[st.key] || 0) + ')</span></div></div>';
-            }).join('') +
-          '</div>';
+        var inlineStats = '<div class="bc-inline-stats">' +
+          curStatuses.map(function(st) {
+            return '<span class="bc-inline-st ' + st.cls + '"><span class="bc-inline-lbl">' + esc(st.label) + '</span>' +
+              '<span class="bc-inline-pct">' + pct(s[st.key] || 0, t) + '%</span>' +
+              '<span class="bc-inline-num">(' + (s[st.key] || 0) + ')</span></span>';
+          }).join('') + '</div>';
+        el.innerHTML = '<div class="bc-head"><div class="bc-name">' + esc(name) + '</div><div class="bc-total">' + s.t + '</div>' + inlineStats + '</div>' +
+          '<div class="bc-track">' + segs(s) + '</div>';
 
         var sbc2 = statByChannel(rows);
         var hasBothChannels = sbc2 && sbc2.cvs.t > 0;
@@ -4494,18 +4501,18 @@
             dualCardHtml = '<div class="bc-dual sc-dual"><div class="bc-dual-col real"><div class="bc-dual-hdr">' + hCL + '</div>' + cRealCols + '</div>' +
               '<div class="bc-dual-col weighted"><div class="bc-dual-hdr">' + hCR + '</div>' + cWCols + '</div></div>';
           }
+          var scInlineStats = '<div class="sc-inline-stats">' +
+            curStatuses.map(function(st) {
+              return '<span class="sc-inline-st ' + st.cls + '"><span class="sc-inline-lbl">' + esc(st.labelShort) + '</span>' +
+                '<span class="sc-inline-pct">' + pct(s[st.key] || 0, t) + '%</span>' +
+                '<span class="sc-inline-num">(' + (s[st.key] || 0) + ')</span></span>';
+            }).join('') + '</div>';
           card.innerHTML = '<div class="sc-head">' +
             '<div class="sc-name">\uD83D\uDC64 ' + esc(trimName(k)) + '</div>' +
+            scInlineStats +
             '<div class="sc-corner"><span class="sc-corner-num">' + s.t + '</span><span class="sc-corner-pct">\u4f54\u6240' + pct(s.t, tt) + '%</span>' +
             (CI['visits'] >= 0 ? '<span class="sc-visits">\uD83D\uDDD3' + visitsSum(sr) + '\u6b21</span>' : '') +
             '</div>' +
-            '</div>' +
-            '<div class="sc-stats ' + colsClass(n) + '">' +
-              curStatuses.map(function(st) {
-                return '<div class="sc-st ' + st.cls + '"><div class="sc-st-lbl">' + esc(st.labelShort) + '</div>' +
-                  '<div class="sc-st-row"><span class="sc-st-pct">' + pct(s[st.key] || 0, t) + '%</span>' +
-                  '<span class="sc-st-num">(' + (s[st.key] || 0) + ')</span></div></div>';
-              }).join('') +
             '</div>' +
             '<div class="sc-bar">' +
               curStatuses.map(function(st) {
