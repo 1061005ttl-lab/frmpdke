@@ -1203,9 +1203,13 @@
         opacity: .8;
       }
 
-      /* 數量為0的狀態框：隱藏，不佔空間 */
+      /* 數量為0的狀態框：保留位置但淡出，不影響排版 */
       .bc-inline-st.bc-st-zero {
-        display: none !important;
+        opacity: 0.28;
+        filter: grayscale(0.6);
+      }
+      .bc-inline-st.bc-st-zero .bc-inline-pct {
+        font-size: clamp(11px, 1.1vw, 15px);
       }
 
       /* bc-inline 顏色 + 框 */
@@ -1713,63 +1717,97 @@
         color: var(--red);
       }
 
-      /* 人員卡行內統計 */
+      /* 人員卡行內統計 — 同 bc-inline-stats 框式 */
       .sc-inline-stats {
         display: flex;
-        gap: 10px;
-        align-items: baseline;
+        gap: 5px;
+        align-items: stretch;
         flex-wrap: wrap;
         flex: 1;
         min-width: 0;
+        margin-top: 4px;
       }
 
       .sc-inline-st {
         display: flex;
-        align-items: baseline;
-        gap: 3px;
+        flex-direction: column;
+        align-items: center;
+        gap: 1px;
+        padding: 4px 7px 5px;
+        border-radius: 7px;
+        border: 1px solid transparent;
+        flex: 1;
+        min-width: 0;
         white-space: nowrap;
-        flex-shrink: 0;
+      }
+
+      .sc-inline-st.sc-st-zero {
+        opacity: 0.28;
+        filter: grayscale(0.6);
       }
 
       .sc-inline-lbl {
-        font-size: clamp(9px, 0.85vw, 11px);
-        font-weight: 700;
-        margin-right: 2px;
+        font-size: clamp(8px, 0.75vw, 10px);
+        font-weight: 800;
+        letter-spacing: .2px;
+        line-height: 1.2;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+      }
+
+      .sc-inline-num-row {
+        display: flex;
+        align-items: baseline;
+        gap: 2px;
+        white-space: nowrap;
       }
 
       .sc-inline-pct {
-        font-size: 15px;
+        font-size: clamp(13px, 1.3vw, 17px);
         font-weight: 900;
+        line-height: 1;
       }
 
       .sc-inline-num {
-        font-size: 15px;
+        font-size: clamp(10px, 0.95vw, 13px);
         font-weight: 700;
-        opacity: .85;
+        opacity: .8;
       }
 
-      /* sc-inline 顏色 */
-      .sc-inline-st.g .sc-inline-lbl,
+      /* sc-inline 顏色 + 框 */
+      .sc-inline-st.g { background: var(--green-bg); border-color: var(--green-bd); }
+      .sc-inline-st.g .sc-inline-lbl { color: #1e6e35; }
       .sc-inline-st.g .sc-inline-pct,
       .sc-inline-st.g .sc-inline-num { color: var(--green); }
-      .sc-inline-st.y .sc-inline-lbl,
+
+      .sc-inline-st.y { background: var(--yellow-bg); border-color: var(--yellow-bd); }
+      .sc-inline-st.y .sc-inline-lbl { color: #7a5500; }
       .sc-inline-st.y .sc-inline-pct,
       .sc-inline-st.y .sc-inline-num { color: var(--yellow); }
-      .sc-inline-st.r .sc-inline-lbl,
+
+      .sc-inline-st.r { background: var(--red-bg); border-color: var(--red-bd); }
+      .sc-inline-st.r .sc-inline-lbl { color: #922018; }
       .sc-inline-st.r .sc-inline-pct,
       .sc-inline-st.r .sc-inline-num { color: var(--red); }
-      .sc-inline-st.p .sc-inline-lbl,
+
+      .sc-inline-st.p { background: var(--purple-bg); border-color: var(--purple-bd); }
+      .sc-inline-st.p .sc-inline-lbl { color: #5b21b6; }
       .sc-inline-st.p .sc-inline-pct,
       .sc-inline-st.p .sc-inline-num { color: var(--purple); }
-      .sc-inline-st.o .sc-inline-lbl,
+
+      .sc-inline-st.o { background: var(--orange-bg); border-color: var(--orange-bd); }
+      .sc-inline-st.o .sc-inline-lbl { color: #92400e; }
       .sc-inline-st.o .sc-inline-pct,
       .sc-inline-st.o .sc-inline-num { color: var(--orange); }
 
       .sc-bar {
-        height: 5px;
+        height: 6px;
         width: 100%;
         flex-shrink: 0;
         display: flex;
+        margin-top: 6px;
       }
 
       .sc-bar-g {
@@ -2010,7 +2048,8 @@
         padding: 5px 8px;
         white-space: nowrap;
         flex-shrink: 0;
-        min-width: 88px;
+        width: 108px;
+        min-width: 108px;
         display: flex;
         align-items: center;
         gap: 4px;
@@ -2109,7 +2148,8 @@
         padding: 5px 8px;
         white-space: nowrap;
         flex-shrink: 0;
-        min-width: 88px;
+        width: 108px;
+        min-width: 108px;
         display: flex;
         align-items: center;
         gap: 4px;
@@ -2166,6 +2206,16 @@
         color: #a8c4f8;
         margin-left: 2px;
         white-space: nowrap; flex-shrink: 0;
+      }
+
+      /* bc-tri 在人員卡中的微調 */
+      .staff-card .bc-tri {
+        margin: 4px 0 0;
+      }
+      .staff-card .bc-tri-hdr {
+        font-size: 9.5px;
+        width: 100px;
+        min-width: 100px;
       }
 
       /* ══ 雙欄對比列（真實 vs 加權）已棄用，保留備用 ══ */
@@ -4400,10 +4450,6 @@
           }
 
           dualHtml = '<div class="wc-tri">' +
-            '<div class="wc-tri-row total">' +
-              '<div class="wc-tri-hdr">📊 總體（' + s.t + '家）' + wTotalVisits + '</div>' +
-              '<div class="wc-tri-cells">' + wcTriCells('total', t, false) + '</div>' +
-            '</div>' +
             '<div class="wc-tri-row noncvs">' +
               '<div class="wc-tri-hdr">📋 非CVS（' + nc.t + '家）' + wNcVisits + '</div>' +
               '<div class="wc-tri-cells">' + wcTriCells('nc', ncT, false) + '</div>' +
@@ -4423,7 +4469,6 @@
               curStatuses.map(function(st) {
                 var realNum = s[st.key] || 0;
                 var realPct = pct(realNum, t);
-                if (realNum === 0) return '';
                 return '<div class="wc-st ' + st.cls + '">' +
                   '<div class="wc-st-lbl">' + esc(st.label) + '</div>' +
                   '<div class="wc-st-row"><span class="wc-st-pct">' + realPct + '%</span><span class="wc-st-num">(' + realNum + ')</span></div>' +
@@ -4497,10 +4542,6 @@
           var triEl = document.createElement('div');
           triEl.className = 'bc-tri';
           triEl.innerHTML =
-            '<div class="bc-tri-row total">' +
-              '<div class="bc-tri-hdr">📊 總體（' + s.t + '家）' + totalVisitsHtml + '</div>' +
-              '<div class="bc-tri-cells">' + triCells('total', t, false, false) + '</div>' +
-            '</div>' +
             '<div class="bc-tri-row noncvs">' +
               '<div class="bc-tri-hdr">📋 非CVS（' + nc.t + '家）' + ncVisitsHtml + '</div>' +
               '<div class="bc-tri-cells">' + triCells(nc, ncT, false, false) + '</div>' +
@@ -4663,42 +4704,54 @@
             var ncCT = ncC.t || 1;
             var cvCWL = cvC.l, cvCWU = cvC.weighted ? 0 : cvC.u;
             var cvCWT = (cvC.weighted ? cvC.l : cvC.t) || 1;
-            var hCL = '\uD83D\uDCCA \u975eCVS\uff08' + ncC.t + '\u5bb6\uff09';
-            var hCR = '\u2696\uFE0F CVS\uff08' + cvC.t + '\u5bb6' + (cvC.weighted ? '\u2714\uFE0F' : '') + '\uff09';
-            var cRealCols = curStatuses.map(function(st) {
+            var vdC = visitsWeightedDetail(sr);
+            var scNcVisits = (vdC && vdC.nonCvs >= 0) ? '<span class="bc-tri-visits">🗓' + vdC.nonCvs + '次</span>' : '';
+            var scCvVisits = (vdC && vdC.cvs >= 0) ? '<span class="bc-tri-visits">🗓' + vdC.cvs + '次</span>' : '';
+
+            var scNcCells = curStatuses.map(function(st) {
               var num = (st.key === 'l') ? ncC.l : (st.key === 'u' || st.key === 'r') ? ncC.u : 0;
-              var rowCls = (st.cls === 'g') ? 'g' : (st.cls === 'r') ? 'r' : st.cls;
-              return '<div class="bc-dual-row ' + rowCls + '"><span class="bc-dual-pct">' + pct(num, ncCT) + '%</span><span class="bc-dual-num">(' + num + ')</span></div>';
+              return '<div class="bc-tri-cell ' + st.cls + '"><span class="bc-tri-pct">' + pct(num, ncCT) + '%</span><span class="bc-tri-num">(' + num + ')</span></div>';
             }).join('');
-            var cWCols = curStatuses.map(function(st) {
+            var scCvCells = curStatuses.map(function(st) {
               var num = (st.key === 'l') ? cvCWL : (st.key === 'u' || st.key === 'r') ? cvCWU : 0;
-              var rowCls = (st.cls === 'g') ? 'g' : (st.cls === 'r') ? 'r' : st.cls;
-              var note = (st.key === 'u' && cvC.weighted) ? '<span style="font-size:8px;opacity:.55;margin-left:2px;">(\u9054\u6a19)</span>' : '';
-              return '<div class="bc-dual-row ' + rowCls + '"><span class="bc-dual-pct">' + pct(num, cvCWT) + '%</span><span class="bc-dual-num">(' + num + ')' + note + '</span></div>';
+              var noteHtml = (cvC.weighted && st.key === 'u') ? '<span class="bc-tri-tag">達標</span>' : '';
+              return '<div class="bc-tri-cell ' + st.cls + '"><span class="bc-tri-pct">' + pct(num, cvCWT) + '%</span><span class="bc-tri-num">(' + num + ')</span>' + noteHtml + '</div>';
             }).join('');
-            dualCardHtml = '<div class="bc-dual sc-dual"><div class="bc-dual-col real"><div class="bc-dual-hdr">' + hCL + '</div>' + cRealCols + '</div>' +
-              '<div class="bc-dual-col weighted"><div class="bc-dual-hdr">' + hCR + '</div>' + cWCols + '</div></div>';
+
+            dualCardHtml = '<div class="bc-tri">' +
+              '<div class="bc-tri-row noncvs">' +
+                '<div class="bc-tri-hdr">📋 非CVS（' + ncC.t + '家）' + scNcVisits + '</div>' +
+                '<div class="bc-tri-cells">' + scNcCells + '</div>' +
+              '</div>' +
+              '<div class="bc-tri-row cvs">' +
+                '<div class="bc-tri-hdr">⚖️ CVS（' + cvC.t + '家）' + scCvVisits + '</div>' +
+                '<div class="bc-tri-cells">' + scCvCells + '</div>' +
+              '</div>' +
+            '</div>';
           }
           var scInlineStats = '<div class="sc-inline-stats">' +
             curStatuses.map(function(st) {
-              return '<span class="sc-inline-st ' + st.cls + '"><span class="sc-inline-lbl">' + esc(st.labelShort) + '</span>' +
-                '<span class="sc-inline-pct">' + pct(s[st.key] || 0, t) + '%</span>' +
-                '<span class="sc-inline-num">(' + (s[st.key] || 0) + ')</span></span>';
+              var num = s[st.key] || 0;
+              var zeroClass = num === 0 ? ' sc-st-zero' : '';
+              return '<span class="sc-inline-st ' + st.cls + zeroClass + '">' +
+                '<span class="sc-inline-lbl">' + esc(st.labelShort) + '</span>' +
+                '<span class="sc-inline-num-row"><span class="sc-inline-pct">' + pct(num, t) + '%</span>' +
+                '<span class="sc-inline-num">(' + num + ')</span></span></span>';
             }).join('') + '</div>';
           card.innerHTML = '<div class="sc-head">' +
             '<div class="sc-name">\uD83D\uDC64 ' + esc(trimName(k)) + '</div>' +
-            scInlineStats +
             '<div class="sc-corner"><span class="sc-corner-num">' + s.t + '</span><span class="sc-corner-pct">\u4f54\u6240' + pct(s.t, tt) + '%</span>' +
             (CI['visits'] >= 0 ? '<span class="sc-visits">\uD83D\uDDD3' + visitsSum(sr) + '\u6b21</span>' : '') +
             '</div>' +
             '</div>' +
+            scInlineStats +
+            dualCardHtml +
             '<div class="sc-bar">' +
               curStatuses.map(function(st) {
                 var v = s[st.key] || 0;
                 return v ? '<div class="sc-bar-' + st.cls + '" style="flex:' + v + '"></div>' : '';
               }).join('') +
-            '</div>' +
-            dualCardHtml;
+            '</div>';
           card.addEventListener('click', function() { drillInto('staff', k); });
           c.appendChild(card);
         });
