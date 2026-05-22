@@ -1203,6 +1203,11 @@
         opacity: .8;
       }
 
+      /* 數量為0的狀態框：隱藏，不佔空間 */
+      .bc-inline-st.bc-st-zero {
+        display: none !important;
+      }
+
       /* bc-inline 顏色 + 框 */
       .bc-inline-st.g {
         background: var(--green-bg);
@@ -1983,132 +1988,193 @@
         white-space: nowrap;
       }
 
-      /* ══ 雙欄對比列（真實 vs 加權） ══ */
-      .bc-dual {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 1px;
-        background: rgba(0,0,0,.06);
-        border-radius: 9px;
-        overflow: hidden;
-        margin-top: 2px;
-      }
-      .bc-dual-col {
-        padding: 7px 10px 8px;
+      /* ══ 三層橫向對比列（總體→非CVS→CVS） ══ */
+      .bc-tri {
         display: flex;
         flex-direction: column;
-        gap: 4px;
-        background: #fff;
-      }
-      .bc-dual-col.real { background: #f8faf9; }
-      .bc-dual-col.weighted { background: #f0f5ff; }
-      .bc-dual-hdr {
-        font-size: 9px;
-        font-weight: 900;
-        letter-spacing: .6px;
-        text-transform: uppercase;
-        margin-bottom: 2px;
-        white-space: nowrap;
-      }
-      .bc-dual-col.real .bc-dual-hdr { color: #5a7a60; }
-      .bc-dual-col.weighted .bc-dual-hdr { color: #3a60aa; }
-      .bc-dual-row {
-        display: flex;
-        align-items: baseline;
         gap: 3px;
-        flex-wrap: nowrap;
-      }
-      .bc-dual-pct {
-        font-size: clamp(11px, 1.1vw, 15px);
-        font-weight: 900;
-        line-height: 1;
-        white-space: nowrap;
-      }
-      .bc-dual-num {
-        font-size: clamp(11px, 1.1vw, 15px);
-        font-weight: 700;
-        opacity: .85;
-        white-space: nowrap;
-      }
-      .bc-dual-row.g .bc-dual-num { color: var(--green); }
-      .bc-dual-row.g .bc-dual-pct { color: var(--green); }
-      .bc-dual-row.r .bc-dual-num { color: var(--red); }
-      .bc-dual-row.r .bc-dual-pct { color: var(--red); }
-      .bc-dual-visits {
-        font-size: 10px;
-        font-weight: 700;
-        color: #5a7a60;
-        margin-top: 3px;
-        border-top: 1px solid rgba(0,0,0,.06);
-        padding-top: 4px;
-        white-space: nowrap;
-      }
-      .bc-dual-visits strong { color: #3a6a45; font-size: 12px; }
-      .bc-dual-col.weighted .bc-dual-visits { color: #3a60aa; }
-      .bc-dual-col.weighted .bc-dual-visits strong { color: #2a4a8a; }
-
-      /* 整體卡（dark hero）的雙欄 */
-      .wc-dual {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 1px;
-        background: rgba(255,255,255,.1);
-        border-radius: 9px;
-        overflow: hidden;
         margin-top: 4px;
       }
-      .wc-dual-col {
-        padding: 7px 12px 9px;
+      .bc-tri-row {
+        display: flex;
+        align-items: center;
+        gap: 0;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid rgba(0,0,0,.06);
+        min-height: 28px;
+      }
+      .bc-tri-hdr {
+        font-size: 10px;
+        font-weight: 800;
+        padding: 5px 8px;
+        white-space: nowrap;
+        flex-shrink: 0;
+        min-width: 88px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        line-height: 1.2;
+      }
+      .bc-tri-hdr .bc-tri-visits {
+        font-size: 9px;
+        font-weight: 700;
+        opacity: .7;
+        margin-left: 3px;
+        white-space: nowrap;
+      }
+      .bc-tri-cells {
+        display: flex;
+        flex: 1;
+        min-width: 0;
+        gap: 1px;
+        background: rgba(0,0,0,.05);
+      }
+      .bc-tri-cell {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        padding: 4px 6px;
+        min-width: 0;
+      }
+      .bc-tri-pct {
+        font-size: clamp(11px, 1.1vw, 14px);
+        font-weight: 900;
+        white-space: nowrap;
+        line-height: 1;
+      }
+      .bc-tri-num {
+        font-size: clamp(9px, 0.9vw, 11px);
+        font-weight: 700;
+        opacity: .8;
+        white-space: nowrap;
+      }
+      /* 總體列 */
+      .bc-tri-row.total { background: #f4f6f4; }
+      .bc-tri-row.total .bc-tri-hdr { background: rgba(139,166,144,.18); color: #3a5a45; }
+      .bc-tri-row.total .bc-tri-cell { background: #f4f6f4; }
+      /* 非CVS列 */
+      .bc-tri-row.noncvs { background: #f8faf9; }
+      .bc-tri-row.noncvs .bc-tri-hdr { background: rgba(139,166,144,.1); color: #5a7a60; }
+      .bc-tri-row.noncvs .bc-tri-cell { background: #f8faf9; }
+      /* CVS列 */
+      .bc-tri-row.cvs { background: #f0f5ff; }
+      .bc-tri-row.cvs .bc-tri-hdr { background: rgba(100,130,200,.12); color: #3a60aa; }
+      .bc-tri-row.cvs .bc-tri-cell { background: #f0f5ff; }
+      /* 顏色 */
+      .bc-tri-cell.g .bc-tri-pct,
+      .bc-tri-cell.g .bc-tri-num { color: var(--green); }
+      .bc-tri-cell.y .bc-tri-pct,
+      .bc-tri-cell.y .bc-tri-num { color: var(--yellow); }
+      .bc-tri-cell.r .bc-tri-pct,
+      .bc-tri-cell.r .bc-tri-num { color: var(--red); }
+      .bc-tri-cell.p .bc-tri-pct,
+      .bc-tri-cell.p .bc-tri-num { color: var(--purple); }
+      .bc-tri-cell.o .bc-tri-pct,
+      .bc-tri-cell.o .bc-tri-num { color: var(--orange); }
+      /* CVS達標特殊標示 */
+      .bc-tri-tag {
+        font-size: 8px;
+        font-weight: 800;
+        padding: 1px 4px;
+        border-radius: 4px;
+        background: rgba(58,106,170,.15);
+        color: #3a60aa;
+        margin-left: 2px;
+        vertical-align: middle;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+
+      /* 整體卡（dark hero）的三層橫向 */
+      .wc-tri {
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: 3px;
+        margin-top: 6px;
       }
-      .wc-dual-col.real { background: rgba(255,255,255,.06); }
-      .wc-dual-col.weighted { background: rgba(100,160,255,.1); }
-      .wc-dual-hdr {
-        font-size: 9px;
-        font-weight: 900;
-        letter-spacing: .6px;
-        text-transform: uppercase;
-        margin-bottom: 2px;
-        white-space: nowrap;
-      }
-      .wc-dual-col.real .wc-dual-hdr { color: rgba(255,255,255,.5); }
-      .wc-dual-col.weighted .wc-dual-hdr { color: rgba(160,200,255,.75); }
-      .wc-dual-row {
+      .wc-tri-row {
         display: flex;
-        align-items: baseline;
-        gap: 4px;
-        flex-wrap: nowrap;
+        align-items: center;
+        border-radius: 8px;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,.08);
+        min-height: 28px;
       }
-      .wc-dual-pct {
-        font-size: clamp(12px, 1.2vw, 17px);
-        font-weight: 900;
-        line-height: 1;
-        white-space: nowrap;
-      }
-      .wc-dual-num {
-        font-size: clamp(12px, 1.2vw, 17px);
-        font-weight: 700;
-        opacity: .85;
-        white-space: nowrap;
-      }
-      .wc-dual-row.g .wc-dual-num { color: #5cf08a; }
-      .wc-dual-row.g .wc-dual-pct { color: #5cf08a; }
-      .wc-dual-row.r .wc-dual-num { color: #ff8080; }
-      .wc-dual-row.r .wc-dual-pct { color: #ff8080; }
-      .wc-dual-visits {
+      .wc-tri-hdr {
         font-size: 10px;
+        font-weight: 800;
+        padding: 5px 8px;
+        white-space: nowrap;
+        flex-shrink: 0;
+        min-width: 88px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        line-height: 1.2;
+      }
+      .wc-tri-hdr .wc-tri-visits {
+        font-size: 9px;
         font-weight: 700;
-        margin-top: 3px;
-        border-top: 1px solid rgba(255,255,255,.1);
-        padding-top: 4px;
+        opacity: .6;
+        margin-left: 3px;
+      }
+      .wc-tri-cells {
+        display: flex;
+        flex: 1;
+        gap: 1px;
+        background: rgba(255,255,255,.06);
+        min-width: 0;
+      }
+      .wc-tri-cell {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 2px;
+        padding: 4px 6px;
+      }
+      .wc-tri-pct {
+        font-size: clamp(11px, 1.1vw, 14px);
+        font-weight: 900;
+        white-space: nowrap;
+        line-height: 1;
+      }
+      .wc-tri-num {
+        font-size: clamp(9px, 0.9vw, 11px);
+        font-weight: 700;
+        opacity: .8;
         white-space: nowrap;
       }
-      .wc-dual-col.real .wc-dual-visits { color: rgba(255,255,255,.55); }
-      .wc-dual-col.real .wc-dual-visits strong { color: rgba(255,255,255,.9); font-size: 12px; }
-      .wc-dual-col.weighted .wc-dual-visits { color: rgba(160,200,255,.65); }
-      .wc-dual-col.weighted .wc-dual-visits strong { color: rgba(200,230,255,.95); font-size: 12px; }
+      .wc-tri-row.total { }
+      .wc-tri-row.total .wc-tri-hdr { background: rgba(255,255,255,.1); color: rgba(255,255,255,.8); }
+      .wc-tri-row.total .wc-tri-cell { background: rgba(255,255,255,.05); }
+      .wc-tri-row.noncvs .wc-tri-hdr { background: rgba(139,166,144,.2); color: #a8d4b4; }
+      .wc-tri-row.noncvs .wc-tri-cell { background: rgba(139,166,144,.07); }
+      .wc-tri-row.cvs .wc-tri-hdr { background: rgba(100,150,255,.2); color: #a8c4f8; }
+      .wc-tri-row.cvs .wc-tri-cell { background: rgba(100,150,255,.07); }
+      .wc-tri-cell.g .wc-tri-pct,
+      .wc-tri-cell.g .wc-tri-num { color: #5cf08a; }
+      .wc-tri-cell.r .wc-tri-pct,
+      .wc-tri-cell.r .wc-tri-num { color: #ff7b6b; }
+      .wc-tri-tag {
+        font-size: 8px; font-weight: 800;
+        padding: 1px 4px; border-radius: 4px;
+        background: rgba(160,200,255,.2);
+        color: #a8c4f8;
+        margin-left: 2px;
+        white-space: nowrap; flex-shrink: 0;
+      }
+
+      /* ══ 雙欄對比列（真實 vs 加權）已棄用，保留備用 ══ */
+      .bc-dual {
+        display: none;
+      }
+
+      /* 整體卡（dark hero）的雙欄 — 已棄用，改用 wc-tri */
+      .wc-dual { display: none; }
 
       /* ══ 所級雙欄摘要（staff-summary） ══ */
       .ss-dual {
@@ -4310,24 +4376,42 @@
           var cvWL = cv.l;
           var cvWU = cv.weighted ? 0 : cv.u;
           var cvWT = (cv.weighted ? cv.l : cv.t) || 1;
-          var realCols = curStatuses.map(function(st) {
-            var num = (st.key === 'l') ? nc.l : (st.key === 'u' || st.key === 'r') ? nc.u : 0;
-            var rowCls = (st.cls === 'g') ? 'g' : (st.cls === 'r') ? 'r' : st.cls;
-            return '<div class="wc-dual-row ' + rowCls + '"><span class="wc-dual-pct">' + pct(num, ncT) + '%</span><span class="wc-dual-num">(' + num + ')</span></div>';
-          }).join('');
-          var realVisits = (vd && vd.nonCvs >= 0) ? '<div class="wc-dual-visits">\uD83D\uDDD3 \u62dc\u8a2a <strong>' + vd.nonCvs + '</strong> \u6b21</div>' : '';
-          var wCols = curStatuses.map(function(st) {
-            var wNum = (st.key === 'l') ? cvWL : (st.key === 'u' || st.key === 'r') ? cvWU : 0;
-            var rowCls = (st.cls === 'g') ? 'g' : (st.cls === 'r') ? 'r' : st.cls;
-            var note = (st.key === 'u' && cv.weighted) ? '<span style="font-size:9px;opacity:.6;margin-left:3px;">(\u5df2\u9054\u9580\u6ebb)</span>' : '';
-            return '<div class="wc-dual-row ' + rowCls + '"><span class="wc-dual-pct">' + pct(wNum, cvWT) + '%</span><span class="wc-dual-num">(' + wNum + ')' + note + '</span></div>';
-          }).join('');
-          var wVisits = (vd && vd.cvs >= 0) ? '<div class="wc-dual-visits">\uD83D\uDDD3 \u62dc\u8a2a <strong>' + vd.cvs + '</strong> \u6b21</div>' : '';
-          var hdrL = '\uD83D\uDCCA \u975eCVS\uff08' + nc.t + '\u5bb6\uff09';
-          var hdrR = '\u2696\uFE0F CVS\uff08' + cv.t + '\u5bb6' + (cv.weighted ? '\u2714\uFE0F' : '') + '\uff09';
-          dualHtml = '<div class="wc-dual">' +
-            '<div class="wc-dual-col real"><div class="wc-dual-hdr">' + hdrL + '</div>' + realCols + realVisits + '</div>' +
-            '<div class="wc-dual-col weighted"><div class="wc-dual-hdr">' + hdrR + '</div>' + wCols + wVisits + '</div>' +
+
+          var wTotalVisits = (vd && vd.real >= 0) ? '<span class="wc-tri-visits">🗓' + vd.real + '次</span>' : '';
+          var wNcVisits = (vd && vd.nonCvs >= 0) ? '<span class="wc-tri-visits">🗓' + vd.nonCvs + '次</span>' : '';
+          var wCvVisits = (vd && vd.cvs >= 0) ? '<span class="wc-tri-visits">🗓' + vd.cvs + '次</span>' : '';
+
+          function wcTriCells(statKey, total, isCvs) {
+            return curStatuses.map(function(st) {
+              var num, denom;
+              if (statKey === 'total') {
+                num = s[st.key] || 0; denom = t;
+              } else if (isCvs) {
+                num = (st.key === 'l') ? cvWL : (st.key === 'u' || st.key === 'r') ? cvWU : 0;
+                denom = cvWT;
+              } else {
+                num = (st.key === 'l') ? nc.l : (st.key === 'u' || st.key === 'r') ? nc.u : 0;
+                denom = ncT;
+              }
+              var cls = st.cls;
+              var noteHtml = (isCvs && cv.weighted && st.key === 'u') ? '<span class="wc-tri-tag">達標</span>' : '';
+              return '<div class="wc-tri-cell ' + cls + '"><span class="wc-tri-pct">' + pct(num, denom) + '%</span><span class="wc-tri-num">(' + num + ')</span>' + noteHtml + '</div>';
+            }).join('');
+          }
+
+          dualHtml = '<div class="wc-tri">' +
+            '<div class="wc-tri-row total">' +
+              '<div class="wc-tri-hdr">📊 總體（' + s.t + '家）' + wTotalVisits + '</div>' +
+              '<div class="wc-tri-cells">' + wcTriCells('total', t, false) + '</div>' +
+            '</div>' +
+            '<div class="wc-tri-row noncvs">' +
+              '<div class="wc-tri-hdr">📋 非CVS（' + nc.t + '家）' + wNcVisits + '</div>' +
+              '<div class="wc-tri-cells">' + wcTriCells('nc', ncT, false) + '</div>' +
+            '</div>' +
+            '<div class="wc-tri-row cvs">' +
+              '<div class="wc-tri-hdr">⚖️ CVS（' + cv.t + '家）' + wCvVisits + '</div>' +
+              '<div class="wc-tri-cells">' + wcTriCells('cv', cv.t || 1, true) + '</div>' +
+            '</div>' +
           '</div>';
         }
 
@@ -4339,6 +4423,7 @@
               curStatuses.map(function(st) {
                 var realNum = s[st.key] || 0;
                 var realPct = pct(realNum, t);
+                if (realNum === 0) return '';
                 return '<div class="wc-st ' + st.cls + '">' +
                   '<div class="wc-st-lbl">' + esc(st.label) + '</div>' +
                   '<div class="wc-st-row"><span class="wc-st-pct">' + realPct + '%</span><span class="wc-st-num">(' + realNum + ')</span></div>' +
@@ -4362,9 +4447,13 @@
 
         var inlineStats = '<div class="bc-inline-stats">' +
           curStatuses.map(function(st) {
+            var num = s[st.key] || 0;
+            if (num === 0) return '<span class="bc-inline-st ' + st.cls + ' bc-st-zero"><span class="bc-inline-lbl">' + esc(st.label) + '</span>' +
+              '<span class="bc-inline-num-row"><span class="bc-inline-pct">0%</span>' +
+              '<span class="bc-inline-num">(0)</span></span></span>';
             return '<span class="bc-inline-st ' + st.cls + '"><span class="bc-inline-lbl">' + esc(st.label) + '</span>' +
-              '<span class="bc-inline-num-row"><span class="bc-inline-pct">' + pct(s[st.key] || 0, t) + '%</span>' +
-              '<span class="bc-inline-num">(' + (s[st.key] || 0) + ')</span></span></span>';
+              '<span class="bc-inline-num-row"><span class="bc-inline-pct">' + pct(num, t) + '%</span>' +
+              '<span class="bc-inline-num">(' + num + ')</span></span></span>';
           }).join('') + '</div>';
         el.innerHTML = '<div class="bc-head"><div class="bc-name">' + esc(name) + '</div><div class="bc-total">' + s.t + '</div></div>' +
           inlineStats +
@@ -4378,28 +4467,49 @@
           var cvWL = cv.l;
           var cvWU = cv.weighted ? 0 : cv.u;
           var cvWT = (cv.weighted ? cv.l : cv.t) || 1;
-          var vReal = (CI['visits'] >= 0) ? visitsSum(rows) : -1;
-          var realCols = curStatuses.map(function(st) {
-            var num = (st.key === 'l') ? nc.l : (st.key === 'u' || st.key === 'r') ? nc.u : 0;
-            var rowCls = (st.cls === 'g') ? 'g' : (st.cls === 'r') ? 'r' : st.cls;
-            return '<div class="bc-dual-row ' + rowCls + '"><span class="bc-dual-pct">' + pct(num, ncT) + '%</span><span class="bc-dual-num">(' + num + ')</span></div>';
-          }).join('');
-          var realVisits = (vd && vd.nonCvs >= 0) ? '<div class="bc-dual-visits">\uD83D\uDDD3 \u62dc\u8a2a <strong>' + vd.nonCvs + '</strong> \u6b21</div>' : '';
-          var wCols = curStatuses.map(function(st) {
-            var wNum = (st.key === 'l') ? cvWL : (st.key === 'u' || st.key === 'r') ? cvWU : 0;
-            var rowCls = (st.cls === 'g') ? 'g' : (st.cls === 'r') ? 'r' : st.cls;
-            var note = (st.key === 'u' && cv.weighted) ? '<span style="font-size:8px;opacity:.55;margin-left:2px;">(\u9054\u6a19)</span>' : '';
-            return '<div class="bc-dual-row ' + rowCls + '"><span class="bc-dual-pct">' + pct(wNum, cvWT) + '%</span><span class="bc-dual-num">(' + wNum + ')' + note + '</span></div>';
-          }).join('');
-          var wVisits = (vd && vd.cvs >= 0) ? '<div class="bc-dual-visits">\uD83D\uDDD3 \u62dc\u8a2a <strong>' + vd.cvs + '</strong> \u6b21</div>' : '';
-          var hdrL = '\uD83D\uDCCA \u975eCVS\uff08' + nc.t + '\u5bb6\uff09';
-          var hdrR = '\u2696\uFE0F CVS\uff08' + cv.t + '\u5bb6' + (cv.weighted ? '\u2714\uFE0F' : '') + '\uff09';
-          var dualEl = document.createElement('div');
-          dualEl.className = 'bc-dual';
-          dualEl.innerHTML =
-            '<div class="bc-dual-col real"><div class="bc-dual-hdr">' + hdrL + '</div>' + realCols + realVisits + '</div>' +
-            '<div class="bc-dual-col weighted"><div class="bc-dual-hdr">' + hdrR + '</div>' + wCols + wVisits + '</div>';
-          el.appendChild(dualEl);
+          var vd2 = vd || {};
+
+          // 次數標籤
+          var totalVisitsHtml = (vd2.real >= 0) ? '<span class="bc-tri-visits">🗓' + vd2.real + '次</span>' : '';
+          var ncVisitsHtml = (vd2.nonCvs >= 0) ? '<span class="bc-tri-visits">🗓' + vd2.nonCvs + '次</span>' : '';
+          var cvVisitsHtml = (vd2.cvs >= 0) ? '<span class="bc-tri-visits">🗓' + vd2.cvs + '次</span>' : '';
+
+          // 產生各層的 cell html
+          function triCells(statObj, total, isCvs, isWeighted) {
+            return curStatuses.map(function(st) {
+              var num, denom;
+              if (statObj === 'total') {
+                num = s[st.key] || 0; denom = t;
+              } else {
+                num = (st.key === 'l') ? statObj.l : (st.key === 'u' || st.key === 'r') ? statObj.u : 0;
+                denom = total;
+              }
+              if (isCvs && isWeighted) {
+                num = (st.key === 'l') ? cvWL : (st.key === 'u' || st.key === 'r') ? cvWU : 0;
+                denom = cvWT;
+              }
+              var cls = st.cls;
+              var noteHtml = (isCvs && isWeighted && st.key === 'u') ? '<span class="bc-tri-tag">達標</span>' : '';
+              return '<div class="bc-tri-cell ' + cls + '"><span class="bc-tri-pct">' + pct(num, denom) + '%</span><span class="bc-tri-num">(' + num + ')</span>' + noteHtml + '</div>';
+            }).join('');
+          }
+
+          var triEl = document.createElement('div');
+          triEl.className = 'bc-tri';
+          triEl.innerHTML =
+            '<div class="bc-tri-row total">' +
+              '<div class="bc-tri-hdr">📊 總體（' + s.t + '家）' + totalVisitsHtml + '</div>' +
+              '<div class="bc-tri-cells">' + triCells('total', t, false, false) + '</div>' +
+            '</div>' +
+            '<div class="bc-tri-row noncvs">' +
+              '<div class="bc-tri-hdr">📋 非CVS（' + nc.t + '家）' + ncVisitsHtml + '</div>' +
+              '<div class="bc-tri-cells">' + triCells(nc, ncT, false, false) + '</div>' +
+            '</div>' +
+            '<div class="bc-tri-row cvs">' +
+              '<div class="bc-tri-hdr">⚖️ CVS（' + cv.t + '家）' + cvVisitsHtml + '</div>' +
+              '<div class="bc-tri-cells">' + triCells(cv, cv.t || 1, true, cv.weighted) + '</div>' +
+            '</div>';
+          el.appendChild(triEl);
         } else if (CI['visits'] >= 0) {
           var vsum = visitsSum(rows);
           if (vsum >= 0) {
