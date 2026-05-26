@@ -3429,7 +3429,8 @@
           { key: 'y', val: '━', label: '🟡 閉店', labelShort: '閉店', cls: 'y', emoji: '🟡' },
           { key: 'u', val: '✖', label: '🔴 未達', labelShort: '未達', cls: 'r', emoji: '🔴' }
         ],
-        monthCols: ['202605', '202604', '202603']
+        monthCols: 'auto',
+        defaultChannel: 'CVS通路'
       }];
       var AREA_ORDER = ['北部', '桃園', '臺中', '嘉義', '臺南', '高雄', '花蓮'];
       var STATUS_CLS_ORDER = ['g', 'y', 'p', 'o'];
@@ -3454,6 +3455,7 @@
       var _rankDrawerOpen = false;
       var _curCfg = null;
       var _monthColIdxMap = {};
+      var _activeMontCols = [];
       var _viewMode = 'org';
       var _chDrillStack = [];
       var _chTypeMap = {};
@@ -3591,7 +3593,12 @@
 
       function gv(row, key) {
         var i = CI[key];
-        return (i >= 0 && row[i] != null) ? String(row[i]).trim() : '';
+        var v = (i >= 0 && row[i] != null) ? String(row[i]).trim() : '';
+        /* defaultChannel：當 channel 欄位不存在時，回傳 cfg 設定的預設通路 */
+        if (!v && key === 'channel' && _curCfg && _curCfg.defaultChannel) {
+          return _curCfg.defaultChannel;
+        }
+        return v;
       }
 
       function gs(row) {
@@ -3812,6 +3819,7 @@
             allRows = res[0].rows;
             curStatuses = res[0].statuses;
             _monthColIdxMap = res[0].monthColKeepIdxMap || {};
+            _activeMontCols = res[0].activeMontCols || [];
             initCI();
             if (cfg.monthCol) initCIVisits(cfg.monthCol);
             _curCfg = cfg;
@@ -3889,13 +3897,12 @@
           var json = JSON.parse(txt.slice(s, e + 1));
           var tbl = json.table;
           if (!tbl || !tbl.cols) throw new Error('無資料');
-          var hdrs = tbl.cols.map(function(c) { return c.label || ''; });
+          var hdrs = tbl.cols.map(function(c) { return (c.label || '').trim(); });
           var rawRows = (tbl.rows || []).map(function(row) {
             return (row.c || []).map(function(c) { return c && c.v != null ? String(c.v) : ''; });
           }).filter(function(r) { return !r.every(function(v) { return !v.trim(); }); });
 
           var statusColIdx = hdrs.findIndex(function(h) { return h === cfg.statusCol; });
-          var monthColIdx  = hdrs.findIndex(function(h) { return h === cfg.monthCol; });
           if (statusColIdx < 0) throw new Error('找不到狀態欄：' + cfg.statusCol);
 
           var monthValue = cfg.monthCol || '';
@@ -3916,28 +3923,26 @@
             statusMap = cfg.statusMap || {};
           }
 
-          /* 月份欄索引（不排除，保留在 keepHdrs 中） */
-          var monthColIdxMap = {};
-          if (cfg.monthCols) {
-            cfg.monthCols.forEach(function(mc) {
-              var mi = hdrs.findIndex(function(h) { return h === mc; });
-              if (mi >= 0) monthColIdxMap[mc] = mi;
-            });
+          /* 動態偵測月份欄：cfg.monthCols 若為 true，自動從 headers 找 YYYYMM 格式欄位（最新三欄） */
+          var activeMontCols;
+          if (cfg.monthCols === true || cfg.monthCols === 'auto') {
+            var detected = hdrs.filter(function(h) { return /^\d{6}$/.test(h); }).sort().reverse();
+            activeMontCols = detected.slice(0, 3).reverse(); /* 舊→新排列 */
+          } else if (Array.isArray(cfg.monthCols)) {
+            activeMontCols = cfg.monthCols;
+          } else {
+            activeMontCols = [];
           }
 
           var excludeIdx = new Set([statusColIdx]);
           var keepHdrs = hdrs.filter(function(h, i) { return !excludeIdx.has(i); });
 
-          /* 月份欄對應到 keepHdrs 後的新索引 */
+          /* 月份欄對應到 keepHdrs 後的索引 */
           var monthColKeepIdxMap = {};
-          if (cfg.monthCols) {
-            cfg.monthCols.forEach(function(mc) {
-              if (monthColIdxMap[mc] !== undefined) {
-                var newIdx = keepHdrs.findIndex(function(h) { return h === mc; });
-                if (newIdx >= 0) monthColKeepIdxMap[mc] = newIdx;
-              }
-            });
-          }
+          activeMontCols.forEach(function(mc) {
+            var newIdx = keepHdrs.findIndex(function(h) { return h === mc; });
+            if (newIdx >= 0) monthColKeepIdxMap[mc] = newIdx;
+          });
 
           var processedRows = rawRows.map(function(vals) {
             var rawStatus = (vals[statusColIdx] || '').trim();
@@ -3963,7 +3968,8 @@
             rows: processedRows,
             statuses: statuses,
             monthValue: monthValue,
-            monthColKeepIdxMap: monthColKeepIdxMap
+            monthColKeepIdxMap: monthColKeepIdxMap,
+            activeMontCols: activeMontCols
           });
         }).catch(function(e) {
           console.error('fetchSheetText:', e);
@@ -4882,7 +4888,7 @@
           '<th class="col-grade" style="width:50px">等級</th>' +
           '<th class="col-code" style="width:120px">店家代碼</th>' +
           (CI['visits'] >= 0 ? '<th class="col-visits" style="width:55px">拜訪</th>' : '') +
-          (_curCfg && _curCfg.monthCols ? _curCfg.monthCols.map(function(mc) {
+          (_activeMontCols.length ? _activeMontCols.map(function(mc) {
             return '<th class="col-visits" style="width:64px;text-align:center">' + esc(mc) + '</th>';
           }).join('') : '') +
           '</tr></thead><tbody>';
@@ -4896,7 +4902,7 @@
             '<td class="col-grade td-sub">' + esc(gv(r, 'grade')) + '</td>' +
             '<td class="col-code td-sub">' + esc(gv(r, 'code')) + '</td>' +
             (CI['visits'] >= 0 ? '<td class="col-visits td-sub" style="text-align:center">' + esc(gv(r, 'visits')) + '</td>' : '') +
-            (_curCfg && _curCfg.monthCols ? _curCfg.monthCols.map(function(mc) {
+            (_activeMontCols.length ? _activeMontCols.map(function(mc) {
               var ci = _monthColIdxMap[mc];
               var v = (ci !== undefined && r[ci] != null) ? String(r[ci]).trim() : '';
               var dotCls = v === '○' ? ' style="color:#22a84c;font-weight:900"' : (v ? '' : ' style="color:#bbb"');
