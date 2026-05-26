@@ -3416,6 +3416,20 @@
         sheet: '店家名冊',
         syncSheet: '輔助',
         syncCell: 'B1'
+      }, {
+        name: 'CVS跨月訪頻',
+        id: '1PGURKUrWDCs1c2KFgRlcTDl9ufCS4mxMzIK31F8Up2c',
+        sheet: 'CVS訪查情形',
+        syncSheet: '輔助',
+        syncCell: 'B1',
+        statusMode: 'text',
+        statusCol: '執行達成',
+        statusDefs: [
+          { key: 'l', val: '✔', label: '✅ 達成', labelShort: '達成', cls: 'g', emoji: '✅' },
+          { key: 'y', val: '━', label: '🟡 閉店', labelShort: '閉店', cls: 'y', emoji: '🟡' },
+          { key: 'u', val: '✖', label: '🔴 未達', labelShort: '未達', cls: 'r', emoji: '🔴' }
+        ],
+        monthCols: ['202605', '202604', '202603']
       }];
       var AREA_ORDER = ['北部', '桃園', '臺中', '嘉義', '臺南', '高雄', '花蓮'];
       var STATUS_CLS_ORDER = ['g', 'y', 'p', 'o'];
@@ -3439,6 +3453,7 @@
       var _dataTime = '';
       var _rankDrawerOpen = false;
       var _curCfg = null;
+      var _monthColIdxMap = {};
       var _viewMode = 'org';
       var _chDrillStack = [];
       var _chTypeMap = {};
@@ -3543,7 +3558,7 @@
         var MAP = {
           area: ['營業處名稱', '營業處'],
           office: ['營業所/課', '營業所'],
-          staff: ['執行人員', '業務員'],
+          staff: ['執行人員', '業務員', '訪員'],
           store: ['店家名稱', '店家'],
           code: ['店家代碼'],
           channel: ['通路別'],
@@ -3796,6 +3811,7 @@
             allHeaders = res[0].headers;
             allRows = res[0].rows;
             curStatuses = res[0].statuses;
+            _monthColIdxMap = res[0].monthColKeepIdxMap || {};
             initCI();
             if (cfg.monthCol) initCIVisits(cfg.monthCol);
             _curCfg = cfg;
@@ -3883,18 +3899,50 @@
           if (statusColIdx < 0) throw new Error('找不到狀態欄：' + cfg.statusCol);
 
           var monthValue = cfg.monthCol || '';
-          var statusMap = cfg.statusMap || {};
-          var statuses = [
-            { key: 'l', colIdx: statusColIdx, col: cfg.statusCol, label: '✅ 達成', labelShort: '達成', cls: 'g', emoji: '✅' },
-            { key: 'u', colIdx: statusColIdx, col: cfg.statusCol, label: '🔴 未達', labelShort: '未達', cls: 'r', emoji: '🔴' }
-          ];
+          var statuses;
+          var statusMap;
+          if (cfg.statusDefs) {
+            /* 動態狀態定義模式（支援三種以上狀態） */
+            statuses = cfg.statusDefs.map(function(d) {
+              return { key: d.key, colIdx: statusColIdx, col: cfg.statusCol, label: d.label, labelShort: d.labelShort, cls: d.cls, emoji: d.emoji };
+            });
+            statusMap = {};
+            cfg.statusDefs.forEach(function(d) { statusMap[d.val] = d.key; });
+          } else {
+            statuses = [
+              { key: 'l', colIdx: statusColIdx, col: cfg.statusCol, label: '✅ 達成', labelShort: '達成', cls: 'g', emoji: '✅' },
+              { key: 'u', colIdx: statusColIdx, col: cfg.statusCol, label: '🔴 未達', labelShort: '未達', cls: 'r', emoji: '🔴' }
+            ];
+            statusMap = cfg.statusMap || {};
+          }
+
+          /* 月份欄索引（不排除，保留在 keepHdrs 中） */
+          var monthColIdxMap = {};
+          if (cfg.monthCols) {
+            cfg.monthCols.forEach(function(mc) {
+              var mi = hdrs.findIndex(function(h) { return h === mc; });
+              if (mi >= 0) monthColIdxMap[mc] = mi;
+            });
+          }
 
           var excludeIdx = new Set([statusColIdx]);
           var keepHdrs = hdrs.filter(function(h, i) { return !excludeIdx.has(i); });
 
+          /* 月份欄對應到 keepHdrs 後的新索引 */
+          var monthColKeepIdxMap = {};
+          if (cfg.monthCols) {
+            cfg.monthCols.forEach(function(mc) {
+              if (monthColIdxMap[mc] !== undefined) {
+                var newIdx = keepHdrs.findIndex(function(h) { return h === mc; });
+                if (newIdx >= 0) monthColKeepIdxMap[mc] = newIdx;
+              }
+            });
+          }
+
           var processedRows = rawRows.map(function(vals) {
             var rawStatus = (vals[statusColIdx] || '').trim();
-            var assignedKey = statusMap[rawStatus] || 'u';
+            var defaultKey = statuses[statuses.length - 1].key;
+            var assignedKey = (statusMap[rawStatus] !== undefined) ? statusMap[rawStatus] : defaultKey;
             var keep = vals.filter(function(v, i) { return !excludeIdx.has(i); });
             keep.push(assignedKey);
             return keep;
@@ -3914,7 +3962,8 @@
             headers: keepHdrs,
             rows: processedRows,
             statuses: statuses,
-            monthValue: monthValue
+            monthValue: monthValue,
+            monthColKeepIdxMap: monthColKeepIdxMap
           });
         }).catch(function(e) {
           console.error('fetchSheetText:', e);
@@ -4833,6 +4882,9 @@
           '<th class="col-grade" style="width:50px">等級</th>' +
           '<th class="col-code" style="width:120px">店家代碼</th>' +
           (CI['visits'] >= 0 ? '<th class="col-visits" style="width:55px">拜訪</th>' : '') +
+          (_curCfg && _curCfg.monthCols ? _curCfg.monthCols.map(function(mc) {
+            return '<th class="col-visits" style="width:64px;text-align:center">' + esc(mc) + '</th>';
+          }).join('') : '') +
           '</tr></thead><tbody>';
         sorted.forEach(function(r) {
           var k = gs(r);
@@ -4844,6 +4896,12 @@
             '<td class="col-grade td-sub">' + esc(gv(r, 'grade')) + '</td>' +
             '<td class="col-code td-sub">' + esc(gv(r, 'code')) + '</td>' +
             (CI['visits'] >= 0 ? '<td class="col-visits td-sub" style="text-align:center">' + esc(gv(r, 'visits')) + '</td>' : '') +
+            (_curCfg && _curCfg.monthCols ? _curCfg.monthCols.map(function(mc) {
+              var ci = _monthColIdxMap[mc];
+              var v = (ci !== undefined && r[ci] != null) ? String(r[ci]).trim() : '';
+              var dotCls = v === '○' ? ' style="color:#22a84c;font-weight:900"' : (v ? '' : ' style="color:#bbb"');
+              return '<td class="col-visits td-sub" style="text-align:center"' + dotCls + '>' + esc(v || '—') + '</td>';
+            }).join('') : '') +
             '</tr>';
         });
         html += '</tbody></table></div>';
