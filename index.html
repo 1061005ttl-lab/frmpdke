@@ -1192,13 +1192,13 @@
       }
 
       .bc-inline-pct {
-        font-size: clamp(14px, 1.5vw, 20px);
+        font-size: clamp(13px, 1.3vw, 17px);
         font-weight: 900;
         line-height: 1;
       }
 
       .bc-inline-num {
-        font-size: clamp(11px, 1.1vw, 14px);
+        font-size: clamp(13px, 1.3vw, 17px);
         font-weight: 700;
         opacity: .8;
       }
@@ -3430,7 +3430,8 @@
           { key: 'u', val: '✖', label: '🔴 未達', labelShort: '未達', cls: 'r', emoji: '🔴' }
         ],
         monthCols: 'auto',
-        defaultChannel: 'CVS通路'
+        defaultChannel: 'CVS通路',
+        pctDecimals: 1
       }];
       var AREA_ORDER = ['北部', '桃園', '臺中', '嘉義', '臺南', '高雄', '花蓮'];
       var STATUS_CLS_ORDER = ['g', 'y', 'p', 'o'];
@@ -3618,8 +3619,11 @@
         return s;
       }
 
+      var _pctDecimals = 0; /* 由 cfg.pctDecimals 控制，預設0位小數 */
       function pct(a, b) {
-        return b > 0 ? Math.round(a / b * 100) : 0;
+        if (b <= 0) return _pctDecimals > 0 ? (0).toFixed(_pctDecimals) : 0;
+        var v = a / b * 100;
+        return _pctDecimals > 0 ? v.toFixed(_pctDecimals) : Math.round(v);
       }
 
       function visitsSum(rows) {
@@ -3823,6 +3827,7 @@
             initCI();
             if (cfg.monthCol) initCIVisits(cfg.monthCol);
             _curCfg = cfg;
+            _pctDecimals = cfg.pctDecimals || 0;
             rebuildChips();
             buildFilters();
           } catch (e) {
