@@ -780,11 +780,10 @@
         cursor: default;
         background: linear-gradient(130deg, #1a1f2e 0%, #22293a 60%, #1e2d26 100%);
         border-radius: var(--r);
-        padding: 22px 28px;
+        padding: 0;
         display: flex;
-        flex-direction: row;
-        align-items: center;
-        gap: 28px;
+        flex-direction: column;
+        gap: 0;
         box-shadow: 0 8px 32px rgba(0, 0, 0, .28), 0 1px 0 rgba(255, 255, 255, .06) inset;
         position: relative;
         overflow: hidden;
@@ -803,6 +802,7 @@
         border-radius: 50%;
         background: radial-gradient(circle, rgba(139, 166, 144, .12) 0%, transparent 65%);
         pointer-events: none;
+        z-index: 0;
       }
 
       .big-card.whole::after {
@@ -815,6 +815,18 @@
         border-radius: 50%;
         background: radial-gradient(circle, rgba(80, 120, 200, .06) 0%, transparent 65%);
         pointer-events: none;
+        z-index: 0;
+      }
+
+      /* 整體卡內容區：上下兩層 */
+      .wc-body {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 28px;
+        padding: 20px 28px 14px 28px;
+        position: relative;
+        z-index: 1;
       }
 
       .wc-left {
@@ -822,19 +834,19 @@
         flex-direction: column;
         justify-content: center;
         flex-shrink: 0;
-        min-width: 130px;
+        min-width: 120px;
       }
 
       .wc-label {
-        font-size: 16px;
+        font-size: 15px;
         font-weight: 900;
-        color: rgba(255, 255, 255, .7);
+        color: rgba(255, 255, 255, .55);
         letter-spacing: .5px;
-        margin-bottom: 6px;
+        margin-bottom: 4px;
       }
 
       .wc-total {
-        font-size: 64px;
+        font-size: clamp(52px, 5.5vw, 72px);
         font-weight: 900;
         color: #fff;
         line-height: 1;
@@ -852,44 +864,53 @@
       .wc-right {
         flex: 1;
         display: flex;
-        flex-direction: column;
-        gap: 12px;
-        justify-content: center;
+        flex-direction: row;
+        gap: 8px;
+        align-items: stretch;
+        flex-wrap: wrap;
       }
 
+      /* 進度條：全寬橫跨底部 */
       .wc-track {
-        height: 10px;
-        background: rgba(255, 255, 255, .1);
-        border-radius: 99px;
+        height: 8px;
+        background: rgba(255, 255, 255, .08);
+        border-radius: 0 0 var(--r) var(--r);
         overflow: hidden;
         display: flex;
         width: 100%;
-      }
-
-      .wc-stats {
-        display: flex;
-        gap: 0;
-        flex-wrap: wrap;
-        align-items: center;
-      }
-
-      .wc-st {
-        padding: 4px 12px;
-        border-right: 1px solid rgba(255, 255, 255, .08);
         flex-shrink: 0;
+        position: relative;
+        z-index: 1;
+      }
+      .wc-track::after {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        height: 3px;
+        background: linear-gradient(180deg, rgba(255,255,255,.18) 0%, transparent 100%);
+        pointer-events: none;
       }
 
-      .wc-st:last-child {
-        border-right: none;
+      /* 每個狀態：色框樣式，對齊附圖 */
+      .wc-st {
+        flex: 1;
+        min-width: 90px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1px;
+        padding: 8px 12px;
+        border-radius: 9px;
+        border: 1px solid transparent;
       }
 
       .wc-st-lbl {
-        font-size: 11px;
-        font-weight: 700;
+        font-size: 10px;
+        font-weight: 800;
         letter-spacing: .3px;
-        color: rgba(255, 255, 255, .55);
-        margin-bottom: 3px;
         white-space: nowrap;
+        margin-bottom: 2px;
       }
 
       .wc-st-row {
@@ -901,57 +922,62 @@
       }
 
       .wc-st-pct {
-        font-size: 22px;
+        font-size: clamp(18px, 2vw, 26px);
         font-weight: 900;
         line-height: 1;
         white-space: nowrap;
       }
 
       .wc-st-num {
-        font-size: 22px;
+        font-size: clamp(15px, 1.6vw, 20px);
         font-weight: 700;
         white-space: nowrap;
         opacity: .85;
       }
 
-      .wc-st.g .wc-st-num {
-        color: #5cf08a;
+      .wc-st.g {
+        background: rgba(34, 168, 76, .12);
+        border-color: rgba(34, 168, 76, .28);
       }
+      .wc-st.g .wc-st-lbl { color: #7de8a4; }
+      .wc-st.g .wc-st-num,
+      .wc-st.g .wc-st-pct { color: #5cf08a; }
 
-      .wc-st.g .wc-st-pct {
-        color: #5cf08a;
+      .wc-st.y {
+        background: rgba(212, 144, 10, .12);
+        border-color: rgba(212, 144, 10, .28);
       }
+      .wc-st.y .wc-st-lbl { color: #f5d07a; }
+      .wc-st.y .wc-st-num,
+      .wc-st.y .wc-st-pct { color: #fdd261; }
 
-      .wc-st.y .wc-st-num {
-        color: #fdd261;
+      .wc-st.p {
+        background: rgba(124, 58, 237, .12);
+        border-color: rgba(124, 58, 237, .28);
       }
+      .wc-st.p .wc-st-lbl { color: #d4bcfd; }
+      .wc-st.p .wc-st-num,
+      .wc-st.p .wc-st-pct { color: #c4b5fd; }
 
-      .wc-st.y .wc-st-pct {
-        color: #fdd261;
+      .wc-st.o {
+        background: rgba(234, 108, 0, .12);
+        border-color: rgba(234, 108, 0, .28);
       }
+      .wc-st.o .wc-st-lbl { color: #fcd4a0; }
+      .wc-st.o .wc-st-num,
+      .wc-st.o .wc-st-pct { color: #fdba74; }
 
-      .wc-st.p .wc-st-num {
-        color: #c4b5fd;
+      .wc-st.r {
+        background: rgba(217, 48, 37, .12);
+        border-color: rgba(217, 48, 37, .28);
       }
+      .wc-st.r .wc-st-lbl { color: #ffa89e; }
+      .wc-st.r .wc-st-num,
+      .wc-st.r .wc-st-pct { color: #ff7b6b; }
 
-      .wc-st.p .wc-st-pct {
-        color: #c4b5fd;
-      }
-
-      .wc-st.o .wc-st-num {
-        color: #fdba74;
-      }
-
-      .wc-st.o .wc-st-pct {
-        color: #fdba74;
-      }
-
-      .wc-st.r .wc-st-num {
-        color: #ff7b6b;
-      }
-
-      .wc-st.r .wc-st-pct {
-        color: #ff7b6b;
+      .wc-st.wc-st-zero {
+        opacity: 0.3;
+        filter: grayscale(0.5);
       }
 
       /* ══ 前3名效果 ══ */
@@ -1431,11 +1457,15 @@
       }
 
       .area-view .big-card.whole .wc-total {
-        font-size: clamp(48px, 5.5vw, 70px);
+        font-size: clamp(44px, 5vw, 66px);
+      }
+
+      .area-view .big-card.whole .wc-st-pct {
+        font-size: clamp(16px, 2vw, 24px);
       }
 
       .area-view .big-card.whole .wc-st-num {
-        font-size: clamp(22px, 2.6vw, 34px);
+        font-size: clamp(14px, 1.6vw, 20px);
       }
 
       /* office-view */
@@ -4528,21 +4558,26 @@
           '</div>';
         }
 
-        el.innerHTML = '<div class="wc-left"><div class="wc-label">' + esc(name) + '</div><div class="wc-total">' + s.t + '</div></div>' +
-          '<div class="wc-divider"></div>' +
-          '<div class="wc-right">' +
-            '<div class="wc-track">' + segs(s) + '</div>' +
-            '<div class="bc-inline-stats">' +
+        el.innerHTML =
+          '<div class="wc-body">' +
+            '<div class="wc-left"><div class="wc-label">' + esc(name) + '</div><div class="wc-total">' + s.t + '</div></div>' +
+            '<div class="wc-divider"></div>' +
+            '<div class="wc-right">' +
               curStatuses.map(function(st) {
                 var realNum = s[st.key] || 0;
-                if (realNum === 0) return '<span class="bc-inline-st ' + st.cls + ' bc-st-zero"><span class="bc-inline-lbl">' + esc(st.label) + '</span>' +
-                  '<span class="bc-inline-num-row"><span class="bc-inline-pct">0%</span><span class="bc-inline-num">(0)</span></span></span>';
-                return '<span class="bc-inline-st ' + st.cls + '"><span class="bc-inline-lbl">' + esc(st.label) + '</span>' +
-                  '<span class="bc-inline-num-row"><span class="bc-inline-pct">' + pct(realNum, t) + '%</span><span class="bc-inline-num">(' + realNum + ')</span></span></span>';
+                var zeroClass = realNum === 0 ? ' wc-st-zero' : '';
+                return '<div class="wc-st ' + st.cls + zeroClass + '">' +
+                  '<div class="wc-st-lbl">' + esc(st.label) + '</div>' +
+                  '<div class="wc-st-row">' +
+                    '<span class="wc-st-pct">' + pct(realNum, t) + '%</span>' +
+                    '<span class="wc-st-num">(' + realNum + ')</span>' +
+                  '</div>' +
+                '</div>';
               }).join('') +
             '</div>' +
             dualHtml +
-          '</div>';
+          '</div>' +
+          '<div class="wc-track">' + segs(s) + '</div>';
         return el;
       }
 
