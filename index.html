@@ -4795,14 +4795,13 @@
               '</div>' +
             '</div>';
           }
-          var scInlineStats = '<div class="sc-inline-stats">' +
+          var scInlineStats = '<div class="bc-inline-stats">' +
             curStatuses.map(function(st) {
               var num = s[st.key] || 0;
-              var zeroClass = num === 0 ? ' sc-st-zero' : '';
-              return '<span class="sc-inline-st ' + st.cls + zeroClass + '">' +
-                '<span class="sc-inline-lbl">' + esc(st.labelShort) + '</span>' +
-                '<span class="sc-inline-num-row"><span class="sc-inline-pct">' + pct(num, t) + '%</span>' +
-                '<span class="sc-inline-num">(' + num + ')</span></span></span>';
+              if (num === 0) return '<span class="bc-inline-st ' + st.cls + ' bc-st-zero"><span class="bc-inline-lbl">' + esc(st.labelShort) + '</span>' +
+                '<span class="bc-inline-num-row"><span class="bc-inline-pct">0%</span><span class="bc-inline-num">(0)</span></span></span>';
+              return '<span class="bc-inline-st ' + st.cls + '"><span class="bc-inline-lbl">' + esc(st.labelShort) + '</span>' +
+                '<span class="bc-inline-num-row"><span class="bc-inline-pct">' + pct(num, t) + '%</span><span class="bc-inline-num">(' + num + ')</span></span></span>';
             }).join('') + '</div>';
           card.innerHTML = '<div class="sc-head">' +
             '<div class="sc-name">\uD83D\uDC64 ' + esc(trimName(k)) + '</div>' +
@@ -4862,11 +4861,13 @@
         }
         header.innerHTML = '<div class="sh-left">' +
           '<div class="sh-name">\uD83D\uDC64 ' + esc(trimName(staffName)) + '</div>' +
-          '<div class="sh-stats">' +
+          '<div class="bc-inline-stats">' +
             curStatuses.map(function(st) {
               var num = s[st.key] || 0;
-              var p = pct(num, s.t || 1);
-              return '<span class="sh-s ' + st.cls + '"><span class="sh-s-emoji">' + esc(st.emoji) + '</span><span class="sh-s-lbl">' + esc(st.labelShort) + '</span><span class="sh-s-pct">' + p + '%</span><span class="sh-s-num">(' + num + ')</span></span>';
+              if (num === 0) return '<span class="bc-inline-st ' + st.cls + ' bc-st-zero"><span class="bc-inline-lbl">' + esc(st.labelShort) + '</span>' +
+                '<span class="bc-inline-num-row"><span class="bc-inline-pct">0%</span><span class="bc-inline-num">(0)</span></span></span>';
+              return '<span class="bc-inline-st ' + st.cls + '"><span class="bc-inline-lbl">' + esc(st.labelShort) + '</span>' +
+                '<span class="bc-inline-num-row"><span class="bc-inline-pct">' + pct(num, s.t || 1) + '%</span><span class="bc-inline-num">(' + num + ')</span></span></span>';
             }).join('') +
           '</div>' +
           shDualHtml +
