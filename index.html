@@ -4532,14 +4532,13 @@
           '<div class="wc-divider"></div>' +
           '<div class="wc-right">' +
             '<div class="wc-track">' + segs(s) + '</div>' +
-            '<div class="wc-stats">' +
+            '<div class="bc-inline-stats">' +
               curStatuses.map(function(st) {
                 var realNum = s[st.key] || 0;
-                var realPct = pct(realNum, t);
-                return '<div class="wc-st ' + st.cls + '">' +
-                  '<div class="wc-st-lbl">' + esc(st.label) + '</div>' +
-                  '<div class="wc-st-row"><span class="wc-st-pct">' + realPct + '%</span><span class="wc-st-num">(' + realNum + ')</span></div>' +
-                  '</div>';
+                if (realNum === 0) return '<span class="bc-inline-st ' + st.cls + ' bc-st-zero"><span class="bc-inline-lbl">' + esc(st.label) + '</span>' +
+                  '<span class="bc-inline-num-row"><span class="bc-inline-pct">0%</span><span class="bc-inline-num">(0)</span></span></span>';
+                return '<span class="bc-inline-st ' + st.cls + '"><span class="bc-inline-lbl">' + esc(st.label) + '</span>' +
+                  '<span class="bc-inline-num-row"><span class="bc-inline-pct">' + pct(realNum, t) + '%</span><span class="bc-inline-num">(' + realNum + ')</span></span></span>';
               }).join('') +
             '</div>' +
             dualHtml +
