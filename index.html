@@ -1,3 +1,47 @@
+<!--
+  ╔══════════════════════════════════════════════════════════════════════════════╗
+  ║  業務王進度看板 — AI 閱讀說明（給 AI 助理看的，不是給使用者看的）              ║
+  ╠══════════════════════════════════════════════════════════════════════════════╣
+  ║  【版本編號 & 修改日期】                                                      ║
+  ║  位置：HTML body 中，id="ver-ts" 的 <div>，約在第 3329 行（行數可能變動）。   ║
+  ║  格式：Ver. X.X.X (YYYY-MM-DD)                                               ║
+  ║  範例：<div id="ver-ts">Ver. 3.3.5 (2026-04-24)</div>                        ║
+  ║  每次修改程式碼後，請同步更新此版本號與日期。                                  ║
+  ║                                                                              ║
+  ║  【卡片架構說明】                                                             ║
+  ║  1. 整體大卡 (big-card.whole) — 黑色英雄卡，橫跨全欄，用 makeWholeCard() 建立 ║
+  ║     - 含左側 wc-label / wc-total（大數字），右側 bc-inline-stats 狀態列       ║
+  ║  2. 一般大卡 (big-card) — 各區域/營業所/通路卡，用 makeBigCard() 建立         ║
+  ║     - 頂部 bc-head（名稱 + 總數），中間 bc-inline-stats（色框狀態），         ║
+  ║       底部 bc-track（進度條，寬度溢出卡片邊緣為設計）                         ║
+  ║  3. 小卡 (mini-card) — 左側導覽欄，用 makeMiniCard() 建立                    ║
+  ║                                                                              ║
+  ║  【bc-inline-stats 色框模式說明】                                             ║
+  ║  - 每個狀態是一個 .bc-inline-st 元素，帶有色系 class (g/y/r/p/o)             ║
+  ║  - 背景使用 var(--green-bg) 等極淡色，邊框用 var(--green-bd) 等               ║
+  ║  - 若數量為 0，加上 .bc-st-zero class（低透明度 + 去飽和）                    ║
+  ║  - 標籤在上（bc-inline-lbl），百分比+數量在下（bc-inline-pct/num）            ║
+  ║                                                                              ║
+  ║  【CSS 變數總覽（:root 中）】                                                 ║
+  ║  --primary / --primary-d：主題綠色                                           ║
+  ║  --bg：頁面底色（米白 #F0EDE6）                                               ║
+  ║  --green/yellow/purple/orange/red：狀態色                                    ║
+  ║  --green-bg/bd 等：狀態色框背景/邊框（極淡版）                                ║
+  ║  --glass / --glass-border：毛玻璃效果用                                       ║
+  ║                                                                              ║
+  ║  【資料來源】                                                                 ║
+  ║  SURVEYS 陣列（在 <script> 最前方，約 3376 行）：                             ║
+  ║  每個 entry 包含：name（顯示名稱）, id（Google試算表ID）,                    ║
+  ║  sheet（工作表名稱）, statusMode, statusCol, statusMap 等設定。              ║
+  ║  新增/修改調查項目只需修改 SURVEYS 陣列。                                    ║
+  ║                                                                              ║
+  ║  【注意事項】                                                                 ║
+  ║  - 驗證密碼在最頂部 <script> 中，關鍵字 "ttl"（大小寫不分）                  ║
+  ║  - bc-track 進度條：margin 負值是刻意設計，讓底部色條延伸到卡片邊緣           ║
+  ║  - area-view / office-view 等 class 會覆蓋字級大小，請注意 CSS 繼承順序      ║
+  ║  - 排行抽屜 (#rank-drawer) 是絕對定位浮層，不影響主版面排版                   ║
+  ╚══════════════════════════════════════════════════════════════════════════════╝
+-->
 <html lang="zh-TW">
 
   <head>
@@ -954,6 +998,28 @@
         color: #ff7b6b;
       }
 
+      /* 整體大卡（黑底）內的 bc-inline-stats 要用白色基調覆蓋 */
+      .big-card.whole .bc-inline-stats {
+        border-top: 1px solid rgba(255,255,255,.12);
+        padding-top: 6px;
+      }
+      .big-card.whole .bc-inline-st {
+        border-right-color: rgba(255,255,255,.1);
+      }
+      .big-card.whole .bc-inline-lbl {
+        color: rgba(255,255,255,.5);
+      }
+      .big-card.whole .bc-inline-st.g .bc-inline-pct,
+      .big-card.whole .bc-inline-st.g .bc-inline-num { color: #5cf08a; }
+      .big-card.whole .bc-inline-st.y .bc-inline-pct,
+      .big-card.whole .bc-inline-st.y .bc-inline-num { color: #fdd261; }
+      .big-card.whole .bc-inline-st.r .bc-inline-pct,
+      .big-card.whole .bc-inline-st.r .bc-inline-num { color: #ff7b6b; }
+      .big-card.whole .bc-inline-st.p .bc-inline-pct,
+      .big-card.whole .bc-inline-st.p .bc-inline-num { color: #c4b5fd; }
+      .big-card.whole .bc-inline-st.o .bc-inline-pct,
+      .big-card.whole .bc-inline-st.o .bc-inline-num { color: #fdba74; }
+
       /* ══ 前3名效果 ══ */
       .big-card.bc-top1,
       .big-card.bc-top2,
@@ -1150,38 +1216,48 @@
         display: none; /* 已改為行內顯示 */
       }
 
-      /* 行內統計列 — 每個狀態獨立色框，文字在上數字在下 */
+      /* 行內統計列 — 扁平文字模式，無色塊背景，參考附件圖排版 */
       .bc-inline-stats {
         display: flex;
-        gap: 6px;
+        gap: 0;
         align-items: stretch;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         width: 100%;
-        margin-top: 2px;
+        margin-top: 4px;
+        border-top: 1px solid rgba(0,0,0,.06);
+        padding-top: 6px;
       }
 
       .bc-inline-st {
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 1px;
-        padding: 5px 9px 6px;
-        border-radius: 8px;
-        border: 1px solid transparent;
+        justify-content: center;
+        gap: 2px;
+        padding: 4px 6px;
+        border-radius: 0;
+        border: none;
+        border-right: 1px solid rgba(0,0,0,.07);
         flex: 1;
         min-width: 0;
         white-space: nowrap;
+        background: transparent !important;
+      }
+
+      .bc-inline-st:last-child {
+        border-right: none;
       }
 
       .bc-inline-lbl {
-        font-size: clamp(9px, 0.8vw, 11px);
-        font-weight: 800;
+        font-size: clamp(9px, 0.75vw, 10px);
+        font-weight: 700;
         letter-spacing: .2px;
-        line-height: 1.2;
+        line-height: 1.1;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
         max-width: 100%;
+        color: var(--sub);
       }
 
       .bc-inline-num-row {
@@ -1192,64 +1268,38 @@
       }
 
       .bc-inline-pct {
-        font-size: clamp(13px, 1.3vw, 17px);
+        font-size: clamp(14px, 1.35vw, 18px);
         font-weight: 900;
         line-height: 1;
       }
 
       .bc-inline-num {
-        font-size: clamp(13px, 1.3vw, 17px);
-        font-weight: 700;
-        opacity: .8;
+        font-size: clamp(11px, 1vw, 13px);
+        font-weight: 600;
+        opacity: .7;
       }
 
-      /* 數量為0的狀態框：保留位置但淡出，不影響排版 */
+      /* 數量為0的狀態：保留位置但淡出 */
       .bc-inline-st.bc-st-zero {
-        opacity: 0.28;
-        filter: grayscale(0.6);
+        opacity: 0.3;
       }
       .bc-inline-st.bc-st-zero .bc-inline-pct {
-        font-size: clamp(11px, 1.1vw, 15px);
+        font-size: clamp(12px, 1.1vw, 15px);
       }
 
-      /* bc-inline 顏色 + 框 */
-      .bc-inline-st.g {
-        background: var(--green-bg);
-        border-color: var(--green-bd);
-      }
-      .bc-inline-st.g .bc-inline-lbl { color: #1e6e35; }
+      /* bc-inline 純文字顏色，無色塊背景 */
       .bc-inline-st.g .bc-inline-pct,
       .bc-inline-st.g .bc-inline-num { color: var(--green); }
 
-      .bc-inline-st.y {
-        background: var(--yellow-bg);
-        border-color: var(--yellow-bd);
-      }
-      .bc-inline-st.y .bc-inline-lbl { color: #7a5500; }
       .bc-inline-st.y .bc-inline-pct,
       .bc-inline-st.y .bc-inline-num { color: var(--yellow); }
 
-      .bc-inline-st.r {
-        background: var(--red-bg);
-        border-color: var(--red-bd);
-      }
-      .bc-inline-st.r .bc-inline-lbl { color: #922018; }
       .bc-inline-st.r .bc-inline-pct,
       .bc-inline-st.r .bc-inline-num { color: var(--red); }
 
-      .bc-inline-st.p {
-        background: var(--purple-bg);
-        border-color: var(--purple-bd);
-      }
-      .bc-inline-st.p .bc-inline-lbl { color: #5b21b6; }
       .bc-inline-st.p .bc-inline-pct,
       .bc-inline-st.p .bc-inline-num { color: var(--purple); }
 
-      .bc-inline-st.o {
-        background: var(--orange-bg);
-        border-color: var(--orange-bd);
-      }
-      .bc-inline-st.o .bc-inline-lbl { color: #92400e; }
       .bc-inline-st.o .bc-inline-pct,
       .bc-inline-st.o .bc-inline-num { color: var(--orange); }
 
@@ -1422,6 +1472,14 @@
 
       .area-view .bc-st-lbl {
         font-size: clamp(9px, 0.9vw, 12px);
+      }
+
+      .area-view .bc-inline-pct {
+        font-size: clamp(18px, 2vw, 24px);
+      }
+
+      .area-view .bc-inline-num {
+        font-size: clamp(12px, 1.1vw, 15px);
       }
 
       .area-view .bc-track {
