@@ -4017,8 +4017,19 @@
             return v || colLabels[i] || '';
           });
           var dataRows = tbl.rows.slice(1);
+          /* combo rawRows：資料值優先用 c.v（確保「已查」「已達」等比對值不被格式化改寫）
+             只有 c.v 是 null 時才退回 c.f；顯示層的日期格式轉換在 parseCellVal 處理 */
           var rawRows = dataRows.map(function(row) {
-            return (row.c || []).map(parseCellVal);
+            return (row.c || []).map(function(c) {
+              if (!c) return '';
+              if (c.v != null) {
+                var sv = String(c.v);
+                /* Date(...) 是 gviz 日期格式，用 parseCellVal 轉成可讀字串 */
+                if (sv.indexOf('Date(') === 0) return parseCellVal(c);
+                return sv;
+              }
+              return c.f != null ? String(c.f) : '';
+            });
           }).filter(function(r) { return !r.every(function(v) { return !v.trim(); }); });
 
           /* 找兩欄的索引 */
