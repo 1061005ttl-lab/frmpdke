@@ -3525,8 +3525,6 @@
       /* ══ 狀態 ══ */
       var allRows = [],
         allHeaders = [];
-      var _rawHeaders = [];   /* 原始欄位名稱（gviz 取回後未經任何處理） */
-      var _rawRows = [];      /* 與 allRows 一一對應的原始資料列 */
       var chips = {};
       var curStatuses = [];
       var fArea = '',
@@ -3879,8 +3877,6 @@
         drillStack = [];
         allRows = [];
         allHeaders = [];
-        _rawHeaders = [];
-        _rawRows = [];
         curStatuses = [];
         fArea = '';
         fOffice = '';
@@ -3927,8 +3923,6 @@
           try {
             allHeaders = res[0].headers;
             allRows = res[0].rows;
-            _rawHeaders = res[0].rawHeaders || res[0].headers;
-            _rawRows = res[0].rawDataRows || res[0].rows;
             curStatuses = res[0].statuses;
             _monthColIdxMap = res[0].monthColKeepIdxMap || {};
             _activeMontCols = res[0].activeMontCols || [];
@@ -4099,9 +4093,7 @@
           ok({
             headers: keepHdrs,
             rows: processedRows,
-            statuses: statuses,
-            rawHeaders: hdrs,
-            rawDataRows: rawRows
+            statuses: statuses
           });
         }).catch(function(e) {
           console.error('fetchSheetCombo:', e);
@@ -4262,9 +4254,7 @@
             monthValue: monthValue,
             resolvedMonthCol: resolvedMonthCol,
             monthColKeepIdxMap: monthColKeepIdxMap,
-            activeMontCols: activeMontCols,
-            rawHeaders: hdrs,
-            rawDataRows: rawRows
+            activeMontCols: activeMontCols
           });
         }).catch(function(e) {
           console.error('fetchSheetText:', e);
@@ -4273,7 +4263,8 @@
       }
 
       function fetchSheet(id, sheet, ok, fail) {
-        var url = 'https://docs.google.com/spreadsheets/d/' + id + '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheet);
+        /* headers=0：讓第一列當欄名，避免 gviz 對數字欄回傳空 label */
+        var url = 'https://docs.google.com/spreadsheets/d/' + id + '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheet) + '&headers=0';
         fetch(url).then(function(r) {
           if (!r.ok) throw new Error('HTTP ' + r.status);
           return r.text();
@@ -4282,9 +4273,18 @@
           if (s < 0 || e < 0) throw new Error('回應格式錯誤');
           var json = JSON.parse(txt.slice(s, e + 1));
           var tbl = json.table;
-          if (!tbl || !tbl.cols) throw new Error('無資料');
-          var hdrs = tbl.cols.map(function(c) { return c.label || ''; });
-          var rawRows = (tbl.rows || []).map(function(row) {
+          if (!tbl || !tbl.rows || !tbl.rows.length) throw new Error('無資料');
+          var colLabels = (tbl.cols || []).map(function(c) { return (c.label || '').trim(); });
+          var hdrRow = tbl.rows[0];
+          var hdrs = (hdrRow.c || []).map(function(c, i) {
+            var v = (c && c.f != null && String(c.f).trim()) ? String(c.f).trim()
+                  : (c && c.v != null ? String(c.v).trim() : '');
+            if (/^\d+$/.test(v) && colLabels[i]) return colLabels[i];
+            if (/^Date\(/.test(v) && colLabels[i]) return colLabels[i];
+            return v || colLabels[i] || '';
+          });
+          var dataRows = tbl.rows.slice(1);
+          var rawRows = dataRows.map(function(row) {
             return (row.c || []).map(function(c) { return c && c.v != null ? String(c.v) : ''; });
           }).filter(function(r) { return !r.every(function(v) { return !v.trim(); }); });
 
@@ -4324,9 +4324,7 @@
           ok({
             headers: keepHdrs,
             rows: processedRows,
-            statuses: statuses,
-            rawHeaders: hdrs,
-            rawDataRows: rawRows
+            statuses: statuses
           });
         }).catch(function(e) {
           console.error('fetchSheet:', e);
@@ -5675,22 +5673,18 @@
           return (stat(staffGrouped[b])[lastKey]||0) - (stat(staffGrouped[a])[lastKey]||0);
         });
 
-        /* 明細清冊：直接輸出原始資料（gviz 取回後未經任何處理），依篩選條件過濾
-           _rawHeaders / _rawRows 與 allHeaders / allRows 一一對應，
-           所以用 allRows.indexOf 找到 index 後取 _rawRows[index] 即為原始列 */
+        /* 明細清冊：allHeaders 就是原始欄位（已透過 headers=0 正確讀取），
+           r.slice(0, allHeaders.length) 取對應欄，最後加狀態中文標籤 */
         var stLabel = isCombo ? '執行狀態' : '狀態';
-        var listHeader = _rawHeaders.slice().concat([stLabel]);
-        var rowIndexMap = new Map();
-        allRows.forEach(function(r, i) { rowIndexMap.set(r, i); });
+        var hdrLen = allHeaders.length;
+        var listHeader = allHeaders.slice().concat([stLabel]);
         var listRows = baseRows.slice().sort(function(a, b) {
           var od = (statusOrder[gs(a)]||99) - (statusOrder[gs(b)]||99);
           if (od !== 0) return od;
           return (gv(a,'area') + gv(a,'office') + gv(a,'staff') + gv(a,'store')).localeCompare(
             gv(b,'area') + gv(b,'office') + gv(b,'staff') + gv(b,'store'), 'zh-TW');
         }).map(function(r) {
-          var idx = rowIndexMap.get(r);
-          var raw = (idx !== undefined && _rawRows[idx]) ? _rawRows[idx] : r;
-          return raw.slice().concat([statusLabelMap[gs(r)] || gs(r)]);
+          return r.slice(0, hdrLen).concat([statusLabelMap[gs(r)] || gs(r)]);
         });
         var wb = XLSX.utils.book_new();
         var wsSum  = XLSX.utils.aoa_to_sheet([sumHeader].concat(sumRows));
