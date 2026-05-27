@@ -4058,7 +4058,11 @@
 
           /* 狀態欄不從 keepHdrs 移除，保留原始值供 extraCols 讀取 */
           var excludeIdx = new Set(); /* combo 模式不移除任何欄 */
-          var keepHdrs = hdrs.slice(); /* 保留所有欄位 */
+          /* gviz 對數字資料欄（如訪/查/巡/督/到）有時回傳空 header，
+             補回 colLabels；若仍空則以 __col_N 佔位，確保 extraCols 能找到欄位 */
+          var keepHdrs = hdrs.map(function(h, i) {
+            return h || colLabels[i] || '__col_' + i;
+          });
 
           var processedRows = rawRows.map(function(vals) {
             var v1 = (vals[col1Idx] || '').trim();
@@ -5663,16 +5667,20 @@
           return (stat(staffGrouped[b])[lastKey]||0) - (stat(staffGrouped[a])[lastKey]||0);
         });
 
-        /* 明細清冊：直接輸出原始欄位 + 狀態，依現有篩選條件過濾 */
+        /* 明細清冊：直接輸出原始欄位 + 狀態，依現有篩選條件過濾
+           ── 固定以 allHeaders.length 為準截取資料欄，確保所有模式（text/combo/auto）
+              的標題列與資料列欄數一致，不受各模式內部 row 結構差異影響 ── */
         var stLabel = isCombo ? '執行狀態' : '狀態';
-        var listHeader = allHeaders.concat([stLabel]);
+        var hdrLen = allHeaders.length;
+        var listHeader = allHeaders.slice().concat([stLabel]);
         var listRows = baseRows.slice().sort(function(a, b) {
           var od = (statusOrder[gs(a)]||99) - (statusOrder[gs(b)]||99);
           if (od !== 0) return od;
           return (gv(a,'area') + gv(a,'office') + gv(a,'staff') + gv(a,'store')).localeCompare(
             gv(b,'area') + gv(b,'office') + gv(b,'staff') + gv(b,'store'), 'zh-TW');
         }).map(function(r) {
-          return r.slice(0, r.length - 1).concat([statusLabelMap[gs(r)] || gs(r)]);
+          /* 取前 hdrLen 欄（對應 allHeaders），最後加狀態中文標籤 */
+          return r.slice(0, hdrLen).concat([statusLabelMap[gs(r)] || gs(r)]);
         });
         var wb = XLSX.utils.book_new();
         var wsSum  = XLSX.utils.aoa_to_sheet([sumHeader].concat(sumRows));
