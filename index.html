@@ -4114,8 +4114,26 @@
           });
           var dataRows = tbl.rows.slice(1);
           console.log('[fetchSheetText] hdrs:', JSON.stringify(hdrs));
+          /* gviz 日期欄的 c.v 是 Date(Y,M,D,...) 字串，優先用 c.f（格式化文字），
+             若 c.f 也沒有才用 c.v，並將 Date(...) 轉成可讀格式 */
+          function parseCellVal(c) {
+            if (!c) return '';
+            if (c.f != null && String(c.f).trim()) return String(c.f).trim();
+            if (c.v == null) return '';
+            var sv = String(c.v);
+            var dm = sv.match(/^Date\((\d+),(\d+),(\d+)(?:,(\d+),(\d+),(\d+))?\)$/);
+            if (dm) {
+              var Y = dm[1], M = String(Number(dm[2])+1).padStart(2,'0'), D = String(dm[3]).padStart(2,'0');
+              if (dm[4] != null) {
+                var hh = String(dm[4]).padStart(2,'0'), mm = String(dm[5]).padStart(2,'0'), ss = String(dm[6]).padStart(2,'0');
+                return Y+'/'+M+'/'+D+' '+hh+':'+mm+':'+ss;
+              }
+              return Y+'/'+M+'/'+D;
+            }
+            return sv;
+          }
           var rawRows = dataRows.map(function(row) {
-            return (row.c || []).map(function(c) { return c && c.v != null ? String(c.v) : (c && c.f ? String(c.f) : ''); });
+            return (row.c || []).map(parseCellVal);
           }).filter(function(r) { return !r.every(function(v) { return !v.trim(); }); });
 
           var statusColIdx = hdrs.findIndex(function(h) { return h === cfg.statusCol; });
