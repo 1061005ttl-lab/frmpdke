@@ -3411,7 +3411,7 @@
         statusMode: 'text',
         statusCol: '訪況',
         statusMap: { '達成': 'l', '未達': 'u' },
-        monthCol: '5月',
+        monthCol: 'auto',
         dataTimeSheet: '資料來源',
         dataTimeCell: 'E2',
         cvsWeightChannel: 'CVS通路',
@@ -3464,6 +3464,13 @@
         pctDecimals: 1
       }];
       var AREA_ORDER = ['北部', '桃園', '臺中', '嘉義', '臺南', '高雄', '花蓮'];
+      var GRADE_STD = {
+        '量販A': 4, '量販B': 3, '量販C': 2,
+        'A': 2, 'B': 1,
+        '五大A': 8, '五大B': 4, '五大C': 2,
+        '連鎖超市A': 4, '連鎖超市B': 2, '連鎖超市C': 1,
+        'CVS': 1
+      };
       var STATUS_CLS_ORDER = ['g', 'y', 'p', 'o'];
       var STATUS_EMOJI_ORDER = ['✅', '🟡', '🟣', '🟠'];
       /* ══ 狀態 ══ */
@@ -3617,6 +3624,13 @@
       function initCIVisits(monthColName) {
         CI['visits'] = -1;
         if (!monthColName) return;
+        if (monthColName === 'auto') {
+          /* 自動抓最後一個符合 /^\d+月$/ 的欄位 */
+          var candidates = allHeaders.map(function(h, i) { return { h: h, i: i }; })
+            .filter(function(x) { return /^\d+月$/.test(x.h); });
+          if (candidates.length) CI['visits'] = candidates[candidates.length - 1].i;
+          return;
+        }
         var i = allHeaders.findIndex(function(h) { return h === monthColName; });
         if (i < 0) i = allHeaders.findIndex(function(h) { return h.indexOf(monthColName) >= 0; });
         CI['visits'] = i;
@@ -3856,6 +3870,7 @@
             _activeMontCols = res[0].activeMontCols || [];
             initCI();
             if (cfg.monthCol) initCIVisits(cfg.monthCol);
+            else initCIVisits('auto');
             _curCfg = cfg;
             _pctDecimals = cfg.pctDecimals || 0;
             rebuildChips();
@@ -4934,21 +4949,33 @@
           '<th class="col-tp" style="width:80px">店家型態</th>' +
           '<th class="col-grade" style="width:50px">等級</th>' +
           '<th class="col-code" style="width:120px">店家代碼</th>' +
-          (CI['visits'] >= 0 ? '<th class="col-visits" style="width:55px">拜訪</th>' : '') +
+          '<th class="col-visits" style="width:46px;text-align:center">標準</th>' +
+          '<th class="col-visits" style="width:46px;text-align:center">已訪</th>' +
           (_activeMontCols.length ? _activeMontCols.map(function(mc) {
             return '<th class="col-visits" style="width:64px;text-align:center">' + esc(mc) + '</th>';
           }).join('') : '') +
           '</tr></thead><tbody>';
         sorted.forEach(function(r) {
           var k = gs(r);
+          var grade = gv(r, 'grade');
+          var std = (grade !== '' && GRADE_STD[grade] !== undefined) ? GRADE_STD[grade] : '—';
+          var visitsVal = CI['visits'] >= 0 ? (gv(r, 'visits') || '0') : '—';
+          /* 已訪 vs 標準 顏色提示 */
+          var stdNum = (std !== '—') ? std : null;
+          var visNum = parseFloat(visitsVal);
+          var visitsCls = '';
+          if (stdNum !== null && !isNaN(visNum)) {
+            visitsCls = visNum >= stdNum ? ' style="color:#22a84c;font-weight:900"' : ' style="color:#d93025;font-weight:700"';
+          }
           html += '<tr>' +
             '<td class="col-status ' + (statusClsMap[k] || '') + ' td-status">' + esc(statusLabelMap[k] || k) + '</td>' +
             '<td class="col-name td-name">' + esc(gv(r, 'store')) + '</td>' +
             '<td class="col-ch td-sub">' + esc(gv(r, 'channel')) + '</td>' +
             '<td class="col-tp td-sub">' + esc(gv(r, 'type')) + '</td>' +
-            '<td class="col-grade td-sub">' + esc(gv(r, 'grade')) + '</td>' +
+            '<td class="col-grade td-sub">' + esc(grade) + '</td>' +
             '<td class="col-code td-sub">' + esc(gv(r, 'code')) + '</td>' +
-            (CI['visits'] >= 0 ? '<td class="col-visits td-sub" style="text-align:center">' + esc(gv(r, 'visits')) + '</td>' : '') +
+            '<td class="col-visits td-sub" style="text-align:center">' + esc(String(std)) + '</td>' +
+            '<td class="col-visits td-sub" style="text-align:center"' + visitsCls + '>' + esc(visitsVal) + '</td>' +
             (_activeMontCols.length ? _activeMontCols.map(function(mc) {
               var ci = _monthColIdxMap[mc];
               var v = (ci !== undefined && r[ci] != null) ? String(r[ci]).trim() : '';
@@ -5379,13 +5406,6 @@
             });
           });
         }
-        var GRADE_STD = {
-          '量販A': 4, '量販B': 3, '量販C': 2,
-          'A': 2, 'B': 1,
-          '五大A': 8, '五大B': 4, '五大C': 2,
-          '連鎖超市A': 4, '連鎖超市B': 2, '連鎖超市C': 1,
-          'CVS': 1
-        };
         var hasVisits = CI['visits'] >= 0;
         var listHeader = ['營業處','營業所','業務員','通路別','店家型態','店家代碼','店家名稱','店家等級','標準','拜訪','狀態'];
         var statusOrder = {};
