@@ -5648,10 +5648,8 @@
 
         var listHeader, listRows;
         if (isCombo) {
-          /* combo 模式：直接輸出 allHeaders（原始欄位）+ 狀態中文，過濾掉 header 為空的欄位 */
-          var comboKeepIdxs = allHeaders.map(function(h, i) { return i; })
-            .filter(function(i) { return (allHeaders[i] || '').trim() !== ''; });
-          listHeader = comboKeepIdxs.map(function(i) { return allHeaders[i]; }).concat(['執行狀態']);
+          /* combo 模式：直接輸出 allHeaders（原始欄位）+ 狀態中文，不做欄位對照 */
+          listHeader = allHeaders.concat(['執行狀態']);
           var statusLabelMap2 = {};
           curStatuses.forEach(function(st){ statusLabelMap2[st.key] = st.labelShort; });
           listRows = [];
@@ -5661,15 +5659,13 @@
             return (gv(a,'area') + gv(a,'office') + gv(a,'staff') + gv(a,'store')).localeCompare(
               gv(b,'area') + gv(b,'office') + gv(b,'staff') + gv(b,'store'), 'zh-TW');
           }).forEach(function(r) {
-            var dataVals = comboKeepIdxs.map(function(i) { return r[i] != null ? r[i] : ''; });
+            var dataVals = r.slice(0, r.length - 1);
             var statusLabel = statusLabelMap2[gs(r)] || gs(r);
             listRows.push(dataVals.concat([statusLabel]));
           });
         } else {
-          /* 非 combo：同樣輸出原始欄位，過濾掉 header 為空的欄位 */
-          var nonComboKeepIdxs = allHeaders.map(function(h, i) { return i; })
-            .filter(function(i) { return (allHeaders[i] || '').trim() !== ''; });
-          listHeader = nonComboKeepIdxs.map(function(i) { return allHeaders[i]; }).concat(['狀態']);
+          /* 非 combo：同樣輸出原始欄位，保留完整資料 */
+          listHeader = allHeaders.concat(['狀態']);
           listRows = [];
           baseRows.slice().sort(function(a, b) {
             var od = (statusOrder[gs(a)]||99) - (statusOrder[gs(b)]||99);
@@ -5677,7 +5673,7 @@
             return (gv(a,'area') + gv(a,'office') + gv(a,'staff') + gv(a,'store')).localeCompare(
               gv(b,'area') + gv(b,'office') + gv(b,'staff') + gv(b,'store'), 'zh-TW');
           }).forEach(function(r) {
-            var dataVals = nonComboKeepIdxs.map(function(i) { return r[i] != null ? r[i] : ''; });
+            var dataVals = r.slice(0, r.length - 1);
             var statusLabel = statusLabelMap[gs(r)] || gs(r);
             listRows.push(dataVals.concat([statusLabel]));
           });
