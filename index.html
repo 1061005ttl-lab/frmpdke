@@ -3594,6 +3594,13 @@
       function initCIVisits(monthColName) {
         CI['visits'] = -1;
         if (!monthColName) return;
+        /* 位置法：__col_N 直接用索引 */
+        if (monthColName.indexOf('__col_') === 0) {
+          var idx = parseInt(monthColName.replace('__col_', ''), 10);
+          CI['visits'] = idx;
+          console.log('[initCIVisits] positional col:', idx);
+          return;
+        }
         var i = allHeaders.findIndex(function(h) { return h === monthColName; });
         if (i < 0) i = allHeaders.findIndex(function(h) { return h.indexOf(monthColName) >= 0; });
         CI['visits'] = i;
@@ -3935,19 +3942,26 @@
           var resolvedMonthCol = (function() {
             var mc = cfg.monthCol || '';
             if (mc === '*月') {
-              /* 先找 /^\d+月$/ 格式，取最後一個 */
-              var found = hdrs.filter(function(h) { return /^\d+月$/.test(h); });
+              /* gviz 對「5月」等欄名有時不回傳 label，改用位置法：
+                 取狀態欄（訪況）的前一欄作為已訪次數欄 */
+              var statusIdx = hdrs.findIndex(function(h) { return h === cfg.statusCol; });
+              if (statusIdx > 0) return '__col_' + (statusIdx - 1);
+              /* fallback：找包含月字的欄 */
+              var found = hdrs.filter(function(h) { return /\d月/.test(h); });
               if (found.length) return found[found.length - 1];
-              /* fallback：找包含「月」且前面是數字的欄 */
-              var found2 = hdrs.filter(function(h) { return /\d月/.test(h); });
-              if (found2.length) return found2[found2.length - 1];
               return '';
             }
             return mc;
           })();
+          var monthValue = (function() {
+            if (resolvedMonthCol && resolvedMonthCol.indexOf('__col_') === 0) {
+              var idx = parseInt(resolvedMonthCol.replace('__col_', ''), 10);
+              return hdrs[idx] || ('第' + (idx + 1) + '欄');
+            }
+            return resolvedMonthCol;
+          })();
           console.log('[fetchSheetText] hdrs:', JSON.stringify(hdrs));
-          console.log('[fetchSheetText] resolvedMonthCol:', resolvedMonthCol);
-          var monthValue = resolvedMonthCol;
+          console.log('[fetchSheetText] resolvedMonthCol:', resolvedMonthCol, 'monthValue:', monthValue);
           var statuses;
           var statusMap;
           if (cfg.statusDefs) {
