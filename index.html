@@ -3373,7 +3373,14 @@
     </div>
     <script>
       /* ══ 設定 ══ */
-      var SURVEYS = [{
+      /* ══ 管理分頁設定 ══ */
+      var MGMT_SHEET_ID = '1PR9OR7BIGyTpcH8QSMRXkPhQTr4h3m0UK3gET29f19s';
+      var MGMT_SHEET_NAME = '專案管理';
+
+      /* 寫死專案（排最後） */
+      var SURVEYS_FIXED = [{
+        _fixed: true,
+        _active: true,
         name: '主要通路巡訪(26.05)',
         id: '1OFquyYqZ5RPwmR2VUu5Jdjny4WZqWEXuQH_GrQONYGA',
         sheet: '主要通路分離名冊',
@@ -3387,36 +3394,8 @@
         cvsWeightChannel: 'CVS通路',
         cvsWeightCap: 0.7
       }, {
-        name: '全家巨人罐(26.4.28-5.26)',
-        id: '1v8Qs6TcyuwXviK_RiwMNdNi8toBn1iVhTnUz0IZS79A',
-        sheet: '店家名冊',
-        syncSheet: '輔助',
-        syncCell: 'B1'
-      }, {
-        name: 'CVS米酒PET商化(26.5.20-6.30)',
-        id: '1pQPD5rMcus3WVbidbkxdp2kDwTry_y9vL-u9SC73Cds',
-        sheet: '店家名冊',
-        syncSheet: '輔助',
-        syncCell: 'B1'
-      }, {
-        name: '特販米酒PET調查(26.2.4-5.8)',
-        id: '1ftAAjWsibhNFjaro5ZONFfu2Ru7CmMq9VfSUArdckLc',
-        sheet: '店家名冊',
-        syncSheet: '輔助',
-        syncCell: 'B1'
-      }, {        
-        name: 'CVS釀酒季調查(26.3.31-4.30)',
-        id: '19QuxbkdHOknPXlA3bwN3u1E5o5R8nnSuWf-yFA0bRXY',
-        sheet: '店家名冊',
-        syncSheet: '輔助',
-        syncCell: 'B1'
-      }, {
-        name: 'CVS白蘭地調價(26.3.31-4.30)',
-        id: '1H_6MSbPFZbgAvN1rrnAzflsVnLq_Afd2nD_kAT_5BiM',
-        sheet: '店家名冊',
-        syncSheet: '輔助',
-        syncCell: 'B1'
-      }, {
+        _fixed: true,
+        _active: true,
         name: 'CVS跨月訪頻',
         id: '1PGURKUrWDCs1c2KFgRlcTDl9ufCS4mxMzIK31F8Up2c',
         sheet: 'CVS訪查情形',
@@ -3433,6 +3412,75 @@
         defaultChannel: 'CVS通路',
         pctDecimals: 1
       }];
+
+      /* 全域 SURVEYS，啟動後由 loadSurveys() 填入 */
+      var SURVEYS = [];
+
+      /* ── 從管理分頁動態載入專案清單 ── */
+      function loadSurveys(callback) {
+        var url = 'https://docs.google.com/spreadsheets/d/' + MGMT_SHEET_ID +
+          '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(MGMT_SHEET_NAME);
+        fetch(url)
+          .then(function(r) { return r.text(); })
+          .then(function(txt) {
+            /* gviz 回傳格式：/*O_o*/\ngoogle.visualization.Query.setResponse({...}); */
+            var json = JSON.parse(txt.replace(/^[^\(]+\(/, '').replace(/\);?\s*$/, ''));
+            var rows = (json.table && json.table.rows) || [];
+            var dynamic = [];
+            rows.forEach(function(row) {
+              var cells = row.c || [];
+              var active = (cells[0] && cells[0].v || '').toString().trim().toUpperCase() === 'ON';
+              var name   = (cells[1] && cells[1].v || '').toString().trim();
+              var sid    = (cells[2] && cells[2].v || '').toString().trim();
+              var sheet  = (cells[3] && cells[3].v || '店家名冊').toString().trim();
+              var sync   = (cells[4] && cells[4].v || '輔助').toString().trim();
+              var cell   = (cells[5] && cells[5].v || 'B1').toString().trim();
+              if (!name || !sid) return;
+              dynamic.push({
+                _active: active,
+                name: name,
+                id: sid,
+                sheet: sheet,
+                syncSheet: sync,
+                syncCell: cell
+              });
+            });
+            /* 動態（進行中在前）+ 固定（全為進行中）放最後 */
+            var onList  = dynamic.filter(function(s) { return s._active; });
+            var offList = dynamic.filter(function(s) { return !s._active; });
+            SURVEYS = onList.concat(SURVEYS_FIXED).concat(offList);
+            callback();
+          })
+          .catch(function(err) {
+            console.warn('管理分頁載入失敗，使用寫死清單', err);
+            /* fallback：只用固定清單，全部視為進行中 */
+            SURVEYS = SURVEYS_FIXED.slice();
+            callback();
+          });
+      }
+
+      /* ── 建立下拉選單（含 optgroup） ── */
+      function buildSurveySelects() {
+        var onItems  = SURVEYS.map(function(c, i) { return { idx: i, s: c }; }).filter(function(o) { return o.s._active !== false; });
+        var offItems = SURVEYS.map(function(c, i) { return { idx: i, s: c }; }).filter(function(o) { return o.s._active === false; });
+
+        function makeOptions(list) {
+          return list.map(function(o) {
+            return '<option value="' + o.idx + '">' + esc(o.s.name) + '</option>';
+          }).join('');
+        }
+        function makeHTML() {
+          var h = '';
+          if (onItems.length)  h += '<optgroup label="▸ 進行中">'  + makeOptions(onItems)  + '</optgroup>';
+          if (offItems.length) h += '<optgroup label="▸ 已結束">' + makeOptions(offItems) + '</optgroup>';
+          return h;
+        }
+        var html = makeHTML();
+        var ss = document.getElementById('sel-survey');
+        var mm = document.getElementById('mm-survey');
+        if (ss) { ss.innerHTML = html; ss.disabled = false; }
+        if (mm) { mm.innerHTML = html; mm.disabled = false; }
+      }
       var AREA_ORDER = ['北部', '桃園', '臺中', '嘉義', '臺南', '高雄', '花蓮'];
       var GRADE_STD = {
         '量販A': 4, '量販B': 3, '量販C': 2,
@@ -5501,15 +5549,13 @@
       }
 
       /* ══ 啟動 ══ */
-      var ss = document.getElementById('sel-survey');
-      ss.innerHTML = SURVEYS.map(function(c, i) {
-        return '<option value="' + i + '">' + esc(c.name) + '</option>';
-      }).join('');
-      ss.disabled = false;
       document.addEventListener('DOMContentLoaded', function() { initRankDrawer(); });
       if (document.readyState !== 'loading') { initRankDrawer(); }
       showLoading();
-      onSurveyChange();
+      loadSurveys(function() {
+        buildSurveySelects();
+        onSurveyChange();
+      });
 
       /* ══ 視角切換 ══ */
       function setViewMode(m) {
