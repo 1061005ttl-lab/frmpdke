@@ -4118,15 +4118,26 @@
              若 c.f 也沒有才用 c.v，並將 Date(...) 轉成可讀格式 */
           function parseCellVal(c) {
             if (!c) return '';
-            if (c.f != null && String(c.f).trim()) return String(c.f).trim();
+            /* 優先用 c.f，但若含上午/下午需轉 24 小時制 */
+            if (c.f != null && String(c.f).trim()) {
+              var fv = String(c.f).trim();
+              var ampm = fv.match(/^(\d{4}\/\d{1,2}\/\d{1,2})\s+(上午|下午)\s+(\d{1,2}):(\d{2}):(\d{2})$/);
+              if (ampm) {
+                var date = ampm[1], period = ampm[2], h = parseInt(ampm[3]), m = ampm[4], s = ampm[5];
+                if (period === '下午' && h < 12) h += 12;
+                if (period === '上午' && h === 12) h = 0;
+                return date + ' ' + String(h).padStart(2,'0') + ':' + m + ':' + s;
+              }
+              return fv;
+            }
             if (c.v == null) return '';
             var sv = String(c.v);
             var dm = sv.match(/^Date\((\d+),(\d+),(\d+)(?:,(\d+),(\d+),(\d+))?\)$/);
             if (dm) {
               var Y = dm[1], M = String(Number(dm[2])+1).padStart(2,'0'), D = String(dm[3]).padStart(2,'0');
               if (dm[4] != null) {
-                var hh = String(dm[4]).padStart(2,'0'), mm = String(dm[5]).padStart(2,'0'), ss = String(dm[6]).padStart(2,'0');
-                return Y+'/'+M+'/'+D+' '+hh+':'+mm+':'+ss;
+                var hh = String(dm[4]).padStart(2,'0'), mm2 = String(dm[5]).padStart(2,'0'), ss = String(dm[6]).padStart(2,'0');
+                return Y+'/'+M+'/'+D+' '+hh+':'+mm2+':'+ss;
               }
               return Y+'/'+M+'/'+D;
             }
@@ -5637,8 +5648,10 @@
 
         var listHeader, listRows;
         if (isCombo) {
-          /* combo 模式：直接輸出 allHeaders（原始欄位）+ 狀態中文，不做欄位對照 */
-          listHeader = allHeaders.concat(['執行狀態']);
+          /* combo 模式：直接輸出 allHeaders（原始欄位）+ 狀態中文，過濾掉 header 為空的欄位 */
+          var comboKeepIdxs = allHeaders.map(function(h, i) { return i; })
+            .filter(function(i) { return (allHeaders[i] || '').trim() !== ''; });
+          listHeader = comboKeepIdxs.map(function(i) { return allHeaders[i]; }).concat(['執行狀態']);
           var statusLabelMap2 = {};
           curStatuses.forEach(function(st){ statusLabelMap2[st.key] = st.labelShort; });
           listRows = [];
@@ -5648,14 +5661,15 @@
             return (gv(a,'area') + gv(a,'office') + gv(a,'staff') + gv(a,'store')).localeCompare(
               gv(b,'area') + gv(b,'office') + gv(b,'staff') + gv(b,'store'), 'zh-TW');
           }).forEach(function(r) {
-            /* r 最後一個元素是 status key，前面是原始欄位值 */
-            var dataVals = r.slice(0, r.length - 1);
+            var dataVals = comboKeepIdxs.map(function(i) { return r[i] != null ? r[i] : ''; });
             var statusLabel = statusLabelMap2[gs(r)] || gs(r);
             listRows.push(dataVals.concat([statusLabel]));
           });
         } else {
-          /* 非 combo：同樣輸出原始欄位，保留完整資料 */
-          listHeader = allHeaders.concat(['狀態']);
+          /* 非 combo：同樣輸出原始欄位，過濾掉 header 為空的欄位 */
+          var nonComboKeepIdxs = allHeaders.map(function(h, i) { return i; })
+            .filter(function(i) { return (allHeaders[i] || '').trim() !== ''; });
+          listHeader = nonComboKeepIdxs.map(function(i) { return allHeaders[i]; }).concat(['狀態']);
           listRows = [];
           baseRows.slice().sort(function(a, b) {
             var od = (statusOrder[gs(a)]||99) - (statusOrder[gs(b)]||99);
@@ -5663,7 +5677,7 @@
             return (gv(a,'area') + gv(a,'office') + gv(a,'staff') + gv(a,'store')).localeCompare(
               gv(b,'area') + gv(b,'office') + gv(b,'staff') + gv(b,'store'), 'zh-TW');
           }).forEach(function(r) {
-            var dataVals = r.slice(0, r.length - 1);
+            var dataVals = nonComboKeepIdxs.map(function(i) { return r[i] != null ? r[i] : ''; });
             var statusLabel = statusLabelMap[gs(r)] || gs(r);
             listRows.push(dataVals.concat([statusLabel]));
           });
