@@ -4263,8 +4263,7 @@
       }
 
       function fetchSheet(id, sheet, ok, fail) {
-        /* headers=0：讓第一列當欄名，避免 gviz 對數字欄回傳空 label */
-        var url = 'https://docs.google.com/spreadsheets/d/' + id + '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheet) + '&headers=0';
+        var url = 'https://docs.google.com/spreadsheets/d/' + id + '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheet);
         fetch(url).then(function(r) {
           if (!r.ok) throw new Error('HTTP ' + r.status);
           return r.text();
@@ -4273,18 +4272,9 @@
           if (s < 0 || e < 0) throw new Error('回應格式錯誤');
           var json = JSON.parse(txt.slice(s, e + 1));
           var tbl = json.table;
-          if (!tbl || !tbl.rows || !tbl.rows.length) throw new Error('無資料');
-          var colLabels = (tbl.cols || []).map(function(c) { return (c.label || '').trim(); });
-          var hdrRow = tbl.rows[0];
-          var hdrs = (hdrRow.c || []).map(function(c, i) {
-            var v = (c && c.f != null && String(c.f).trim()) ? String(c.f).trim()
-                  : (c && c.v != null ? String(c.v).trim() : '');
-            if (/^\d+$/.test(v) && colLabels[i]) return colLabels[i];
-            if (/^Date\(/.test(v) && colLabels[i]) return colLabels[i];
-            return v || colLabels[i] || '';
-          });
-          var dataRows = tbl.rows.slice(1);
-          var rawRows = dataRows.map(function(row) {
+          if (!tbl || !tbl.cols) throw new Error('無資料');
+          var hdrs = tbl.cols.map(function(c) { return c.label || ''; });
+          var rawRows = (tbl.rows || []).map(function(row) {
             return (row.c || []).map(function(c) { return c && c.v != null ? String(c.v) : ''; });
           }).filter(function(r) { return !r.every(function(v) { return !v.trim(); }); });
 
@@ -5673,18 +5663,17 @@
           return (stat(staffGrouped[b])[lastKey]||0) - (stat(staffGrouped[a])[lastKey]||0);
         });
 
-        /* 明細清冊：allHeaders 就是原始欄位（已透過 headers=0 正確讀取），
-           r.slice(0, allHeaders.length) 取對應欄，最後加狀態中文標籤 */
+        /* 明細清冊：狀態欄插在第一欄，後面接原始欄位
+           狀態置首可避免來源資料尾端有空欄時造成欄位錯位 */
         var stLabel = isCombo ? '執行狀態' : '狀態';
-        var hdrLen = allHeaders.length;
-        var listHeader = allHeaders.slice().concat([stLabel]);
+        var listHeader = [stLabel].concat(allHeaders);
         var listRows = baseRows.slice().sort(function(a, b) {
           var od = (statusOrder[gs(a)]||99) - (statusOrder[gs(b)]||99);
           if (od !== 0) return od;
           return (gv(a,'area') + gv(a,'office') + gv(a,'staff') + gv(a,'store')).localeCompare(
             gv(b,'area') + gv(b,'office') + gv(b,'staff') + gv(b,'store'), 'zh-TW');
         }).map(function(r) {
-          return r.slice(0, hdrLen).concat([statusLabelMap[gs(r)] || gs(r)]);
+          return [statusLabelMap[gs(r)] || gs(r)].concat(r.slice(0, allHeaders.length));
         });
         var wb = XLSX.utils.book_new();
         var wsSum  = XLSX.utils.aoa_to_sheet([sumHeader].concat(sumRows));
