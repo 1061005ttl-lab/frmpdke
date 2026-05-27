@@ -3424,9 +3424,9 @@
         statusCol2: '巡補達成',
         statusVal: { pass: '已查', pass2: '已達', fail2: '未達' },
         statusDefs: [
-          { key: 'l', label: '\u2705 全達成', labelShort: '全達成', cls: 'g', emoji: '\u2705' },
-          { key: 'y', label: '\U0001f7e1 部分達成', labelShort: '部分達成', cls: 'y', emoji: '\U0001f7e1' },
-          { key: 'u', label: '\U0001f534 未查', labelShort: '未查', cls: 'r', emoji: '\U0001f534' }
+          { key: 'l', label: '✅ 全達成', labelShort: '全達成', cls: 'g', emoji: '✅' },
+          { key: 'y', label: '🟡 部分達成', labelShort: '部分達成', cls: 'y', emoji: '🟡' },
+          { key: 'u', label: '🔴 未查', labelShort: '未查', cls: 'r', emoji: '🔴' }
         ],
         extraCols: ['查核達成', '巡補達成', '訪次', '查次', '巡次', '特殊情形'],
         noGrade: true,
@@ -5106,8 +5106,10 @@
         var extraCols = Array.isArray(cfg2.extraCols) ? cfg2.extraCols : [];
         /* extraCols 欄位在 allHeaders 中的索引 */
         var extraColIdxs = extraCols.map(function(name) {
-          return allHeaders.findIndex(function(h) { return h === name; });
+          var idx = allHeaders.findIndex(function(h) { return h === name; });
+          return idx;
         });
+        console.log('[extraCols] names:', extraCols, 'idxs:', extraColIdxs, 'allHeaders:', allHeaders);
         var html = '<div class="sp-body" id="store-list-body">' +
           '<table class="store-tbl"><thead><tr>' +
           '<th class="col-status" style="width:72px">狀態</th>' +
@@ -5147,9 +5149,14 @@
               '<td class="col-visits td-sub" style="text-align:center">' + esc(String(std)) + '</td>' +
               '<td class="col-visits td-sub" style="text-align:center"' + visitsCls + '>' + esc(visitsVal) + '</td>'
             ) +
-            extraColIdxs.map(function(ci) {
+            extraColIdxs.map(function(ci, ei) {
               var v = (ci >= 0 && r[ci] != null) ? String(r[ci]).trim() : '';
-              return '<td class="col-visits td-sub" style="text-align:center">' + esc(v || '—') + '</td>';
+              var colName = extraCols[ei] || '';
+              /* 查核達成、巡補達成：含「未」字高光紅底 */
+              var isStatusCol = (colName === '查核達成' || colName === '巡補達成');
+              var hasUnfinished = isStatusCol && v.indexOf('\u672a') >= 0;
+              var style = 'text-align:center' + (hasUnfinished ? ';background:rgba(217,48,37,.10);color:#c62828;font-weight:700' : '');
+              return '<td class="col-visits td-sub" style="' + style + '">' + esc(v || '\u2014') + '</td>';
             }).join('') +
             (_activeMontCols.length ? _activeMontCols.map(function(mc) {
               var ci = _monthColIdxMap[mc];
