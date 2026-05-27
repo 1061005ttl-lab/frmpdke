@@ -8,7 +8,19 @@
         if (!input || input.toLowerCase() !== "ttl") {
           alert("驗證失敗");
           window.location.replace("about:blank");
+          return;
         }
+        /* ── 智能縮放：依螢幕寬度自動調整 ── */
+        (function() {
+          var BASE_W = 1440; /* 設計基準寬度，依公司螢幕調整 */
+          function applyZoom() {
+            var ratio = Math.min(1, window.innerWidth / BASE_W);
+            ratio = Math.max(0.55, ratio); /* 最小縮到 55% */
+            document.documentElement.style.zoom = ratio;
+          }
+          applyZoom();
+          window.addEventListener('resize', applyZoom);
+        })();
       })();
 
     </script>
@@ -4040,7 +4052,13 @@
             var v2 = (vals[col2Idx] || '').trim();
             var key;
             if (v1 === passVal) {
-              key = (v2 === pass2Val) ? 'l' : 'y';
+              if (v2 === pass2Val) {
+                key = 'l'; /* 查核已查 + 巡補已達 → 全達成 */
+              } else if (v2 === fail2Val) {
+                key = 'y'; /* 查核已查 + 巡補未達 → 部分達成 */
+              } else {
+                key = 'l'; /* 查核已查 + 巡補空白（無巡補需求）→ 全達成 */
+              }
             } else {
               key = 'u';
             }
@@ -5618,33 +5636,25 @@
             listRows.push(dataVals.concat([statusLabel]));
           });
         } else {
-          listHeader = ['營業處','營業所','業務員','通路別','店家型態','店家代碼','店家名稱','店家等級','標準','拜訪','狀態'];
+          /* 非 combo：同樣輸出原始欄位，保留完整資料 */
+          listHeader = allHeaders.concat(['狀態']);
           listRows = [];
-          staffSorted.forEach(function(sKey) {
-            staffGrouped[sKey].slice().sort(function(a, b) {
-              var od = (statusOrder[gs(a)]||99) - (statusOrder[gs(b)]||99);
-              if (od !== 0) return od;
-              return gv(a,'code').localeCompare(gv(b,'code'), 'zh-TW');
-            }).forEach(function(r) {
-              var grade = gv(r,'grade');
-              var std = (grade !== '' && GRADE_STD[grade] !== undefined) ? GRADE_STD[grade] : '';
-              var visits = hasVisits ? (parseFloat(gv(r,'visits')) || 0) : '';
-              listRows.push([
-                gv(r,'area'), gv(r,'office'), gv(r,'staff'),
-                gv(r,'channel'), gv(r,'type'), gv(r,'code'),
-                gv(r,'store'), grade, std, visits,
-                statusLabelMap[gs(r)] || gs(r)
-              ]);
-            });
+          baseRows.slice().sort(function(a, b) {
+            var od = (statusOrder[gs(a)]||99) - (statusOrder[gs(b)]||99);
+            if (od !== 0) return od;
+            return (gv(a,'area') + gv(a,'office') + gv(a,'staff') + gv(a,'store')).localeCompare(
+              gv(b,'area') + gv(b,'office') + gv(b,'staff') + gv(b,'store'), 'zh-TW');
+          }).forEach(function(r) {
+            var dataVals = r.slice(0, r.length - 1);
+            var statusLabel = statusLabelMap[gs(r)] || gs(r);
+            listRows.push(dataVals.concat([statusLabel]));
           });
         }
         var wb = XLSX.utils.book_new();
         var wsSum  = XLSX.utils.aoa_to_sheet([sumHeader].concat(sumRows));
         var wsList = XLSX.utils.aoa_to_sheet([listHeader].concat(listRows));
         wsSum['!cols'] = [{wch:8},{wch:14},{wch:14},{wch:22}].concat(stCols.map(function(){ return {wch:8}; })).concat([{wch:8}]);
-        wsList['!cols'] = isCombo
-          ? listHeader.map(function(){ return {wch:12}; })
-          : [{wch:14},{wch:14},{wch:14},{wch:12},{wch:12},{wch:14},{wch:24},{wch:8},{wch:6},{wch:6},{wch:10}];
+        wsList['!cols'] =           listHeader.map(function(h){ return {wch: Math.max(10, Math.min(30, (h||'').length * 2 + 4))}; });
         XLSX.utils.book_append_sheet(wb, wsSum,  '匯整統計');
         XLSX.utils.book_append_sheet(wb, wsList, '明細清冊');
         var now = new Date();
