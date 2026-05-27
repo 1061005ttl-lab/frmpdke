@@ -4107,9 +4107,13 @@
           var colLabels = (tbl.cols || []).map(function(c) { return (c.label || '').trim(); });
           var hdrRow = tbl.rows[0];
           var hdrs = (hdrRow.c || []).map(function(c, i) {
-            var v = c && c.v != null ? String(c.v).trim() : (c && c.f ? String(c.f).trim() : '');
-            /* 若 header 值是純數字，優先用 tbl.cols 的 label */
+            /* 標題列優先用 c.f（格式化文字），避免日期格式儲存格的 c.v 是 Date(...) */
+            var v = (c && c.f != null && String(c.f).trim()) ? String(c.f).trim()
+                  : (c && c.v != null ? String(c.v).trim() : '');
+            /* 若 header 值是純數字（如月份欄），優先用 tbl.cols 的 label */
             if (/^\d+$/.test(v) && colLabels[i]) return colLabels[i];
+            /* 若 c.v 是 Date(...) 形式（日期欄名），改用 colLabels */
+            if (/^Date\(/.test(v) && colLabels[i]) return colLabels[i];
             return v || colLabels[i] || '';
           });
           var dataRows = tbl.rows.slice(1);
