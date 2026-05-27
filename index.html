@@ -3525,6 +3525,8 @@
       /* ══ 狀態 ══ */
       var allRows = [],
         allHeaders = [];
+      var _rawHeaders = [];   /* 原始欄位名稱（gviz 取回後未經任何處理） */
+      var _rawRows = [];      /* 與 allRows 一一對應的原始資料列 */
       var chips = {};
       var curStatuses = [];
       var fArea = '',
@@ -3877,6 +3879,8 @@
         drillStack = [];
         allRows = [];
         allHeaders = [];
+        _rawHeaders = [];
+        _rawRows = [];
         curStatuses = [];
         fArea = '';
         fOffice = '';
@@ -3923,6 +3927,8 @@
           try {
             allHeaders = res[0].headers;
             allRows = res[0].rows;
+            _rawHeaders = res[0].rawHeaders || res[0].headers;
+            _rawRows = res[0].rawDataRows || res[0].rows;
             curStatuses = res[0].statuses;
             _monthColIdxMap = res[0].monthColKeepIdxMap || {};
             _activeMontCols = res[0].activeMontCols || [];
@@ -4058,11 +4064,7 @@
 
           /* 狀態欄不從 keepHdrs 移除，保留原始值供 extraCols 讀取 */
           var excludeIdx = new Set(); /* combo 模式不移除任何欄 */
-          /* gviz 對數字資料欄（如訪/查/巡/督/到）有時回傳空 header，
-             補回 colLabels；若仍空則以 __col_N 佔位，確保 extraCols 能找到欄位 */
-          var keepHdrs = hdrs.map(function(h, i) {
-            return h || colLabels[i] || '__col_' + i;
-          });
+          var keepHdrs = hdrs.slice(); /* 保留所有欄位 */
 
           var processedRows = rawRows.map(function(vals) {
             var v1 = (vals[col1Idx] || '').trim();
@@ -4097,7 +4099,9 @@
           ok({
             headers: keepHdrs,
             rows: processedRows,
-            statuses: statuses
+            statuses: statuses,
+            rawHeaders: hdrs,
+            rawDataRows: rawRows
           });
         }).catch(function(e) {
           console.error('fetchSheetCombo:', e);
@@ -4258,7 +4262,9 @@
             monthValue: monthValue,
             resolvedMonthCol: resolvedMonthCol,
             monthColKeepIdxMap: monthColKeepIdxMap,
-            activeMontCols: activeMontCols
+            activeMontCols: activeMontCols,
+            rawHeaders: hdrs,
+            rawDataRows: rawRows
           });
         }).catch(function(e) {
           console.error('fetchSheetText:', e);
@@ -4318,7 +4324,9 @@
           ok({
             headers: keepHdrs,
             rows: processedRows,
-            statuses: statuses
+            statuses: statuses,
+            rawHeaders: hdrs,
+            rawDataRows: rawRows
           });
         }).catch(function(e) {
           console.error('fetchSheet:', e);
@@ -5667,20 +5675,22 @@
           return (stat(staffGrouped[b])[lastKey]||0) - (stat(staffGrouped[a])[lastKey]||0);
         });
 
-        /* 明細清冊：直接輸出原始欄位 + 狀態，依現有篩選條件過濾
-           ── 固定以 allHeaders.length 為準截取資料欄，確保所有模式（text/combo/auto）
-              的標題列與資料列欄數一致，不受各模式內部 row 結構差異影響 ── */
+        /* 明細清冊：直接輸出原始資料（gviz 取回後未經任何處理），依篩選條件過濾
+           _rawHeaders / _rawRows 與 allHeaders / allRows 一一對應，
+           所以用 allRows.indexOf 找到 index 後取 _rawRows[index] 即為原始列 */
         var stLabel = isCombo ? '執行狀態' : '狀態';
-        var hdrLen = allHeaders.length;
-        var listHeader = allHeaders.slice().concat([stLabel]);
+        var listHeader = _rawHeaders.slice().concat([stLabel]);
+        var rowIndexMap = new Map();
+        allRows.forEach(function(r, i) { rowIndexMap.set(r, i); });
         var listRows = baseRows.slice().sort(function(a, b) {
           var od = (statusOrder[gs(a)]||99) - (statusOrder[gs(b)]||99);
           if (od !== 0) return od;
           return (gv(a,'area') + gv(a,'office') + gv(a,'staff') + gv(a,'store')).localeCompare(
             gv(b,'area') + gv(b,'office') + gv(b,'staff') + gv(b,'store'), 'zh-TW');
         }).map(function(r) {
-          /* 取前 hdrLen 欄（對應 allHeaders），最後加狀態中文標籤 */
-          return r.slice(0, hdrLen).concat([statusLabelMap[gs(r)] || gs(r)]);
+          var idx = rowIndexMap.get(r);
+          var raw = (idx !== undefined && _rawRows[idx]) ? _rawRows[idx] : r;
+          return raw.slice().concat([statusLabelMap[gs(r)] || gs(r)]);
         });
         var wb = XLSX.utils.book_new();
         var wsSum  = XLSX.utils.aoa_to_sheet([sumHeader].concat(sumRows));
