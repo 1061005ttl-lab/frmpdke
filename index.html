@@ -3428,7 +3428,7 @@
           { key: 'y', label: '🟡 部分達成', labelShort: '部分達成', cls: 'y', emoji: '🟡' },
           { key: 'u', label: '🔴 未查', labelShort: '未查', cls: 'r', emoji: '🔴' }
         ],
-        extraCols: ['查核達成', '巡補達成', '訪次', '查次', '巡次', '特殊情形'],
+        extraCols: ['查核達成', '巡補達成', '訪', '查', '巡', '督', '到', '特殊情形'],
         noGrade: true,
         noChannel: true
       }];
@@ -5589,7 +5589,8 @@
           });
         }
         var hasVisits = CI['visits'] >= 0;
-        var listHeader = ['營業處','營業所','業務員','通路別','店家型態','店家代碼','店家名稱','店家等級','標準','拜訪','狀態'];
+        var cfg3 = _curCfg || {};
+        var isCombo = cfg3.statusMode === 'combo';
         var statusOrder = {};
         curStatuses.forEach(function(st, i){ statusOrder[st.key] = i + 1; });
         statusOrder[lastKey] = 0;
@@ -5597,29 +5598,53 @@
         var staffSorted = Object.keys(staffGrouped).sort(function(a, b) {
           return (stat(staffGrouped[b])[lastKey]||0) - (stat(staffGrouped[a])[lastKey]||0);
         });
-        var listRows = [];
-        staffSorted.forEach(function(sKey) {
-          staffGrouped[sKey].slice().sort(function(a, b) {
+
+        var listHeader, listRows;
+        if (isCombo) {
+          /* combo 模式：直接輸出 allHeaders（原始欄位）+ 狀態中文，不做欄位對照 */
+          listHeader = allHeaders.concat(['執行狀態']);
+          var statusLabelMap2 = {};
+          curStatuses.forEach(function(st){ statusLabelMap2[st.key] = st.labelShort; });
+          listRows = [];
+          baseRows.slice().sort(function(a, b) {
             var od = (statusOrder[gs(a)]||99) - (statusOrder[gs(b)]||99);
             if (od !== 0) return od;
-            return gv(a,'code').localeCompare(gv(b,'code'), 'zh-TW');
+            return (gv(a,'area') + gv(a,'office') + gv(a,'staff') + gv(a,'store')).localeCompare(
+              gv(b,'area') + gv(b,'office') + gv(b,'staff') + gv(b,'store'), 'zh-TW');
           }).forEach(function(r) {
-            var grade = gv(r,'grade');
-            var std = (grade !== '' && GRADE_STD[grade] !== undefined) ? GRADE_STD[grade] : '';
-            var visits = hasVisits ? (parseFloat(gv(r,'visits')) || 0) : '';
-            listRows.push([
-              gv(r,'area'), gv(r,'office'), gv(r,'staff'),
-              gv(r,'channel'), gv(r,'type'), gv(r,'code'),
-              gv(r,'store'), grade, std, visits,
-              statusLabelMap[gs(r)] || gs(r)
-            ]);
+            /* r 最後一個元素是 status key，前面是原始欄位值 */
+            var dataVals = r.slice(0, r.length - 1);
+            var statusLabel = statusLabelMap2[gs(r)] || gs(r);
+            listRows.push(dataVals.concat([statusLabel]));
           });
-        });
+        } else {
+          listHeader = ['營業處','營業所','業務員','通路別','店家型態','店家代碼','店家名稱','店家等級','標準','拜訪','狀態'];
+          listRows = [];
+          staffSorted.forEach(function(sKey) {
+            staffGrouped[sKey].slice().sort(function(a, b) {
+              var od = (statusOrder[gs(a)]||99) - (statusOrder[gs(b)]||99);
+              if (od !== 0) return od;
+              return gv(a,'code').localeCompare(gv(b,'code'), 'zh-TW');
+            }).forEach(function(r) {
+              var grade = gv(r,'grade');
+              var std = (grade !== '' && GRADE_STD[grade] !== undefined) ? GRADE_STD[grade] : '';
+              var visits = hasVisits ? (parseFloat(gv(r,'visits')) || 0) : '';
+              listRows.push([
+                gv(r,'area'), gv(r,'office'), gv(r,'staff'),
+                gv(r,'channel'), gv(r,'type'), gv(r,'code'),
+                gv(r,'store'), grade, std, visits,
+                statusLabelMap[gs(r)] || gs(r)
+              ]);
+            });
+          });
+        }
         var wb = XLSX.utils.book_new();
         var wsSum  = XLSX.utils.aoa_to_sheet([sumHeader].concat(sumRows));
         var wsList = XLSX.utils.aoa_to_sheet([listHeader].concat(listRows));
         wsSum['!cols'] = [{wch:8},{wch:14},{wch:14},{wch:22}].concat(stCols.map(function(){ return {wch:8}; })).concat([{wch:8}]);
-        wsList['!cols'] = [{wch:14},{wch:14},{wch:14},{wch:12},{wch:12},{wch:14},{wch:24},{wch:8},{wch:6},{wch:6},{wch:10}];
+        wsList['!cols'] = isCombo
+          ? listHeader.map(function(){ return {wch:12}; })
+          : [{wch:14},{wch:14},{wch:14},{wch:12},{wch:12},{wch:14},{wch:24},{wch:8},{wch:6},{wch:6},{wch:10}];
         XLSX.utils.book_append_sheet(wb, wsSum,  '匯整統計');
         XLSX.utils.book_append_sheet(wb, wsList, '明細清冊');
         var now = new Date();
