@@ -3419,22 +3419,22 @@
       /* ── 從管理分頁動態載入專案清單 ── */
       function loadSurveys(callback) {
         var url = 'https://docs.google.com/spreadsheets/d/' + MGMT_SHEET_ID +
-          '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(MGMT_SHEET_NAME);
+          '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(MGMT_SHEET_NAME);
         fetch(url)
           .then(function(r) { return r.text(); })
           .then(function(txt) {
-            // gviz 回傳格式：google.visualization.Query.setResponse({...});
             var json = JSON.parse(txt.replace(/^[^\(]+\(/, '').replace(/\);?\s*$/, ''));
             var rows = (json.table && json.table.rows) || [];
             var dynamic = [];
             rows.forEach(function(row) {
               var cells = row.c || [];
-              var active = (cells[0] && cells[0].v || '').toString().trim().toUpperCase() === 'ON';
-              var name   = (cells[1] && cells[1].v || '').toString().trim();
-              var sid    = (cells[2] && cells[2].v || '').toString().trim();
-              var sheet  = (cells[3] && cells[3].v || '店家名冊').toString().trim();
-              var sync   = (cells[4] && cells[4].v || '輔助').toString().trim();
-              var cell   = (cells[5] && cells[5].v || 'B1').toString().trim();
+              function cv(c) { return c ? ((c.v !== null && c.v !== undefined ? c.v : c.f) || '') : ''; }
+              var active = cv(cells[0]).toString().trim().toUpperCase() === 'ON';
+              var name   = cv(cells[1]).toString().trim();
+              var sid    = cv(cells[2]).toString().trim();
+              var sheet  = cv(cells[3]).toString().trim() || '店家名冊';
+              var sync   = cv(cells[4]).toString().trim() || '輔助';
+              var cell   = cv(cells[5]).toString().trim() || 'B1';
               if (!name || !sid) return;
               dynamic.push({
                 _active: active,
@@ -3445,15 +3445,14 @@
                 syncCell: cell
               });
             });
-            /* 動態（進行中在前）+ 固定（全為進行中）放最後 */
+            /* 固定清單置頂 → 動態進行中 → 動態已結束 */
             var onList  = dynamic.filter(function(s) { return s._active; });
             var offList = dynamic.filter(function(s) { return !s._active; });
-            SURVEYS = onList.concat(SURVEYS_FIXED).concat(offList);
+            SURVEYS = SURVEYS_FIXED.concat(onList).concat(offList);
             callback();
           })
           .catch(function(err) {
             console.warn('管理分頁載入失敗，使用寫死清單', err);
-            /* fallback：只用固定清單，全部視為進行中 */
             SURVEYS = SURVEYS_FIXED.slice();
             callback();
           });
