@@ -3681,6 +3681,14 @@
         return s;
       }
 
+      /* combo 模式下分母只算有「查核達成」欄（l+y）的店；其餘模式回傳 s.t */
+      function statBase(s) {
+        if (_curCfg && _curCfg.statusMode === 'combo') {
+          return (s['l'] || 0) + (s['y'] || 0);
+        }
+        return s.t;
+      }
+
       var _pctDecimals = 0; /* 由 cfg.pctDecimals 控制，預設0位小數 */
       function pct(a, b) {
         if (b <= 0) return _pctDecimals > 0 ? (0).toFixed(_pctDecimals) : 0;
@@ -3945,11 +3953,100 @@
 
       function fetchSheetP(id, sheet, cfg) {
         return new Promise(function(ok, fail) {
-          if (cfg && cfg.statusMode === 'text') {
+          if (cfg && cfg.statusMode === 'combo') {
+            fetchSheetCombo(id, sheet, cfg, ok, fail);
+          } else if (cfg && cfg.statusMode === 'text') {
             fetchSheetText(id, sheet, cfg, ok, fail);
           } else {
             fetchSheet(id, sheet, ok, fail);
           }
+        });
+      }
+
+      /* ══ Combo 狀態模式（雙欄合併判斷：statusCol + statusCol2） ══ */
+      function fetchSheetCombo(id, sheet, cfg, ok, fail) {
+        var url = 'https://docs.google.com/spreadsheets/d/' + id + '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheet) + '&headers=0';
+        fetch(url).then(function(r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.text();
+        }).then(function(txt) {
+          var s = txt.indexOf('{'), e = txt.lastIndexOf('}');
+          if (s < 0 || e < 0) throw new Error('回應格式錯誤');
+          var json = JSON.parse(txt.slice(s, e + 1));
+          var tbl = json.table;
+          if (!tbl || !tbl.rows || !tbl.rows.length) throw new Error('無資料');
+          var colLabels = (tbl.cols || []).map(function(c) { return (c.label || '').trim(); });
+          var hdrRow = tbl.rows[0];
+          var hdrs = (hdrRow.c || []).map(function(c, i) {
+            var v = c && c.v != null ? String(c.v).trim() : (c && c.f ? String(c.f).trim() : '');
+            if (/^\d+$/.test(v) && colLabels[i]) return colLabels[i];
+            return v || colLabels[i] || '';
+          });
+          var dataRows = tbl.rows.slice(1);
+          var rawRows = dataRows.map(function(row) {
+            return (row.c || []).map(function(c) { return c && c.v != null ? String(c.v) : (c && c.f ? String(c.f) : ''); });
+          }).filter(function(r) { return !r.every(function(v) { return !v.trim(); }); });
+
+          /* 找兩欄的索引 */
+          var col1Idx = hdrs.findIndex(function(h) { return h === cfg.statusCol; });
+          var col2Idx = hdrs.findIndex(function(h) { return h === cfg.statusCol2; });
+          if (col1Idx < 0) throw new Error('找不到狀態欄：' + cfg.statusCol);
+          if (col2Idx < 0) throw new Error('找不到狀態欄：' + cfg.statusCol2);
+
+          /* statusVal: { pass, pass2, fail2 }
+             l = col1 已查 且 col2 已達
+             y = col1 已查 且 col2 未達
+             u = col1 未查（空白）
+          */
+          var sv = cfg.statusVal || {};
+          var passVal  = sv.pass  || '已查';
+          var pass2Val = sv.pass2 || '已達';
+          var fail2Val = sv.fail2 || '未達';
+
+          var statuses = (cfg.statusDefs || [
+            { key: 'l', label: '✅ 全達成', labelShort: '全達成', cls: 'g', emoji: '✅' },
+            { key: 'y', label: '🟡 部分達成', labelShort: '部分達成', cls: 'y', emoji: '🟡' },
+            { key: 'u', label: '🔴 未查', labelShort: '未查', cls: 'r', emoji: '🔴' }
+          ]).map(function(d) {
+            return { key: d.key, colIdx: col1Idx, col: cfg.statusCol, label: d.label, labelShort: d.labelShort, cls: d.cls, emoji: d.emoji };
+          });
+
+          /* 移除兩個狀態欄，保留其餘欄位；extraCols 也保留 */
+          var excludeIdx = new Set([col1Idx, col2Idx]);
+          var keepHdrs = hdrs.filter(function(h, i) { return !excludeIdx.has(i); });
+
+          var processedRows = rawRows.map(function(vals) {
+            var v1 = (vals[col1Idx] || '').trim();
+            var v2 = (vals[col2Idx] || '').trim();
+            var key;
+            if (v1 === passVal) {
+              key = (v2 === pass2Val) ? 'l' : 'y';
+            } else {
+              key = 'u';
+            }
+            var keep = vals.filter(function(v, i) { return !excludeIdx.has(i); });
+            keep.push(key);
+            return keep;
+          });
+
+          /* 補填空白營業所 */
+          var officeColIdx = keepHdrs.findIndex(function(h) {
+            return h === '營業所/課' || h === '營業所' || h.indexOf('營業所') >= 0;
+          });
+          if (officeColIdx >= 0) {
+            processedRows.forEach(function(r) {
+              if (!r[officeColIdx] || !r[officeColIdx].trim()) r[officeColIdx] = '行銷課';
+            });
+          }
+
+          ok({
+            headers: keepHdrs,
+            rows: processedRows,
+            statuses: statuses
+          });
+        }).catch(function(e) {
+          console.error('fetchSheetCombo:', e);
+          fail(e.message || String(e));
         });
       }
 
@@ -4569,7 +4666,7 @@
       /* ══ 整體卡 ══ */
       function makeWholeCard(name, rows) {
         var s = stat(rows);
-        var t = s.t || 1;
+        var t = statBase(s) || 1;
         var el = document.createElement('div');
         el.className = 'big-card whole';
         var ww = statWeighted(rows);
@@ -4641,7 +4738,7 @@
       /* ══ 一般大卡 ══ */
       function makeBigCard(name, rows, onClick, isSel) {
         var s = stat(rows);
-        var t = s.t || 1;
+        var t = statBase(s) || 1;
         var n = curStatuses.length;
         var el = document.createElement('div');
         el.className = 'big-card' + (isSel ? ' sel' : '');
@@ -4726,13 +4823,13 @@
       /* ══ 側欄小卡 ══ */
       function makeMiniCard(name, rows, onClick, isSel) {
         var s = stat(rows);
-        var t = s.t || 1;
+        var t = statBase(s) || 1;
         var el = document.createElement('div');
         el.className = 'mini-card' + (isSel ? ' sel' : '');
         el.innerHTML = '<div class="mc-top"><span class="mc-name">' + esc(name) + '</span><span class="mc-total">' + s.t + '</span></div>' +
           '<div class="mc-bar">' + segs(s) + '</div>' +
           '<div class="mc-sts">' + curStatuses.map(function(st) {
-            var p = pct(s[st.key] || 0, s.t || 1);
+            var p = pct(s[st.key] || 0, t);
             return '<span class="mc-s ' + st.cls + '">' + esc(st.emoji) + p + '%</span>';
           }).join('') + '</div>';
         el.addEventListener('click', onClick);
@@ -4791,7 +4888,7 @@
       function buildStaffCards(c, rows) {
         var sel = drillStack[2] ? drillStack[2].key : null;
         var ts = stat(rows);
-        var tt = ts.t || 1;
+        var tt = statBase(ts) || 1;
         var n = curStatuses.length;
         var oName = drillStack[1] ? drillStack[1].key : '';
         var aName = drillStack[0] ? drillStack[0].key : '';
@@ -4851,7 +4948,7 @@
         }).forEach(function(k) {
           var sr = m[k];
           var s = stat(sr);
-          var t = s.t || 1;
+          var t = statBase(s) || 1;
           var isSel = sel === k;
           var card = document.createElement('div');
           card.className = 'staff-card' + (isSel ? ' sel' : '');
@@ -4959,7 +5056,7 @@
               if (num === 0) return '<span class="bc-inline-st ' + st.cls + ' bc-st-zero"><span class="bc-inline-lbl">' + esc(st.labelShort) + '</span>' +
                 '<span class="bc-inline-num-row"><span class="bc-inline-pct">0%</span><span class="bc-inline-num">(0)</span></span></span>';
               return '<span class="bc-inline-st ' + st.cls + '"><span class="bc-inline-lbl">' + esc(st.labelShort) + '</span>' +
-                '<span class="bc-inline-num-row"><span class="bc-inline-pct">' + pct(num, s.t || 1) + '%</span><span class="bc-inline-num">(' + num + ')</span></span></span>';
+                '<span class="bc-inline-num-row"><span class="bc-inline-pct">' + pct(num, statBase(s) || 1) + '%</span><span class="bc-inline-num">(' + num + ')</span></span></span>';
             }).join('') +
           '</div>' +
           shDualHtml +
@@ -4983,16 +5080,26 @@
         curStatuses.forEach(function(st) { statusLabelMap[st.key] = st.label; });
         var statusClsMap = {};
         curStatuses.forEach(function(st) { statusClsMap[st.key] = STATUS_CLS_MAP[st.cls] || 'td-st-r'; });
+        var cfg2 = _curCfg || {};
+        var noGrade   = !!cfg2.noGrade;
+        var extraCols = Array.isArray(cfg2.extraCols) ? cfg2.extraCols : [];
+        /* extraCols 欄位在 keepHdrs 中的索引 */
+        var extraColIdxs = extraCols.map(function(name) {
+          return allHeaders.findIndex(function(h) { return h === name; });
+        });
         var html = '<div class="sp-body" id="store-list-body">' +
           '<table class="store-tbl"><thead><tr>' +
           '<th class="col-status" style="width:72px">狀態</th>' +
           '<th class="col-name">店家名稱</th>' +
           '<th class="col-ch" style="width:90px">通路別</th>' +
           '<th class="col-tp" style="width:80px">店家型態</th>' +
-          '<th class="col-grade" style="width:50px">等級</th>' +
+          (noGrade ? '' : '<th class="col-grade" style="width:50px">等級</th>') +
           '<th class="col-code" style="width:120px">店家代碼</th>' +
-          '<th class="col-visits" style="width:46px;text-align:center">標準</th>' +
-          '<th class="col-visits" style="width:46px;text-align:center">已訪</th>' +
+          (noGrade ? '' : '<th class="col-visits" style="width:46px;text-align:center">標準</th>') +
+          (noGrade ? '' : '<th class="col-visits" style="width:46px;text-align:center">已訪</th>') +
+          extraCols.map(function(name) {
+            return '<th class="col-visits" style="width:52px;text-align:center">' + esc(name) + '</th>';
+          }).join('') +
           (_activeMontCols.length ? _activeMontCols.map(function(mc) {
             return '<th class="col-visits" style="width:64px;text-align:center">' + esc(mc) + '</th>';
           }).join('') : '') +
@@ -5013,10 +5120,16 @@
             '<td class="col-name td-name">' + esc(gv(r, 'store')) + '</td>' +
             '<td class="col-ch td-sub">' + esc(gv(r, 'channel')) + '</td>' +
             '<td class="col-tp td-sub">' + esc(gv(r, 'type')) + '</td>' +
-            '<td class="col-grade td-sub">' + esc(grade) + '</td>' +
+            (noGrade ? '' : '<td class="col-grade td-sub">' + esc(grade) + '</td>') +
             '<td class="col-code td-sub">' + esc(gv(r, 'code')) + '</td>' +
-            '<td class="col-visits td-sub" style="text-align:center">' + esc(String(std)) + '</td>' +
-            '<td class="col-visits td-sub" style="text-align:center"' + visitsCls + '>' + esc(visitsVal) + '</td>' +
+            (noGrade ? '' :
+              '<td class="col-visits td-sub" style="text-align:center">' + esc(String(std)) + '</td>' +
+              '<td class="col-visits td-sub" style="text-align:center"' + visitsCls + '>' + esc(visitsVal) + '</td>'
+            ) +
+            extraColIdxs.map(function(ci) {
+              var v = (ci >= 0 && r[ci] != null) ? String(r[ci]).trim() : '';
+              return '<td class="col-visits td-sub" style="text-align:center">' + esc(v || '—') + '</td>';
+            }).join('') +
             (_activeMontCols.length ? _activeMontCols.map(function(mc) {
               var ci = _monthColIdxMap[mc];
               var v = (ci !== undefined && r[ci] != null) ? String(r[ci]).trim() : '';
