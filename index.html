@@ -3983,6 +3983,31 @@
         }).catch(function() { return ''; });
       }
 
+      /* ══ 共用：用 range=1:1 單獨抓第一列，取得真正的標題文字 ══
+         gviz 對數字/日期儲存格的欄名常回傳空 label 或 Date(...)，
+         直接讀第一列資料儲存格才能拿到原始標題字串。*/
+      function fetchHeaders(id, sheet) {
+        var url = 'https://docs.google.com/spreadsheets/d/' + id +
+          '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheet) +
+          '&headers=0&range=1:1';
+        return fetch(url).then(function(r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.text();
+        }).then(function(txt) {
+          var s = txt.indexOf('{'), e = txt.lastIndexOf('}');
+          if (s < 0 || e < 0) throw new Error('header 回應格式錯誤');
+          var json = JSON.parse(txt.slice(s, e + 1));
+          var rows = (json.table && json.table.rows) || [];
+          if (!rows.length || !rows[0].c) return [];
+          return rows[0].c.map(function(c) {
+            if (!c) return '';
+            if (c.f != null && String(c.f).trim()) return String(c.f).trim();
+            if (c.v != null) return String(c.v).trim();
+            return '';
+          });
+        });
+      }
+
       function fetchSheetP(id, sheet, cfg) {
         return new Promise(function(ok, fail) {
           if (cfg && cfg.statusMode === 'combo') {
@@ -3997,19 +4022,27 @@
 
       /* ══ Combo 狀態模式（雙欄合併判斷：statusCol + statusCol2） ══ */
       function fetchSheetCombo(id, sheet, cfg, ok, fail) {
-        var url = 'https://docs.google.com/spreadsheets/d/' + id + '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheet) + '&headers=0';
-        fetch(url).then(function(r) {
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          return r.text();
-        }).then(function(txt) {
+        var dataUrl = 'https://docs.google.com/spreadsheets/d/' + id + '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheet) + '&headers=0';
+        /* 先用 range=1:1 抓真正標題，再抓全資料，兩者並行 */
+        Promise.all([
+          fetchHeaders(id, sheet),
+          fetch(dataUrl).then(function(r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.text();
+          })
+        ]).then(function(results) {
+          var trueHdrs = results[0];
+          var txt = results[1];
           var s = txt.indexOf('{'), e = txt.lastIndexOf('}');
           if (s < 0 || e < 0) throw new Error('回應格式錯誤');
           var json = JSON.parse(txt.slice(s, e + 1));
           var tbl = json.table;
           if (!tbl || !tbl.rows || !tbl.rows.length) throw new Error('無資料');
+          /* 優先用 fetchHeaders 結果；若該位置為空再退回 colLabels/原本邏輯 */
           var colLabels = (tbl.cols || []).map(function(c) { return (c.label || '').trim(); });
           var hdrRow = tbl.rows[0];
           var hdrs = (hdrRow.c || []).map(function(c, i) {
+            if (trueHdrs[i]) return trueHdrs[i];
             var v = (c && c.f != null && String(c.f).trim()) ? String(c.f).trim()
                   : (c && c.v != null ? String(c.v).trim() : '');
             if (/^\d+$/.test(v) && colLabels[i]) return colLabels[i];
@@ -4133,22 +4166,28 @@
       /* ══ 文字狀態欄模式 ══ */
       /* gviz 對日期欄常回傳空 label；用 headers=0 讓第一列變成資料列，再自己取 header */
       function fetchSheetText(id, sheet, cfg, ok, fail) {
-        var url = 'https://docs.google.com/spreadsheets/d/' + id + '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheet) + '&headers=0';
-        fetch(url).then(function(r) {
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          return r.text();
-        }).then(function(txt) {
+        var dataUrl = 'https://docs.google.com/spreadsheets/d/' + id + '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheet) + '&headers=0';
+        /* 先用 range=1:1 抓真正標題，再抓全資料，兩者並行 */
+        Promise.all([
+          fetchHeaders(id, sheet),
+          fetch(dataUrl).then(function(r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.text();
+          })
+        ]).then(function(results) {
+          var trueHdrs = results[0];
+          var txt = results[1];
           var s = txt.indexOf('{'), e = txt.lastIndexOf('}');
           if (s < 0 || e < 0) throw new Error('回應格式錯誤');
           var json = JSON.parse(txt.slice(s, e + 1));
           var tbl = json.table;
           if (!tbl || !tbl.rows || !tbl.rows.length) throw new Error('無資料');
           /* headers=0 → 第一列就是試算表的標題列，從資料中直接取出 */
-          /* gviz 對數字欄（如「5月」儲存格內含數字資料）會把 header 的 c.v 解析成數字，
-             需補充用 tbl.cols[i].label 來還原原始欄名 */
+          /* 優先用 fetchHeaders 結果；若該位置為空再退回原本邏輯 */
           var colLabels = (tbl.cols || []).map(function(c) { return (c.label || '').trim(); });
           var hdrRow = tbl.rows[0];
           var hdrs = (hdrRow.c || []).map(function(c, i) {
+            if (trueHdrs[i]) return trueHdrs[i];
             /* 標題列優先用 c.f（格式化文字），避免日期格式儲存格的 c.v 是 Date(...) */
             var v = (c && c.f != null && String(c.f).trim()) ? String(c.f).trim()
                   : (c && c.v != null ? String(c.v).trim() : '');
@@ -4263,18 +4302,27 @@
       }
 
       function fetchSheet(id, sheet, ok, fail) {
-        var url = 'https://docs.google.com/spreadsheets/d/' + id + '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheet);
-        fetch(url).then(function(r) {
-          if (!r.ok) throw new Error('HTTP ' + r.status);
-          return r.text();
-        }).then(function(txt) {
+        var dataUrl = 'https://docs.google.com/spreadsheets/d/' + id + '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheet) + '&headers=0';
+        /* 先用 range=1:1 抓真正標題，再抓全資料，兩者並行 */
+        Promise.all([
+          fetchHeaders(id, sheet),
+          fetch(dataUrl).then(function(r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.text();
+          })
+        ]).then(function(results) {
+          var trueHdrs = results[0];
+          var txt = results[1];
           var s = txt.indexOf('{'), e = txt.lastIndexOf('}');
           if (s < 0 || e < 0) throw new Error('回應格式錯誤');
           var json = JSON.parse(txt.slice(s, e + 1));
           var tbl = json.table;
           if (!tbl || !tbl.cols) throw new Error('無資料');
-          var hdrs = tbl.cols.map(function(c) { return c.label || ''; });
-          var rawRows = (tbl.rows || []).map(function(row) {
+          /* 優先用 fetchHeaders 結果；若該位置為空再退回 tbl.cols[i].label */
+          var hdrs = (tbl.cols || []).map(function(c, i) {
+            return (trueHdrs[i]) ? trueHdrs[i] : (c.label || '');
+          });
+          var rawRows = (tbl.rows || []).slice(1).map(function(row) {
             return (row.c || []).map(function(c) { return c && c.v != null ? String(c.v) : ''; });
           }).filter(function(r) { return !r.every(function(v) { return !v.trim(); }); });
 
