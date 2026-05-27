@@ -3326,7 +3326,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 3.3.5 (2026-04-24)</div>
+      <div id="ver-ts">Ver. 3.4.0 (2026-05-27)</div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
     </div>
@@ -3913,9 +3913,15 @@
           var tbl = json.table;
           if (!tbl || !tbl.rows || !tbl.rows.length) throw new Error('無資料');
           /* headers=0 → 第一列就是試算表的標題列，從資料中直接取出 */
+          /* gviz 對數字欄（如「5月」儲存格內含數字資料）會把 header 的 c.v 解析成數字，
+             需補充用 tbl.cols[i].label 來還原原始欄名 */
+          var colLabels = (tbl.cols || []).map(function(c) { return (c.label || '').trim(); });
           var hdrRow = tbl.rows[0];
-          var hdrs = (hdrRow.c || []).map(function(c) {
-            return c && c.v != null ? String(c.v).trim() : (c && c.f ? String(c.f).trim() : '');
+          var hdrs = (hdrRow.c || []).map(function(c, i) {
+            var v = c && c.v != null ? String(c.v).trim() : (c && c.f ? String(c.f).trim() : '');
+            /* 若 header 值是純數字，優先用 tbl.cols 的 label */
+            if (/^\d+$/.test(v) && colLabels[i]) return colLabels[i];
+            return v || colLabels[i] || '';
           });
           var dataRows = tbl.rows.slice(1);
           console.log('[fetchSheetText] hdrs:', JSON.stringify(hdrs));
