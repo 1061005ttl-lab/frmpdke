@@ -3430,6 +3430,26 @@
         monthCols: 'auto',
         defaultChannel: 'CVS通路',
         pctDecimals: 1
+      }, {
+        _fixed: true,
+        _active: true,
+        name: '連鎖超市執行進度表(26.05)',
+        id: '10uZU9Np9SZmBR-wfSzwAjy1d08Acy7gzWK81YAuTgjI',
+        sheet: '不分級店家',
+        syncSheet: '輔助',
+        syncCell: 'B1',
+        statusMode: 'combo',
+        statusCol: '查核達成',
+        statusCol2: '巡補達成',
+        statusVal: { pass: '已查', pass2: '已達', fail2: '未達' },
+        statusDefs: [
+          { key: 'l', label: '\u2705 全達成', labelShort: '全達成', cls: 'g', emoji: '\u2705' },
+          { key: 'y', label: '\U0001f7e1 部分達成', labelShort: '部分達成', cls: 'y', emoji: '\U0001f7e1' },
+          { key: 'u', label: '\U0001f534 未查', labelShort: '未查', cls: 'r', emoji: '\U0001f534' }
+        ],
+        extraCols: ['查核達成', '巡補達成', '訪次', '查次', '巡次', '特殊情形'],
+        noGrade: true,
+        noChannel: true
       }];
 
       /* 全域 SURVEYS，啟動後由 loadSurveys() 填入 */
@@ -4030,9 +4050,9 @@
             return { key: d.key, colIdx: col1Idx, col: cfg.statusCol, label: d.label, labelShort: d.labelShort, cls: d.cls, emoji: d.emoji };
           });
 
-          /* 移除兩個狀態欄，保留其餘欄位；extraCols 也保留 */
-          var excludeIdx = new Set([col1Idx, col2Idx]);
-          var keepHdrs = hdrs.filter(function(h, i) { return !excludeIdx.has(i); });
+          /* 狀態欄不從 keepHdrs 移除，保留原始值供 extraCols 讀取 */
+          var excludeIdx = new Set(); /* combo 模式不移除任何欄 */
+          var keepHdrs = hdrs.slice(); /* 保留所有欄位 */
 
           var processedRows = rawRows.map(function(vals) {
             var v1 = (vals[col1Idx] || '').trim();
@@ -4043,7 +4063,7 @@
             } else {
               key = 'u';
             }
-            var keep = vals.filter(function(v, i) { return !excludeIdx.has(i); });
+            var keep = vals.slice(); /* 保留全部欄位 */
             keep.push(key);
             return keep;
           });
@@ -5101,8 +5121,9 @@
         curStatuses.forEach(function(st) { statusClsMap[st.key] = STATUS_CLS_MAP[st.cls] || 'td-st-r'; });
         var cfg2 = _curCfg || {};
         var noGrade   = !!cfg2.noGrade;
+        var noChannel = !!cfg2.noChannel;
         var extraCols = Array.isArray(cfg2.extraCols) ? cfg2.extraCols : [];
-        /* extraCols 欄位在 keepHdrs 中的索引 */
+        /* extraCols 欄位在 allHeaders 中的索引 */
         var extraColIdxs = extraCols.map(function(name) {
           return allHeaders.findIndex(function(h) { return h === name; });
         });
@@ -5110,14 +5131,14 @@
           '<table class="store-tbl"><thead><tr>' +
           '<th class="col-status" style="width:72px">狀態</th>' +
           '<th class="col-name">店家名稱</th>' +
-          '<th class="col-ch" style="width:90px">通路別</th>' +
+          (noChannel ? '' : '<th class="col-ch" style="width:90px">通路別</th>') +
           '<th class="col-tp" style="width:80px">店家型態</th>' +
           (noGrade ? '' : '<th class="col-grade" style="width:50px">等級</th>') +
           '<th class="col-code" style="width:120px">店家代碼</th>' +
           (noGrade ? '' : '<th class="col-visits" style="width:46px;text-align:center">標準</th>') +
           (noGrade ? '' : '<th class="col-visits" style="width:46px;text-align:center">已訪</th>') +
           extraCols.map(function(name) {
-            return '<th class="col-visits" style="width:52px;text-align:center">' + esc(name) + '</th>';
+            return '<th class="col-visits" style="width:64px;text-align:center">' + esc(name) + '</th>';
           }).join('') +
           (_activeMontCols.length ? _activeMontCols.map(function(mc) {
             return '<th class="col-visits" style="width:64px;text-align:center">' + esc(mc) + '</th>';
@@ -5137,7 +5158,7 @@
           html += '<tr>' +
             '<td class="col-status ' + (statusClsMap[k] || '') + ' td-status">' + esc(statusLabelMap[k] || k) + '</td>' +
             '<td class="col-name td-name">' + esc(gv(r, 'store')) + '</td>' +
-            '<td class="col-ch td-sub">' + esc(gv(r, 'channel')) + '</td>' +
+            (noChannel ? '' : '<td class="col-ch td-sub">' + esc(gv(r, 'channel')) + '</td>') +
             '<td class="col-tp td-sub">' + esc(gv(r, 'type')) + '</td>' +
             (noGrade ? '' : '<td class="col-grade td-sub">' + esc(grade) + '</td>') +
             '<td class="col-code td-sub">' + esc(gv(r, 'code')) + '</td>' +
