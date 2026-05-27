@@ -3411,7 +3411,7 @@
         statusMode: 'text',
         statusCol: '訪況',
         statusMap: { '達成': 'l', '未達': 'u' },
-        monthCol: 'auto',
+        monthCol: '*月',
         dataTimeSheet: '資料來源',
         dataTimeCell: 'E2',
         cvsWeightChannel: 'CVS通路',
@@ -3624,7 +3624,7 @@
       function initCIVisits(monthColName) {
         CI['visits'] = -1;
         if (!monthColName) return;
-        if (monthColName === 'auto') {
+        if (monthColName === '*月') {
           /* 自動抓最後一個符合 /^\d+月$/ 的欄位 */
           var candidates = allHeaders.map(function(h, i) { return { h: h, i: i }; })
             .filter(function(x) { return /^\d+月$/.test(x.h); });
@@ -3870,7 +3870,7 @@
             _activeMontCols = res[0].activeMontCols || [];
             initCI();
             if (cfg.monthCol) initCIVisits(cfg.monthCol);
-            else initCIVisits('auto');
+            else initCIVisits('');
             _curCfg = cfg;
             _pctDecimals = cfg.pctDecimals || 0;
             rebuildChips();
@@ -3962,7 +3962,14 @@
           var statusColIdx = hdrs.findIndex(function(h) { return h === cfg.statusCol; });
           if (statusColIdx < 0) throw new Error('找不到狀態欄：' + cfg.statusCol);
 
-          var monthValue = cfg.monthCol || '';
+          var monthValue = (function() {
+            var mc = cfg.monthCol || '';
+            if (mc === '*月') {
+              var found = hdrs.filter(function(h) { return /^\d+月$/.test(h); });
+              return found.length ? found[found.length - 1] : '';
+            }
+            return mc;
+          })();
           var statuses;
           var statusMap;
           if (cfg.statusDefs) {
