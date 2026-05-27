@@ -3597,6 +3597,7 @@
         var i = allHeaders.findIndex(function(h) { return h === monthColName; });
         if (i < 0) i = allHeaders.findIndex(function(h) { return h.indexOf(monthColName) >= 0; });
         CI['visits'] = i;
+        console.log('[initCIVisits] monthColName:', monthColName, '→ CI[visits]:', i, '| allHeaders:', JSON.stringify(allHeaders));
       }
 
       function gv(row, key) {
@@ -3928,11 +3929,18 @@
           var resolvedMonthCol = (function() {
             var mc = cfg.monthCol || '';
             if (mc === '*月') {
+              /* 先找 /^\d+月$/ 格式，取最後一個 */
               var found = hdrs.filter(function(h) { return /^\d+月$/.test(h); });
-              return found.length ? found[found.length - 1] : '';
+              if (found.length) return found[found.length - 1];
+              /* fallback：找包含「月」且前面是數字的欄 */
+              var found2 = hdrs.filter(function(h) { return /\d月/.test(h); });
+              if (found2.length) return found2[found2.length - 1];
+              return '';
             }
             return mc;
           })();
+          console.log('[fetchSheetText] hdrs:', JSON.stringify(hdrs));
+          console.log('[fetchSheetText] resolvedMonthCol:', resolvedMonthCol);
           var monthValue = resolvedMonthCol;
           var statuses;
           var statusMap;
