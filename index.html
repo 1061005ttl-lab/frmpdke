@@ -1157,6 +1157,23 @@
         z-index: 1;
       }
 
+      /* ══ [2026-05-28] bc-tbl 表格格式\uff1a卡片內不分類/非CVS/CVS 三行 ══ */
+      .bc-tbl { width: 100%; border-collapse: collapse; margin-top: 6px; }
+      .bc-tbl-th-lbl { width: 56px; }
+      .bc-tbl-th-count { font-size: 10px; font-weight: 700; color: var(--sub); text-align: right; padding: 2px 6px; }
+      .bc-tbl-th { font-size: 10px; font-weight: 700; text-align: center; padding: 2px 4px; }
+      .bc-tbl-th.g { color: var(--green); }
+      .bc-tbl-th.y { color: var(--yellow); }
+      .bc-tbl-th.r { color: var(--red); }
+      .bc-tbl-lbl { font-size: 11px; font-weight: 700; color: var(--sub); padding: 4px 4px 4px 0; white-space: nowrap; }
+      .bc-tbl-count { font-size: 11px; color: var(--sub); text-align: right; padding: 4px 6px; }
+      .bc-tbl-td { text-align: center; padding: 3px 4px; border-top: 1px solid rgba(0,0,0,.05); }
+      .bc-tbl-pct { font-size: clamp(11px, 1.1vw, 13px); font-weight: 900; }
+      .bc-tbl-num { font-size: 10px; color: var(--sub); margin-left: 1px; }
+      .bc-tbl-td.g .bc-tbl-pct { color: var(--green); }
+      .bc-tbl-td.r .bc-tbl-pct { color: var(--red); }
+      .bc-tbl-td.y .bc-tbl-pct { color: var(--yellow); }
+      .bc-tbl-tag { font-size: 9px; font-weight: 700; color: var(--green); margin-left: 2px; }
       /* ══ 統計格：行內橫排 ══ */
       .bc-stats {
         display: none; /* 已改為行內顯示 */
@@ -4879,19 +4896,20 @@
         var ww = statWeighted(rows);
         var vd = visitsWeightedDetail(rows);
 
-        var inlineStats = '<div class="bc-inline-stats">' +
-          curStatuses.map(function(st) {
-            var num = s[st.key] || 0;
-            if (num === 0) return '<span class="bc-inline-st ' + st.cls + ' bc-st-zero"><span class="bc-inline-lbl">' + esc(st.label) + '</span>' +
-              '<span class="bc-inline-num-row"><span class="bc-inline-pct">0%</span>' +
-              '<span class="bc-inline-num">(0)</span></span></span>';
-            return '<span class="bc-inline-st ' + st.cls + '"><span class="bc-inline-lbl">' + esc(st.label) + '</span>' +
-              '<span class="bc-inline-num-row"><span class="bc-inline-pct">' + pct(num, t) + '%</span>' +
-              '<span class="bc-inline-num">(' + num + ')</span></span></span>';
-          }).join('') + '</div>';
+        /* [2026-05-28] 改為表格格式\uff1a標題列，不分類/非CVS/CVS各一行 */
+        var statusHdrs = curStatuses.map(function(st) {
+          return '<th class="bc-tbl-th ' + st.cls + '">' + esc(st.labelShort) + '</th>';
+        }).join('');
+        function tblCells(statObj, total) {
+          return curStatuses.map(function(st) {
+            var num = (statObj === 'total') ? (s[st.key] || 0) : ((st.key === 'l') ? statObj.l : (st.key === 'u' || st.key === 'r') ? statObj.u : 0);
+            var denom = (statObj === 'total') ? t : (total || 1);
+            return '<td class="bc-tbl-td ' + st.cls + '"><span class="bc-tbl-pct">' + pct(num, denom) + '%</span><span class="bc-tbl-num">(' + num + ')</span></td>';
+          }).join('');
+        }
         el.innerHTML = '<div class="bc-head"><div class="bc-name">' + esc(name) + '</div><div class="bc-total">' + s.t + '</div></div>' +
-          inlineStats +
-          '<div class="bc-track">' + segs(s) + '</div>';
+          '<table class="bc-tbl"><thead><tr><th class="bc-tbl-th-lbl"></th><th class="bc-tbl-th-count">總家數</th>' + statusHdrs + '</tr></thead>' +
+          '<tbody><tr><td class="bc-tbl-lbl">不分類</td><td class="bc-tbl-count">' + s.t + '</td>' + tblCells('total', t) + '</tr></tbody></table>';
 
         var sbc2 = statByChannel(rows);
         var hasBothChannels = sbc2 && sbc2.cvs.t > 0;
@@ -4929,20 +4947,42 @@
             }).join('');
           }
 
-          var triEl = document.createElement('div');
-          triEl.className = 'bc-tri';
-          triEl.innerHTML =
-            '<div class="bc-tri-row noncvs">' +
-              '<div class="bc-tri-hdr">📋 非CVS（' + nc.t + '家）' + ncVisitsHtml + '</div>' +
-              '<div class="bc-tri-cells">' + triCells(nc, ncT, false, false) + '</div>' +
-            '</div>' +
-            '<div class="bc-tri-row cvs">' +
-              '<div class="bc-tri-hdr">⚖️ CVS（' + cv.t + '家）' + cvVisitsHtml + '</div>' +
-              '<div class="bc-tri-cells">' + triCells(cv, cv.t || 1, true, cv.weighted) + '</div>' +
-            '</div>';
-          el.appendChild(triEl);
-        } else if (CI['visits'] >= 0) {
-          /* [2026-05-28] bc-visits 次數列示移除 */        }
+          /* [2026-05-28] 非CVS/CVS 行插入 tbody，再接 bc-track */
+          var tbody = el.querySelector('tbody');
+          if (tbody) {
+            var cvWLtbl = cv.l;
+            var cvWUtbl = cv.weighted ? 0 : cv.u;
+            var cvWTtbl = (cv.weighted ? cv.l : cv.t) || 1;
+            function tblCellsCh(statObj, total, isCvs, isWeighted) {
+              return curStatuses.map(function(st) {
+                var num, denom;
+                num = (st.key === 'l') ? statObj.l : (st.key === 'u' || st.key === 'r') ? statObj.u : 0;
+                denom = total || 1;
+                if (isCvs && isWeighted) {
+                  num = (st.key === 'l') ? cvWLtbl : (st.key === 'u' || st.key === 'r') ? cvWUtbl : 0;
+                  denom = cvWTtbl;
+                }
+                var noteHtml = (isCvs && isWeighted && (st.key === 'u' || st.key === 'r')) ? '<span class="bc-tbl-tag">達標</span>' : '';
+                return '<td class="bc-tbl-td ' + st.cls + '"><span class="bc-tbl-pct">' + pct(num, denom) + '%</span><span class="bc-tbl-num">(' + num + ')</span>' + noteHtml + '</td>';
+              }).join('');
+            }
+            var ncRow = document.createElement('tr');
+            ncRow.innerHTML = '<td class="bc-tbl-lbl">非 CVS</td><td class="bc-tbl-count">' + nc.t + '</td>' + tblCellsCh(nc, ncT, false, false);
+            var cvRow = document.createElement('tr');
+            cvRow.innerHTML = '<td class="bc-tbl-lbl">CVS</td><td class="bc-tbl-count">' + cv.t + '</td>' + tblCellsCh(cv, cv.t || 1, true, cv.weighted);
+            tbody.appendChild(ncRow);
+            tbody.appendChild(cvRow);
+          }
+          var trackEl = document.createElement('div');
+          trackEl.className = 'bc-track';
+          trackEl.innerHTML = segs(s);
+          el.appendChild(trackEl);
+        } else {
+          var trackEl2 = document.createElement('div');
+          trackEl2.className = 'bc-track';
+          trackEl2.innerHTML = segs(s);
+          el.appendChild(trackEl2);
+        }
 
         if (onClick) el.addEventListener('click', onClick);
         return el;
