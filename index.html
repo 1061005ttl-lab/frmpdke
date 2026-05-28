@@ -4816,9 +4816,10 @@
           var cvWU = cv.weighted ? 0 : cv.u;
           var cvWT = (cv.weighted ? cv.l : cv.t) || 1;
 
-          var wTotalVisits = (vd && vd.real >= 0) ? '<span class="wc-tri-visits">🗓' + vd.real + '次</span>' : '';
-          var wNcVisits = (vd && vd.nonCvs >= 0) ? '<span class="wc-tri-visits">🗓' + vd.nonCvs + '次</span>' : '';
-          var wCvVisits = (vd && vd.cvs >= 0) ? '<span class="wc-tri-visits">🗓' + vd.cvs + '次</span>' : '';
+          /* [2026-05-28] 次數資訊移除，畫面過於擁擠且非重要資訊 */
+          var wTotalVisits = '';
+          var wNcVisits = '';
+          var wCvVisits = '';
 
           function wcTriCells(statKey, total, isCvs) {
             return curStatuses.map(function(st) {
@@ -4903,9 +4904,10 @@
           var vd2 = vd || {};
 
           // 次數標籤
-          var totalVisitsHtml = (vd2.real >= 0) ? '<span class="bc-tri-visits">🗓' + vd2.real + '次</span>' : '';
-          var ncVisitsHtml = (vd2.nonCvs >= 0) ? '<span class="bc-tri-visits">🗓' + vd2.nonCvs + '次</span>' : '';
-          var cvVisitsHtml = (vd2.cvs >= 0) ? '<span class="bc-tri-visits">🗓' + vd2.cvs + '次</span>' : '';
+          /* [2026-05-28] 次數資訊移除 */
+          var totalVisitsHtml = '';
+          var ncVisitsHtml = '';
+          var cvVisitsHtml = '';
 
           // 產生各層的 cell html
           function triCells(statObj, total, isCvs, isWeighted) {
@@ -4940,14 +4942,7 @@
             '</div>';
           el.appendChild(triEl);
         } else if (CI['visits'] >= 0) {
-          var vsum = visitsSum(rows);
-          if (vsum >= 0) {
-            var vbar = document.createElement('div');
-            vbar.className = 'bc-visits';
-            vbar.innerHTML = '\uD83D\uDDD3 拜訪 <strong>' + vsum + '</strong> 次';
-            el.appendChild(vbar);
-          }
-        }
+          /* [2026-05-28] bc-visits 次數列示移除 */        }
 
         if (onClick) el.addEventListener('click', onClick);
         return el;
@@ -5093,8 +5088,9 @@
             var cvCWL = cvC.l, cvCWU = cvC.weighted ? 0 : cvC.u;
             var cvCWT = (cvC.weighted ? cvC.l : cvC.t) || 1;
             var vdC = visitsWeightedDetail(sr);
-            var scNcVisits = (vdC && vdC.nonCvs >= 0) ? '<span class="bc-tri-visits">🗓' + vdC.nonCvs + '次</span>' : '';
-            var scCvVisits = (vdC && vdC.cvs >= 0) ? '<span class="bc-tri-visits">🗓' + vdC.cvs + '次</span>' : '';
+            /* [2026-05-28] 次數資訊移除 */
+            var scNcVisits = '';
+            var scCvVisits = '';
 
             var scNcCells = curStatuses.map(function(st) {
               var num = (st.key === 'l') ? ncC.l : (st.key === 'u' || st.key === 'r') ? ncC.u : 0;
