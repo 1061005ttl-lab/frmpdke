@@ -1086,7 +1086,7 @@
         gap: 8px;
         transition: border-color .2s, box-shadow .2s, transform .22s var(--ease);
         animation: cardPop .34s var(--ease) both;
-        padding: 14px 16px 14px 16px;
+        padding: 14px 16px 22px 16px; /* 底部22px = 14px內距 + 8px進度條空間 */
         box-shadow: 0 2px 8px rgba(0, 0, 0, .05), 0 1px 0 rgba(255, 255, 255, .9) inset;
       }
 
@@ -1153,10 +1153,12 @@
         border-radius: 0;
         overflow: hidden;
         display: flex;
-        width: calc(100% + 32px);
-        margin: 4px -16px -14px -16px;
-        position: relative;
-        flex-shrink: 0;
+        /* 改用 absolute 貼底，不依賴負邊距，縮放任何比例都正確 */
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
       }
       .bc-track::after {
         content: '';
@@ -1305,15 +1307,54 @@
       .bc-cv-neutral .bc-cv-pct { color: var(--yellow); }
       .bc-cv-neutral .bc-cv-num { color: var(--yellow); }
 
-      /* bc-cv-card 內的進度條：貼底、不用負邊距 hack */
+      /* bc-cv-card 內的進度條：已使用 absolute 定位，確保貼底 */
       .bc-cv-card .bc-track {
-        width: 100% !important;
-        margin: 0 !important;
-        border-radius: 0 !important;
         height: 8px !important;
       }
 
-      /* ══ [2026-05-28] bc-tbl / bc-vis 舊格式（保留備用） ══ */
+      /* ══ [2026-05-28] bc-cv-card 人員/個人頭卡補充樣式 ══ */
+
+      /* th-name 內的角落資訊 */
+      .bc-cv-corner {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--sub);
+        opacity: .75;
+        margin-left: auto;
+        white-space: nowrap;
+      }
+      .bc-cv-visits {
+        font-size: 10px;
+        font-weight: 700;
+        color: #4a7a55;
+      }
+
+      /* staff-view 下的 bc-cv-card 使用小號字，適合多欄排列 */
+      .staff-view .big-card.bc-cv-card .bc-cv-th-name {
+        font-size: clamp(18px, 1.8vw, 26px);
+        padding: 10px 8px 8px 14px;
+      }
+      .staff-view .big-card.bc-cv-card .bc-cv-pct {
+        font-size: clamp(13px, 1.3vw, 17px);
+      }
+      .staff-view .big-card.bc-cv-card .bc-cv-num {
+        font-size: clamp(10px, 0.95vw, 13px);
+      }
+
+      /* store-view 頭卡（個人層級）：full width + 不可點擊 */
+      .store-view .big-card.bc-cv-card.whole {
+        grid-column: 1 / -1;
+        cursor: default;
+        border-left: 5px solid var(--primary-d);
+        margin-bottom: 0;
+      }
+      .store-view .big-card.bc-cv-card.whole .bc-cv-th-name {
+        font-size: clamp(20px, 2vw, 28px);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
       .bc-tbl { width: 100%; border-collapse: collapse; margin-top: 6px; }
       .bc-tbl-th-name { font-size: 16px; font-weight: 900; color: var(--text); text-align: left; padding: 3px 4px 5px 0; white-space: nowrap; }
       .bc-tbl-th-count { font-size: 11px; font-weight: 700; color: var(--sub); text-align: right; padding: 2px 6px; }
@@ -1617,8 +1658,6 @@
 
       .area-view .bc-track {
         height: 10px;
-        width: calc(100% + 32px);
-        margin: 4px -16px -14px -16px;
       }
 
       .area-view .big-card.whole .wc-total {
@@ -1631,13 +1670,8 @@
 
       /* office-view */
       .office-view .big-card {
-        padding: 11px 13px 13px 13px;
+        padding: 11px 13px 19px 13px; /* 底部19px = 11px + 8px進度條 */
         gap: 8px;
-      }
-
-      .office-view .big-card .bc-track {
-        width: calc(100% + 26px);
-        margin: 4px -13px -13px -13px;
       }
 
       .office-view .bc-st {
@@ -5287,63 +5321,121 @@
           var s = stat(sr);
           var t = statBase(s) || 1;
           var isSel = sel === k;
+          var isCvsProject = !!((_curCfg || {}).cvsWeightChannel);
           var card = document.createElement('div');
-          card.className = 'staff-card' + (isSel ? ' sel' : '');
-          var sbcC = statByChannel(sr);
-          var dualCardHtml = '';
-          if (sbcC && sbcC.cvs.t > 0) {
-            var ncC = sbcC.nonCvs, cvC = sbcC.cvs;
-            var ncCT = ncC.t || 1;
-            var cvCWL = cvC.l, cvCWU = cvC.weighted ? 0 : cvC.u;
-            var cvCWT = (cvC.weighted ? cvC.l : cvC.t) || 1;
-            var vdC = visitsWeightedDetail(sr);
-            /* [2026-05-28] 次數資訊移除 */
-            var scNcVisits = '';
-            var scCvVisits = '';
+          if (isCvsProject) {
+            /* ── 主要通路巡訪：人員卡使用新型大卡（bc-cv-card）格式 ── */
+            card.className = 'big-card bc-cv-card' + (isSel ? ' sel' : '');
 
-            var scNcCells = curStatuses.map(function(st) {
-              var num = (st.key === 'l') ? ncC.l : (st.key === 'u' || st.key === 'r') ? ncC.u : 0;
-              return '<div class="bc-tri-cell ' + st.cls + '"><span class="bc-tri-pct">' + pct(num, ncCT) + '%</span><span class="bc-tri-num">(' + num + ')</span></div>';
-            }).join('');
-            var scCvCells = curStatuses.map(function(st) {
-              var num = (st.key === 'l') ? cvCWL : (st.key === 'u' || st.key === 'r') ? cvCWU : 0;
-              var noteHtml = (cvC.weighted && st.key === 'u') ? '<span class="bc-tri-tag">達標</span>' : '';
-              return '<div class="bc-tri-cell ' + st.cls + '"><span class="bc-tri-pct">' + pct(num, cvCWT) + '%</span><span class="bc-tri-num">(' + num + ')</span>' + noteHtml + '</div>';
+            function buildStaffRow(statObj, total, isCvsSrc, isWeighted) {
+              return curStatuses.map(function(st) {
+                var num, denom;
+                if (isCvsSrc && isWeighted) {
+                  var wl = statObj.l, wu = statObj.weighted ? 0 : statObj.u;
+                  var wt = (statObj.weighted ? statObj.l : statObj.t) || 1;
+                  num = (st.key === 'l') ? wl : (st.key === 'u' || st.key === 'r') ? wu : 0;
+                  denom = wt;
+                } else {
+                  num = (st.key === 'l') ? statObj.l : (st.key === 'u' || st.key === 'r') ? statObj.u : 0;
+                  denom = total || 1;
+                }
+                var isMet   = (st.key === 'l');
+                var isUnmet = (st.key === 'u' || st.key === 'r');
+                var cls = isMet ? 'bc-cv-met' : (isUnmet ? 'bc-cv-unmet' : 'bc-cv-neutral');
+                return '<td class="bc-cv-td ' + cls + '">' +
+                  '<span class="bc-cv-pct">' + pct(num, denom) + '%</span>' +
+                  '<span class="bc-cv-num">(' + num + ')</span>' +
+                '</td>';
+              }).join('');
+            }
+
+            var theadCols = curStatuses.map(function(st) {
+              var isMet = (st.key === 'l'), isUnmet = (st.key === 'u' || st.key === 'r');
+              var cls = isMet ? 'bc-cv-met' : (isUnmet ? 'bc-cv-unmet' : 'bc-cv-neutral');
+              return '<th class="bc-cv-th ' + cls + '">' + esc(st.labelShort) + '</th>';
             }).join('');
 
-            dualCardHtml = '<div class="bc-tri">' +
-              '<div class="bc-tri-row noncvs">' +
-                '<div class="bc-tri-hdr">📋 非CVS（' + ncC.t + '家）' + scNcVisits + '</div>' +
-                '<div class="bc-tri-cells">' + scNcCells + '</div>' +
+            var tbodyRows = '';
+            var sbcC = statByChannel(sr);
+            var hasBothCh = sbcC && sbcC.cvs.t > 0;
+            if (hasBothCh) {
+              var ncC = sbcC.nonCvs, cvC = sbcC.cvs;
+              tbodyRows =
+                '<tr><td class="bc-cv-lbl">不分類</td><td class="bc-cv-cnt">' + s.t + '</td>' + buildStaffRow({l: s.l || 0, u: s.u || 0, t: s.t}, t, false, false) + '</tr>' +
+                '<tr><td class="bc-cv-lbl">非CVS</td><td class="bc-cv-cnt">' + ncC.t + '</td>' + buildStaffRow(ncC, ncC.t || 1, false, false) + '</tr>' +
+                '<tr><td class="bc-cv-lbl">CVS</td><td class="bc-cv-cnt">' + cvC.t + '</td>' + buildStaffRow(cvC, cvC.t || 1, true, cvC.weighted) + '</tr>';
+            } else {
+              tbodyRows = '<tr><td class="bc-cv-lbl">不分類</td><td class="bc-cv-cnt">' + s.t + '</td>' + buildStaffRow({l: s.l || 0, u: s.u || 0, t: s.t}, t, false, false) + '</tr>';
+            }
+
+            /* 角落：佔所%與拜訪次數，放進 th-name 裡 */
+            var cornerHtml = '<span class="bc-cv-corner">' +
+              '佔所' + pct(s.t, tt) + '%' +
+              (CI['visits'] >= 0 ? '&nbsp;<span class="bc-cv-visits">🗓' + visitsSum(sr) + '次</span>' : '') +
+              '</span>';
+
+            card.innerHTML =
+              '<table class="bc-cv-tbl">' +
+                '<thead class="bc-cv-thead"><tr>' +
+                  '<th class="bc-cv-th-name">👤 ' + esc(trimName(k)) + cornerHtml + '</th>' +
+                  '<th class="bc-cv-th-cnt">總家數</th>' +
+                  theadCols +
+                '</tr></thead>' +
+                '<tbody class="bc-cv-tbody">' + tbodyRows + '</tbody>' +
+              '</table>';
+
+            var trackEl = document.createElement('div');
+            trackEl.className = 'bc-track';
+            trackEl.innerHTML = segs(s);
+            card.appendChild(trackEl);
+
+          } else {
+            /* ── 其他專案：原有 staff-card 格式 ── */
+            card.className = 'staff-card' + (isSel ? ' sel' : '');
+            var sbcC = statByChannel(sr);
+            var dualCardHtml = '';
+            if (sbcC && sbcC.cvs.t > 0) {
+              var ncC = sbcC.nonCvs, cvC = sbcC.cvs;
+              var ncCT = ncC.t || 1;
+              var cvCWL = cvC.l, cvCWU = cvC.weighted ? 0 : cvC.u;
+              var cvCWT = (cvC.weighted ? cvC.l : cvC.t) || 1;
+              var scNcCells = curStatuses.map(function(st) {
+                var num = (st.key === 'l') ? ncC.l : (st.key === 'u' || st.key === 'r') ? ncC.u : 0;
+                return '<div class="bc-tri-cell ' + st.cls + '"><span class="bc-tri-pct">' + pct(num, ncCT) + '%</span><span class="bc-tri-num">(' + num + ')</span></div>';
+              }).join('');
+              var scCvCells = curStatuses.map(function(st) {
+                var num = (st.key === 'l') ? cvCWL : (st.key === 'u' || st.key === 'r') ? cvCWU : 0;
+                var noteHtml = (cvC.weighted && st.key === 'u') ? '<span class="bc-tri-tag">達標</span>' : '';
+                return '<div class="bc-tri-cell ' + st.cls + '"><span class="bc-tri-pct">' + pct(num, cvCWT) + '%</span><span class="bc-tri-num">(' + num + ')</span>' + noteHtml + '</div>';
+              }).join('');
+              dualCardHtml = '<div class="bc-tri">' +
+                '<div class="bc-tri-row noncvs"><div class="bc-tri-hdr">📋 非CVS（' + ncC.t + '家）</div><div class="bc-tri-cells">' + scNcCells + '</div></div>' +
+                '<div class="bc-tri-row cvs"><div class="bc-tri-hdr">⚖️ CVS（' + cvC.t + '家）</div><div class="bc-tri-cells">' + scCvCells + '</div></div>' +
+              '</div>';
+            }
+            var scInlineStats = '<div class="bc-inline-stats">' +
+              curStatuses.map(function(st) {
+                var num = s[st.key] || 0;
+                if (num === 0) return '<span class="bc-inline-st ' + st.cls + ' bc-st-zero"><span class="bc-inline-lbl">' + esc(st.labelShort) + '</span>' +
+                  '<span class="bc-inline-num-row"><span class="bc-inline-pct">0%</span><span class="bc-inline-num">(0)</span></span></span>';
+                return '<span class="bc-inline-st ' + st.cls + '"><span class="bc-inline-lbl">' + esc(st.labelShort) + '</span>' +
+                  '<span class="bc-inline-num-row"><span class="bc-inline-pct">' + pct(num, t) + '%</span><span class="bc-inline-num">(' + num + ')</span></span></span>';
+              }).join('') + '</div>';
+            card.innerHTML = '<div class="sc-head">' +
+              '<div class="sc-name">👤 ' + esc(trimName(k)) + '</div>' +
+              '<div class="sc-corner"><span class="sc-corner-num">' + s.t + '</span><span class="sc-corner-pct">佔所' + pct(s.t, tt) + '%</span>' +
+              (CI['visits'] >= 0 ? '<span class="sc-visits">🗓' + visitsSum(sr) + '次</span>' : '') +
               '</div>' +
-              '<div class="bc-tri-row cvs">' +
-                '<div class="bc-tri-hdr">⚖️ CVS（' + cvC.t + '家）' + scCvVisits + '</div>' +
-                '<div class="bc-tri-cells">' + scCvCells + '</div>' +
               '</div>' +
-            '</div>';
-          }
-          var scInlineStats = '<div class="bc-inline-stats">' +
-            curStatuses.map(function(st) {
-              var num = s[st.key] || 0;
-              if (num === 0) return '<span class="bc-inline-st ' + st.cls + ' bc-st-zero"><span class="bc-inline-lbl">' + esc(st.labelShort) + '</span>' +
-                '<span class="bc-inline-num-row"><span class="bc-inline-pct">0%</span><span class="bc-inline-num">(0)</span></span></span>';
-              return '<span class="bc-inline-st ' + st.cls + '"><span class="bc-inline-lbl">' + esc(st.labelShort) + '</span>' +
-                '<span class="bc-inline-num-row"><span class="bc-inline-pct">' + pct(num, t) + '%</span><span class="bc-inline-num">(' + num + ')</span></span></span>';
-            }).join('') + '</div>';
-          card.innerHTML = '<div class="sc-head">' +
-            '<div class="sc-name">\uD83D\uDC64 ' + esc(trimName(k)) + '</div>' +
-            '<div class="sc-corner"><span class="sc-corner-num">' + s.t + '</span><span class="sc-corner-pct">\u4f54\u6240' + pct(s.t, tt) + '%</span>' +
-            (CI['visits'] >= 0 ? '<span class="sc-visits">\uD83D\uDDD3' + visitsSum(sr) + '\u6b21</span>' : '') +
-            '</div>' +
-            '</div>' +
-            scInlineStats +
-            dualCardHtml +
-            '<div class="sc-bar">' +
+              scInlineStats +
+              dualCardHtml +
+              '<div class="sc-bar">' +
               curStatuses.map(function(st) {
                 var v = s[st.key] || 0;
                 return v ? '<div class="sc-bar-' + st.cls + '" style="flex:' + v + '"></div>' : '';
               }).join('') +
             '</div>';
+          }
           card.addEventListener('click', function() { drillInto('staff', k); });
           c.appendChild(card);
         });
@@ -5362,44 +5454,117 @@
       /* ══ 店家層 ══ */
       function buildStoreCards(c, rows) {
         var s = stat(rows);
+        var t = statBase(s) || 1;
         var staffName = drillStack[2] ? drillStack[2].key : '';
         var header = document.createElement('div');
-        header.className = 'store-header';
-        var wsh2 = statByChannel(rows);
-        var shDualHtml = '';
-        if (wsh2 && wsh2.cvs.t > 0) {
-          var ncSH = wsh2.nonCvs, cvSH = wsh2.cvs;
-          var ncSHT = ncSH.t || 1;
-          var cvSHWL = cvSH.l, cvSHWU = cvSH.weighted ? 0 : cvSH.u;
-          var cvSHWT = (cvSH.weighted ? cvSH.l : cvSH.t) || 1;
-          var shRL = curStatuses.map(function(st) {
-            var num = (st.key === 'l') ? ncSH.l : (st.key === 'u' || st.key === 'r') ? ncSH.u : 0;
-            return '<span class="sh-s ' + st.cls + '">' + esc(st.emoji) + ' ' + num + ' (' + pct(num, ncSHT) + '%)</span>';
-          }).join(' ');
-          var shWL = curStatuses.map(function(st) {
-            var num = (st.key === 'l') ? cvSHWL : (st.key === 'u' || st.key === 'r') ? cvSHWU : 0;
-            var note = (st.key === 'u' && cvSH.weighted) ? '(\u9054\u6a19)' : '';
-            return '<span class="sh-s ' + st.cls + '">' + esc(st.emoji) + ' ' + num + ' (' + pct(num, cvSHWT) + '%)' + (note ? '<em style="font-size:9px;opacity:.6;margin-left:2px;">' + note + '</em>' : '') + '</span>';
-          }).join(' ');
-          shDualHtml = '<div class="sh-dual">' +
-            '<span class="sh-dual-lbl real">\uD83D\uDCCA \u975eCVS(' + ncSH.t + '\u5bb6):</span>' + shRL + '&nbsp;&nbsp;' +
-            '<span class="sh-dual-lbl weighted">\u2696\uFE0F CVS(' + cvSH.t + '\u5bb6' + (cvSH.weighted ? '\u2714\uFE0F' : '') + '):</span>' + shWL +
-          '</div>';
+        var isCvsProject = !!((_curCfg || {}).cvsWeightChannel);
+
+        if (isCvsProject) {
+          /* ── 主要通路巡訪：頭卡使用新型大卡格式 ── */
+          header.className = 'big-card bc-cv-card whole';
+          header.style.cssText = 'cursor:default;grid-column:1/-1;margin-bottom:0;';
+
+          function buildHeadRow(statObj, total, isCvsSrc, isWeighted) {
+            return curStatuses.map(function(st) {
+              var num, denom;
+              if (isCvsSrc && isWeighted) {
+                var wl = statObj.l, wu = statObj.weighted ? 0 : statObj.u;
+                var wt = (statObj.weighted ? statObj.l : statObj.t) || 1;
+                num = (st.key === 'l') ? wl : (st.key === 'u' || st.key === 'r') ? wu : 0;
+                denom = wt;
+              } else {
+                num = (st.key === 'l') ? statObj.l : (st.key === 'u' || st.key === 'r') ? statObj.u : 0;
+                denom = total || 1;
+              }
+              var isMet   = (st.key === 'l');
+              var isUnmet = (st.key === 'u' || st.key === 'r');
+              var cls = isMet ? 'bc-cv-met' : (isUnmet ? 'bc-cv-unmet' : 'bc-cv-neutral');
+              return '<td class="bc-cv-td ' + cls + '">' +
+                '<span class="bc-cv-pct">' + pct(num, denom) + '%</span>' +
+                '<span class="bc-cv-num">(' + num + ')</span>' +
+              '</td>';
+            }).join('');
+          }
+
+          var theadCols = curStatuses.map(function(st) {
+            var isMet = (st.key === 'l'), isUnmet = (st.key === 'u' || st.key === 'r');
+            var cls = isMet ? 'bc-cv-met' : (isUnmet ? 'bc-cv-unmet' : 'bc-cv-neutral');
+            return '<th class="bc-cv-th ' + cls + '">' + esc(st.labelShort) + '</th>';
+          }).join('');
+
+          var tbodyRows = '';
+          var wsh2 = statByChannel(rows);
+          var hasBothCh = wsh2 && wsh2.cvs.t > 0;
+          if (hasBothCh) {
+            var ncSH = wsh2.nonCvs, cvSH = wsh2.cvs;
+            tbodyRows =
+              '<tr><td class="bc-cv-lbl">不分類</td><td class="bc-cv-cnt">' + s.t + '</td>' + buildHeadRow({l: s.l || 0, u: s.u || 0, t: s.t}, t, false, false) + '</tr>' +
+              '<tr><td class="bc-cv-lbl">非CVS</td><td class="bc-cv-cnt">' + ncSH.t + '</td>' + buildHeadRow(ncSH, ncSH.t || 1, false, false) + '</tr>' +
+              '<tr><td class="bc-cv-lbl">CVS</td><td class="bc-cv-cnt">' + cvSH.t + '</td>' + buildHeadRow(cvSH, cvSH.t || 1, true, cvSH.weighted) + '</tr>';
+          } else {
+            tbodyRows = '<tr><td class="bc-cv-lbl">不分類</td><td class="bc-cv-cnt">' + s.t + '</td>' + buildHeadRow({l: s.l || 0, u: s.u || 0, t: s.t}, t, false, false) + '</tr>';
+          }
+
+          /* 右上角的「收合清冊」按鈕以 th 最後一欄形式放入，或塞到 th-name 旁 */
+          var toggleBtn = '<button class="sh-toggle" id="store-toggle-btn" onclick="toggleStoreList()" style="margin-left:auto;flex-shrink:0">▾ 展開清冊</button>';
+
+          header.innerHTML =
+            '<table class="bc-cv-tbl">' +
+              '<thead class="bc-cv-thead"><tr>' +
+                '<th class="bc-cv-th-name" style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">👤 ' + esc(trimName(staffName)) +
+                  (CI['visits'] >= 0 ? '<span class="bc-cv-visits" style="font-size:11px;font-weight:700;color:#4a7a55;opacity:.85;margin-left:6px;">🗓' + visitsSum(rows) + '次</span>' : '') +
+                  toggleBtn +
+                '</th>' +
+                '<th class="bc-cv-th-cnt">總家數</th>' +
+                theadCols +
+              '</tr></thead>' +
+              '<tbody class="bc-cv-tbody">' + tbodyRows + '</tbody>' +
+            '</table>';
+
+          var trackEl = document.createElement('div');
+          trackEl.className = 'bc-track';
+          trackEl.innerHTML = segs(s);
+          header.appendChild(trackEl);
+
+        } else {
+          /* ── 其他專案：原有 store-header 格式 ── */
+          header.className = 'store-header';
+          var wsh2 = statByChannel(rows);
+          var shDualHtml = '';
+          if (wsh2 && wsh2.cvs.t > 0) {
+            var ncSH = wsh2.nonCvs, cvSH = wsh2.cvs;
+            var ncSHT = ncSH.t || 1;
+            var cvSHWL = cvSH.l, cvSHWU = cvSH.weighted ? 0 : cvSH.u;
+            var cvSHWT = (cvSH.weighted ? cvSH.l : cvSH.t) || 1;
+            var shRL = curStatuses.map(function(st) {
+              var num = (st.key === 'l') ? ncSH.l : (st.key === 'u' || st.key === 'r') ? ncSH.u : 0;
+              return '<span class="sh-s ' + st.cls + '">' + esc(st.emoji) + ' ' + num + ' (' + pct(num, ncSHT) + '%)</span>';
+            }).join(' ');
+            var shWL = curStatuses.map(function(st) {
+              var num = (st.key === 'l') ? cvSHWL : (st.key === 'u' || st.key === 'r') ? cvSHWU : 0;
+              var note = (st.key === 'u' && cvSH.weighted) ? '(達標)' : '';
+              return '<span class="sh-s ' + st.cls + '">' + esc(st.emoji) + ' ' + num + ' (' + pct(num, cvSHWT) + '%)' + (note ? '<em style="font-size:9px;opacity:.6;margin-left:2px;">' + note + '</em>' : '') + '</span>';
+            }).join(' ');
+            shDualHtml = '<div class="sh-dual">' +
+              '<span class="sh-dual-lbl real">📊 非CVS(' + ncSH.t + '家):</span>' + shRL + '&nbsp;&nbsp;' +
+              '<span class="sh-dual-lbl weighted">⚖️ CVS(' + cvSH.t + '家' + (cvSH.weighted ? '✔️' : '') + '):</span>' + shWL +
+            '</div>';
+          }
+          header.innerHTML = '<div class="sh-left">' +
+            '<div class="sh-name">👤 ' + esc(trimName(staffName)) + '</div>' +
+            '<div class="bc-inline-stats">' +
+              curStatuses.map(function(st) {
+                var num = s[st.key] || 0;
+                if (num === 0) return '<span class="bc-inline-st ' + st.cls + ' bc-st-zero"><span class="bc-inline-lbl">' + esc(st.labelShort) + '</span>' +
+                  '<span class="bc-inline-num-row"><span class="bc-inline-pct">0%</span><span class="bc-inline-num">(0)</span></span></span>';
+                return '<span class="bc-inline-st ' + st.cls + '"><span class="bc-inline-lbl">' + esc(st.labelShort) + '</span>' +
+                  '<span class="bc-inline-num-row"><span class="bc-inline-pct">' + pct(num, t) + '%</span><span class="bc-inline-num">(' + num + ')</span></span></span>';
+              }).join('') +
+            '</div>' +
+            shDualHtml +
+            '</div>' +
+            '<button class="sh-toggle" id="store-toggle-btn" onclick="toggleStoreList()">▾ 收合清冊</button>';
         }
-        header.innerHTML = '<div class="sh-left">' +
-          '<div class="sh-name">\uD83D\uDC64 ' + esc(trimName(staffName)) + '</div>' +
-          '<div class="bc-inline-stats">' +
-            curStatuses.map(function(st) {
-              var num = s[st.key] || 0;
-              if (num === 0) return '<span class="bc-inline-st ' + st.cls + ' bc-st-zero"><span class="bc-inline-lbl">' + esc(st.labelShort) + '</span>' +
-                '<span class="bc-inline-num-row"><span class="bc-inline-pct">0%</span><span class="bc-inline-num">(0)</span></span></span>';
-              return '<span class="bc-inline-st ' + st.cls + '"><span class="bc-inline-lbl">' + esc(st.labelShort) + '</span>' +
-                '<span class="bc-inline-num-row"><span class="bc-inline-pct">' + pct(num, statBase(s) || 1) + '%</span><span class="bc-inline-num">(' + num + ')</span></span></span>';
-            }).join('') +
-          '</div>' +
-          shDualHtml +
-          '</div>' +
-          '<button class="sh-toggle" id="store-toggle-btn" onclick="toggleStoreList()">▾ 收合清冊</button>';
         c.appendChild(header);
         var wrap = document.createElement('div');
         wrap.className = 'store-panel sg';
