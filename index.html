@@ -1159,7 +1159,7 @@
 
       /* ══ [2026-05-28] bc-tbl 表格格式\uff1a卡片內不分類/非CVS/CVS 三行 ══ */
       .bc-tbl { width: 100%; border-collapse: collapse; margin-top: 6px; }
-      .bc-tbl-th-lbl { width: 56px; }
+      .bc-tbl-th-name { font-size: 13px; font-weight: 900; color: var(--text); text-align: left; padding: 3px 4px 4px 0; white-space: nowrap; }
       .bc-tbl-th-count { font-size: 10px; font-weight: 700; color: var(--sub); text-align: right; padding: 2px 6px; }
       .bc-tbl-th { font-size: 10px; font-weight: 700; text-align: center; padding: 2px 4px; }
       .bc-tbl-th.g { color: var(--green); }
@@ -4890,13 +4890,12 @@
       function makeBigCard(name, rows, onClick, isSel) {
         var s = stat(rows);
         var t = statBase(s) || 1;
-        var n = curStatuses.length;
         var el = document.createElement('div');
         el.className = 'big-card' + (isSel ? ' sel' : '');
         var ww = statWeighted(rows);
         var vd = visitsWeightedDetail(rows);
 
-        /* [2026-05-28] 改為表格格式\uff1a標題列，不分類/非CVS/CVS各一行 */
+        /* [2026-05-28] 卡片改為純表格：第一栏標題就是單位名，接不分類/非CVS/CVS三行，無獨立標題列 */
         var statusHdrs = curStatuses.map(function(st) {
           return '<th class="bc-tbl-th ' + st.cls + '">' + esc(st.labelShort) + '</th>';
         }).join('');
@@ -4907,65 +4906,40 @@
             return '<td class="bc-tbl-td ' + st.cls + '"><span class="bc-tbl-pct">' + pct(num, denom) + '%</span><span class="bc-tbl-num">(' + num + ')</span></td>';
           }).join('');
         }
-        el.innerHTML = '<div class="bc-head"><div class="bc-name">' + esc(name) + '</div><div class="bc-total">' + s.t + '</div></div>' +
-          '<table class="bc-tbl"><thead><tr><th class="bc-tbl-th-lbl"></th><th class="bc-tbl-th-count">總家數</th>' + statusHdrs + '</tr></thead>' +
-          '<tbody><tr><td class="bc-tbl-lbl">不分類</td><td class="bc-tbl-count">' + s.t + '</td>' + tblCells('total', t) + '</tr></tbody></table>';
+        el.innerHTML =
+          '<table class="bc-tbl"><thead><tr>' +
+            '<th class="bc-tbl-th-name">' + esc(name) + '</th>' +
+            '<th class="bc-tbl-th-count">總家數</th>' +
+            statusHdrs +
+          '</tr></thead>' +
+          '<tbody><tr>' +
+            '<td class="bc-tbl-lbl">不分類</td>' +
+            '<td class="bc-tbl-count">' + s.t + '</td>' +
+            tblCells('total', t) +
+          '</tr></tbody></table>';
 
         var sbc2 = statByChannel(rows);
         var hasBothChannels = sbc2 && sbc2.cvs.t > 0;
         if (hasBothChannels) {
           var nc = sbc2.nonCvs, cv = sbc2.cvs;
           var ncT = nc.t || 1;
-          var cvWL = cv.l;
-          var cvWU = cv.weighted ? 0 : cv.u;
-          var cvWT = (cv.weighted ? cv.l : cv.t) || 1;
-          var vd2 = vd || {};
-
-          // 次數標籤
-          /* [2026-05-28] 次數資訊移除 */
-          var totalVisitsHtml = '';
-          var ncVisitsHtml = '';
-          var cvVisitsHtml = '';
-
-          // 產生各層的 cell html
-          function triCells(statObj, total, isCvs, isWeighted) {
+          var cvWLtbl = cv.l;
+          var cvWUtbl = cv.weighted ? 0 : cv.u;
+          var cvWTtbl = (cv.weighted ? cv.l : cv.t) || 1;
+          function tblCellsCh(statObj, total, isCvs, isWeighted) {
             return curStatuses.map(function(st) {
-              var num, denom;
-              if (statObj === 'total') {
-                num = s[st.key] || 0; denom = t;
-              } else {
-                num = (st.key === 'l') ? statObj.l : (st.key === 'u' || st.key === 'r') ? statObj.u : 0;
-                denom = total;
-              }
+              var num = (st.key === 'l') ? statObj.l : (st.key === 'u' || st.key === 'r') ? statObj.u : 0;
+              var denom = total || 1;
               if (isCvs && isWeighted) {
-                num = (st.key === 'l') ? cvWL : (st.key === 'u' || st.key === 'r') ? cvWU : 0;
-                denom = cvWT;
+                num = (st.key === 'l') ? cvWLtbl : (st.key === 'u' || st.key === 'r') ? cvWUtbl : 0;
+                denom = cvWTtbl;
               }
-              var cls = st.cls;
-              var noteHtml = (isCvs && isWeighted && st.key === 'u') ? '<span class="bc-tri-tag">達標</span>' : '';
-              return '<div class="bc-tri-cell ' + cls + '"><span class="bc-tri-pct">' + pct(num, denom) + '%</span><span class="bc-tri-num">(' + num + ')</span>' + noteHtml + '</div>';
+              var noteHtml = (isCvs && isWeighted && (st.key === 'u' || st.key === 'r')) ? '<span class="bc-tbl-tag">達標</span>' : '';
+              return '<td class="bc-tbl-td ' + st.cls + '"><span class="bc-tbl-pct">' + pct(num, denom) + '%</span><span class="bc-tbl-num">(' + num + ')</span>' + noteHtml + '</td>';
             }).join('');
           }
-
-          /* [2026-05-28] 非CVS/CVS 行插入 tbody，再接 bc-track */
           var tbody = el.querySelector('tbody');
           if (tbody) {
-            var cvWLtbl = cv.l;
-            var cvWUtbl = cv.weighted ? 0 : cv.u;
-            var cvWTtbl = (cv.weighted ? cv.l : cv.t) || 1;
-            function tblCellsCh(statObj, total, isCvs, isWeighted) {
-              return curStatuses.map(function(st) {
-                var num, denom;
-                num = (st.key === 'l') ? statObj.l : (st.key === 'u' || st.key === 'r') ? statObj.u : 0;
-                denom = total || 1;
-                if (isCvs && isWeighted) {
-                  num = (st.key === 'l') ? cvWLtbl : (st.key === 'u' || st.key === 'r') ? cvWUtbl : 0;
-                  denom = cvWTtbl;
-                }
-                var noteHtml = (isCvs && isWeighted && (st.key === 'u' || st.key === 'r')) ? '<span class="bc-tbl-tag">達標</span>' : '';
-                return '<td class="bc-tbl-td ' + st.cls + '"><span class="bc-tbl-pct">' + pct(num, denom) + '%</span><span class="bc-tbl-num">(' + num + ')</span>' + noteHtml + '</td>';
-              }).join('');
-            }
             var ncRow = document.createElement('tr');
             ncRow.innerHTML = '<td class="bc-tbl-lbl">非 CVS</td><td class="bc-tbl-count">' + nc.t + '</td>' + tblCellsCh(nc, ncT, false, false);
             var cvRow = document.createElement('tr');
@@ -4973,16 +4947,11 @@
             tbody.appendChild(ncRow);
             tbody.appendChild(cvRow);
           }
-          var trackEl = document.createElement('div');
-          trackEl.className = 'bc-track';
-          trackEl.innerHTML = segs(s);
-          el.appendChild(trackEl);
-        } else {
-          var trackEl2 = document.createElement('div');
-          trackEl2.className = 'bc-track';
-          trackEl2.innerHTML = segs(s);
-          el.appendChild(trackEl2);
         }
+        var trackEl = document.createElement('div');
+        trackEl.className = 'bc-track';
+        trackEl.innerHTML = segs(s);
+        el.appendChild(trackEl);
 
         if (onClick) el.addEventListener('click', onClick);
         return el;
