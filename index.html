@@ -1168,194 +1168,141 @@
         z-index: 1;
       }
 
-      /* ══ [主要通路巡訪] 大卡：強化視覺版（bc-cv-*） ══ */
+      /* ══ [主要通路巡訪] 大卡：對齊截圖版（bc-cv-*） ══ */
 
-      /* 整張大卡：左側粗色條 + 卡名區塊 */
+      /* 整張大卡：移除內距，讓表格貼邊 */
       .big-card.bc-cv-card {
         padding: 0 !important;
         overflow: hidden;
         gap: 0 !important;
       }
 
-      /* 頭部：卡名 + 總家數 */
-      .bc-cv-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        padding: 14px 16px 10px 20px;
-        background: linear-gradient(90deg, rgba(139,166,144,.07) 0%, transparent 100%);
-        border-bottom: 1px solid rgba(0,0,0,.06);
-        position: relative;
-      }
-      /* 卡名左側強調色條 */
-      .bc-cv-head::before {
-        content: '';
-        position: absolute;
-        left: 0; top: 0; bottom: 0;
-        width: 5px;
-        background: linear-gradient(180deg, var(--primary-d), var(--primary));
-        border-radius: 0;
-      }
-
-      /* 卡名：超大、黑粗 */
-      .bc-cv-name {
-        font-size: clamp(22px, 2.2vw, 30px);
-        font-weight: 900;
-        color: var(--text);
-        line-height: 1.15;
-        flex: 1;
-        min-width: 0;
-        word-break: keep-all;
-        letter-spacing: -.5px;
-      }
-
-      /* 右側：總家數標籤 + 數字 */
-      .bc-cv-total-wrap {
-        display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-        flex-shrink: 0;
-      }
-      .bc-cv-total-lbl {
-        font-size: 10px;
-        font-weight: 700;
-        color: var(--sub);
-        letter-spacing: .3px;
-        line-height: 1;
-        margin-bottom: 2px;
-      }
-      .bc-cv-total {
-        font-size: clamp(26px, 2.6vw, 36px);
-        font-weight: 900;
-        color: var(--primary-d);
-        line-height: 1;
-        letter-spacing: -2px;
-      }
-
-      /* 表格容器 */
-      .bc-cv-tbl-wrap {
-        padding: 10px 14px 6px 14px;
-      }
-
-      /* 表格 */
+      /* 整體表格 */
       .bc-cv-tbl {
         width: 100%;
-        border-collapse: separate;
-        border-spacing: 0 5px;
+        border-collapse: collapse;
       }
-      .bc-cv-th-lbl { width: 52px; }
+
+      /* ── 標題列（第一列）：卡名 | 總家數 | 達成 | 未達 ── */
+      .bc-cv-thead tr {
+        border-bottom: 1px solid rgba(0,0,0,.07);
+      }
+
+      /* 左上角卡名格：大字、醒目 */
+      .bc-cv-th-name {
+        font-size: clamp(18px, 1.8vw, 24px);
+        font-weight: 900;
+        color: var(--text);
+        text-align: left;
+        padding: 11px 8px 9px 16px;
+        white-space: nowrap;
+        vertical-align: bottom;
+        line-height: 1;
+        letter-spacing: -.3px;
+        /* 左側色條 */
+        border-left: 4px solid var(--primary-d);
+      }
+
+      /* 欄標題：總家數 */
       .bc-cv-th-cnt {
-        font-size: 10px;
-        font-weight: 700;
-        color: #bbb;
-        text-align: right;
-        padding: 0 10px 2px 0;
-        width: 36px;
-      }
-      .bc-cv-th {
         font-size: 11px;
+        font-weight: 700;
+        color: var(--sub);
+        text-align: right;
+        padding: 6px 10px 6px 4px;
+        white-space: nowrap;
+        vertical-align: bottom;
+        width: 46px;
+      }
+
+      /* 欄標題：達成 / 未達 */
+      .bc-cv-th {
+        font-size: 12px;
         font-weight: 800;
         text-align: center;
-        padding: 0 4px 2px;
-        letter-spacing: .3px;
-      }
-      .bc-cv-th.bc-cv-met  { color: #1e6e35; }
-      .bc-cv-th.bc-cv-unmet { color: #922018; }
-      .bc-cv-th.bc-cv-neutral { color: #7a5500; }
-
-      /* 行標籤 */
-      .bc-cv-lbl {
-        font-size: 11px;
-        font-weight: 800;
-        color: #666;
+        padding: 6px 8px 6px 8px;
         white-space: nowrap;
-        padding: 2px 6px 2px 0;
-        vertical-align: middle;
-        letter-spacing: .2px;
+        vertical-align: bottom;
+        min-width: 90px;
       }
-      /* 總家數數字 */
-      .bc-cv-cnt {
+      .bc-cv-th.bc-cv-met   { color: var(--green); }
+      .bc-cv-th.bc-cv-unmet { color: var(--red); }
+      .bc-cv-th.bc-cv-neutral { color: var(--yellow); }
+
+      /* ── 資料列 ── */
+      .bc-cv-tbody tr {
+        border-top: 1px solid rgba(0,0,0,.045);
+      }
+
+      /* 行標籤：不分類 / 非CVS / CVS */
+      .bc-cv-lbl {
         font-size: 12px;
         font-weight: 700;
-        color: #999;
+        color: var(--sub);
+        white-space: nowrap;
+        padding: 7px 6px 7px 16px;
+        vertical-align: middle;
+      }
+
+      /* 總家數數字 */
+      .bc-cv-cnt {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--sub);
         text-align: right;
-        padding-right: 10px;
+        padding: 7px 10px 7px 4px;
         vertical-align: middle;
         font-variant-numeric: tabular-nums;
       }
 
-      /* 資料格 */
+      /* 資料格（達成 / 未達） */
       .bc-cv-td {
         text-align: center;
-        padding: 7px 8px;
-        border-radius: 8px;
+        padding: 6px 8px;
         vertical-align: middle;
-        min-width: 64px;
       }
 
-      /* 百分比：大字 */
+      /* 百分比＋括號數字：合在一行，參考截圖格式 99%(6165) */
       .bc-cv-pct {
-        display: block;
-        font-size: clamp(17px, 1.7vw, 22px);
+        font-size: clamp(13px, 1.3vw, 16px);
         font-weight: 900;
-        line-height: 1.15;
         white-space: nowrap;
         font-variant-numeric: tabular-nums;
-        letter-spacing: -.5px;
       }
-      /* 括號數字：小字 */
       .bc-cv-num {
-        display: block;
-        font-size: 11px;
+        font-size: clamp(11px, 1.1vw, 13px);
         font-weight: 700;
-        opacity: .75;
-        margin-top: 1px;
-        letter-spacing: 0;
+        opacity: .85;
+        margin-left: 1px;
       }
 
-      .bc-cv-lbl-cnt {
-        font-size: 11px;
-        font-weight: 600;
-        color: #bbb;
-        margin-left: 3px;
-      }
-
-      /* 達成（綠色強調） */
+      /* 達成格：綠字 + 淡綠底 */
       .bc-cv-met {
-        background: rgba(34,168,76,.10);
-        border: 1.5px solid rgba(34,168,76,.28);
+        background: rgba(34,168,76,.07);
       }
-      .bc-cv-met .bc-cv-pct { color: #18883e; }
-      .bc-cv-met .bc-cv-num { color: #18883e; }
+      .bc-cv-met .bc-cv-pct { color: var(--green); }
+      .bc-cv-met .bc-cv-num { color: var(--green); }
 
-      /* 未達（紅色強調） */
+      /* 未達格：紅字 + 淡紅底 */
       .bc-cv-unmet {
-        background: rgba(217,48,37,.09);
-        border: 1.5px solid rgba(217,48,37,.28);
+        background: rgba(217,48,37,.07);
       }
-      .bc-cv-unmet .bc-cv-pct { color: #c0211a; }
-      .bc-cv-unmet .bc-cv-num { color: #c0211a; }
+      .bc-cv-unmet .bc-cv-pct { color: var(--red); }
+      .bc-cv-unmet .bc-cv-num { color: var(--red); }
 
-      /* 其他（黃色中性） */
+      /* 其他格：黃字 + 淡黃底 */
       .bc-cv-neutral {
-        background: rgba(212,144,10,.09);
-        border: 1.5px solid rgba(212,144,10,.28);
+        background: rgba(212,144,10,.07);
       }
-      .bc-cv-neutral .bc-cv-pct { color: #b07800; }
-      .bc-cv-neutral .bc-cv-num { color: #b07800; }
-
-      /* 進度條包層（緊貼卡底） */
-      .bc-cv-track-wrap {
-        padding: 0;
-      }
+      .bc-cv-neutral .bc-cv-pct { color: var(--yellow); }
+      .bc-cv-neutral .bc-cv-num { color: var(--yellow); }
 
       /* bc-cv-card 內的進度條：貼底、不用負邊距 hack */
       .bc-cv-card .bc-track {
         width: 100% !important;
         margin: 0 !important;
         border-radius: 0 !important;
-        height: 7px !important;
+        height: 6px !important;
       }
 
       /* ══ [2026-05-28] bc-tbl / bc-vis 舊格式（保留備用） ══ */
@@ -5114,9 +5061,9 @@
         var isCvsProject = !!((_curCfg || {}).cvsWeightChannel);
 
         if (isCvsProject) {
-          /* ── 主要通路巡訪大卡：強化視覺版
-             頂部：卡名超大＋左側色條＋右側總家數標籤
-             下方：表格三行（不分類、非CVS、CVS），達成/未達色塊對比
+          /* ── 主要通路巡訪大卡：對齊截圖版
+             thead 第一格 = 卡名（大字）| 總家數 | 達成 | 未達
+             tbody 三行   = 不分類 / 非CVS / CVS
           ── */
           el.classList.add('bc-cv-card');
 
@@ -5147,6 +5094,7 @@
           var sbc2 = statByChannel(rows);
           var hasBothChannels = sbc2 && sbc2.cvs.t > 0;
 
+          /* thead：卡名 + 欄標題 */
           var theadCols = curStatuses.map(function(st) {
             var isMet = (st.key === 'l'), isUnmet = (st.key === 'u' || st.key === 'r');
             var cls = isMet ? 'bc-cv-met' : (isUnmet ? 'bc-cv-unmet' : 'bc-cv-neutral');
@@ -5165,23 +5113,14 @@
           }
 
           el.innerHTML =
-            '<div class="bc-cv-head">' +
-              '<span class="bc-cv-name">' + esc(name) + '</span>' +
-              '<div class="bc-cv-total-wrap">' +
-                '<span class="bc-cv-total-lbl">總家數</span>' +
-                '<span class="bc-cv-total">' + s.t + '</span>' +
-              '</div>' +
-            '</div>' +
-            '<div class="bc-cv-tbl-wrap">' +
-              '<table class="bc-cv-tbl">' +
-                '<thead><tr>' +
-                  '<th class="bc-cv-th-lbl"></th>' +
-                  '<th class="bc-cv-th-cnt">家數</th>' +
-                  theadCols +
-                '</tr></thead>' +
-                '<tbody>' + tbodyRows + '</tbody>' +
-              '</table>' +
-            '</div>';
+            '<table class="bc-cv-tbl">' +
+              '<thead class="bc-cv-thead"><tr>' +
+                '<th class="bc-cv-th-name">' + esc(name) + '</th>' +
+                '<th class="bc-cv-th-cnt">總家數</th>' +
+                theadCols +
+              '</tr></thead>' +
+              '<tbody class="bc-cv-tbody">' + tbodyRows + '</tbody>' +
+            '</table>';
         } else {
           /* ── 原始格式（其他所有專案） ── */
           el.innerHTML =
