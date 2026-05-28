@@ -1168,116 +1168,195 @@
         z-index: 1;
       }
 
-      /* ══ [主要通路巡訪] 大卡：Excel 對齊版面（bc-cv-*） ══ */
+      /* ══ [主要通路巡訪] 大卡：強化視覺版（bc-cv-*） ══ */
+
+      /* 整張大卡：左側粗色條 + 卡名區塊 */
+      .big-card.bc-cv-card {
+        padding: 0 !important;
+        overflow: hidden;
+        gap: 0 !important;
+      }
+
+      /* 頭部：卡名 + 總家數 */
       .bc-cv-head {
         display: flex;
-        align-items: baseline;
+        align-items: center;
         justify-content: space-between;
-        gap: 8px;
-        margin-bottom: 12px;
+        gap: 10px;
+        padding: 14px 16px 10px 20px;
+        background: linear-gradient(90deg, rgba(139,166,144,.07) 0%, transparent 100%);
+        border-bottom: 1px solid rgba(0,0,0,.06);
+        position: relative;
       }
+      /* 卡名左側強調色條 */
+      .bc-cv-head::before {
+        content: '';
+        position: absolute;
+        left: 0; top: 0; bottom: 0;
+        width: 5px;
+        background: linear-gradient(180deg, var(--primary-d), var(--primary));
+        border-radius: 0;
+      }
+
+      /* 卡名：超大、黑粗 */
       .bc-cv-name {
-        font-size: clamp(20px, 2vw, 26px);
+        font-size: clamp(22px, 2.2vw, 30px);
         font-weight: 900;
         color: var(--text);
-        line-height: 1.2;
+        line-height: 1.15;
         flex: 1;
         min-width: 0;
         word-break: keep-all;
+        letter-spacing: -.5px;
+      }
+
+      /* 右側：總家數標籤 + 數字 */
+      .bc-cv-total-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        flex-shrink: 0;
+      }
+      .bc-cv-total-lbl {
+        font-size: 10px;
+        font-weight: 700;
+        color: var(--sub);
+        letter-spacing: .3px;
+        line-height: 1;
+        margin-bottom: 2px;
       }
       .bc-cv-total {
-        font-size: clamp(28px, 2.8vw, 38px);
+        font-size: clamp(26px, 2.6vw, 36px);
         font-weight: 900;
         color: var(--primary-d);
         line-height: 1;
         letter-spacing: -2px;
-        flex-shrink: 0;
       }
+
+      /* 表格容器 */
+      .bc-cv-tbl-wrap {
+        padding: 10px 14px 6px 14px;
+      }
+
       /* 表格 */
       .bc-cv-tbl {
         width: 100%;
         border-collapse: separate;
         border-spacing: 0 5px;
       }
-      .bc-cv-th-lbl { width: 44px; }
+      .bc-cv-th-lbl { width: 52px; }
       .bc-cv-th-cnt {
-        font-size: 11px;
+        font-size: 10px;
         font-weight: 700;
-        color: var(--sub);
+        color: #bbb;
         text-align: right;
-        padding: 0 10px 4px 0;
-        width: 38px;
+        padding: 0 10px 2px 0;
+        width: 36px;
       }
       .bc-cv-th {
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 800;
         text-align: center;
-        padding: 0 4px 4px;
-        border-radius: 6px 6px 0 0;
+        padding: 0 4px 2px;
+        letter-spacing: .3px;
       }
+      .bc-cv-th.bc-cv-met  { color: #1e6e35; }
+      .bc-cv-th.bc-cv-unmet { color: #922018; }
+      .bc-cv-th.bc-cv-neutral { color: #7a5500; }
+
+      /* 行標籤 */
       .bc-cv-lbl {
+        font-size: 11px;
+        font-weight: 800;
+        color: #666;
+        white-space: nowrap;
+        padding: 2px 6px 2px 0;
+        vertical-align: middle;
+        letter-spacing: .2px;
+      }
+      /* 總家數數字 */
+      .bc-cv-cnt {
         font-size: 12px;
         font-weight: 700;
-        color: var(--sub);
-        white-space: nowrap;
-        padding-right: 6px;
-        vertical-align: middle;
-      }
-      .bc-cv-cnt {
-        font-size: 13px;
-        font-weight: 700;
-        color: var(--sub);
+        color: #999;
         text-align: right;
         padding-right: 10px;
         vertical-align: middle;
+        font-variant-numeric: tabular-nums;
       }
+
+      /* 資料格 */
       .bc-cv-td {
         text-align: center;
-        padding: 8px 6px;
+        padding: 7px 8px;
         border-radius: 8px;
         vertical-align: middle;
+        min-width: 64px;
       }
+
+      /* 百分比：大字 */
       .bc-cv-pct {
-        font-size: clamp(18px, 1.8vw, 24px);
+        display: block;
+        font-size: clamp(17px, 1.7vw, 22px);
         font-weight: 900;
-        line-height: 1.3;
+        line-height: 1.15;
         white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -.5px;
       }
+      /* 括號數字：小字 */
       .bc-cv-num {
-        font-size: 12px;
+        display: block;
+        font-size: 11px;
         font-weight: 700;
-        opacity: .8;
+        opacity: .75;
+        margin-top: 1px;
+        letter-spacing: 0;
       }
+
       .bc-cv-lbl-cnt {
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 600;
-        color: #aaa;
+        color: #bbb;
         margin-left: 3px;
       }
-      /* 達成（綠） */
+
+      /* 達成（綠色強調） */
       .bc-cv-met {
-        background: var(--green-bg);
-        border: 1px solid var(--green-bd);
+        background: rgba(34,168,76,.10);
+        border: 1.5px solid rgba(34,168,76,.28);
       }
-      .bc-cv-met.bc-cv-th { color: #1e6e35; background: transparent; border: none; }
-      .bc-cv-met .bc-cv-pct { color: var(--green); }
-      .bc-cv-met .bc-cv-num { color: var(--green); }
-      /* 未達（紅） */
+      .bc-cv-met .bc-cv-pct { color: #18883e; }
+      .bc-cv-met .bc-cv-num { color: #18883e; }
+
+      /* 未達（紅色強調） */
       .bc-cv-unmet {
-        background: var(--red-bg);
-        border: 1px solid var(--red-bd);
+        background: rgba(217,48,37,.09);
+        border: 1.5px solid rgba(217,48,37,.28);
       }
-      .bc-cv-unmet.bc-cv-th { color: #922018; background: transparent; border: none; }
-      .bc-cv-unmet .bc-cv-pct { color: var(--red); }
-      .bc-cv-unmet .bc-cv-num { color: var(--red); }
-      /* 其他（黃） */
+      .bc-cv-unmet .bc-cv-pct { color: #c0211a; }
+      .bc-cv-unmet .bc-cv-num { color: #c0211a; }
+
+      /* 其他（黃色中性） */
       .bc-cv-neutral {
-        background: var(--yellow-bg);
-        border: 1px solid var(--yellow-bd);
+        background: rgba(212,144,10,.09);
+        border: 1.5px solid rgba(212,144,10,.28);
       }
-      .bc-cv-neutral.bc-cv-th { color: #7a5500; background: transparent; border: none; }
-      .bc-cv-neutral .bc-cv-pct { color: var(--yellow); }
-      .bc-cv-neutral .bc-cv-num { color: var(--yellow); }
+      .bc-cv-neutral .bc-cv-pct { color: #b07800; }
+      .bc-cv-neutral .bc-cv-num { color: #b07800; }
+
+      /* 進度條包層（緊貼卡底） */
+      .bc-cv-track-wrap {
+        padding: 0;
+      }
+
+      /* bc-cv-card 內的進度條：貼底、不用負邊距 hack */
+      .bc-cv-card .bc-track {
+        width: 100% !important;
+        margin: 0 !important;
+        border-radius: 0 !important;
+        height: 7px !important;
+      }
 
       /* ══ [2026-05-28] bc-tbl / bc-vis 舊格式（保留備用） ══ */
       .bc-tbl { width: 100%; border-collapse: collapse; margin-top: 6px; }
@@ -5035,10 +5114,12 @@
         var isCvsProject = !!((_curCfg || {}).cvsWeightChannel);
 
         if (isCvsProject) {
-          /* ── 主要通路巡訪大卡：對齊 Excel 版面
-             頂部：單位名（最大）＋ 總家數
-             下方：各行 = 標籤 ｜ 總家數 ｜ 達成色塊 ｜ 未達色塊
+          /* ── 主要通路巡訪大卡：強化視覺版
+             頂部：卡名超大＋左側色條＋右側總家數標籤
+             下方：表格三行（不分類、非CVS、CVS），達成/未達色塊對比
           ── */
+          el.classList.add('bc-cv-card');
+
           function buildRow(lbl, cnt, statObj, total, isCvsSrc, isWeighted) {
             return curStatuses.map(function(st) {
               var num, denom;
@@ -5057,7 +5138,8 @@
               var isUnmet = (st.key === 'u' || st.key === 'r');
               var cls = isMet ? 'bc-cv-met' : (isUnmet ? 'bc-cv-unmet' : 'bc-cv-neutral');
               return '<td class="bc-cv-td ' + cls + '">' +
-                '<span class="bc-cv-pct">' + pct(num, denom) + '%<span class="bc-cv-num">&thinsp;(' + num + ')</span></span>' +
+                '<span class="bc-cv-pct">' + pct(num, denom) + '%</span>' +
+                '<span class="bc-cv-num">(' + num + ')</span>' +
               '</td>';
             }).join('');
           }
@@ -5075,19 +5157,31 @@
           if (hasBothChannels) {
             var nc = sbc2.nonCvs, cv = sbc2.cvs;
             tbodyRows =
-              '<tr><td class="bc-cv-lbl">不分類 <span class="bc-cv-lbl-cnt">' + s.t + '</span></td>' + buildRow('不分類', s.t, 'total', t, false, false) + '</tr>' +
-              '<tr><td class="bc-cv-lbl">非 CVS <span class="bc-cv-lbl-cnt">' + nc.t + '</span></td>' + buildRow('非CVS', nc.t, nc, nc.t || 1, false, false) + '</tr>' +
-              '<tr><td class="bc-cv-lbl">CVS <span class="bc-cv-lbl-cnt">' + cv.t + '</span></td>' + buildRow('CVS', cv.t, cv, cv.t || 1, true, cv.weighted) + '</tr>';
+              '<tr><td class="bc-cv-lbl">不分類</td><td class="bc-cv-cnt">' + s.t + '</td>' + buildRow('不分類', s.t, 'total', t, false, false) + '</tr>' +
+              '<tr><td class="bc-cv-lbl">非CVS</td><td class="bc-cv-cnt">' + nc.t + '</td>' + buildRow('非CVS', nc.t, nc, nc.t || 1, false, false) + '</tr>' +
+              '<tr><td class="bc-cv-lbl">CVS</td><td class="bc-cv-cnt">' + cv.t + '</td>' + buildRow('CVS', cv.t, cv, cv.t || 1, true, cv.weighted) + '</tr>';
           } else {
-            tbodyRows = '<tr><td class="bc-cv-lbl">不分類 <span class="bc-cv-lbl-cnt">' + s.t + '</span></td>' + buildRow('不分類', s.t, 'total', t, false, false) + '</tr>';
+            tbodyRows = '<tr><td class="bc-cv-lbl">不分類</td><td class="bc-cv-cnt">' + s.t + '</td>' + buildRow('不分類', s.t, 'total', t, false, false) + '</tr>';
           }
 
           el.innerHTML =
             '<div class="bc-cv-head">' +
               '<span class="bc-cv-name">' + esc(name) + '</span>' +
-              '<span class="bc-cv-total">' + s.t + '</span>' +
+              '<div class="bc-cv-total-wrap">' +
+                '<span class="bc-cv-total-lbl">總家數</span>' +
+                '<span class="bc-cv-total">' + s.t + '</span>' +
+              '</div>' +
             '</div>' +
-            '<table class="bc-cv-tbl"><tbody>' + tbodyRows + '</tbody></table>';
+            '<div class="bc-cv-tbl-wrap">' +
+              '<table class="bc-cv-tbl">' +
+                '<thead><tr>' +
+                  '<th class="bc-cv-th-lbl"></th>' +
+                  '<th class="bc-cv-th-cnt">家數</th>' +
+                  theadCols +
+                '</tr></thead>' +
+                '<tbody>' + tbodyRows + '</tbody>' +
+              '</table>' +
+            '</div>';
         } else {
           /* ── 原始格式（其他所有專案） ── */
           el.innerHTML =
