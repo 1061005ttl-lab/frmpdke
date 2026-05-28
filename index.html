@@ -1168,7 +1168,125 @@
         z-index: 1;
       }
 
-      /* ══ [2026-05-28] bc-tbl 表格格式\uff1a卡片內不分類/非CVS/CVS 三行 ══ */
+      /* ══ [主要通路巡訪] 大卡視覺化版面（bc-vis-*） ══ */
+      .bc-vis-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 8px;
+        margin-bottom: 10px;
+      }
+      .bc-vis-name {
+        font-size: clamp(17px, 1.8vw, 22px);
+        font-weight: 900;
+        color: var(--text);
+        line-height: 1.2;
+        flex: 1;
+        min-width: 0;
+        word-break: keep-all;
+      }
+      .bc-vis-total {
+        font-size: clamp(26px, 2.8vw, 36px);
+        font-weight: 900;
+        color: var(--primary-d);
+        line-height: 1;
+        letter-spacing: -1.5px;
+        flex-shrink: 0;
+      }
+      .bc-vis-body {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .bc-vis-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .bc-vis-row-only {
+        /* 無分類行時直接撐滿 */
+      }
+      .bc-vis-row-lbl {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--sub);
+        white-space: nowrap;
+        width: 38px;
+        flex-shrink: 0;
+      }
+      .bc-vis-row-cnt {
+        font-size: 11px;
+        color: var(--sub);
+        white-space: nowrap;
+        width: 28px;
+        text-align: right;
+        flex-shrink: 0;
+      }
+      .bc-vis-blocks {
+        display: flex;
+        gap: 5px;
+        flex: 1;
+        min-width: 0;
+      }
+      .bc-vis-block {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1px;
+        padding: 6px 4px 7px;
+        border-radius: 8px;
+        border: 1px solid transparent;
+      }
+      .bc-vis-lbl {
+        font-size: 10px;
+        font-weight: 800;
+        white-space: nowrap;
+        letter-spacing: .2px;
+      }
+      .bc-vis-pct {
+        font-size: clamp(16px, 1.6vw, 20px);
+        font-weight: 900;
+        line-height: 1;
+      }
+      .bc-vis-num {
+        font-size: 11px;
+        font-weight: 700;
+        opacity: .75;
+      }
+      .bc-vis-tag {
+        font-size: 9px;
+        font-weight: 700;
+        color: var(--green);
+        margin-top: 1px;
+      }
+      /* 達成（綠色塊） */
+      .bc-vis-met {
+        background: var(--green-bg);
+        border-color: var(--green-bd);
+      }
+      .bc-vis-met .bc-vis-lbl { color: #1e6e35; }
+      .bc-vis-met .bc-vis-pct { color: var(--green); }
+      .bc-vis-met .bc-vis-num { color: var(--green); }
+      /* 未達（紅色塊） */
+      .bc-vis-unmet {
+        background: var(--red-bg);
+        border-color: var(--red-bd);
+      }
+      .bc-vis-unmet .bc-vis-lbl { color: #922018; }
+      .bc-vis-unmet .bc-vis-pct { color: var(--red); }
+      .bc-vis-unmet .bc-vis-num { color: var(--red); }
+      /* 其他狀態（中性） */
+      .bc-vis-neutral {
+        background: var(--yellow-bg);
+        border-color: var(--yellow-bd);
+      }
+      .bc-vis-neutral .bc-vis-lbl { color: #7a5500; }
+      .bc-vis-neutral .bc-vis-pct { color: var(--yellow); }
+      .bc-vis-neutral .bc-vis-num { color: var(--yellow); }
+
+      /* ══ [2026-05-28] bc-tbl 表格格式（保留備用） ══ */
       .bc-tbl { width: 100%; border-collapse: collapse; margin-top: 6px; }
       .bc-tbl-th-name { font-size: 16px; font-weight: 900; color: var(--text); text-align: left; padding: 3px 4px 5px 0; white-space: nowrap; }
       .bc-tbl-th-count { font-size: 11px; font-weight: 700; color: var(--sub); text-align: right; padding: 2px 6px; }
@@ -4903,7 +5021,17 @@
         return el;
       }
 
-      /* ══ 一般大卡 ══ */
+      /*
+       * ══════════════════════════════════════════════════
+       *  卡片定義（Card Glossary）
+       * ══════════════════════════════════════════════════
+       *  頭卡（Hero Card）  .big-card.whole       深色背景整體彙總卡，每層最上方。由 makeWholeCard() 產生。
+       *  側卡（Side Card）  .mini-card            左側欄小卡，點擊鑽取下一層。由 makeMiniCard() 產生。
+       *  大卡（Big Card）   .big-card（非.whole） 頭卡下方各單位內容卡。由 makeBigCard() 產生。
+       * ══════════════════════════════════════════════════
+       */
+
+      /* ══ 大卡 ══ */
       function makeBigCard(name, rows, onClick, isSel) {
         var s = stat(rows);
         var t = statBase(s) || 1;
@@ -4914,63 +5042,70 @@
         var isCvsProject = !!((_curCfg || {}).cvsWeightChannel);
 
         if (isCvsProject) {
-          /* ── 新表格格式（僅主要通路巡訪） ── */
-          var statusHdrs = curStatuses.map(function(st) {
-            return '<th class="bc-tbl-th ' + st.cls + '">' + esc(st.labelShort) + '</th>';
-          }).join('');
-          function tblCells(statObj, total) {
+          /* ── 主要通路巡訪大卡：視覺化色塊版面 ──
+             單位名最大，各狀態用色塊顯示，分行展示不分類/非CVS/CVS */
+          function buildStatBlocks(statObj, total, isCvsSrc, isWeighted) {
             return curStatuses.map(function(st) {
-              var num = (statObj === 'total') ? (s[st.key] || 0) : ((st.key === 'l') ? statObj.l : (st.key === 'u' || st.key === 'r') ? statObj.u : 0);
-              var denom = (statObj === 'total') ? t : (total || 1);
-              var reached = (st.key === 'l');
-              var rowCls = reached ? ' bc-tbl-td-met' : (st.key !== 'y' ? ' bc-tbl-td-unmet' : '');
-              return '<td class="bc-tbl-td ' + st.cls + rowCls + '"><span class="bc-tbl-pct">' + pct(num, denom) + '%</span><span class="bc-tbl-num">(' + num + ')</span></td>';
+              var num, denom;
+              if (statObj === 'total') {
+                num = s[st.key] || 0; denom = t;
+              } else if (isCvsSrc && isWeighted) {
+                var cvWL2 = statObj.l, cvWU2 = statObj.weighted ? 0 : statObj.u;
+                var cvWT2 = (statObj.weighted ? statObj.l : statObj.t) || 1;
+                num = (st.key === 'l') ? cvWL2 : (st.key === 'u' || st.key === 'r') ? cvWU2 : 0;
+                denom = cvWT2;
+              } else {
+                num = (st.key === 'l') ? statObj.l : (st.key === 'u' || st.key === 'r') ? statObj.u : 0;
+                denom = total || 1;
+              }
+              var isMet   = (st.key === 'l');
+              var isUnmet = (st.key === 'u' || st.key === 'r');
+              var blockCls = isMet ? ' bc-vis-met' : (isUnmet ? ' bc-vis-unmet' : ' bc-vis-neutral');
+              var noteHtml = (isCvsSrc && isWeighted && isUnmet) ? '<span class="bc-vis-tag">達標</span>' : '';
+              return '<div class="bc-vis-block ' + st.cls + blockCls + '">' +
+                '<span class="bc-vis-lbl">' + esc(st.labelShort) + '</span>' +
+                '<span class="bc-vis-pct">' + pct(num, denom) + '%</span>' +
+                '<span class="bc-vis-num">(' + num + ')</span>' +
+                noteHtml +
+              '</div>';
             }).join('');
           }
-          el.innerHTML =
-            '<table class="bc-tbl"><thead><tr>' +
-              '<th class="bc-tbl-th-name">' + esc(name) + '</th>' +
-              '<th class="bc-tbl-th-count">總家數</th>' +
-              statusHdrs +
-            '</tr></thead>' +
-            '<tbody><tr>' +
-              '<td class="bc-tbl-lbl">不分類</td>' +
-              '<td class="bc-tbl-count">' + s.t + '</td>' +
-              tblCells('total', t) +
-            '</tr></tbody></table>';
 
           var sbc2 = statByChannel(rows);
           var hasBothChannels = sbc2 && sbc2.cvs.t > 0;
+
+          var rowsHtml = '';
           if (hasBothChannels) {
             var nc = sbc2.nonCvs, cv = sbc2.cvs;
-            var ncT = nc.t || 1;
-            var cvWLtbl = cv.l;
-            var cvWUtbl = cv.weighted ? 0 : cv.u;
-            var cvWTtbl = (cv.weighted ? cv.l : cv.t) || 1;
-            function tblCellsCh(statObj, total, isCvs, isWeighted) {
-              return curStatuses.map(function(st) {
-                var num = (st.key === 'l') ? statObj.l : (st.key === 'u' || st.key === 'r') ? statObj.u : 0;
-                var denom = total || 1;
-                if (isCvs && isWeighted) {
-                  num = (st.key === 'l') ? cvWLtbl : (st.key === 'u' || st.key === 'r') ? cvWUtbl : 0;
-                  denom = cvWTtbl;
-                }
-                var noteHtml = (isCvs && isWeighted && (st.key === 'u' || st.key === 'r')) ? '<span class="bc-tbl-tag">達標</span>' : '';
-                var reached = (st.key === 'l');
-                var rowCls = reached ? ' bc-tbl-td-met' : (st.key !== 'y' ? ' bc-tbl-td-unmet' : '');
-                return '<td class="bc-tbl-td ' + st.cls + rowCls + '"><span class="bc-tbl-pct">' + pct(num, denom) + '%</span><span class="bc-tbl-num">(' + num + ')</span>' + noteHtml + '</td>';
-              }).join('');
-            }
-            var tbody = el.querySelector('tbody');
-            if (tbody) {
-              var ncRow = document.createElement('tr');
-              ncRow.innerHTML = '<td class="bc-tbl-lbl">非 CVS</td><td class="bc-tbl-count">' + nc.t + '</td>' + tblCellsCh(nc, ncT, false, false);
-              var cvRow = document.createElement('tr');
-              cvRow.innerHTML = '<td class="bc-tbl-lbl">CVS</td><td class="bc-tbl-count">' + cv.t + '</td>' + tblCellsCh(cv, cv.t || 1, true, cv.weighted);
-              tbody.appendChild(ncRow);
-              tbody.appendChild(cvRow);
-            }
+            rowsHtml =
+              '<div class="bc-vis-row">' +
+                '<span class="bc-vis-row-lbl">不分類</span>' +
+                '<span class="bc-vis-row-cnt">' + s.t + '</span>' +
+                '<div class="bc-vis-blocks">' + buildStatBlocks('total', t, false, false) + '</div>' +
+              '</div>' +
+              '<div class="bc-vis-row">' +
+                '<span class="bc-vis-row-lbl">非 CVS</span>' +
+                '<span class="bc-vis-row-cnt">' + nc.t + '</span>' +
+                '<div class="bc-vis-blocks">' + buildStatBlocks(nc, nc.t || 1, false, false) + '</div>' +
+              '</div>' +
+              '<div class="bc-vis-row">' +
+                '<span class="bc-vis-row-lbl">CVS</span>' +
+                '<span class="bc-vis-row-cnt">' + cv.t + '</span>' +
+                '<div class="bc-vis-blocks">' + buildStatBlocks(cv, cv.t || 1, true, cv.weighted) + '</div>' +
+              '</div>';
+          } else {
+            rowsHtml =
+              '<div class="bc-vis-row bc-vis-row-only">' +
+                '<div class="bc-vis-blocks">' + buildStatBlocks('total', t, false, false) + '</div>' +
+              '</div>';
           }
+
+          el.innerHTML =
+            '<div class="bc-vis-head">' +
+              '<span class="bc-vis-name">' + esc(name) + '</span>' +
+              '<span class="bc-vis-total">' + s.t + '</span>' +
+            '</div>' +
+            '<div class="bc-vis-body">' + rowsHtml + '</div>';
         } else {
           /* ── 原始格式（其他所有專案） ── */
           el.innerHTML =
@@ -4998,33 +5133,19 @@
         return el;
       }
 
-      /* ══ 側欄小卡 ══ */
+      /* ══ 側卡 ══
+         所有專案統一格式，不分主要通路巡訪或其他專案。 */
       function makeMiniCard(name, rows, onClick, isSel) {
         var s = stat(rows);
         var t = statBase(s) || 1;
         var el = document.createElement('div');
         el.className = 'mini-card' + (isSel ? ' sel' : '');
-        var isCvsProject = !!((_curCfg || {}).cvsWeightChannel);
-        var statsHtml;
-        if (isCvsProject) {
-          /* 主要通路巡訪：色塊格式（達成綠/未達紅） */
-          statsHtml = '<div class="mc-sts">' + curStatuses.map(function(st) {
-            var num = s[st.key] || 0;
-            var p = pct(num, t);
-            var isMet = (st.key === 'l');
-            var isUnmet = (st.key === 'u' || st.key === 'r');
-            var blockCls = isMet ? ' mc-s-block-met' : (isUnmet ? ' mc-s-block-unmet' : '');
-            return '<span class="mc-s ' + st.cls + blockCls + '">' + esc(st.emoji) + ' ' + p + '%<span class="mc-s-sub">(' + num + ')</span></span>';
-          }).join('') + '</div>';
-        } else {
-          statsHtml = '<div class="mc-sts">' + curStatuses.map(function(st) {
+        el.innerHTML = '<div class="mc-top"><span class="mc-name">' + esc(name) + '</span><span class="mc-total">' + s.t + '</span></div>' +
+          '<div class="mc-bar">' + segs(s) + '</div>' +
+          '<div class="mc-sts">' + curStatuses.map(function(st) {
             var p = pct(s[st.key] || 0, t);
             return '<span class="mc-s ' + st.cls + '">' + esc(st.emoji) + p + '%</span>';
           }).join('') + '</div>';
-        }
-        el.innerHTML = '<div class="mc-top"><span class="mc-name">' + esc(name) + '</span><span class="mc-total">' + s.t + '</span></div>' +
-          '<div class="mc-bar">' + segs(s) + '</div>' +
-          statsHtml;
         el.addEventListener('click', onClick);
         return el;
       }
