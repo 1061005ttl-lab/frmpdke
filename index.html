@@ -12,17 +12,10 @@
         }
         /* ── 智能縮放：依螢幕寬度自動調整 ── */
         (function() {
-          var BASE_W = 1440; /* 設計基準寬度 */
+          var BASE_W = 1440; /* 設計基準寬度，依公司螢幕調整 */
           function applyZoom() {
-            var w = window.innerWidth;
-            var ratio;
-            if (w >= BASE_W) {
-              /* 大螢幕：最多放大到 1.15，避免在 4K 看起來太小 */
-              ratio = Math.min(1.15, w / BASE_W);
-            } else {
-              /* 小螢幕：依比例縮，最小縮到 60% */
-              ratio = Math.max(0.60, w / BASE_W);
-            }
+            var ratio = Math.min(1, window.innerWidth / BASE_W);
+            ratio = Math.max(0.55, ratio); /* 最小縮到 55% */
             document.documentElement.style.zoom = ratio;
           }
           applyZoom();
@@ -405,19 +398,11 @@
         grid-template-columns: repeat(auto-fill, minmax(clamp(200px, 22vw, 320px), 1fr));
         gap: 16px;
         align-content: start;
-        /* [修改1b] grid-auto-rows: 1fr 讓同排所有卡片等高 */
-        grid-auto-rows: 1fr;
+        grid-auto-rows: minmax(auto, auto);
       }
 
       .col-main.area-view {
-        /* 總級視角：固定 3 欄，頭卡佔 2 格 + 7 個地區卡 = 3×3 九宮格 */
-        grid-template-columns: repeat(3, 1fr);
-        grid-auto-rows: 1fr;
-      }
-
-      /* 總級視角下的頭卡：跨 2 欄，外觀圓角與一般大卡一致 */
-      .col-main.area-view .big-card.whole {
-        grid-column: span 2;
+        grid-template-columns: repeat(auto-fill, minmax(clamp(280px, 26vw, 380px), 1fr));
       }
 
       .col-main.ch-view {
@@ -426,7 +411,7 @@
         align-content: start;
       }
       .col-main.ch-view .big-card.whole {
-        grid-column: span 2;
+        grid-column: 1 / -1;
       }
 
       .col-main.staff-view {
@@ -434,16 +419,6 @@
         grid-auto-rows: auto;
         padding: 16px 20px;
         gap: 14px;
-        /* staff-view：外框不滾動，只讓 staff-table-wrap 內部滾動 */
-        overflow-y: hidden;
-        align-content: start;
-      }
-
-      /* [修改2] 處級視角（area-view 在 office 層）：固定 4×4 = 16塊，
-         使用 repeat(4, 1fr) 固定4欄，確保不同螢幕均整齊排滿 */
-      .col-main.area-view.office-area-view {
-        grid-template-columns: repeat(4, 1fr);
-        grid-auto-rows: 1fr;
       }
 
       .col-main.store-view {
@@ -477,16 +452,6 @@
       .col-main::-webkit-scrollbar-thumb {
         background: rgba(0, 0, 0, .1);
         border-radius: 4px;
-      }
-
-      /* ══ 頭卡單欄保護：grid 只剩 1 欄時退回 span 1，避免溢出 ══ */
-      @supports (grid-template-columns: repeat(auto-fill, minmax(200px, 1fr))) {
-        @media (max-width: 479px) {
-          .big-card.whole,
-          .col-main.ch-view .big-card.whole {
-            grid-column: 1 / -1;
-          }
-        }
       }
 
       .divider {
@@ -834,7 +799,7 @@
 
       /* ══ 整體卡（深色英雄） ══ */
       .big-card.whole {
-        grid-column: span 2;
+        grid-column: 1/-1;
         cursor: default;
         background: linear-gradient(130deg, #1a1f2e 0%, #22293a 60%, #1e2d26 100%);
         border-radius: var(--r);
@@ -848,8 +813,7 @@
         overflow: hidden;
         animation: cardPop .34s var(--ease) both;
         border: 1px solid rgba(255, 255, 255, .07);
-        /* [修改1a] 移除固定 min-height，改用 align-self: stretch 讓高度與同排卡片齊平 */
-        align-self: stretch;
+        min-height: 110px;
       }
 
       .big-card.whole::before {
@@ -1759,180 +1723,7 @@
         padding: 5px 6px;
       }
 
-      /* ══ [修改3] 所級人員視角：staff-table 雙欄表格佈局 ══ */
-      /* [修改3] staff-table-wrap：限高 + 內部滾動，防止頁面無限延伸 */
-      .staff-table-wrap {
-        grid-column: 1 / -1;
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 16px;
-        padding: 0;
-        /* 表格容器固定最大高度，多人時只在表格內部出現滾動條 */
-        max-height: calc(100vh - 200px);
-        overflow-y: auto;
-        overflow-x: hidden;
-        /* 讓兩欄表格本身不要各自滾動，由外框統一管理 */
-        align-content: start;
-      }
-
-      .staff-table-wrap::-webkit-scrollbar {
-        width: 5px;
-      }
-      .staff-table-wrap::-webkit-scrollbar-thumb {
-        background: rgba(0,0,0,.13);
-        border-radius: 4px;
-      }
-
-      .staff-tbl-col {
-        background: #fff;
-        border: 1px solid rgba(0,0,0,.07);
-        border-radius: var(--r);
-        overflow: hidden;
-        box-shadow: 0 2px 8px rgba(0,0,0,.05);
-      }
-
-      .staff-tbl {
-        width: 100%;
-        border-collapse: collapse;
-        table-layout: fixed;
-      }
-
-      /* 欄寬分配 */
-      .staff-tbl col.sc-name-col  { width: 22%; }
-      .staff-tbl col.sc-type-col  { width: 18%; }
-      .staff-tbl col.sc-cnt-col   { width: 14%; }
-      .staff-tbl col.sc-met-col   { width: 23%; }
-      .staff-tbl col.sc-unmet-col { width: 23%; }
-
-      /* 表頭 */
-      .staff-tbl thead tr {
-        background: rgba(139,166,144,.12);
-        border-bottom: 2px solid rgba(139,166,144,.3);
-      }
-      .staff-tbl thead th {
-        font-size: 12px;
-        font-weight: 800;
-        color: var(--sub);
-        padding: 8px 10px;
-        text-align: center;
-        white-space: nowrap;
-        letter-spacing: .3px;
-      }
-      .staff-tbl thead th:first-child { text-align: left; padding-left: 14px; }
-      .staff-tbl thead th.th-met   { color: var(--green); }
-      .staff-tbl thead th.th-unmet { color: var(--red); }
-
-      /* 人員分組：每 3 行一組 */
-      .staff-tbl tbody tr { border-top: 1px solid rgba(0,0,0,.04); }
-
-      /* 名字列（每人第一行）*/
-      .staff-tbl tbody tr.st-row-first {
-        border-top: 2px solid rgba(139,166,144,.18);
-      }
-      .staff-tbl tbody tr.st-row-first td.td-name {
-        font-size: 15px;
-        font-weight: 900;
-        color: var(--text);
-        padding: 10px 8px 6px 14px;
-        vertical-align: bottom;
-        cursor: pointer;
-      }
-
-      /* 分類標籤欄 */
-      .staff-tbl tbody td.td-type {
-        font-size: 11px;
-        font-weight: 800;
-        color: var(--sub);
-        padding: 7px 6px;
-        vertical-align: middle;
-        white-space: nowrap;
-        text-align: center;
-      }
-      .staff-tbl tbody td.td-type-first {
-        padding-top: 10px;
-      }
-
-      /* 總家數欄 */
-      .staff-tbl tbody td.td-cnt {
-        font-size: 14px;
-        font-weight: 800;
-        color: var(--sub);
-        text-align: center;
-        padding: 7px 6px;
-        vertical-align: middle;
-        font-variant-numeric: tabular-nums;
-      }
-
-      /* 達成 / 未達資料格 */
-      .staff-tbl tbody td.td-met,
-      .staff-tbl tbody td.td-unmet {
-        text-align: center;
-        padding: 6px 4px;
-        vertical-align: middle;
-      }
-      .staff-tbl tbody td.td-met {
-        background: rgba(34,168,76,.06);
-      }
-      .staff-tbl tbody td.td-unmet {
-        background: rgba(217,48,37,.06);
-      }
-
-      /* 百分比 + 括號數字 */
-      .st-pct {
-        font-size: clamp(12px, 1.2vw, 15px);
-        font-weight: 900;
-        white-space: nowrap;
-        display: block;
-        font-variant-numeric: tabular-nums;
-      }
-      .st-num {
-        font-size: clamp(9px, 0.85vw, 11px);
-        font-weight: 700;
-        opacity: .8;
-        white-space: nowrap;
-        display: block;
-      }
-      .td-met  .st-pct, .td-met  .st-num { color: var(--green); }
-      .td-unmet .st-pct, .td-unmet .st-num { color: var(--red); }
-
-      /* 最後一行（CVS/第3行）底部加一點間距 */
-      .staff-tbl tbody tr.st-row-last td {
-        padding-bottom: 10px;
-      }
-
-      /* ── Hover 效果：整個人員的 3 行一起浮空（fallback + :has() 雙保） ── */
-      /* fallback：用 + 鄰接選擇器，只命中緊鄰的 mid/last，不會污染其他人的行 */
-      .staff-tbl tbody tr.st-row-first:hover,
-      .staff-tbl tbody tr.st-row-first:hover + tr.st-row-mid,
-      .staff-tbl tbody tr.st-row-first:hover + tr.st-row-mid + tr.st-row-last {
-        background: rgba(139,166,144,.08);
-        box-shadow: 0 4px 16px rgba(80,100,85,.14);
-        transform: translateY(-1px);
-        position: relative;
-        z-index: 2;
-      }
-
-      /* 利用 CSS :has() 實現更精確的整組 hover（現代瀏覽器支援） */
-      @supports selector(:has(*)) {
-        .staff-tbl tbody:has(.st-row-first:hover) .st-row-first:hover,
-        .staff-tbl tbody:has(.st-row-first:hover) .st-row-first:hover + .st-row-mid,
-        .staff-tbl tbody:has(.st-row-first:hover) .st-row-first:hover + .st-row-mid + .st-row-last {
-          background: rgba(139,166,144,.10);
-          box-shadow: 0 3px 14px rgba(80,100,85,.18), 0 0 0 1px rgba(139,166,144,.22);
-          transform: translateY(-1px);
-          position: relative;
-          z-index: 2;
-          transition: background .15s, box-shadow .15s, transform .18s var(--ease);
-        }
-      }
-
-      /* 姓名欄在第一行之後（第2、3行）只顯示空白佔位 */
-      .staff-tbl tbody td.td-name-empty {
-        padding: 0;
-        border: none;
-      }
-
-      /* ══ 所級摘要面板（staff-summary） ══ */
+      /* ══ 人員層 ══ */
       .staff-summary {
         grid-column: 1/-1;
         background: #fff;
@@ -5484,8 +5275,6 @@
 
       function buildOfficeCards(c, rows) {
         c.classList.add('office-view');
-        /* [修改2] 處級視角固定 4×4：加上 office-area-view class */
-        c.classList.add('area-view', 'office-area-view');
         var sel = drillStack[1] ? drillStack[1].key : null;
         var aName = drillStack[0] ? drillStack[0].key : '';
         c.appendChild(makeWholeCard(aName + ' 整體', rows));
@@ -5512,16 +5301,15 @@
         });
       }
 
-      /* ══ 人員層（[修改3] staff-table 雙欄表格重構） ══ */
+      /* ══ 人員層 ══ */
       function buildStaffCards(c, rows) {
         var sel = drillStack[2] ? drillStack[2].key : null;
         var ts = stat(rows);
         var tt = statBase(ts) || 1;
+        var n = curStatuses.length;
         var oName = drillStack[1] ? drillStack[1].key : '';
         var aName = drillStack[0] ? drillStack[0].key : '';
         var lastKey = curStatuses[curStatuses.length - 1].key;
-
-        /* ── 所級摘要列（頂部彙總卡，保留原有） ── */
         var summary = document.createElement('div');
         summary.className = 'staff-summary';
         var sbcS = statByChannel(rows);
@@ -5531,15 +5319,15 @@
           var ncST = ncS.t || 1;
           var cvSWL = cvS.l, cvSWU = cvS.weighted ? 0 : cvS.u;
           var cvSWT = (cvS.weighted ? cvS.l : cvS.t) || 1;
-          var hL = '📊 非CVS（' + ncS.t + '家）';
-          var hR = '⚖️ CVS（' + cvS.t + '家' + (cvS.weighted ? '✔️' : '') + '）';
+          var hL = '\uD83D\uDCCA \u975eCVS\uff08' + ncS.t + '\u5bb6\uff09';
+          var hR = '\u2696\uFE0F CVS\uff08' + cvS.t + '\u5bb6' + (cvS.weighted ? '\u2714\uFE0F' : '') + '\uff09';
           var sumRealCols = curStatuses.map(function(st) {
             var num = (st.key === 'l') ? ncS.l : (st.key === 'u' || st.key === 'r') ? ncS.u : 0;
             return '<span class="ss-s ' + st.cls + '">' + esc(st.emoji) + ' ' + num + ' (' + pct(num, ncST) + '%)</span>';
           }).join('');
           var sumWCols = curStatuses.map(function(st) {
             var num = (st.key === 'l') ? cvSWL : (st.key === 'u' || st.key === 'r') ? cvSWU : 0;
-            var note = (st.key === 'u' && cvS.weighted) ? '達標' : '';
+            var note = (st.key === 'u' && cvS.weighted) ? '\u9054\u6a19' : '';
             return '<span class="ss-s ' + st.cls + '">' + esc(st.emoji) + ' ' + num + ' (' + pct(num, cvSWT) + '%)' + (note ? '<em style="font-size:9px;opacity:.6;margin-left:2px;">' + note + '</em>' : '') + '</span>';
           }).join('');
           dualSummaryHtml =
@@ -5548,7 +5336,7 @@
               '<div class="ss-dual-col weighted"><div class="ss-dual-hdr">' + hR + '</div><div class="ss-sts">' + sumWCols + '</div></div>' +
             '</div>';
         }
-        summary.innerHTML = '<div class="ss-title">👥 ' + esc(aName) + ' · ' + esc(oName) + '</div>' +
+        summary.innerHTML = '<div class="ss-title">\uD83D\uDC65 ' + esc(aName) + ' \u00B7 ' + esc(oName) + '</div>' +
           '<div class="ss-total">' + ts.t + '</div>' +
           '<div class="ss-bar-wrap">' +
             '<div class="ss-bar">' + segs(ts) + '</div>' +
@@ -5561,14 +5349,12 @@
           '</div>' +
           dualSummaryHtml;
         c.appendChild(summary);
-
-        /* ── 取得排序後的人員清單 ── */
         var m = groupBy(rows, 'staff');
         if (!Object.keys(m).length) {
           c.appendChild(makeEmpty('此所無資料'));
           return;
         }
-        var sortedStaff = Object.keys(m).sort(function(a, b) {
+        Object.keys(m).sort(function(a, b) {
           var sa = stat(m[a]), sb = stat(m[b]);
           if ((sb[lastKey] || 0) !== (sa[lastKey] || 0)) return (sb[lastKey] || 0) - (sa[lastKey] || 0);
           for (var i = curStatuses.length - 2; i >= 1; i--) {
@@ -5576,119 +5362,127 @@
             if ((sb[k] || 0) !== (sa[k] || 0)) return (sb[k] || 0) - (sa[k] || 0);
           }
           return a.localeCompare(b, 'zh-TW');
-        });
+        }).forEach(function(k) {
+          var sr = m[k];
+          var s = stat(sr);
+          var t = statBase(s) || 1;
+          var isSel = sel === k;
+          var isCvsProject = !!((_curCfg || {}).cvsWeightChannel);
+          var card = document.createElement('div');
+          if (isCvsProject) {
+            /* ── 主要通路巡訪：人員卡三行格式（與處級大卡一致） ── */
+            card.className = 'big-card bc-cv-card' + (isSel ? ' sel' : '');
 
-        var isCvsProject = !!((_curCfg || {}).cvsWeightChannel);
-
-        /* ── [修改3] 重構為 staff-table 雙欄表格佈局 ── */
-
-        /* 產生單欄表格的 HTML */
-        function buildOneColTable(staffNames) {
-          /* thead：人名 | 分類 | 總家數 | 達成 | 未達 */
-          var metSt   = curStatuses.find(function(s) { return s.key === 'l'; }) || curStatuses[0];
-          var unmetSt = curStatuses.find(function(s) { return s.key === 'u' || s.key === 'r'; }) || curStatuses[curStatuses.length - 1];
-          var metLabel   = metSt   ? esc(metSt.labelShort)   : '達成';
-          var unmetLabel = unmetSt ? esc(unmetSt.labelShort) : '未達';
-
-          var thead = '<colgroup>' +
-            '<col class="sc-name-col"><col class="sc-type-col"><col class="sc-cnt-col">' +
-            '<col class="sc-met-col"><col class="sc-unmet-col">' +
-            '</colgroup>' +
-            '<thead><tr>' +
-            '<th style="text-align:left;padding-left:14px">人名</th>' +
-            '<th>分類</th><th>總家數</th>' +
-            '<th class="th-met">' + metLabel + '</th>' +
-            '<th class="th-unmet">' + unmetLabel + '</th>' +
-            '</tr></thead>';
-
-          /* tbody：每人 3 行（不分類 / 非CVS / CVS）*/
-          var tbody = '<tbody>';
-          staffNames.forEach(function(staffName) {
-            var sr = m[staffName];
-            var s = stat(sr);
-            var t2 = statBase(s) || 1;
-            var sbcC = statByChannel(sr);
-            var hasBoth = sbcC && sbcC.cvs.t > 0;
-
-            /* 計算三列的資料 */
-            var rows3; /* [{lbl, cnt, met, unmet, metPct, unmetPct}] */
-            if (isCvsProject && hasBoth) {
-              var nc = sbcC.nonCvs, cv = sbcC.cvs;
-              var ncT = nc.t || 1;
-              var cvWL = cv.l, cvWU = cv.weighted ? 0 : cv.u;
-              var cvWT = (cv.weighted ? cv.l : cv.t) || 1;
-              rows3 = [
-                { lbl:'不分類', cnt: s.t,    met: s.l||0,  unmet: s.u||0,  metD: t2,   unmetD: t2   },
-                { lbl:'非CVS',  cnt: nc.t,   met: nc.l||0, unmet: nc.u||0, metD: ncT,  unmetD: ncT  },
-                { lbl:'CVS',    cnt: cv.t,   met: cvWL,    unmet: cvWU,    metD: cvWT, unmetD: cvWT }
-              ];
-            } else {
-              rows3 = [
-                { lbl:'不分類', cnt: s.t, met: s.l||0, unmet: s.u||0, metD: t2, unmetD: t2 }
-              ];
+            function buildStaffRow(statObj, totalDenom, isCvsSrc, isWeighted) {
+              return curStatuses.map(function(st) {
+                var num, denom;
+                if (statObj === 'total') {
+                  num = s[st.key] || 0; denom = t;
+                } else if (isCvsSrc && isWeighted) {
+                  var wl = statObj.l, wu = statObj.weighted ? 0 : statObj.u;
+                  var wt = (statObj.weighted ? statObj.l : statObj.t) || 1;
+                  num = (st.key === 'l') ? wl : (st.key === 'u' || st.key === 'r') ? wu : 0;
+                  denom = wt;
+                } else {
+                  num = (st.key === 'l') ? statObj.l : (st.key === 'u' || st.key === 'r') ? statObj.u : 0;
+                  denom = totalDenom || 1;
+                }
+                var isMet   = (st.key === 'l');
+                var isUnmet = (st.key === 'u' || st.key === 'r');
+                var cls = isMet ? 'bc-cv-met' : (isUnmet ? 'bc-cv-unmet' : 'bc-cv-neutral');
+                var zeroCls = (num === 0) ? ' bc-cv-td-zero' : '';
+                return '<td class="bc-cv-td ' + cls + zeroCls + '">' +
+                  '<span class="bc-cv-pct">' + pct(num, denom) + '%</span>' +
+                  '<span class="bc-cv-num">(' + num + ')</span>' +
+                '</td>';
+              }).join('');
             }
 
-            var nameCell = '<td class="td-name td-type-first" rowspan="' + rows3.length + '">' +
-              '<strong>' + esc(trimName(staffName)) + '</strong>' +
-              '</td>';
+            var sbcSC = statByChannel(sr);
+            var hasBothChSC = sbcSC && sbcSC.cvs.t > 0;
 
-            rows3.forEach(function(r3, ri) {
-              var metPctStr   = pct(r3.met,   r3.metD)   + '%';
-              var unmetPctStr = pct(r3.unmet, r3.unmetD) + '%';
-              var rowCls = ri === 0 ? 'st-row-first' : (ri === rows3.length - 1 ? 'st-row-last' : 'st-row-mid');
-              tbody += '<tr class="' + rowCls + '" data-staff="' + esc(staffName) + '">';
-              if (ri === 0) {
-                tbody += nameCell;
-              }
-              tbody += '<td class="td-type' + (ri === 0 ? ' td-type-first' : '') + '">' + esc(r3.lbl) + '</td>';
-              tbody += '<td class="td-cnt">' + r3.cnt + '家</td>';
-              tbody += '<td class="td-met"><span class="st-pct">' + metPctStr + '</span>' +
-                '<span class="st-num">(' + r3.met + ')</span></td>';
-              tbody += '<td class="td-unmet"><span class="st-pct">' + unmetPctStr + '</span>' +
-                '<span class="st-num">(' + r3.unmet + ')</span></td>';
-              tbody += '</tr>';
-            });
-          });
-          tbody += '</tbody>';
-          return thead + tbody;
-        }
+            var theadColsSC = curStatuses.map(function(st) {
+              var isMet = (st.key === 'l'), isUnmet = (st.key === 'u' || st.key === 'r');
+              var cls = isMet ? 'bc-cv-met' : (isUnmet ? 'bc-cv-unmet' : 'bc-cv-neutral');
+              return '<th class="bc-cv-th ' + cls + '">' + esc(st.labelShort) + '</th>';
+            }).join('');
 
-        /* 左右欄分配：前半給左、後半給右 */
-        var mid = Math.ceil(sortedStaff.length / 2);
-        var leftStaff  = sortedStaff.slice(0, mid);
-        var rightStaff = sortedStaff.slice(mid);
+            var tbodyRowsSC = '';
+            if (hasBothChSC) {
+              var ncSC = sbcSC.nonCvs, cvSC = sbcSC.cvs;
+              tbodyRowsSC =
+                '<tr><td class="bc-cv-lbl">不分類</td><td class="bc-cv-cnt">' + s.t + '</td>' + buildStaffRow('total', t, false, false) + '</tr>' +
+                '<tr><td class="bc-cv-lbl">非CVS</td><td class="bc-cv-cnt">' + ncSC.t + '</td>' + buildStaffRow(ncSC, ncSC.t || 1, false, false) + '</tr>' +
+                '<tr><td class="bc-cv-lbl">CVS</td><td class="bc-cv-cnt">' + cvSC.t + '</td>' + buildStaffRow(cvSC, cvSC.t || 1, true, cvSC.weighted) + '</tr>';
+            } else {
+              tbodyRowsSC = '<tr><td class="bc-cv-lbl">不分類</td><td class="bc-cv-cnt">' + s.t + '</td>' + buildStaffRow('total', t, false, false) + '</tr>';
+            }
 
-        var wrap = document.createElement('div');
-        wrap.className = 'staff-table-wrap';
+            card.innerHTML =
+              '<table class="bc-cv-tbl">' +
+                '<thead class="bc-cv-thead"><tr>' +
+                  '<th class="bc-cv-th-name bc-cv-th-name--staff">' + esc(trimName(k)) + '</th>' +
+                  '<th class="bc-cv-th-cnt">總家數</th>' +
+                  theadColsSC +
+                '</tr></thead>' +
+                '<tbody class="bc-cv-tbody">' + tbodyRowsSC + '</tbody>' +
+              '</table>';
 
-        var leftCol = document.createElement('div');
-        leftCol.className = 'staff-tbl-col';
-        var leftTbl = document.createElement('table');
-        leftTbl.className = 'staff-tbl';
-        leftTbl.innerHTML = buildOneColTable(leftStaff);
-        leftCol.appendChild(leftTbl);
+            var trackEl = document.createElement('div');
+            trackEl.className = 'bc-track';
+            trackEl.innerHTML = segs(s);
+            card.appendChild(trackEl);
 
-        var rightCol = document.createElement('div');
-        rightCol.className = 'staff-tbl-col';
-        if (rightStaff.length > 0) {
-          var rightTbl = document.createElement('table');
-          rightTbl.className = 'staff-tbl';
-          rightTbl.innerHTML = buildOneColTable(rightStaff);
-          rightCol.appendChild(rightTbl);
-        }
-
-        wrap.appendChild(leftCol);
-        wrap.appendChild(rightCol);
-
-        /* 點擊整行 → 下鑽到該人員 */
-        wrap.addEventListener('click', function(e) {
-          var tr = e.target.closest('tr[data-staff]');
-          if (!tr) return;
-          var staffName = tr.getAttribute('data-staff');
-          if (staffName) drillInto('staff', staffName);
+          } else {
+            /* ── 其他專案：原有 staff-card 格式 ── */
+            card.className = 'staff-card' + (isSel ? ' sel' : '');
+            var sbcC = statByChannel(sr);
+            var dualCardHtml = '';
+            if (sbcC && sbcC.cvs.t > 0) {
+              var ncC = sbcC.nonCvs, cvC = sbcC.cvs;
+              var ncCT = ncC.t || 1;
+              var cvCWL = cvC.l, cvCWU = cvC.weighted ? 0 : cvC.u;
+              var cvCWT = (cvC.weighted ? cvC.l : cvC.t) || 1;
+              var scNcCells = curStatuses.map(function(st) {
+                var num = (st.key === 'l') ? ncC.l : (st.key === 'u' || st.key === 'r') ? ncC.u : 0;
+                return '<div class="bc-tri-cell ' + st.cls + '"><span class="bc-tri-pct">' + pct(num, ncCT) + '%</span><span class="bc-tri-num">(' + num + ')</span></div>';
+              }).join('');
+              var scCvCells = curStatuses.map(function(st) {
+                var num = (st.key === 'l') ? cvCWL : (st.key === 'u' || st.key === 'r') ? cvCWU : 0;
+                var noteHtml = (cvC.weighted && st.key === 'u') ? '<span class="bc-tri-tag">達標</span>' : '';
+                return '<div class="bc-tri-cell ' + st.cls + '"><span class="bc-tri-pct">' + pct(num, cvCWT) + '%</span><span class="bc-tri-num">(' + num + ')</span>' + noteHtml + '</div>';
+              }).join('');
+              dualCardHtml = '<div class="bc-tri">' +
+                '<div class="bc-tri-row noncvs"><div class="bc-tri-hdr">📋 非CVS（' + ncC.t + '家）</div><div class="bc-tri-cells">' + scNcCells + '</div></div>' +
+                '<div class="bc-tri-row cvs"><div class="bc-tri-hdr">⚖️ CVS（' + cvC.t + '家）</div><div class="bc-tri-cells">' + scCvCells + '</div></div>' +
+              '</div>';
+            }
+            var scInlineStats = '<div class="bc-inline-stats">' +
+              curStatuses.map(function(st) {
+                var num = s[st.key] || 0;
+                if (num === 0) return '<span class="bc-inline-st ' + st.cls + ' bc-st-zero"><span class="bc-inline-lbl">' + esc(st.labelShort) + '</span>' +
+                  '<span class="bc-inline-num-row"><span class="bc-inline-pct">0%</span><span class="bc-inline-num">(0)</span></span></span>';
+                return '<span class="bc-inline-st ' + st.cls + '"><span class="bc-inline-lbl">' + esc(st.labelShort) + '</span>' +
+                  '<span class="bc-inline-num-row"><span class="bc-inline-pct">' + pct(num, t) + '%</span><span class="bc-inline-num">(' + num + ')</span></span></span>';
+              }).join('') + '</div>';
+            card.innerHTML = '<div class="sc-head">' +
+              '<div class="sc-name">👤 ' + esc(trimName(k)) + '</div>' +
+              '<div class="sc-corner"><span class="sc-corner-num">' + s.t + '</span><span class="sc-corner-pct">佔所' + pct(s.t, tt) + '%</span>' +
+              (CI['visits'] >= 0 ? '<span class="sc-visits">🗓' + visitsSum(sr) + '次</span>' : '') +
+              '</div>' +
+              '</div>' +
+              scInlineStats +
+              dualCardHtml +
+              '<div class="sc-bar">' +
+              curStatuses.map(function(st) {
+                var v = s[st.key] || 0;
+                return v ? '<div class="sc-bar-' + st.cls + '" style="flex:' + v + '"></div>' : '';
+              }).join('') +
+            '</div>';
+          }
+          card.addEventListener('click', function() { drillInto('staff', k); });
+          c.appendChild(card);
         });
-
-        c.appendChild(wrap);
       }
 
       function buildSideStaff(c, rows, sel) {
