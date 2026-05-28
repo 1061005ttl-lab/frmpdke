@@ -5839,7 +5839,9 @@
       }
 
       function chGoToDepth(d) {
-        if (_chDrillStack.length === d) return;
+        /* [2026-05-28] 移除 length===d 的提前 return：
+           當從深層鑽回最上層（d=0）時，_chDrillStack 已被清空但畫面可能是空白，
+           需要強制執行 doRender 重新渲染，不能因為 stack 長度已符合就跳過。 */
         _chDrillStack = _chDrillStack.slice(0, d);
         doRender('back', null);
       }
