@@ -5324,49 +5324,8 @@
           var isCvsProject = !!((_curCfg || {}).cvsWeightChannel);
           var card = document.createElement('div');
           if (isCvsProject) {
-            /* ── 主要通路巡訪：人員卡使用新型大卡（bc-cv-card）格式 ── */
+            /* ── 主要通路巡訪：人員卡只顯示單行（卡名＋總家數＋達成＋未達） ── */
             card.className = 'big-card bc-cv-card' + (isSel ? ' sel' : '');
-
-            function buildStaffRow(statObj, total, isCvsSrc, isWeighted) {
-              return curStatuses.map(function(st) {
-                var num, denom;
-                if (isCvsSrc && isWeighted) {
-                  var wl = statObj.l, wu = statObj.weighted ? 0 : statObj.u;
-                  var wt = (statObj.weighted ? statObj.l : statObj.t) || 1;
-                  num = (st.key === 'l') ? wl : (st.key === 'u' || st.key === 'r') ? wu : 0;
-                  denom = wt;
-                } else {
-                  num = (st.key === 'l') ? statObj.l : (st.key === 'u' || st.key === 'r') ? statObj.u : 0;
-                  denom = total || 1;
-                }
-                var isMet   = (st.key === 'l');
-                var isUnmet = (st.key === 'u' || st.key === 'r');
-                var cls = isMet ? 'bc-cv-met' : (isUnmet ? 'bc-cv-unmet' : 'bc-cv-neutral');
-                return '<td class="bc-cv-td ' + cls + '">' +
-                  '<span class="bc-cv-pct">' + pct(num, denom) + '%</span>' +
-                  '<span class="bc-cv-num">(' + num + ')</span>' +
-                '</td>';
-              }).join('');
-            }
-
-            var theadCols = curStatuses.map(function(st) {
-              var isMet = (st.key === 'l'), isUnmet = (st.key === 'u' || st.key === 'r');
-              var cls = isMet ? 'bc-cv-met' : (isUnmet ? 'bc-cv-unmet' : 'bc-cv-neutral');
-              return '<th class="bc-cv-th ' + cls + '">' + esc(st.labelShort) + '</th>';
-            }).join('');
-
-            var tbodyRows = '';
-            var sbcC = statByChannel(sr);
-            var hasBothCh = sbcC && sbcC.cvs.t > 0;
-            if (hasBothCh) {
-              var ncC = sbcC.nonCvs, cvC = sbcC.cvs;
-              tbodyRows =
-                '<tr><td class="bc-cv-lbl">不分類</td><td class="bc-cv-cnt">' + s.t + '</td>' + buildStaffRow({l: s.l || 0, u: s.u || 0, t: s.t}, t, false, false) + '</tr>' +
-                '<tr><td class="bc-cv-lbl">非CVS</td><td class="bc-cv-cnt">' + ncC.t + '</td>' + buildStaffRow(ncC, ncC.t || 1, false, false) + '</tr>' +
-                '<tr><td class="bc-cv-lbl">CVS</td><td class="bc-cv-cnt">' + cvC.t + '</td>' + buildStaffRow(cvC, cvC.t || 1, true, cvC.weighted) + '</tr>';
-            } else {
-              tbodyRows = '<tr><td class="bc-cv-lbl">不分類</td><td class="bc-cv-cnt">' + s.t + '</td>' + buildStaffRow({l: s.l || 0, u: s.u || 0, t: s.t}, t, false, false) + '</tr>';
-            }
 
             /* 角落：佔所%與拜訪次數，放進 th-name 裡 */
             var cornerHtml = '<span class="bc-cv-corner">' +
@@ -5374,14 +5333,25 @@
               (CI['visits'] >= 0 ? '&nbsp;<span class="bc-cv-visits">🗓' + visitsSum(sr) + '次</span>' : '') +
               '</span>';
 
+            /* 只有 thead 一行，資料直接放在 th 欄位（用 td 取代） */
+            var dataCols = curStatuses.map(function(st) {
+              var num = s[st.key] || 0;
+              var isMet   = (st.key === 'l');
+              var isUnmet = (st.key === 'u' || st.key === 'r');
+              var cls = isMet ? 'bc-cv-met' : (isUnmet ? 'bc-cv-unmet' : 'bc-cv-neutral');
+              return '<td class="bc-cv-td ' + cls + '">' +
+                '<span class="bc-cv-pct">' + pct(num, t) + '%</span>' +
+                '<span class="bc-cv-num">(' + num + ')</span>' +
+              '</td>';
+            }).join('');
+
             card.innerHTML =
               '<table class="bc-cv-tbl">' +
-                '<thead class="bc-cv-thead"><tr>' +
-                  '<th class="bc-cv-th-name">👤 ' + esc(trimName(k)) + cornerHtml + '</th>' +
-                  '<th class="bc-cv-th-cnt">總家數</th>' +
-                  theadCols +
-                '</tr></thead>' +
-                '<tbody class="bc-cv-tbody">' + tbodyRows + '</tbody>' +
+                '<tbody class="bc-cv-tbody"><tr>' +
+                  '<td class="bc-cv-th-name" style="border-left:5px solid var(--primary-d);">👤 ' + esc(trimName(k)) + cornerHtml + '</td>' +
+                  '<td class="bc-cv-cnt">' + s.t + '</td>' +
+                  dataCols +
+                '</tr></tbody>' +
               '</table>';
 
             var trackEl = document.createElement('div');
@@ -5460,65 +5430,33 @@
         var isCvsProject = !!((_curCfg || {}).cvsWeightChannel);
 
         if (isCvsProject) {
-          /* ── 主要通路巡訪：頭卡使用新型大卡格式 ── */
+          /* ── 主要通路巡訪：個人頭卡 — 單行格式（跟其他大卡一致） ── */
           header.className = 'big-card bc-cv-card whole';
           header.style.cssText = 'cursor:default;grid-column:1/-1;margin-bottom:0;';
 
-          function buildHeadRow(statObj, total, isCvsSrc, isWeighted) {
-            return curStatuses.map(function(st) {
-              var num, denom;
-              if (isCvsSrc && isWeighted) {
-                var wl = statObj.l, wu = statObj.weighted ? 0 : statObj.u;
-                var wt = (statObj.weighted ? statObj.l : statObj.t) || 1;
-                num = (st.key === 'l') ? wl : (st.key === 'u' || st.key === 'r') ? wu : 0;
-                denom = wt;
-              } else {
-                num = (st.key === 'l') ? statObj.l : (st.key === 'u' || st.key === 'r') ? statObj.u : 0;
-                denom = total || 1;
-              }
-              var isMet   = (st.key === 'l');
-              var isUnmet = (st.key === 'u' || st.key === 'r');
-              var cls = isMet ? 'bc-cv-met' : (isUnmet ? 'bc-cv-unmet' : 'bc-cv-neutral');
-              return '<td class="bc-cv-td ' + cls + '">' +
-                '<span class="bc-cv-pct">' + pct(num, denom) + '%</span>' +
-                '<span class="bc-cv-num">(' + num + ')</span>' +
-              '</td>';
-            }).join('');
-          }
+          var t2 = statBase(s) || 1;
+          var toggleBtn = '<button class="sh-toggle" id="store-toggle-btn" onclick="toggleStoreList()" style="margin-left:auto;flex-shrink:0;font-size:12px;padding:3px 10px;">▾ 展開清冊</button>';
 
-          var theadCols = curStatuses.map(function(st) {
-            var isMet = (st.key === 'l'), isUnmet = (st.key === 'u' || st.key === 'r');
+          var visHtml = (CI['visits'] >= 0 ? '<span class="bc-cv-visits" style="font-size:11px;font-weight:700;color:#4a7a55;opacity:.85;margin-left:6px;">🗓' + visitsSum(rows) + '次</span>' : '');
+
+          var dataCols2 = curStatuses.map(function(st) {
+            var num = s[st.key] || 0;
+            var isMet   = (st.key === 'l');
+            var isUnmet = (st.key === 'u' || st.key === 'r');
             var cls = isMet ? 'bc-cv-met' : (isUnmet ? 'bc-cv-unmet' : 'bc-cv-neutral');
-            return '<th class="bc-cv-th ' + cls + '">' + esc(st.labelShort) + '</th>';
+            return '<td class="bc-cv-td ' + cls + '">' +
+              '<span class="bc-cv-pct">' + pct(num, t2) + '%</span>' +
+              '<span class="bc-cv-num">(' + num + ')</span>' +
+            '</td>';
           }).join('');
-
-          var tbodyRows = '';
-          var wsh2 = statByChannel(rows);
-          var hasBothCh = wsh2 && wsh2.cvs.t > 0;
-          if (hasBothCh) {
-            var ncSH = wsh2.nonCvs, cvSH = wsh2.cvs;
-            tbodyRows =
-              '<tr><td class="bc-cv-lbl">不分類</td><td class="bc-cv-cnt">' + s.t + '</td>' + buildHeadRow({l: s.l || 0, u: s.u || 0, t: s.t}, t, false, false) + '</tr>' +
-              '<tr><td class="bc-cv-lbl">非CVS</td><td class="bc-cv-cnt">' + ncSH.t + '</td>' + buildHeadRow(ncSH, ncSH.t || 1, false, false) + '</tr>' +
-              '<tr><td class="bc-cv-lbl">CVS</td><td class="bc-cv-cnt">' + cvSH.t + '</td>' + buildHeadRow(cvSH, cvSH.t || 1, true, cvSH.weighted) + '</tr>';
-          } else {
-            tbodyRows = '<tr><td class="bc-cv-lbl">不分類</td><td class="bc-cv-cnt">' + s.t + '</td>' + buildHeadRow({l: s.l || 0, u: s.u || 0, t: s.t}, t, false, false) + '</tr>';
-          }
-
-          /* 右上角的「收合清冊」按鈕以 th 最後一欄形式放入，或塞到 th-name 旁 */
-          var toggleBtn = '<button class="sh-toggle" id="store-toggle-btn" onclick="toggleStoreList()" style="margin-left:auto;flex-shrink:0">▾ 展開清冊</button>';
 
           header.innerHTML =
             '<table class="bc-cv-tbl">' +
-              '<thead class="bc-cv-thead"><tr>' +
-                '<th class="bc-cv-th-name" style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;">👤 ' + esc(trimName(staffName)) +
-                  (CI['visits'] >= 0 ? '<span class="bc-cv-visits" style="font-size:11px;font-weight:700;color:#4a7a55;opacity:.85;margin-left:6px;">🗓' + visitsSum(rows) + '次</span>' : '') +
-                  toggleBtn +
-                '</th>' +
-                '<th class="bc-cv-th-cnt">總家數</th>' +
-                theadCols +
-              '</tr></thead>' +
-              '<tbody class="bc-cv-tbody">' + tbodyRows + '</tbody>' +
+              '<tbody class="bc-cv-tbody"><tr>' +
+                '<td class="bc-cv-th-name" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">👤 ' + esc(trimName(staffName)) + visHtml + toggleBtn + '</td>' +
+                '<td class="bc-cv-cnt">' + s.t + '</td>' +
+                dataCols2 +
+              '</tr></tbody>' +
             '</table>';
 
           var trackEl = document.createElement('div');
