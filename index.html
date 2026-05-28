@@ -3422,7 +3422,8 @@
         ],
         monthCols: 'auto',
         defaultChannel: 'CVS通路',
-        pctDecimals: 1
+        pctDecimals: 1,
+        noGrade: true        /* [2026-05-28] CVS跨月無等級欄位，補上此旗標避免「等級」「標準」「已訪」三欄空白顯示 */
       }, {
         _fixed: true,
         _active: true,
@@ -4081,11 +4082,11 @@
           var pass2Val = sv.pass2 || '已達';
           var fail2Val = sv.fail2 || '未達';
 
-          var statuses = (cfg.statusDefs || [
-            { key: 'l', label: '✅ 全達成', labelShort: '全達成', cls: 'g', emoji: '✅' },
-            { key: 'y', label: '🟡 部分達成', labelShort: '部分達成', cls: 'y', emoji: '🟡' },
-            { key: 'u', label: '🔴 未查', labelShort: '未查', cls: 'r', emoji: '🔴' }
-          ]).map(function(d) {
+          /* [2026-05-28] 移除 fallback 預設值：statusDefs 必須在 SURVEYS_FIXED 的 config 裡明確定義。
+             原本的預設值（全達成／部分達成／未查）與 config 裡的內容完全重複，
+             保留兩份會造成日後維護時標籤不同步的風險。
+             新增 combo 模式專案時，請務必在 config 裡補上 statusDefs。 */
+          var statuses = cfg.statusDefs.map(function(d) {
             return { key: d.key, colIdx: col1Idx, col: cfg.statusCol, label: d.label, labelShort: d.labelShort, cls: d.cls, emoji: d.emoji };
           });
 
