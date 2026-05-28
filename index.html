@@ -410,10 +410,14 @@
       }
 
       .col-main.area-view {
-        /* [修改1c] 總級視角：固定 9 欄配置（深色頭卡佔 2 格 + 7 個地區大卡）
-           使用 repeat(auto-fill) 自適應，但確保每排 grid-auto-rows 等高 */
-        grid-template-columns: repeat(auto-fill, minmax(clamp(280px, 10vw, 380px), 1fr));
+        /* 總級視角：固定 3 欄，頭卡佔 2 格 + 7 個地區卡 = 3×3 九宮格 */
+        grid-template-columns: repeat(3, 1fr);
         grid-auto-rows: 1fr;
+      }
+
+      /* 總級視角下的頭卡：跨 2 欄，外觀圓角與一般大卡一致 */
+      .col-main.area-view .big-card.whole {
+        grid-column: span 2;
       }
 
       .col-main.ch-view {
@@ -430,6 +434,9 @@
         grid-auto-rows: auto;
         padding: 16px 20px;
         gap: 14px;
+        /* staff-view：外框不滾動，只讓 staff-table-wrap 內部滾動 */
+        overflow-y: hidden;
+        align-content: start;
       }
 
       /* [修改2] 處級視角（area-view 在 office 層）：固定 4×4 = 16塊，
@@ -1753,12 +1760,27 @@
       }
 
       /* ══ [修改3] 所級人員視角：staff-table 雙欄表格佈局 ══ */
+      /* [修改3] staff-table-wrap：限高 + 內部滾動，防止頁面無限延伸 */
       .staff-table-wrap {
         grid-column: 1 / -1;
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 16px;
         padding: 0;
+        /* 表格容器固定最大高度，多人時只在表格內部出現滾動條 */
+        max-height: calc(100vh - 200px);
+        overflow-y: auto;
+        overflow-x: hidden;
+        /* 讓兩欄表格本身不要各自滾動，由外框統一管理 */
+        align-content: start;
+      }
+
+      .staff-table-wrap::-webkit-scrollbar {
+        width: 5px;
+      }
+      .staff-table-wrap::-webkit-scrollbar-thumb {
+        background: rgba(0,0,0,.13);
+        border-radius: 4px;
       }
 
       .staff-tbl-col {
@@ -1878,10 +1900,11 @@
         padding-bottom: 10px;
       }
 
-      /* ── Hover 效果：整個人員的 3 行一起浮空 ── */
+      /* ── Hover 效果：整個人員的 3 行一起浮空（fallback + :has() 雙保） ── */
+      /* fallback：用 + 鄰接選擇器，只命中緊鄰的 mid/last，不會污染其他人的行 */
       .staff-tbl tbody tr.st-row-first:hover,
-      .staff-tbl tbody tr.st-row-first:hover ~ tr.st-row-mid,
-      .staff-tbl tbody tr.st-row-first:hover ~ tr.st-row-last {
+      .staff-tbl tbody tr.st-row-first:hover + tr.st-row-mid,
+      .staff-tbl tbody tr.st-row-first:hover + tr.st-row-mid + tr.st-row-last {
         background: rgba(139,166,144,.08);
         box-shadow: 0 4px 16px rgba(80,100,85,.14);
         transform: translateY(-1px);
