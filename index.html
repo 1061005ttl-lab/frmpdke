@@ -12,10 +12,17 @@
         }
         /* ── 智能縮放：依螢幕寬度自動調整 ── */
         (function() {
-          var BASE_W = 1440; /* 設計基準寬度，依公司螢幕調整 */
+          var BASE_W = 1440; /* 設計基準寬度 */
           function applyZoom() {
-            var ratio = Math.min(1, window.innerWidth / BASE_W);
-            ratio = Math.max(0.55, ratio); /* 最小縮到 55% */
+            var w = window.innerWidth;
+            var ratio;
+            if (w >= BASE_W) {
+              /* 大螢幕：最多放大到 1.15，避免在 4K 看起來太小 */
+              ratio = Math.min(1.15, w / BASE_W);
+            } else {
+              /* 小螢幕：依比例縮，最小縮到 60% */
+              ratio = Math.max(0.60, w / BASE_W);
+            }
             document.documentElement.style.zoom = ratio;
           }
           applyZoom();
@@ -411,7 +418,7 @@
         align-content: start;
       }
       .col-main.ch-view .big-card.whole {
-        grid-column: 1 / -1;
+        grid-column: span 2;
       }
 
       .col-main.staff-view {
@@ -452,6 +459,16 @@
       .col-main::-webkit-scrollbar-thumb {
         background: rgba(0, 0, 0, .1);
         border-radius: 4px;
+      }
+
+      /* ══ 頭卡單欄保護：grid 只剩 1 欄時退回 span 1，避免溢出 ══ */
+      @supports (grid-template-columns: repeat(auto-fill, minmax(200px, 1fr))) {
+        @media (max-width: 479px) {
+          .big-card.whole,
+          .col-main.ch-view .big-card.whole {
+            grid-column: 1 / -1;
+          }
+        }
       }
 
       .divider {
@@ -799,7 +816,7 @@
 
       /* ══ 整體卡（深色英雄） ══ */
       .big-card.whole {
-        grid-column: 1/-1;
+        grid-column: span 2;
         cursor: default;
         background: linear-gradient(130deg, #1a1f2e 0%, #22293a 60%, #1e2d26 100%);
         border-radius: var(--r);
