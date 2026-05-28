@@ -1238,17 +1238,21 @@
         vertical-align: middle;
       }
       .bc-cv-pct {
-        display: block;
         font-size: clamp(18px, 1.8vw, 24px);
         font-weight: 900;
-        line-height: 1;
+        line-height: 1.3;
+        white-space: nowrap;
       }
       .bc-cv-num {
-        display: block;
         font-size: 12px;
         font-weight: 700;
         opacity: .8;
-        margin-top: 2px;
+      }
+      .bc-cv-lbl-cnt {
+        font-size: 12px;
+        font-weight: 600;
+        color: #aaa;
+        margin-left: 3px;
       }
       /* 達成（綠） */
       .bc-cv-met {
@@ -5053,8 +5057,7 @@
               var isUnmet = (st.key === 'u' || st.key === 'r');
               var cls = isMet ? 'bc-cv-met' : (isUnmet ? 'bc-cv-unmet' : 'bc-cv-neutral');
               return '<td class="bc-cv-td ' + cls + '">' +
-                '<span class="bc-cv-pct">' + pct(num, denom) + '%</span>' +
-                '<span class="bc-cv-num">(' + num + ')</span>' +
+                '<span class="bc-cv-pct">' + pct(num, denom) + '%<span class="bc-cv-num">&thinsp;(' + num + ')</span></span>' +
               '</td>';
             }).join('');
           }
@@ -5072,11 +5075,11 @@
           if (hasBothChannels) {
             var nc = sbc2.nonCvs, cv = sbc2.cvs;
             tbodyRows =
-              '<tr><td class="bc-cv-lbl">不分類</td><td class="bc-cv-cnt">' + s.t + '</td>' + buildRow('不分類', s.t, 'total', t, false, false) + '</tr>' +
-              '<tr><td class="bc-cv-lbl">非 CVS</td><td class="bc-cv-cnt">' + nc.t + '</td>' + buildRow('非CVS', nc.t, nc, nc.t || 1, false, false) + '</tr>' +
-              '<tr><td class="bc-cv-lbl">CVS</td><td class="bc-cv-cnt">' + cv.t + '</td>' + buildRow('CVS', cv.t, cv, cv.t || 1, true, cv.weighted) + '</tr>';
+              '<tr><td class="bc-cv-lbl">不分類 <span class="bc-cv-lbl-cnt">' + s.t + '</span></td>' + buildRow('不分類', s.t, 'total', t, false, false) + '</tr>' +
+              '<tr><td class="bc-cv-lbl">非 CVS <span class="bc-cv-lbl-cnt">' + nc.t + '</span></td>' + buildRow('非CVS', nc.t, nc, nc.t || 1, false, false) + '</tr>' +
+              '<tr><td class="bc-cv-lbl">CVS <span class="bc-cv-lbl-cnt">' + cv.t + '</span></td>' + buildRow('CVS', cv.t, cv, cv.t || 1, true, cv.weighted) + '</tr>';
           } else {
-            tbodyRows = '<tr><td class="bc-cv-lbl">不分類</td><td class="bc-cv-cnt">' + s.t + '</td>' + buildRow('不分類', s.t, 'total', t, false, false) + '</tr>';
+            tbodyRows = '<tr><td class="bc-cv-lbl">不分類 <span class="bc-cv-lbl-cnt">' + s.t + '</span></td>' + buildRow('不分類', s.t, 'total', t, false, false) + '</tr>';
           }
 
           el.innerHTML =
@@ -5084,14 +5087,7 @@
               '<span class="bc-cv-name">' + esc(name) + '</span>' +
               '<span class="bc-cv-total">' + s.t + '</span>' +
             '</div>' +
-            '<table class="bc-cv-tbl">' +
-              '<thead><tr>' +
-                '<th class="bc-cv-th-lbl"></th>' +
-                '<th class="bc-cv-th-cnt">總家數</th>' +
-                theadCols +
-              '</tr></thead>' +
-              '<tbody>' + tbodyRows + '</tbody>' +
-            '</table>';
+            '<table class="bc-cv-tbl"><tbody>' + tbodyRows + '</tbody></table>';
         } else {
           /* ── 原始格式（其他所有專案） ── */
           el.innerHTML =
