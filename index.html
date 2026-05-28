@@ -1331,8 +1331,14 @@
 
       /* staff-view 下的 bc-cv-card 使用小號字，適合多欄排列 */
       .staff-view .big-card.bc-cv-card .bc-cv-th-name {
-        font-size: clamp(18px, 1.8vw, 26px);
-        padding: 10px 8px 8px 14px;
+        font-size: clamp(15px, 1.5vw, 21px);
+        padding: 8px 8px 7px 12px;
+      }
+      /* 人員卡專用：去掉上下多餘空間，讓名字不擠壓數據欄 */
+      .staff-view .big-card.bc-cv-card .bc-cv-th-name--staff {
+        font-size: clamp(14px, 1.35vw, 19px);
+        padding: 7px 6px 6px 12px;
+        letter-spacing: -.3px;
       }
       .staff-view .big-card.bc-cv-card .bc-cv-pct {
         font-size: clamp(13px, 1.3vw, 17px);
@@ -1348,12 +1354,42 @@
         border-left: 5px solid var(--primary-d);
         margin-bottom: 0;
       }
-      .store-view .big-card.bc-cv-card.whole .bc-cv-th-name {
-        font-size: clamp(20px, 2vw, 28px);
+      /* 個人頭卡：覆寫深色 whole 背景，改成淺色清爽版 */
+      .sv-personal-header {
+        background: var(--card) !important;
+        color: var(--text) !important;
+      }
+      .sv-personal-header .bc-cv-thead tr {
+        background: rgba(139,166,144,.08);
+      }
+      .sv-personal-header .bc-cv-tbody tr {
+        background: transparent;
+      }
+      /* 個人頭卡人名欄：用綠色主題色，不用大白字 */
+      .sv-ph-name {
+        font-size: clamp(18px, 2vw, 26px) !important;
+        color: var(--primary-d) !important;
+        padding: 10px 10px 9px 16px !important;
+        border-left: 5px solid var(--primary-d) !important;
+      }
+      /* ── 清冊展開 bar（清冊框上緣） ── */
+      .sp-toggle-bar {
         display: flex;
         align-items: center;
-        gap: 8px;
-        flex-wrap: wrap;
+        gap: 6px;
+        padding: 7px 14px;
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--primary-d);
+        background: rgba(139,166,144,.10);
+        border-bottom: 1px solid rgba(0,0,0,.07);
+        cursor: pointer;
+        user-select: none;
+        transition: background .14s;
+        border-radius: var(--r) var(--r) 0 0;
+      }
+      .sp-toggle-bar:hover {
+        background: rgba(139,166,144,.18);
       }
       .bc-tbl { width: 100%; border-collapse: collapse; margin-top: 6px; }
       .bc-tbl-th-name { font-size: 16px; font-weight: 900; color: var(--text); text-align: left; padding: 3px 4px 5px 0; white-space: nowrap; }
@@ -5374,7 +5410,7 @@
             card.innerHTML =
               '<table class="bc-cv-tbl">' +
                 '<thead class="bc-cv-thead"><tr>' +
-                  '<th class="bc-cv-th-name">👤 ' + esc(trimName(k)) + '</th>' +
+                  '<th class="bc-cv-th-name bc-cv-th-name--staff">' + esc(trimName(k)) + '</th>' +
                   '<th class="bc-cv-th-cnt">總家數</th>' +
                   theadColsSC +
                 '</tr></thead>' +
@@ -5457,8 +5493,8 @@
         var isCvsProject = !!((_curCfg || {}).cvsWeightChannel);
 
         if (isCvsProject) {
-          /* ── 主要通路巡訪：個人頭卡 — 完整三行格式（跟處/所大卡一致） ── */
-          header.className = 'big-card bc-cv-card whole';
+          /* ── 主要通路巡訪：個人頭卡 — 淺色版、無頭像、無展開按鈕 ── */
+          header.className = 'big-card bc-cv-card whole sv-personal-header';
           header.style.cssText = 'cursor:default;grid-column:1/-1;margin-bottom:0;';
 
           function buildHeadRow(statObj, total, isCvsSrc, isWeighted) {
@@ -5502,14 +5538,10 @@
             tbodyRows = '<tr><td class="bc-cv-lbl">不分類</td><td class="bc-cv-cnt">' + s.t + '</td>' + buildHeadRow({l: s.l || 0, u: s.u || 0}, t, false, false) + '</tr>';
           }
 
-          var toggleBtn = '<button class="sh-toggle" id="store-toggle-btn" onclick="toggleStoreList()" style="font-size:12px;padding:3px 10px;flex-shrink:0;">▾ 展開清冊</button>';
-
           header.innerHTML =
             '<table class="bc-cv-tbl">' +
               '<thead class="bc-cv-thead"><tr>' +
-                '<th class="bc-cv-th-name" style="display:flex;align-items:center;gap:10px;">' +
-                  '👤 ' + esc(trimName(staffName)) + toggleBtn +
-                '</th>' +
+                '<th class="bc-cv-th-name sv-ph-name">' + esc(trimName(staffName)) + '</th>' +
                 '<th class="bc-cv-th-cnt">總家數</th>' +
                 theadCols +
               '</tr></thead>' +
@@ -5564,6 +5596,13 @@
         var wrap = document.createElement('div');
         wrap.className = 'store-panel sg';
         wrap.id = 'store-list-wrap';
+        /* 展開/收合 bar 做在清冊框上緣 */
+        var toggleBar = document.createElement('div');
+        toggleBar.className = 'sp-toggle-bar';
+        toggleBar.id = 'store-toggle-btn';
+        toggleBar.setAttribute('onclick', 'toggleStoreList()');
+        toggleBar.innerHTML = '▾ 收合清冊';
+        wrap.appendChild(toggleBar);
         var lastKey = curStatuses[curStatuses.length - 1].key;
         var orderMap = {};
         curStatuses.forEach(function(st, i) { orderMap[st.key] = i; });
@@ -5660,7 +5699,9 @@
         if (!body || !btn) return;
         window._storeListOpen = !window._storeListOpen;
         body.style.display = window._storeListOpen ? '' : 'none';
-        btn.textContent = window._storeListOpen ? '▾ 收合清冊' : '▸ 展開清冊 (' + ((window._storeRows || []).length) + ' 家)';
+        btn.innerHTML = window._storeListOpen
+          ? '▾ 收合清冊'
+          : '▸ 展開清冊 <span style="color:var(--sub);font-weight:700;font-size:11px;">(' + ((window._storeRows || []).length) + ' 家)</span>';
       }
 
       /* ══ global bar ══ */
