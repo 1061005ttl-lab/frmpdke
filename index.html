@@ -1193,11 +1193,11 @@
 
       /* 左上角卡名格：大字、醒目 */
       .bc-cv-th-name {
-        font-size: clamp(26px, 2.6vw, 36px);
+        font-size: clamp(20px, 2.1vw, 28px);
         font-weight: 900;
         color: var(--text);
         text-align: left;
-        padding: 14px 10px 12px 18px;
+        padding: 10px 10px 9px 16px;
         white-space: nowrap;
         vertical-align: bottom;
         line-height: 1;
@@ -5324,28 +5324,61 @@
           var isCvsProject = !!((_curCfg || {}).cvsWeightChannel);
           var card = document.createElement('div');
           if (isCvsProject) {
-            /* ── 主要通路巡訪：人員卡只顯示單行（卡名＋總家數＋達成＋未達） ── */
+            /* ── 主要通路巡訪：人員卡三行格式（與處級大卡一致） ── */
             card.className = 'big-card bc-cv-card' + (isSel ? ' sel' : '');
 
-            /* 只有 tbody 一行，資料直接放在 td 欄位 */
-            var dataCols = curStatuses.map(function(st) {
-              var num = s[st.key] || 0;
-              var isMet   = (st.key === 'l');
-              var isUnmet = (st.key === 'u' || st.key === 'r');
+            function buildStaffRow(statObj, totalDenom, isCvsSrc, isWeighted) {
+              return curStatuses.map(function(st) {
+                var num, denom;
+                if (statObj === 'total') {
+                  num = s[st.key] || 0; denom = t;
+                } else if (isCvsSrc && isWeighted) {
+                  var wl = statObj.l, wu = statObj.weighted ? 0 : statObj.u;
+                  var wt = (statObj.weighted ? statObj.l : statObj.t) || 1;
+                  num = (st.key === 'l') ? wl : (st.key === 'u' || st.key === 'r') ? wu : 0;
+                  denom = wt;
+                } else {
+                  num = (st.key === 'l') ? statObj.l : (st.key === 'u' || st.key === 'r') ? statObj.u : 0;
+                  denom = totalDenom || 1;
+                }
+                var isMet   = (st.key === 'l');
+                var isUnmet = (st.key === 'u' || st.key === 'r');
+                var cls = isMet ? 'bc-cv-met' : (isUnmet ? 'bc-cv-unmet' : 'bc-cv-neutral');
+                return '<td class="bc-cv-td ' + cls + '">' +
+                  '<span class="bc-cv-pct">' + pct(num, denom) + '%</span>' +
+                  '<span class="bc-cv-num">(' + num + ')</span>' +
+                '</td>';
+              }).join('');
+            }
+
+            var sbcSC = statByChannel(sr);
+            var hasBothChSC = sbcSC && sbcSC.cvs.t > 0;
+
+            var theadColsSC = curStatuses.map(function(st) {
+              var isMet = (st.key === 'l'), isUnmet = (st.key === 'u' || st.key === 'r');
               var cls = isMet ? 'bc-cv-met' : (isUnmet ? 'bc-cv-unmet' : 'bc-cv-neutral');
-              return '<td class="bc-cv-td ' + cls + '">' +
-                '<span class="bc-cv-pct">' + pct(num, t) + '%</span>' +
-                '<span class="bc-cv-num">(' + num + ')</span>' +
-              '</td>';
+              return '<th class="bc-cv-th ' + cls + '">' + esc(st.labelShort) + '</th>';
             }).join('');
+
+            var tbodyRowsSC = '';
+            if (hasBothChSC) {
+              var ncSC = sbcSC.nonCvs, cvSC = sbcSC.cvs;
+              tbodyRowsSC =
+                '<tr><td class="bc-cv-lbl">不分類</td><td class="bc-cv-cnt">' + s.t + '</td>' + buildStaffRow('total', t, false, false) + '</tr>' +
+                '<tr><td class="bc-cv-lbl">非CVS</td><td class="bc-cv-cnt">' + ncSC.t + '</td>' + buildStaffRow(ncSC, ncSC.t || 1, false, false) + '</tr>' +
+                '<tr><td class="bc-cv-lbl">CVS</td><td class="bc-cv-cnt">' + cvSC.t + '</td>' + buildStaffRow(cvSC, cvSC.t || 1, true, cvSC.weighted) + '</tr>';
+            } else {
+              tbodyRowsSC = '<tr><td class="bc-cv-lbl">不分類</td><td class="bc-cv-cnt">' + s.t + '</td>' + buildStaffRow('total', t, false, false) + '</tr>';
+            }
 
             card.innerHTML =
               '<table class="bc-cv-tbl">' +
-                '<tbody class="bc-cv-tbody"><tr>' +
-                  '<td class="bc-cv-th-name" style="border-left:5px solid var(--primary-d);">👤 ' + esc(trimName(k)) + '</td>' +
-                  '<td class="bc-cv-cnt">' + s.t + '</td>' +
-                  dataCols +
-                '</tr></tbody>' +
+                '<thead class="bc-cv-thead"><tr>' +
+                  '<th class="bc-cv-th-name">👤 ' + esc(trimName(k)) + '</th>' +
+                  '<th class="bc-cv-th-cnt">總家數</th>' +
+                  theadColsSC +
+                '</tr></thead>' +
+                '<tbody class="bc-cv-tbody">' + tbodyRowsSC + '</tbody>' +
               '</table>';
 
             var trackEl = document.createElement('div');
