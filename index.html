@@ -398,7 +398,6 @@
         grid-template-columns: repeat(auto-fill, minmax(clamp(200px, 22vw, 320px), 1fr));
         gap: 16px;
         align-content: start;
-        grid-auto-rows: minmax(auto, auto);
       }
 
       .col-main.area-view {
@@ -407,8 +406,6 @@
 
       .col-main.ch-view {
         grid-template-columns: repeat(auto-fill, minmax(clamp(200px, 22vw, 320px), 1fr));
-        overflow-y: auto;
-        align-content: start;
       }
       .col-main.ch-view .big-card.whole {
         grid-column: 1 / -1;
@@ -4279,6 +4276,18 @@
         });
       }
 
+      /* ══ 共用：補填空白營業所（行銷課） ══ */
+      function fillEmptyOffice(hdrs, rows) {
+        var idx = hdrs.findIndex(function(h) {
+          return h === '營業所/課' || h === '營業所' || h.indexOf('營業所') >= 0;
+        });
+        if (idx >= 0) {
+          rows.forEach(function(r) {
+            if (!r[idx] || !r[idx].trim()) r[idx] = '行銷課';
+          });
+        }
+      }
+
       /* ══ Combo 狀態模式（雙欄合併判斷：statusCol + statusCol2） ══ */
       function fetchSheetCombo(id, sheet, cfg, ok, fail) {
         var dataUrl = 'https://docs.google.com/spreadsheets/d/' + id + '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheet) + '&headers=0';
@@ -4373,14 +4382,7 @@
           });
 
           /* 補填空白營業所 */
-          var officeColIdx = keepHdrs.findIndex(function(h) {
-            return h === '營業所/課' || h === '營業所' || h.indexOf('營業所') >= 0;
-          });
-          if (officeColIdx >= 0) {
-            processedRows.forEach(function(r) {
-              if (!r[officeColIdx] || !r[officeColIdx].trim()) r[officeColIdx] = '行銷課';
-            });
-          }
+          fillEmptyOffice(keepHdrs, processedRows);
 
           ok({
             headers: keepHdrs,
@@ -4536,14 +4538,7 @@
           });
 
           /* ══ 補填空白營業所 ══ */
-          var officeColIdx = keepHdrs.findIndex(function(h) {
-            return h === '營業所/課' || h === '營業所' || h.indexOf('營業所') >= 0;
-          });
-          if (officeColIdx >= 0) {
-            processedRows.forEach(function(r) {
-              if (!r[officeColIdx] || !r[officeColIdx].trim()) r[officeColIdx] = '行銷課';
-            });
-          }
+          fillEmptyOffice(keepHdrs, processedRows);
 
           ok({
             headers: keepHdrs,
@@ -4609,14 +4604,7 @@
           var keepHdrs = hdrs.filter(function(h, i) { return !statusColSet.has(i); });
 
           /* ══ 補填空白營業所 ══ */
-          var officeColIdx2 = keepHdrs.findIndex(function(h) {
-            return h === '營業所/課' || h === '營業所' || h.indexOf('營業所') >= 0;
-          });
-          if (officeColIdx2 >= 0) {
-            processedRows.forEach(function(r) {
-              if (!r[officeColIdx2] || !r[officeColIdx2].trim()) r[officeColIdx2] = '行銷課';
-            });
-          }
+          fillEmptyOffice(keepHdrs, processedRows);
 
           ok({
             headers: keepHdrs,
@@ -5137,6 +5125,44 @@
        * ══════════════════════════════════════════════════
        */
 
+      /* ══ 共用：CvsCard 的 <td> 列產生器 ══
+         statObj  = 'total'（用呼叫端的 s/t）或 channel stat object
+         totalRef = 外層的 s（'total' 模式時取 key 值用）
+         tRef     = 外層的 t（'total' 模式時的分母）         */
+      function buildCvsTdRow(statObj, totalDenom, isCvsSrc, isWeighted, totalRef, tRef) {
+        return curStatuses.map(function(st) {
+          var num, denom;
+          if (statObj === 'total') {
+            num = tRef[st.key] || 0; denom = totalDenom;
+          } else if (isCvsSrc && isWeighted) {
+            var wl = statObj.l, wu = statObj.weighted ? 0 : statObj.u;
+            var wt = (statObj.weighted ? statObj.l : statObj.t) || 1;
+            num = (st.key === 'l') ? wl : (st.key === 'u' || st.key === 'r') ? wu : 0;
+            denom = wt;
+          } else {
+            num = (st.key === 'l') ? statObj.l : (st.key === 'u' || st.key === 'r') ? statObj.u : 0;
+            denom = totalDenom || 1;
+          }
+          var isMet   = (st.key === 'l');
+          var isUnmet = (st.key === 'u' || st.key === 'r');
+          var cls = isMet ? 'bc-cv-met' : (isUnmet ? 'bc-cv-unmet' : 'bc-cv-neutral');
+          var zeroCls = (num === 0) ? ' bc-cv-td-zero' : '';
+          return '<td class="bc-cv-td ' + cls + zeroCls + '">' +
+            '<span class="bc-cv-pct">' + pct(num, denom) + '%</span>' +
+            '<span class="bc-cv-num">(' + num + ')</span>' +
+          '</td>';
+        }).join('');
+      }
+
+      /* ══ 共用：CvsCard 的 <thead> 欄標題 ══ */
+      function buildCvsTheadCols() {
+        return curStatuses.map(function(st) {
+          var isMet = (st.key === 'l'), isUnmet = (st.key === 'u' || st.key === 'r');
+          var cls = isMet ? 'bc-cv-met' : (isUnmet ? 'bc-cv-unmet' : 'bc-cv-neutral');
+          return '<th class="bc-cv-th ' + cls + '">' + esc(st.labelShort) + '</th>';
+        }).join('');
+      }
+
       /* ══ 大卡 ══ */
       function makeBigCard(name, rows, onClick, isSel) {
         var s = stat(rows);
@@ -5154,50 +5180,21 @@
           ── */
           el.classList.add('bc-cv-card');
 
-          function buildRow(lbl, cnt, statObj, total, isCvsSrc, isWeighted) {
-            return curStatuses.map(function(st) {
-              var num, denom;
-              if (statObj === 'total') {
-                num = s[st.key] || 0; denom = t;
-              } else if (isCvsSrc && isWeighted) {
-                var wl = statObj.l, wu = statObj.weighted ? 0 : statObj.u;
-                var wt = (statObj.weighted ? statObj.l : statObj.t) || 1;
-                num = (st.key === 'l') ? wl : (st.key === 'u' || st.key === 'r') ? wu : 0;
-                denom = wt;
-              } else {
-                num = (st.key === 'l') ? statObj.l : (st.key === 'u' || st.key === 'r') ? statObj.u : 0;
-                denom = total || 1;
-              }
-              var isMet   = (st.key === 'l');
-              var isUnmet = (st.key === 'u' || st.key === 'r');
-              var cls = isMet ? 'bc-cv-met' : (isUnmet ? 'bc-cv-unmet' : 'bc-cv-neutral');
-              var zeroCls = (num === 0) ? ' bc-cv-td-zero' : '';
-              return '<td class="bc-cv-td ' + cls + zeroCls + '">' +
-                '<span class="bc-cv-pct">' + pct(num, denom) + '%</span>' +
-                '<span class="bc-cv-num">(' + num + ')</span>' +
-              '</td>';
-            }).join('');
-          }
-
           var sbc2 = statByChannel(rows);
           var hasBothChannels = sbc2 && sbc2.cvs.t > 0;
 
           /* thead：卡名 + 欄標題 */
-          var theadCols = curStatuses.map(function(st) {
-            var isMet = (st.key === 'l'), isUnmet = (st.key === 'u' || st.key === 'r');
-            var cls = isMet ? 'bc-cv-met' : (isUnmet ? 'bc-cv-unmet' : 'bc-cv-neutral');
-            return '<th class="bc-cv-th ' + cls + '">' + esc(st.labelShort) + '</th>';
-          }).join('');
+          var theadCols = buildCvsTheadCols();
 
           var tbodyRows = '';
           if (hasBothChannels) {
             var nc = sbc2.nonCvs, cv = sbc2.cvs;
             tbodyRows =
-              '<tr><td class="bc-cv-lbl">不分類</td><td class="bc-cv-cnt">' + s.t + '</td>' + buildRow('不分類', s.t, 'total', t, false, false) + '</tr>' +
-              '<tr><td class="bc-cv-lbl">非CVS</td><td class="bc-cv-cnt">' + nc.t + '</td>' + buildRow('非CVS', nc.t, nc, nc.t || 1, false, false) + '</tr>' +
-              '<tr><td class="bc-cv-lbl">CVS</td><td class="bc-cv-cnt">' + cv.t + '</td>' + buildRow('CVS', cv.t, cv, cv.t || 1, true, cv.weighted) + '</tr>';
+              '<tr><td class="bc-cv-lbl">不分類</td><td class="bc-cv-cnt">' + s.t + '</td>' + buildCvsTdRow('total', t, false, false, s, s) + '</tr>' +
+              '<tr><td class="bc-cv-lbl">非CVS</td><td class="bc-cv-cnt">' + nc.t + '</td>' + buildCvsTdRow(nc, nc.t || 1, false, false, s, s) + '</tr>' +
+              '<tr><td class="bc-cv-lbl">CVS</td><td class="bc-cv-cnt">' + cv.t + '</td>' + buildCvsTdRow(cv, cv.t || 1, true, cv.weighted, s, s) + '</tr>';
           } else {
-            tbodyRows = '<tr><td class="bc-cv-lbl">不分類</td><td class="bc-cv-cnt">' + s.t + '</td>' + buildRow('不分類', s.t, 'total', t, false, false) + '</tr>';
+            tbodyRows = '<tr><td class="bc-cv-lbl">不分類</td><td class="bc-cv-cnt">' + s.t + '</td>' + buildCvsTdRow('total', t, false, false, s, s) + '</tr>';
           }
 
           el.innerHTML =
@@ -5373,49 +5370,20 @@
             /* ── 主要通路巡訪：人員卡三行格式（與處級大卡一致） ── */
             card.className = 'big-card bc-cv-card' + (isSel ? ' sel' : '');
 
-            function buildStaffRow(statObj, totalDenom, isCvsSrc, isWeighted) {
-              return curStatuses.map(function(st) {
-                var num, denom;
-                if (statObj === 'total') {
-                  num = s[st.key] || 0; denom = t;
-                } else if (isCvsSrc && isWeighted) {
-                  var wl = statObj.l, wu = statObj.weighted ? 0 : statObj.u;
-                  var wt = (statObj.weighted ? statObj.l : statObj.t) || 1;
-                  num = (st.key === 'l') ? wl : (st.key === 'u' || st.key === 'r') ? wu : 0;
-                  denom = wt;
-                } else {
-                  num = (st.key === 'l') ? statObj.l : (st.key === 'u' || st.key === 'r') ? statObj.u : 0;
-                  denom = totalDenom || 1;
-                }
-                var isMet   = (st.key === 'l');
-                var isUnmet = (st.key === 'u' || st.key === 'r');
-                var cls = isMet ? 'bc-cv-met' : (isUnmet ? 'bc-cv-unmet' : 'bc-cv-neutral');
-                var zeroCls = (num === 0) ? ' bc-cv-td-zero' : '';
-                return '<td class="bc-cv-td ' + cls + zeroCls + '">' +
-                  '<span class="bc-cv-pct">' + pct(num, denom) + '%</span>' +
-                  '<span class="bc-cv-num">(' + num + ')</span>' +
-                '</td>';
-              }).join('');
-            }
-
             var sbcSC = statByChannel(sr);
             var hasBothChSC = sbcSC && sbcSC.cvs.t > 0;
 
-            var theadColsSC = curStatuses.map(function(st) {
-              var isMet = (st.key === 'l'), isUnmet = (st.key === 'u' || st.key === 'r');
-              var cls = isMet ? 'bc-cv-met' : (isUnmet ? 'bc-cv-unmet' : 'bc-cv-neutral');
-              return '<th class="bc-cv-th ' + cls + '">' + esc(st.labelShort) + '</th>';
-            }).join('');
+            var theadColsSC = buildCvsTheadCols();
 
             var tbodyRowsSC = '';
             if (hasBothChSC) {
               var ncSC = sbcSC.nonCvs, cvSC = sbcSC.cvs;
               tbodyRowsSC =
-                '<tr><td class="bc-cv-lbl">不分類</td><td class="bc-cv-cnt">' + s.t + '</td>' + buildStaffRow('total', t, false, false) + '</tr>' +
-                '<tr><td class="bc-cv-lbl">非CVS</td><td class="bc-cv-cnt">' + ncSC.t + '</td>' + buildStaffRow(ncSC, ncSC.t || 1, false, false) + '</tr>' +
-                '<tr><td class="bc-cv-lbl">CVS</td><td class="bc-cv-cnt">' + cvSC.t + '</td>' + buildStaffRow(cvSC, cvSC.t || 1, true, cvSC.weighted) + '</tr>';
+                '<tr><td class="bc-cv-lbl">不分類</td><td class="bc-cv-cnt">' + s.t + '</td>' + buildCvsTdRow('total', t, false, false, s, s) + '</tr>' +
+                '<tr><td class="bc-cv-lbl">非CVS</td><td class="bc-cv-cnt">' + ncSC.t + '</td>' + buildCvsTdRow(ncSC, ncSC.t || 1, false, false, s, s) + '</tr>' +
+                '<tr><td class="bc-cv-lbl">CVS</td><td class="bc-cv-cnt">' + cvSC.t + '</td>' + buildCvsTdRow(cvSC, cvSC.t || 1, true, cvSC.weighted, s, s) + '</tr>';
             } else {
-              tbodyRowsSC = '<tr><td class="bc-cv-lbl">不分類</td><td class="bc-cv-cnt">' + s.t + '</td>' + buildStaffRow('total', t, false, false) + '</tr>';
+              tbodyRowsSC = '<tr><td class="bc-cv-lbl">不分類</td><td class="bc-cv-cnt">' + s.t + '</td>' + buildCvsTdRow('total', t, false, false, s, s) + '</tr>';
             }
 
             card.innerHTML =
@@ -5716,6 +5684,23 @@
       }
 
       /* ══ global bar ══ */
+      function renderGbSync(sync) {
+        if (!sync) return;
+        sync.innerHTML = '';
+        if (_syncTime) {
+          var s1 = document.createElement('span');
+          s1.className = 'gb-sync-item' + (_syncTime.indexOf('資料月份') >= 0 ? ' month-badge' : '');
+          s1.textContent = _syncTime;
+          sync.appendChild(s1);
+        }
+        if (_dataTime) {
+          var s2 = document.createElement('span');
+          s2.className = 'gb-sync-item time-badge';
+          s2.textContent = '🕐 ' + _dataTime;
+          sync.appendChild(s2);
+        }
+      }
+
       function updateGlobalBar() {
         var path = document.getElementById('gb-path');
         var sync = document.getElementById('gb-sync');
@@ -5752,21 +5737,7 @@
             var arrow = i > 0 ? '<span class="gb-arrow"> › </span>' : '';
             return arrow + '<span class="gb-seg' + (isLast ? ' cur' : '') + '"' + (isLast ? '' : ' onclick="chGoToDepth(' + p.chDepth + ')"') + '>' + esc(p.lbl) + ' <strong>' + p.n + '</strong></span>';
           }).join('');
-          if (sync) {
-            sync.innerHTML = '';
-            if (_syncTime) {
-              var s1 = document.createElement('span');
-              s1.className = 'gb-sync-item' + (_syncTime.indexOf('資料月份') >= 0 ? ' month-badge' : '');
-              s1.textContent = _syncTime;
-              sync.appendChild(s1);
-            }
-            if (_dataTime) {
-              var s2 = document.createElement('span');
-              s2.className = 'gb-sync-item time-badge';
-              s2.textContent = '🕐 ' + _dataTime;
-              sync.appendChild(s2);
-            }
-          }
+          renderGbSync(sync);
           return;
         }
         var total = allRows.length;
@@ -5793,21 +5764,7 @@
           var arrow = i > 0 ? '<span class="gb-arrow"> › </span>' : '';
           return arrow + '<span class="gb-seg' + (isLast ? ' cur' : '') + '"' + (isLast ? '' : ' onclick="goToDepth(' + p.depth + ')"') + '>' + esc(p.lbl) + ' <strong>' + p.n + '</strong></span>';
         }).join('');
-        if (sync) {
-          sync.innerHTML = '';
-          if (_syncTime) {
-            var s1 = document.createElement('span');
-            s1.className = 'gb-sync-item' + (_syncTime.indexOf('資料月份') >= 0 ? ' month-badge' : '');
-            s1.textContent = _syncTime;
-            sync.appendChild(s1);
-          }
-          if (_dataTime) {
-            var s2 = document.createElement('span');
-            s2.className = 'gb-sync-item time-badge';
-            s2.textContent = '🕐 ' + _dataTime;
-            sync.appendChild(s2);
-          }
-        }
+        renderGbSync(sync);
       }
 
       /* ══ 排行抽屜 ══ */
@@ -5998,14 +5955,18 @@
       }
 
       /* ══ 複製 & CSV ══ */
+      function filterByDrillStack(rows) {
+        if (drillStack.length >= 1) rows = rows.filter(function(r) { return gv(r, 'area')   === drillStack[0].key; });
+        if (drillStack.length >= 2) rows = rows.filter(function(r) { return gv(r, 'office') === drillStack[1].key; });
+        if (drillStack.length >= 3) rows = rows.filter(function(r) { return gv(r, 'staff')  === drillStack[2].key; });
+        return rows;
+      }
+
       function copyList() {
         var surveyName = SURVEYS[curSurvey] ? SURVEYS[curSurvey].name : '';
         var breadcrumb = drillStack.map(function(d) { return d.key; }).join(' › ');
         var lines = [];
-        var rows = visible();
-        if (drillStack.length >= 1) rows = rows.filter(function(r) { return gv(r, 'area') === drillStack[0].key; });
-        if (drillStack.length >= 2) rows = rows.filter(function(r) { return gv(r, 'office') === drillStack[1].key; });
-        if (drillStack.length >= 3) rows = rows.filter(function(r) { return gv(r, 'staff') === drillStack[2].key; });
+        var rows = filterByDrillStack(visible());
         if (!rows.length) return;
         lines.push('📋 ' + surveyName + (breadcrumb ? ' ｜ ' + breadcrumb : ''));
         var ts = stat(rows);
@@ -6059,10 +6020,7 @@
         var surveyName = SURVEYS[curSurvey] ? SURVEYS[curSurvey].name : '';
         var stCols = curStatuses.map(function(s) { return s.labelShort; });
         var lastKey = curStatuses[curStatuses.length - 1].key;
-        var baseRows = visible();
-        if (drillStack.length >= 1) baseRows = baseRows.filter(function(r){ return gv(r,'area')   === drillStack[0].key; });
-        if (drillStack.length >= 2) baseRows = baseRows.filter(function(r){ return gv(r,'office') === drillStack[1].key; });
-        if (drillStack.length >= 3) baseRows = baseRows.filter(function(r){ return gv(r,'staff')  === drillStack[2].key; });
+        var baseRows = filterByDrillStack(visible());
         if (!baseRows.length) { alert('沒有可匯出的資料'); return; }
         var pathLabel = drillStack.map(function(d){ return d.key; }).join('_');
         var statusLabelMap = {};
