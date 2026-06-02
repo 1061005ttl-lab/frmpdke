@@ -845,6 +845,11 @@
         opacity: .75;
       }
 
+      /* bc-cv-card 表格包裝層：桌機直接透傳，手機版由 media query 開啟橫向捲動 */
+      .bc-cv-tbl-wrap {
+        width: 100%;
+      }
+
       /* ══ 整體卡（深色英雄） ══ */
       .big-card.whole {
         grid-column: 1/-1;
@@ -3234,6 +3239,69 @@
           display: none;
         }
 
+        /* ══ [手機] 主要通路巡訪大卡（bc-cv-card）：覆寫 display:block，還原表格佈局 ══ */
+        .big-card.bc-cv-card:not(.whole) {
+          display: flex !important;
+          flex-direction: column !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          border-radius: 0 !important;
+          border: none !important;
+          border-bottom: 1px solid rgba(0,0,0,.06) !important;
+          box-shadow: none !important;
+          overflow: hidden !important;
+          background: #fff !important;
+        }
+
+        /* 讓表格在窄螢幕能橫向捲動（避免擠壓） */
+        .bc-cv-card:not(.whole) .bc-cv-tbl-wrap {
+          overflow-x: auto;
+          -webkit-overflow-scrolling: touch;
+          width: 100%;
+        }
+
+        /* 表格本體：最小寬度保護，不被壓縮 */
+        .bc-cv-tbl {
+          min-width: 280px;
+        }
+
+        /* 手機字型縮小，但保持可讀性 */
+        .bc-cv-card:not(.whole) .bc-cv-th-name {
+          font-size: clamp(14px, 4vw, 22px) !important;
+          padding: 8px 8px 7px 12px !important;
+        }
+
+        .bc-cv-card:not(.whole) .bc-cv-th {
+          font-size: 13px !important;
+          padding: 7px 6px !important;
+        }
+
+        .bc-cv-card:not(.whole) .bc-cv-th-cnt {
+          font-size: 12px !important;
+          padding: 7px 8px 7px 4px !important;
+        }
+
+        .bc-cv-card:not(.whole) .bc-cv-pct {
+          font-size: clamp(12px, 3.5vw, 18px) !important;
+        }
+
+        .bc-cv-card:not(.whole) .bc-cv-num {
+          font-size: clamp(10px, 2.5vw, 13px) !important;
+        }
+
+        .bc-cv-card:not(.whole) .bc-cv-lbl {
+          font-size: 12px !important;
+          padding: 8px 5px 8px 12px !important;
+        }
+
+        .bc-cv-card:not(.whole) .bc-cv-cnt {
+          font-size: 13px !important;
+        }
+
+        .bc-cv-card:not(.whole) .bc-cv-td {
+          padding: 7px 5px !important;
+        }
+
         .bc-head {
           display: flex;
           flex-direction: row;
@@ -5110,6 +5178,7 @@
           }
 
           el.innerHTML =
+            '<div class="bc-cv-tbl-wrap">' +
             '<table class="bc-cv-tbl">' +
               '<thead class="bc-cv-thead"><tr>' +
                 '<th class="bc-cv-th-name">' + esc(name) + '</th>' +
@@ -5117,7 +5186,8 @@
                 theadCols +
               '</tr></thead>' +
               '<tbody class="bc-cv-tbody">' + tbodyRows + '</tbody>' +
-            '</table>';
+            '</table>' +
+            '</div>';
         } else {
           /* ── 原始格式（其他所有專案） ── */
           el.innerHTML =
@@ -5299,6 +5369,7 @@
             }
 
             card.innerHTML =
+              '<div class="bc-cv-tbl-wrap">' +
               '<table class="bc-cv-tbl">' +
                 '<thead class="bc-cv-thead"><tr>' +
                   '<th class="bc-cv-th-name bc-cv-th-name--staff">' + esc(trimName(k)) + '</th>' +
@@ -5306,7 +5377,8 @@
                   theadColsSC +
                 '</tr></thead>' +
                 '<tbody class="bc-cv-tbody">' + tbodyRowsSC + '</tbody>' +
-              '</table>';
+              '</table>' +
+              '</div>';
 
             var trackEl = document.createElement('div');
             trackEl.className = 'bc-track';
@@ -5431,6 +5503,7 @@
           }
 
           header.innerHTML =
+            '<div class="bc-cv-tbl-wrap">' +
             '<table class="bc-cv-tbl">' +
               '<thead class="bc-cv-thead"><tr>' +
                 '<th class="bc-cv-th-name sv-ph-name">' + esc(trimName(staffName)) + '</th>' +
@@ -5438,7 +5511,8 @@
                 theadCols +
               '</tr></thead>' +
               '<tbody class="bc-cv-tbody">' + tbodyRows + '</tbody>' +
-            '</table>';
+            '</table>' +
+            '</div>';
 
           var trackEl = document.createElement('div');
           trackEl.className = 'bc-track';
