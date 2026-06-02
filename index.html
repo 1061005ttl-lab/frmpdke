@@ -402,6 +402,11 @@
         align-items: start;  /* 各卡自然高度，不讓 Grid stretch 截斷 CVS 末行 */
       }
 
+      /* 限制卡片最大寬度，防止欄數少時被過度拉寬造成大小不一 */
+      .col-main > *:not(.big-card.whole) {
+        max-width: 500px;
+      }
+
       /* 處級 view：卡片略寬 */
       .col-main.area-view {
         grid-template-columns: repeat(auto-fill, minmax(var(--card-min-desktop-area), 1fr));
@@ -849,6 +854,7 @@
 
       /* ══ 整體卡（深色英雄） ══ */
       .big-card.whole {
+        container-type: inline-size;
         grid-column: 1/-1;
         cursor: default;
         background: linear-gradient(130deg, #1a1f2e 0%, #22293a 60%, #1e2d26 100%);
@@ -899,7 +905,7 @@
       }
 
       .wc-label {
-        font-size: 16px;
+        font-size: clamp(11px, 1.2cqi, 16px);
         font-weight: 900;
         color: rgba(255, 255, 255, .7);
         letter-spacing: .5px;
@@ -907,11 +913,11 @@
       }
 
       .wc-total {
-        font-size: 64px;
+        font-size: clamp(40px, 7cqi, 64px);
         font-weight: 900;
         color: #fff;
         line-height: 1;
-        letter-spacing: -4px;
+        letter-spacing: -3px;
       }
 
       .wc-divider {
@@ -974,14 +980,14 @@
       }
 
       .wc-st-pct {
-        font-size: 22px;
+        font-size: clamp(14px, 2.5cqi, 22px);
         font-weight: 900;
         line-height: 1;
         white-space: nowrap;
       }
 
       .wc-st-num {
-        font-size: 22px;
+        font-size: clamp(13px, 2cqi, 22px);
         font-weight: 700;
         white-space: nowrap;
         opacity: .85;
@@ -3159,34 +3165,42 @@
         /* ─ 整體卡（英雄卡）直向堆疊 ─ */
         .big-card.whole {
           flex-direction: column;
-          margin: 12px 12px 4px;
-          padding: 14px 16px;
+          margin: 10px 10px 4px;
+          padding: 12px 14px;
           border-radius: 14px;
-          gap: 10px;
+          gap: 8px;
           height: auto;
+          min-height: 0;
         }
 
         .wc-left {
           flex-direction: row;
           align-items: baseline;
-          gap: 10px;
-        }
-
-        .wc-label   { font-size: 13px; opacity: .65; }
-        .wc-total   { font-size: 42px; line-height: 1; letter-spacing: -2px; }
-        .wc-divider { display: none; }
-        .wc-right   { gap: 8px; }
-        .wc-track   { height: 7px; }
-
-        .wc-stats {
-          gap: 0;
+          gap: 8px;
           flex-wrap: nowrap;
         }
 
-        .wc-st     { flex: 1; padding: 5px 6px; }
+        .wc-label   { font-size: 12px; opacity: .65; margin-bottom: 0; }
+        .wc-total   { font-size: 36px; line-height: 1; letter-spacing: -2px; }
+        .wc-divider { display: none; }
+        .wc-right   { gap: 6px; }
+        .wc-track   { height: 6px; }
+
+        /* 統計格：允許換行，每格最少 80px，字縮小 */
+        .wc-stats {
+          gap: 0;
+          flex-wrap: wrap;
+        }
+
+        .wc-st {
+          flex: 1;
+          min-width: 80px;
+          padding: 5px 8px;
+        }
+
         .wc-st-lbl { font-size: 9px; }
-        .wc-st-num { font-size: 18px; letter-spacing: -1px; }
-        .wc-st-pct { font-size: 18px; }
+        .wc-st-num { font-size: 15px; letter-spacing: -.5px; }
+        .wc-st-pct { font-size: 15px; letter-spacing: -.5px; }
 
         /* ─ 一般大卡：列表式（去圓角去陰影，改邊線分隔） ─ */
         .big-card:not(.whole) {
