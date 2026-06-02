@@ -399,12 +399,6 @@
         grid-template-columns: repeat(auto-fill, minmax(var(--card-min-desktop), 1fr));
         gap: 16px;
         align-content: start;
-        align-items: start;  /* 各卡自然高度，不讓 Grid stretch 截斷 CVS 末行 */
-      }
-
-      /* 限制卡片最大寬度，防止欄數少時被過度拉寬造成大小不一 */
-      .col-main > *:not(.big-card.whole) {
-        max-width: 500px;
       }
 
       /* 處級 view：卡片略寬 */
@@ -443,7 +437,6 @@
           grid-template-columns: repeat(2, minmax(var(--card-min-tablet), 1fr));
           padding: 16px 18px;
           gap: 14px;
-          align-items: start;
         }
         .col-main.area-view {
           grid-template-columns: repeat(2, minmax(var(--card-min-tablet-area), 1fr));
@@ -854,8 +847,6 @@
 
       /* ══ 整體卡（深色英雄） ══ */
       .big-card.whole {
-        /* 英雄卡橫跨全列，不用 container-type（避免 overflow:hidden 截內容）
-           字型改用 vw 作流體縮放基準                                          */
         grid-column: 1/-1;
         cursor: default;
         background: linear-gradient(130deg, #1a1f2e 0%, #22293a 60%, #1e2d26 100%);
@@ -906,7 +897,7 @@
       }
 
       .wc-label {
-        font-size: clamp(12px, 1.1vw, 16px);
+        font-size: 16px;
         font-weight: 900;
         color: rgba(255, 255, 255, .7);
         letter-spacing: .5px;
@@ -914,11 +905,11 @@
       }
 
       .wc-total {
-        font-size: clamp(40px, 4.5vw, 64px);
+        font-size: 64px;
         font-weight: 900;
         color: #fff;
         line-height: 1;
-        letter-spacing: -3px;
+        letter-spacing: -4px;
       }
 
       .wc-divider {
@@ -981,14 +972,14 @@
       }
 
       .wc-st-pct {
-        font-size: clamp(14px, 1.6vw, 22px);
+        font-size: 22px;
         font-weight: 900;
         line-height: 1;
         white-space: nowrap;
       }
 
       .wc-st-num {
-        font-size: clamp(13px, 1.5vw, 22px);
+        font-size: 22px;
         font-weight: 700;
         white-space: nowrap;
         opacity: .85;
@@ -1235,10 +1226,6 @@
         padding: 0 !important;
         overflow: hidden;
         gap: 0 !important;
-        /* 確保高度由內容撐開，Grid stretch 時卡片可以長高但不截內容 */
-        height: auto;
-        min-height: 0;
-        align-self: start;   /* 關鍵：不讓 Grid stretch 強行拉高，各卡自然高度 */
       }
 
       /* 整體表格 */
@@ -1414,20 +1401,6 @@
       }
       .staff-view .big-card.bc-cv-card .bc-cv-num {
         font-size: clamp(9px, 1.4cqi, 13px);
-      }
-
-      /* staff-view 人員層頭卡：改為直向排列，讓 table 完整展開 */
-      .staff-view .big-card.whole {
-        flex-direction: column;
-        align-items: stretch;
-        padding: 0;
-        gap: 0;
-        min-height: 0;
-      }
-
-      /* staff-view 所有大卡自然高度（不等高），讓三行卡不被截掉 */
-      .staff-view .big-card {
-        align-self: start;
       }
 
       /* store-view 頭卡（個人層級）：full width + 不可點擊 */
@@ -1763,8 +1736,8 @@
       .area-view .bc-st-pct  { font-size: clamp(10px, 2cqi,   13px); }
       .area-view .bc-st-lbl  { font-size: clamp(9px,  1.8cqi, 12px); }
       .area-view .bc-track   { height: 10px; }
-      .area-view .big-card.whole .wc-total  { font-size: clamp(48px, 5vw, 70px); }
-      .area-view .big-card.whole .wc-st-num { font-size: clamp(22px, 2.5vw, 34px); }
+      .area-view .big-card.whole .wc-total  { font-size: clamp(48px, 8cqi, 70px); }
+      .area-view .big-card.whole .wc-st-num { font-size: clamp(22px, 4cqi, 34px); }
 
       /* office-view */
       .office-view .big-card {
@@ -2582,8 +2555,8 @@
       /* 人員卡雙欄：複用 bc-dual，但稍微緊湊 */
       .sc-dual { margin: 4px 0 0; border-radius: 0 0 var(--r) var(--r); overflow: hidden; }
       .sc-dual .bc-dual-hdr { font-size: 8.5px; white-space: normal; overflow-wrap: break-word; word-break: break-all; }
-      .sc-dual .bc-dual-num { font-size: clamp(11px, 2.2cqi, 16px); }
-      .sc-dual .bc-dual-pct { font-size: clamp(7px, 1.3cqi, 9px); }
+      .sc-dual .bc-dual-num { font-size: clamp(11px, 1.1vw, 16px); }
+      .sc-dual .bc-dual-pct { font-size: clamp(7px, 0.65vw, 9px); }
       .sc-dual .bc-dual-col { padding: 6px 8px 7px; min-width: 0; overflow: hidden; }
 
       /* ══ 人員詳情頁（store-header）雙欄摘要 ══ */
@@ -3081,10 +3054,8 @@
         border-color: rgba(198, 40, 40, .3);
       }
 
-      /* ══ MOBILE（< 1024px，包含手機直向、橫向與平板直向） ══ */
-      @media (max-width: 1023px) {
-
-        /* ─ Topbar：隱藏桌機選單，改用漢堡 ─ */
+      /* ══ MOBILE ══ */
+      @media(max-width:768px), (min-width:769px) and (orientation:portrait) {
         #topbar {
           min-height: 52px;
           padding: 0 16px;
@@ -3100,7 +3071,7 @@
         #chips,
         #clear-btn,
         #ver-ts {
-          display: none;
+          display: none !important;
         }
 
         #title {
@@ -3116,7 +3087,6 @@
           margin-left: auto;
         }
 
-        /* ─ Global bar ─ */
         #gbar {
           padding: 0 14px;
           min-height: 40px;
@@ -3132,7 +3102,9 @@
           white-space: nowrap;
         }
 
-        .gb-sync { display: none; }
+        .gb-sync {
+          display: none;
+        }
 
         .gb-seg {
           font-size: 12px;
@@ -3140,14 +3112,19 @@
           padding: 2px 4px;
         }
 
-        .gb-seg strong { font-size: 12px; }
+        .gb-seg strong {
+          font-size: 12px;
+        }
 
-        /* ─ Layout ─ */
-        #content-wrap { flex-direction: column; }
+        #content-wrap {
+          flex-direction: column;
+        }
 
         .col-side,
         .divider,
-        #rank-drawer { display: none; }
+        #rank-drawer {
+          display: none !important;
+        }
 
         #stage {
           width: 100%;
@@ -3159,51 +3136,72 @@
         }
 
         .col-main {
+          /* 手機不再強制 flex，由 @media (max-width:599px) 的 grid 規則接管 */
           width: 100%;
           background: var(--bg);
         }
 
-        /* ─ 整體卡（英雄卡）直向堆疊 ─ */
         .big-card.whole {
-          flex-direction: column;
-          margin: 10px 10px 4px;
-          padding: 12px 14px;
-          border-radius: 14px;
-          gap: 8px;
-          height: auto;
-          min-height: 0;
+          flex-direction: column !important;
+          margin: 12px 12px 4px !important;
+          padding: 14px 16px !important;
+          border-radius: 14px !important;
+          gap: 10px !important;
+          height: auto !important;
         }
 
         .wc-left {
-          flex-direction: row;
-          align-items: baseline;
-          gap: 8px;
-          flex-wrap: nowrap;
+          flex-direction: row !important;
+          align-items: baseline !important;
+          gap: 10px !important;
         }
 
-        .wc-label   { font-size: 12px; opacity: .65; margin-bottom: 0; }
-        .wc-total   { font-size: 36px; line-height: 1; letter-spacing: -2px; }
-        .wc-divider { display: none; }
-        .wc-right   { gap: 6px; }
-        .wc-track   { height: 6px; }
+        .wc-label {
+          font-size: 13px !important;
+          opacity: .65;
+        }
 
-        /* 統計格：允許換行，每格最少 80px，字縮小 */
+        .wc-total {
+          font-size: 42px !important;
+          line-height: 1 !important;
+          letter-spacing: -2px !important;
+        }
+
+        .wc-divider {
+          display: none !important;
+        }
+
+        .wc-right {
+          gap: 8px !important;
+        }
+
+        .wc-track {
+          height: 7px !important;
+        }
+
         .wc-stats {
-          gap: 0;
-          flex-wrap: wrap;
+          gap: 0 !important;
+          flex-wrap: nowrap !important;
         }
 
         .wc-st {
-          flex: 1;
-          min-width: 80px;
-          padding: 5px 8px;
+          flex: 1 !important;
+          padding: 5px 6px !important;
         }
 
-        .wc-st-lbl { font-size: 9px; }
-        .wc-st-num { font-size: 15px; letter-spacing: -.5px; }
-        .wc-st-pct { font-size: 15px; letter-spacing: -.5px; }
+        .wc-st-lbl {
+          font-size: 9px !important;
+        }
 
-        /* ─ 一般大卡：列表式（去圓角去陰影，改邊線分隔） ─ */
+        .wc-st-num {
+          font-size: 18px !important;
+          letter-spacing: -1px !important;
+        }
+
+        .wc-st-pct {
+          font-size: 18px !important;
+        }
+
         .big-card:not(.whole) {
           display: block;
           height: auto;
@@ -3213,14 +3211,16 @@
           border: none;
           border-bottom: 1px solid rgba(0, 0, 0, .055);
           box-shadow: none;
-          background: #fff;
+          background: #ffffff;
           transform: none;
           cursor: pointer;
           -webkit-tap-highlight-color: rgba(139, 166, 144, .12);
           transition: background .1s;
         }
 
-        .big-card:not(.whole):active { background: #f5f8f5; }
+        .big-card:not(.whole):active {
+          background: #f5f8f5;
+        }
 
         .big-card:not(.whole).sel {
           background: #f0f7f1;
@@ -3228,35 +3228,11 @@
           padding-left: 13px;
         }
 
-        /* ─ CvsCard（主要通路巡訪）手機版：表格字縮小，確保不擠壓 ─ */
-        .big-card.bc-cv-card {
-          border-radius: 10px;
-          margin: 6px 10px;
-          border: 1px solid rgba(0,0,0,.07);
-          overflow: hidden;
-        }
-
-        .bc-cv-th-name {
-          font-size: 14px;
-          padding: 8px 8px 7px 12px;
-        }
-
-        .bc-cv-th {
-          font-size: 10px;
-          padding: 5px 4px;
-        }
-
-        .bc-cv-lbl { font-size: 10px; padding: 6px 6px; }
-        .bc-cv-cnt { font-size: 10px; padding: 6px 4px; }
-
-        .bc-cv-pct { font-size: 12px; }
-        .bc-cv-num { font-size: 9px; display: block; margin-left: 0; }
-
-        .bc-cv-td  { padding: 6px 4px; }
-
         .big-card.bc-top1::after,
         .big-card.bc-top2::after,
-        .big-card.bc-top3::after { display: none; }
+        .big-card.bc-top3::after {
+          display: none;
+        }
 
         .bc-head {
           display: flex;
@@ -3292,12 +3268,11 @@
           margin-bottom: 6px;
         }
 
-        .bc-stats        { display: none; }
+        .bc-stats      { display: none; }
         .bc-inline-stats { display: flex; gap: 8px; flex-wrap: wrap; }
         .bc-inline-pct,
-        .bc-inline-num   { font-size: 13px; }
+        .bc-inline-num { font-size: 13px; }
 
-        /* ─ 人員彙總列 ─ */
         .staff-summary {
           margin: 12px 12px 0;
           padding: 12px 14px;
@@ -3306,7 +3281,6 @@
           gap: 10px;
         }
 
-        /* ─ 人員卡：列表式 ─ */
         .staff-card {
           display: block;
           margin: 0;
@@ -3336,9 +3310,9 @@
           margin-bottom: 4px;
         }
 
-        .sc-name       { font-size: 18px; font-weight: 900; }
-        .sc-corner-num { font-size: 24px; font-weight: 900; letter-spacing: -1px; }
-        .sc-corner-pct { font-size: 10px; }
+        .sc-name        { font-size: 18px; font-weight: 900; }
+        .sc-corner-num  { font-size: 24px; font-weight: 900; letter-spacing: -1px; }
+        .sc-corner-pct  { font-size: 10px; }
 
         .sc-bar {
           display: flex;
@@ -3354,7 +3328,6 @@
         .sc-inline-pct,
         .sc-inline-num   { font-size: 13px; }
 
-        /* ─ 店家層 ─ */
         .store-header {
           flex-direction: row;
           align-items: center;
@@ -3365,7 +3338,7 @@
           border-radius: 14px;
         }
 
-        .sh-name  { font-size: 16px; font-weight: 900; }
+        .sh-name { font-size: 16px; font-weight: 900; }
         .sh-stats { gap: 8px; }
 
         #store-list-wrap {
@@ -3375,24 +3348,17 @@
         }
 
         .store-tbl .col-name {
-          width: clamp(120px, 35vw, 200px);
+          width: 200px;
+          max-width: 200px;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
         }
 
-        .store-tbl .col-grade,
-        .store-tbl .col-code  { display: none; }
-        .store-tbl .col-status { width: 68px; }
-        .store-tbl .col-name   { width: auto; }
-        .store-tbl .col-ch     { width: 72px; }
-        .store-tbl .col-tp     { width: 72px; }
-
         .store-tbl th { padding: 6px 10px; font-size: 10px; }
         .store-tbl td { padding: 7px 10px; font-size: 12px; }
-        .td-status    { font-size: 10px; padding: 7px 7px; }
+        .td-status     { font-size: 10px; padding: 7px 7px; }
 
-        /* ─ 排行浮動按鈕 & 底部抽屜 ─ */
         #rank-fab {
           display: flex;
           position: fixed;
@@ -3460,18 +3426,22 @@
         }
 
         #rank-sheet-overlay.open { display: block; }
+
+        .store-tbl .col-grade,
+        .store-tbl .col-code  { display: none; }
+        .store-tbl .col-status { width: 68px; }
+        .store-tbl .col-name   { width: auto; }
+        .store-tbl .col-ch     { width: 72px; }
+        .store-tbl .col-tp     { width: 72px; }
       }
 
-      /* ══ 桌機（≥ 1024px）：顯示桌機專屬 UI ══ */
-      @media (min-width: 1024px) {
+      @media (min-width: 769px) and (orientation: landscape) {
         #rank-fab,
         #rank-sheet,
         #rank-sheet-overlay,
         #mobile-menu,
         #mm-overlay { display: none; }
-      }
 
-      /* ══ view-toggle（桌機 topbar 切換鈕）══ */
       .view-toggle {
         display: flex;
         align-items: center;
