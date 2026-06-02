@@ -3239,67 +3239,87 @@
           display: none;
         }
 
-        /* ══ [手機] 主要通路巡訪大卡（bc-cv-card）：覆寫 display:block，還原表格佈局 ══ */
+        /* ══ [手機] 主要通路巡訪大卡（bc-cv-card）：全寬 table，比照截圖樣式 ══ */
+
+        /* 覆寫 big-card:not(.whole) 的破壞性樣式，恢復成 block 讓 table 自然全寬展開 */
         .big-card.bc-cv-card:not(.whole) {
-          display: flex !important;
-          flex-direction: column !important;
+          display: block !important;
           padding: 0 !important;
           margin: 0 !important;
           border-radius: 0 !important;
           border: none !important;
-          border-bottom: 1px solid rgba(0,0,0,.06) !important;
+          border-bottom: 1px solid rgba(0,0,0,.07) !important;
           box-shadow: none !important;
           overflow: hidden !important;
           background: #fff !important;
+          height: auto !important;
         }
 
-        /* 讓表格在窄螢幕能橫向捲動（避免擠壓） */
-        .bc-cv-card:not(.whole) .bc-cv-tbl-wrap {
-          overflow-x: auto;
-          -webkit-overflow-scrolling: touch;
+        /* wrap 全寬，不捲動 */
+        .bc-cv-card .bc-cv-tbl-wrap {
           width: 100%;
         }
 
-        /* 表格本體：最小寬度保護，不被壓縮 */
-        .bc-cv-tbl {
-          min-width: 280px;
+        /* 表格全寬，固定佈局讓欄位比例穩定 */
+        .bc-cv-card .bc-cv-tbl {
+          width: 100% !important;
+          table-layout: fixed !important;
+          min-width: 0 !important;
         }
 
-        /* 手機字型縮小，但保持可讀性 */
-        .bc-cv-card:not(.whole) .bc-cv-th-name {
-          font-size: clamp(14px, 4vw, 22px) !important;
-          padding: 8px 8px 7px 12px !important;
+        /* 卡名欄（th-name）：左側色條，大字，auto 寬度 */
+        .bc-cv-card .bc-cv-th-name {
+          font-size: 17px !important;
+          font-weight: 900 !important;
+          padding: 10px 6px 9px 14px !important;
+          width: auto !important;
+          white-space: nowrap !important;
+          overflow: hidden !important;
+          text-overflow: ellipsis !important;
         }
 
-        .bc-cv-card:not(.whole) .bc-cv-th {
-          font-size: 13px !important;
-          padding: 7px 6px !important;
-        }
-
-        .bc-cv-card:not(.whole) .bc-cv-th-cnt {
+        /* 總家數欄：固定 50px */
+        .bc-cv-card .bc-cv-th-cnt {
+          width: 50px !important;
+          min-width: 50px !important;
           font-size: 12px !important;
-          padding: 7px 8px 7px 4px !important;
+          padding: 8px 4px !important;
         }
-
-        .bc-cv-card:not(.whole) .bc-cv-pct {
-          font-size: clamp(12px, 3.5vw, 18px) !important;
-        }
-
-        .bc-cv-card:not(.whole) .bc-cv-num {
-          font-size: clamp(10px, 2.5vw, 13px) !important;
-        }
-
-        .bc-cv-card:not(.whole) .bc-cv-lbl {
-          font-size: 12px !important;
-          padding: 8px 5px 8px 12px !important;
-        }
-
-        .bc-cv-card:not(.whole) .bc-cv-cnt {
+        .bc-cv-card .bc-cv-cnt {
+          width: 50px !important;
+          min-width: 50px !important;
           font-size: 13px !important;
+          padding: 8px 4px !important;
         }
 
-        .bc-cv-card:not(.whole) .bc-cv-td {
-          padding: 7px 5px !important;
+        /* 達成/未達欄標題 */
+        .bc-cv-card .bc-cv-th {
+          width: 35% !important;
+          font-size: 14px !important;
+          padding: 8px 4px !important;
+        }
+
+        /* 列標籤（不分類/非CVS/CVS）*/
+        .bc-cv-card .bc-cv-lbl {
+          font-size: 12px !important;
+          padding: 9px 4px 9px 14px !important;
+        }
+
+        /* 資料格：百分比 + 括號數 */
+        .bc-cv-card .bc-cv-td {
+          padding: 8px 4px !important;
+        }
+        .bc-cv-card .bc-cv-pct {
+          font-size: 15px !important;
+        }
+        .bc-cv-card .bc-cv-num {
+          font-size: 11px !important;
+        }
+
+        /* 進度條改回相對定位貼在卡片底部 */
+        .bc-cv-card:not(.whole) .bc-track {
+          position: relative !important;
+          height: 5px !important;
         }
 
         .bc-head {
