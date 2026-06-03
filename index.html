@@ -10,10 +10,8 @@
           window.location.replace("about:blank");
           return;
         }
-        /* ── 手機偵測：在 <head> 最早時機就標記，確保比 render() 更早 ── */
-        if (window.innerWidth < 768) {
-          /* documentElement 此時可用，body 還沒解析到，改用 class 在 html 上，
-             等 body 出現後再搬過去 */
+        /* ── 手機偵測：用 screen.width，在 <head> 執行時最可靠（innerWidth 此時可能為 0） ── */
+        if (screen.width < 768) {
           document.documentElement.classList.add('is-mobile-pre');
         }
 
@@ -21,7 +19,7 @@
         (function() {
           var BASE_W = 1440;
           function applyZoom() {
-            if (window.innerWidth < 768) {
+            if (screen.width < 768) {
               document.documentElement.style.zoom = '';
               return;
             }
