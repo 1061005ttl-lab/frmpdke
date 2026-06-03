@@ -3843,6 +3843,8 @@
   <body>
     <script>
       /* body 剛解析完就立即標記；設 _mbPending 讓第一次 render() 觸發 mbInit() */
+      /* debug: 把偵測結果寫到 title，方便手機確認 */
+      document.title = 'sw=' + screen.width + ' iw=' + window.innerWidth + ' pre=' + document.documentElement.classList.contains('is-mobile-pre');
       if (document.documentElement.classList.contains('is-mobile-pre')) {
         document.body.classList.add('mobile-mode');
         document.documentElement.classList.remove('is-mobile-pre');
@@ -3851,6 +3853,7 @@
     </script>
     <div id="loading"><canvas id="loading-canvas" width="280" height="110"></canvas>
       <div id="loading-txt">載入資料中</div>
+      <div id="loading-debug" style="font-size:10px;color:#c66;margin-top:8px;max-width:280px;word-break:break-all;text-align:center;display:none"></div>
     </div>
     <div id="topbar">
       <div id="title">業務王進度看板</div><button id="hamburger" onclick="toggleHamburger()" aria-label="篩選"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -4025,7 +4028,7 @@
             callback();
           })
           .catch(function(err) {
-            console.warn('管理分頁載入失敗，使用寫死清單', err);
+            console.warn('管理分頁載入失敗，使用寫死清單', err); dbg('管理分頁失敗:' + err);
             SURVEYS = SURVEYS_FIXED.slice();
             callback();
           });
@@ -4492,6 +4495,7 @@
           }
         }).catch(function(err) {
           hideLoading();
+          dbg('資料載入失敗: ' + err);
           document.getElementById('stage').innerHTML = '<div style="padding:40px;color:#c62828;font-size:14px">⚠️ 載入失敗：' + err + '</div>';
         });
       }
@@ -6417,6 +6421,11 @@
       }
 
       /* ══ 載入動畫 ══ */
+      function dbg(msg) {
+        var el = document.getElementById('loading-debug');
+        if (el) { el.textContent = msg; el.style.display = ''; }
+        console.error('[DBG]', msg);
+      }
       function showLoading() {
         var ls = document.getElementById('loading');
         ls.style.display = 'flex';
