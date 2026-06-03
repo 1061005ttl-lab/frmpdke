@@ -5173,6 +5173,11 @@
 
       function render(dir) {
         doRender(dir || 'none', null);
+        /* ── 手機版觸發點：資料載入後自動啟動 ── */
+        if (window._mbActive && typeof mbInit === 'function') {
+          window._mbActive = false;
+          mbInit();
+        }
       }
 
       /* ══ 渲染引擎 ══ */
@@ -7132,41 +7137,27 @@
   }
 
   /* ── 裝置偵測：手機版啟動入口 ── */
-  function mbCheckDevice() {
-    var isMobile = window.innerWidth < 768;
-    if (!isMobile) return;
-    document.body.classList.add('mobile-mode');
-    /* 等待資料載入完成後再渲染 */
-    var orig = typeof render === 'function' ? render : null;
-    /* 覆寫 render，讓資料載入後自動觸發手機版 */
-    window._mbRenderPending = true;
-  }
-
-  /* ── 監聽桌機版 render，完成後啟動手機版 ── */
   (function() {
-    var _origRender = null;
-    function hookRender() {
-      if (typeof render !== 'function') {
-        setTimeout(hookRender, 100); return;
+    function checkDevice() {
+      if (window.innerWidth < 768) {
+        document.body.classList.add('mobile-mode');
+        window._mbActive = true;
       }
-      _origRender = render;
-      window.render = function() {
-        _origRender.apply(this, arguments);
-        if (window._mbRenderPending && document.body.classList.contains('mobile-mode')) {
-          window._mbRenderPending = false;
-          mbInit();
-        }
-      };
     }
     if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', function() {
-        mbCheckDevice();
-        hookRender();
-      });
+      document.addEventListener('DOMContentLoaded', checkDevice);
     } else {
-      mbCheckDevice();
-      hookRender();
+      checkDevice();
     }
+    /* resize 也重新判斷（橫轉螢幕時） */
+    window.addEventListener('resize', function() {
+      if (window.innerWidth < 768) {
+        if (!document.body.classList.contains('mobile-mode')) {
+          document.body.classList.add('mobile-mode');
+          window._mbActive = true;
+        }
+      }
+    });
   })();
   </script>
 
