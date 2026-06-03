@@ -10,19 +10,18 @@
           window.location.replace("about:blank");
           return;
         }
-        /* ── 智能縮放：依螢幕寬度自動調整 ── */
+        /* ── 智能縮放：依螢幕寬度自動調整（手機/平板亦適用） ── */
         (function() {
-          var BASE_W = 1440; /* 設計基準寬度，依公司螢幕調整 */
+          var BASE_W = 1440;
           function applyZoom() {
             var ratio = Math.min(1, window.innerWidth / BASE_W);
-            ratio = Math.max(0.55, ratio); /* 最小縮到 55% */
+            ratio = Math.max(0.55, ratio);
             document.documentElement.style.zoom = ratio;
           }
           applyZoom();
           window.addEventListener('resize', applyZoom);
         })();
       })();
-
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
     <title>業務王進度看板</title>
@@ -56,6 +55,18 @@
         --ease: cubic-bezier(.34, 1.05, .64, 1);
         --glass: rgba(255, 255, 255, 0.72);
         --glass-border: rgba(255, 255, 255, 0.55);
+
+        /* ── RWD 卡片格線 ──
+           手機直向  < 600px  → 1 欄，最小寬度 100%
+           平板      600–1023px → 2 欄，每欄最少 260px
+           桌機      ≥ 1024px   → auto-fill，每欄 clamp(220px, 20vw, 340px)  */
+        --card-min-mobile:  100%;
+        --card-min-tablet:  260px;
+        --card-min-desktop: clamp(220px, 20vw, 340px);
+
+        /* area-view（處級）略寬 */
+        --card-min-tablet-area:  300px;
+        --card-min-desktop-area: clamp(260px, 22vw, 400px);
       }
 
       *,
@@ -395,29 +406,33 @@
         overflow-x: hidden;
         padding: 20px 24px;
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(clamp(200px, 22vw, 320px), 1fr));
+        /* 桌機預設：auto-fill，卡片寬度在 220–340px 間流體縮放 */
+        grid-template-columns: repeat(auto-fill, minmax(var(--card-min-desktop), 1fr));
         gap: 16px;
         align-content: start;
       }
 
+      /* 處級 view：卡片略寬 */
       .col-main.area-view {
-        grid-template-columns: repeat(auto-fill, minmax(clamp(280px, 26vw, 380px), 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(var(--card-min-desktop-area), 1fr));
       }
 
+      /* ch 視角：與預設相同，頭卡 whole 橫跨整列 */
       .col-main.ch-view {
-        grid-template-columns: repeat(auto-fill, minmax(clamp(200px, 22vw, 320px), 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(var(--card-min-desktop), 1fr));
       }
       .col-main.ch-view .big-card.whole {
         grid-column: 1 / -1;
       }
 
+      /* 人員層：卡片可稍窄，容納更多人 */
       .col-main.staff-view {
-        grid-template-columns: repeat(auto-fill, minmax(clamp(180px, 22vw, 340px), 1fr));
-        grid-auto-rows: auto;
+        grid-template-columns: repeat(auto-fill, minmax(clamp(200px, 18vw, 320px), 1fr));
         padding: 16px 20px;
         gap: 14px;
       }
 
+      /* 店家層：單欄顯示 */
       .col-main.store-view {
         grid-template-columns: 1fr;
         grid-template-rows: auto 1fr;
@@ -425,6 +440,53 @@
         padding: 14px 16px;
         gap: 10px;
         overflow-y: hidden;
+      }
+
+      /* ── 平板：600–1023px，固定兩欄 ── */
+      @media (min-width: 600px) and (max-width: 1023px) {
+        .col-main {
+          grid-template-columns: repeat(2, minmax(var(--card-min-tablet), 1fr));
+          padding: 16px 18px;
+          gap: 14px;
+        }
+        .col-main.area-view {
+          grid-template-columns: repeat(2, minmax(var(--card-min-tablet-area), 1fr));
+        }
+        .col-main.ch-view {
+          grid-template-columns: repeat(2, minmax(var(--card-min-tablet), 1fr));
+        }
+        .col-main.staff-view {
+          grid-template-columns: repeat(2, minmax(220px, 1fr));
+          padding: 14px 16px;
+          gap: 12px;
+        }
+        .col-main.store-view {
+          padding: 12px 14px;
+          gap: 8px;
+        }
+      }
+
+      /* ── 手機直向：< 600px，單欄 ── */
+      @media (max-width: 599px) {
+        .col-main {
+          grid-template-columns: 1fr;
+          padding: 0;
+          gap: 0;
+          background: var(--bg);
+        }
+        .col-main.area-view,
+        .col-main.ch-view {
+          grid-template-columns: 1fr;
+        }
+        .col-main.staff-view {
+          grid-template-columns: 1fr;
+          padding: 0;
+          gap: 0;
+        }
+        .col-main.store-view {
+          padding: 12px 14px;
+          gap: 8px;
+        }
       }
 
       #store-list-wrap {
@@ -1072,6 +1134,7 @@
 
       /* ══ 一般大卡 ══ */
       .big-card {
+        container-type: inline-size; /* 啟用容器查詢，讓 cqi 字型依卡片寬度縮放 */
         background: #fff;
         border-radius: var(--r);
         border: 1px solid rgba(0, 0, 0, .07);
@@ -1125,7 +1188,7 @@
       }
 
       .bc-name {
-        font-size: clamp(13px, 1.4vw, 17px);
+        font-size: clamp(13px, 1.6cqi, 17px);
         font-weight: 900;
         color: var(--text);
         white-space: normal;
@@ -1136,7 +1199,7 @@
       }
 
       .bc-total {
-        font-size: clamp(22px, 2.5vw, 32px);
+        font-size: clamp(20px, 3cqi, 32px);
         font-weight: 900;
         color: var(--primary-d);
         line-height: 1;
@@ -1190,7 +1253,7 @@
 
       /* 左上角卡名格：大字、醒目 */
       .bc-cv-th-name {
-        font-size: clamp(20px, 2.1vw, 28px);
+        font-size: clamp(16px, 3.5cqi, 28px);
         font-weight: 900;
         color: var(--text);
         text-align: left;
@@ -1270,13 +1333,13 @@
 
       /* 百分比＋括號數字：合在一行，參考截圖格式 99%(6165) */
       .bc-cv-pct {
-        font-size: clamp(14px, 1.5vw, 20px);
+        font-size: clamp(13px, 2.5cqi, 20px);
         font-weight: 900;
         white-space: nowrap;
         font-variant-numeric: tabular-nums;
       }
       .bc-cv-num {
-        font-size: clamp(11px, 1.1vw, 14px);
+        font-size: clamp(10px, 1.6cqi, 14px);
         font-weight: 700;
         opacity: .85;
         margin-left: 2px;
@@ -1335,20 +1398,20 @@
 
       /* staff-view 下的 bc-cv-card 使用小號字，適合多欄排列 */
       .staff-view .big-card.bc-cv-card .bc-cv-th-name {
-        font-size: clamp(15px, 1.5vw, 21px);
+        font-size: clamp(13px, 2.8cqi, 21px);
         padding: 8px 8px 7px 12px;
       }
       /* 人員卡專用：去掉上下多餘空間，讓名字不擠壓數據欄 */
       .staff-view .big-card.bc-cv-card .bc-cv-th-name--staff {
-        font-size: clamp(14px, 1.35vw, 19px);
+        font-size: clamp(12px, 2.5cqi, 19px);
         padding: 7px 6px 6px 12px;
         letter-spacing: -.3px;
       }
       .staff-view .big-card.bc-cv-card .bc-cv-pct {
-        font-size: clamp(13px, 1.3vw, 17px);
+        font-size: clamp(12px, 2.2cqi, 17px);
       }
       .staff-view .big-card.bc-cv-card .bc-cv-num {
-        font-size: clamp(10px, 0.95vw, 13px);
+        font-size: clamp(9px, 1.4cqi, 13px);
       }
 
       /* store-view 頭卡（個人層級）：full width + 不可點擊 */
@@ -1371,7 +1434,7 @@
       }
       /* 個人頭卡人名欄：用綠色主題色，不用大白字 */
       .sv-ph-name {
-        font-size: clamp(18px, 2vw, 26px) !important;
+        font-size: clamp(18px, 4cqi, 26px) !important;
         color: var(--primary-d) !important;
         padding: 10px 10px 9px 16px !important;
         border-left: 5px solid var(--primary-d) !important;
@@ -1405,7 +1468,7 @@
       .bc-tbl-lbl { font-size: 12px; font-weight: 700; color: var(--sub); padding: 5px 5px 5px 0; white-space: nowrap; }
       .bc-tbl-count { font-size: 12px; color: var(--sub); text-align: right; padding: 5px 7px; }
       .bc-tbl-td { text-align: center; padding: 4px 5px; border-top: 1px solid rgba(0,0,0,.05); }
-      .bc-tbl-pct { font-size: clamp(13px, 1.2vw, 15px); font-weight: 900; }
+      .bc-tbl-pct { font-size: clamp(13px, 2.5cqi, 15px); font-weight: 900; }
       .bc-tbl-num { font-size: 11px; color: var(--sub); margin-left: 2px; }
       .bc-tbl-td.g .bc-tbl-pct { color: var(--green); }
       .bc-tbl-td.r .bc-tbl-pct { color: var(--red); }
@@ -1446,7 +1509,7 @@
       }
 
       .bc-inline-lbl {
-        font-size: clamp(9px, 0.8vw, 11px);
+        font-size: clamp(9px, 1.8cqi, 11px);
         font-weight: 800;
         letter-spacing: .2px;
         line-height: 1.2;
@@ -1464,13 +1527,13 @@
       }
 
       .bc-inline-pct {
-        font-size: clamp(13px, 1.3vw, 17px);
+        font-size: clamp(13px, 2.8cqi, 17px);
         font-weight: 900;
         line-height: 1;
       }
 
       .bc-inline-num {
-        font-size: clamp(13px, 1.3vw, 17px);
+        font-size: clamp(13px, 2.8cqi, 17px);
         font-weight: 700;
         opacity: .8;
       }
@@ -1483,7 +1546,7 @@
         border-color: transparent !important;
       }
       .bc-inline-st.bc-st-zero .bc-inline-pct {
-        font-size: clamp(11px, 1.1vw, 15px);
+        font-size: clamp(11px, 2.4cqi, 15px);
       }
 
       /* bc-inline 顏色 + 框 */
@@ -1556,7 +1619,7 @@
       }
 
       .bc-st-lbl {
-        font-size: clamp(8px, 0.8vw, 11px);
+        font-size: clamp(8px, 1.8cqi, 11px);
         font-weight: 700;
         letter-spacing: .2px;
         white-space: nowrap;
@@ -1593,14 +1656,14 @@
       }
 
       .bc-st-pct {
-        font-size: clamp(12px, 1.3vw, 18px);
+        font-size: clamp(12px, 2.8cqi, 18px);
         font-weight: 900;
         line-height: 1.1;
         white-space: nowrap;
       }
 
       .bc-st-num {
-        font-size: clamp(12px, 1.3vw, 18px);
+        font-size: clamp(12px, 2.8cqi, 18px);
         font-weight: 700;
         opacity: .85;
         white-space: nowrap;
@@ -1678,37 +1741,14 @@
       }
 
       /* area-view 字級放大 */
-      .area-view .bc-name {
-        font-size: clamp(15px, 1.7vw, 20px);
-      }
-
-      .area-view .bc-total {
-        font-size: clamp(32px, 3.8vw, 46px);
-      }
-
-      .area-view .bc-st-num {
-        font-size: clamp(16px, 2vw, 24px);
-      }
-
-      .area-view .bc-st-pct {
-        font-size: clamp(10px, 1vw, 13px);
-      }
-
-      .area-view .bc-st-lbl {
-        font-size: clamp(9px, 0.9vw, 12px);
-      }
-
-      .area-view .bc-track {
-        height: 10px;
-      }
-
-      .area-view .big-card.whole .wc-total {
-        font-size: clamp(48px, 5.5vw, 70px);
-      }
-
-      .area-view .big-card.whole .wc-st-num {
-        font-size: clamp(22px, 2.6vw, 34px);
-      }
+      .area-view .bc-name  { font-size: clamp(15px, 3.2cqi, 20px); }
+      .area-view .bc-total { font-size: clamp(32px, 6cqi,   46px); }
+      .area-view .bc-st-num  { font-size: clamp(16px, 3.5cqi, 24px); }
+      .area-view .bc-st-pct  { font-size: clamp(10px, 2cqi,   13px); }
+      .area-view .bc-st-lbl  { font-size: clamp(9px,  1.8cqi, 12px); }
+      .area-view .bc-track   { height: 10px; }
+      .area-view .big-card.whole .wc-total  { font-size: clamp(48px, 8cqi, 70px); }
+      .area-view .big-card.whole .wc-st-num { font-size: clamp(22px, 4cqi, 34px); }
 
       /* office-view */
       .office-view .big-card {
@@ -1799,6 +1839,7 @@
       }
 
       .staff-card {
+        container-type: inline-size;
         background: #fff;
         border: 1px solid rgba(0, 0, 0, .07);
         border-radius: var(--r);
@@ -1832,7 +1873,7 @@
       }
 
       .sc-name {
-        font-size: clamp(14px, 1.5vw, 20px);
+        font-size: clamp(14px, 4cqi, 20px);
         font-weight: 900;
         color: var(--text);
         white-space: nowrap;
@@ -1847,7 +1888,7 @@
       }
 
       .sc-corner-num {
-        font-size: clamp(18px, 2vw, 26px);
+        font-size: clamp(18px, 5cqi, 26px);
         font-weight: 900;
         color: var(--primary-d);
         line-height: 1;
@@ -1856,7 +1897,7 @@
       }
 
       .sc-corner-pct {
-        font-size: clamp(9px, 0.85vw, 11px);
+        font-size: clamp(9px, 1.8cqi, 11px);
         font-weight: 700;
         color: var(--sub);
         display: block;
@@ -1911,7 +1952,7 @@
       }
 
       .sc-st-lbl {
-        font-size: clamp(8px, 0.8vw, 10px);
+        font-size: clamp(8px, 1.8cqi, 10px);
         font-weight: 700;
         color: var(--sub);
         white-space: nowrap;
@@ -2014,7 +2055,7 @@
       }
 
       .sc-inline-lbl {
-        font-size: clamp(8px, 0.75vw, 10px);
+        font-size: clamp(8px, 1.6cqi, 10px);
         font-weight: 800;
         letter-spacing: .2px;
         line-height: 1.2;
@@ -2032,13 +2073,13 @@
       }
 
       .sc-inline-pct {
-        font-size: clamp(13px, 1.3vw, 17px);
+        font-size: clamp(13px, 2.8cqi, 17px);
         font-weight: 900;
         line-height: 1;
       }
 
       .sc-inline-num {
-        font-size: clamp(13px, 1.3vw, 17px);
+        font-size: clamp(13px, 2.8cqi, 17px);
         font-weight: 700;
         opacity: .8;
       }
@@ -2346,13 +2387,13 @@
         min-width: 0;
       }
       .bc-tri-pct {
-        font-size: clamp(11px, 1.1vw, 14px);
+        font-size: clamp(11px, 2.3cqi, 14px);
         font-weight: 900;
         white-space: nowrap;
         line-height: 1;
       }
       .bc-tri-num {
-        font-size: clamp(11px, 1.1vw, 14px);
+        font-size: clamp(11px, 2.3cqi, 14px);
         font-weight: 700;
         opacity: .8;
         white-space: nowrap;
@@ -2444,13 +2485,13 @@
         padding: 4px 6px;
       }
       .wc-tri-pct {
-        font-size: clamp(11px, 1.1vw, 14px);
+        font-size: clamp(11px, 2.3cqi, 14px);
         font-weight: 900;
         white-space: nowrap;
         line-height: 1;
       }
       .wc-tri-num {
-        font-size: clamp(11px, 1.1vw, 14px);
+        font-size: clamp(11px, 2.3cqi, 14px);
         font-weight: 700;
         opacity: .8;
         white-space: nowrap;
@@ -3106,13 +3147,9 @@
         }
 
         .col-main {
-          width: 100% !important;
-          display: flex !important;
-          flex-direction: column !important;
-          padding: 0 !important;
-          gap: 0 !important;
+          /* 手機不再強制 flex，由 @media (max-width:599px) 的 grid 規則接管 */
+          width: 100%;
           background: var(--bg);
-          overflow: visible !important;
         }
 
         .big-card.whole {
@@ -3177,243 +3214,164 @@
         }
 
         .big-card:not(.whole) {
-          display: block !important;
-          height: auto !important;
-          margin: 0 !important;
-          padding: 11px 16px 10px !important;
-          border-radius: 0 !important;
-          border: none !important;
-          border-bottom: 1px solid rgba(0, 0, 0, .055) !important;
-          box-shadow: none !important;
-          background: #ffffff !important;
-          transform: none !important;
+          display: block;
+          height: auto;
+          margin: 0;
+          padding: 11px 16px 10px;
+          border-radius: 0;
+          border: none;
+          border-bottom: 1px solid rgba(0, 0, 0, .055);
+          box-shadow: none;
+          background: #ffffff;
+          transform: none;
           cursor: pointer;
           -webkit-tap-highlight-color: rgba(139, 166, 144, .12);
-          transition: background .1s !important;
+          transition: background .1s;
         }
 
         .big-card:not(.whole):active {
-          background: #f5f8f5 !important;
+          background: #f5f8f5;
         }
 
         .big-card:not(.whole).sel {
-          background: #f0f7f1 !important;
-          border-left: 3px solid var(--primary) !important;
-          padding-left: 13px !important;
+          background: #f0f7f1;
+          border-left: 3px solid var(--primary);
+          padding-left: 13px;
         }
 
         .big-card.bc-top1::after,
         .big-card.bc-top2::after,
         .big-card.bc-top3::after {
-          display: none !important;
+          display: none;
         }
 
         .bc-head {
-          display: flex !important;
-          flex-direction: row !important;
-          justify-content: space-between !important;
-          align-items: center !important;
-          gap: 6px !important;
-          flex-wrap: wrap !important;
-          margin-bottom: 4px !important;
-        }
-
-        .bc-name {
-          font-size: 15px !important;
-          font-weight: 800 !important;
-          white-space: nowrap !important;
-          overflow: hidden !important;
-          text-overflow: ellipsis !important;
-          flex: 1 !important;
-          min-width: 0 !important;
-        }
-
-        .bc-total {
-          font-size: 24px !important;
-          font-weight: 900 !important;
-          letter-spacing: -1px !important;
-          line-height: 1 !important;
-          flex-shrink: 0 !important;
-        }
-
-        .bc-track {
-          height: 5px !important;
-          border-radius: 3px !important;
-          margin-bottom: 6px !important;
-        }
-
-        .bc-stats {
-          display: none !important;
-        }
-
-        .bc-inline-stats {
-          display: flex !important;
-          gap: 8px !important;
-          flex-wrap: wrap !important;
-        }
-
-        .bc-inline-pct,
-        .bc-inline-num {
-          font-size: 13px !important;
-        }
-
-        .staff-summary {
-          margin: 12px 12px 0 !important;
-          padding: 12px 14px !important;
-          border-radius: 14px !important;
-          flex-wrap: nowrap !important;
-          gap: 10px !important;
-        }
-
-        .ss-title {
-          font-size: 12px;
-          flex-shrink: 0;
-        }
-
-        .ss-total {
-          font-size: 26px;
-          flex-shrink: 0;
-        }
-
-        .ss-bar {
-          height: 5px;
+          display: flex;
+          flex-direction: row;
+          justify-content: space-between;
+          align-items: center;
+          gap: 6px;
+          flex-wrap: wrap;
           margin-bottom: 4px;
         }
 
-        .ss-sts {
-          gap: 8px;
-          flex-wrap: wrap;
+        .bc-name {
+          font-size: 15px;
+          font-weight: 800;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          flex: 1;
+          min-width: 0;
         }
 
-        .ss-s {
-          font-size: 11px;
+        .bc-total {
+          font-size: 24px;
+          font-weight: 900;
+          letter-spacing: -1px;
+          line-height: 1;
+          flex-shrink: 0;
+        }
+
+        .bc-track {
+          height: 5px;
+          border-radius: 3px;
+          margin-bottom: 6px;
+        }
+
+        .bc-stats      { display: none; }
+        .bc-inline-stats { display: flex; gap: 8px; flex-wrap: wrap; }
+        .bc-inline-pct,
+        .bc-inline-num { font-size: 13px; }
+
+        .staff-summary {
+          margin: 12px 12px 0;
+          padding: 12px 14px;
+          border-radius: 14px;
+          flex-wrap: nowrap;
+          gap: 10px;
         }
 
         .staff-card {
-          display: block !important;
-          margin: 0 !important;
-          padding: 11px 16px 10px !important;
-          border-radius: 0 !important;
-          border: none !important;
-          border-bottom: 1px solid rgba(0, 0, 0, .055) !important;
-          box-shadow: none !important;
-          background: #fff !important;
-          transform: none !important;
+          display: block;
+          margin: 0;
+          padding: 11px 16px 10px;
+          border-radius: 0;
+          border: none;
+          border-bottom: 1px solid rgba(0, 0, 0, .055);
+          box-shadow: none;
+          background: #fff;
+          transform: none;
           cursor: pointer;
           -webkit-tap-highlight-color: rgba(139, 166, 144, .12);
-          transition: background .1s !important;
+          transition: background .1s;
         }
 
-        .staff-card:active {
-          background: #f5f8f5 !important;
-        }
-
-        .staff-card.sel {
-          background: #f0f7f1 !important;
-          border-left: 3px solid var(--primary) !important;
-          padding-left: 13px !important;
-        }
+        .staff-card:active { background: #f5f8f5; }
+        .staff-card.sel    { background: #f0f7f1; border-left: 3px solid var(--primary); padding-left: 13px; }
 
         .sc-head {
-          display: flex !important;
-          flex-direction: row !important;
-          justify-content: space-between !important;
-          align-items: center !important;
-          flex-wrap: wrap !important;
-          padding: 0 !important;
-          gap: 6px !important;
-          margin-bottom: 4px !important;
+          display: flex;
+          flex-direction: row;
+          justify-content: space-between;
+          align-items: center;
+          flex-wrap: wrap;
+          padding: 0;
+          gap: 6px;
+          margin-bottom: 4px;
         }
 
-        .sc-name {
-          font-size: 18px !important;
-          font-weight: 900 !important;
-        }
-
-        .sc-corner-num {
-          font-size: 24px !important;
-          font-weight: 900 !important;
-          letter-spacing: -1px !important;
-        }
-
-        .sc-corner-pct {
-          font-size: 10px !important;
-        }
+        .sc-name        { font-size: 18px; font-weight: 900; }
+        .sc-corner-num  { font-size: 24px; font-weight: 900; letter-spacing: -1px; }
+        .sc-corner-pct  { font-size: 10px; }
 
         .sc-bar {
-          display: flex !important;
-          height: 5px !important;
-          border-radius: 3px !important;
-          overflow: hidden !important;
-          margin-bottom: 6px !important;
-          background: rgba(0, 0, 0, .06) !important;
+          display: flex;
+          height: 5px;
+          border-radius: 3px;
+          overflow: hidden;
+          margin-bottom: 6px;
+          background: rgba(0, 0, 0, .06);
         }
 
-        .sc-stats {
-          display: none !important;
-        }
-
-        .sc-inline-stats {
-          display: flex !important;
-          gap: 8px !important;
-          flex-wrap: wrap !important;
-        }
-
+        .sc-stats        { display: none; }
+        .sc-inline-stats { display: flex; gap: 8px; flex-wrap: wrap; }
         .sc-inline-pct,
-        .sc-inline-num {
-          font-size: 13px !important;
-        }
+        .sc-inline-num   { font-size: 13px; }
 
         .store-header {
-          flex-direction: row !important;
-          align-items: center !important;
-          flex-wrap: nowrap !important;
-          gap: 8px !important;
-          padding: 12px 16px !important;
-          margin: 12px 12px 4px !important;
-          border-radius: 14px !important;
+          flex-direction: row;
+          align-items: center;
+          flex-wrap: nowrap;
+          gap: 8px;
+          padding: 12px 16px;
+          margin: 12px 12px 4px;
+          border-radius: 14px;
         }
 
-        .sh-name {
-          font-size: 16px !important;
-          font-weight: 900 !important;
-        }
-
-        .sh-stats {
-          gap: 8px !important;
-        }
+        .sh-name { font-size: 16px; font-weight: 900; }
+        .sh-stats { gap: 8px; }
 
         #store-list-wrap {
-          margin: 0 12px 12px !important;
-          border-radius: 12px !important;
-          overflow: hidden !important;
+          margin: 0 12px 12px;
+          border-radius: 12px;
+          overflow: hidden;
         }
+
         .store-tbl .col-name {
-          width: 200px !important;
-          max-width: 200px !important;
+          width: 200px;
+          max-width: 200px;
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
         }
 
-        
-        .store-tbl th {
-          padding: 6px 10px;
-          font-size: 10px;
-        }
-
-        .store-tbl td {
-          padding: 7px 10px;
-          font-size: 12px;
-        }
-
-        .td-status {
-          font-size: 10px !important;
-          padding: 7px 7px !important;
-        }
+        .store-tbl th { padding: 6px 10px; font-size: 10px; }
+        .store-tbl td { padding: 7px 10px; font-size: 12px; }
+        .td-status     { font-size: 10px; padding: 7px 7px; }
 
         #rank-fab {
-          display: flex !important;
+          display: flex;
           position: fixed;
           bottom: 24px;
           right: 16px;
@@ -3432,12 +3390,10 @@
           transition: transform .15s, box-shadow .15s;
         }
 
-        #rank-fab:active {
-          transform: scale(.9);
-        }
+        #rank-fab:active { transform: scale(.9); }
 
         #rank-sheet {
-          display: block !important;
+          display: block;
           position: fixed;
           bottom: 0;
           left: 0;
@@ -3454,9 +3410,7 @@
           padding-bottom: env(safe-area-inset-bottom, 16px);
         }
 
-        #rank-sheet.open {
-          transform: translateY(0);
-        }
+        #rank-sheet.open { transform: translateY(0); }
 
         #rank-sheet-handle {
           display: flex;
@@ -3482,53 +3436,22 @@
           background: rgba(0, 0, 0, .4);
         }
 
-        #rank-sheet-overlay.open {
-          display: block;
-        }
+        #rank-sheet-overlay.open { display: block; }
 
         .store-tbl .col-grade,
-        .store-tbl .col-code {
-          display: none !important;
-        }
-
-        .store-tbl .col-status {
-          width: 68px !important;
-        }
-
-        .store-tbl .col-name {
-          width: auto !important;
-        }
-
-        .store-tbl .col-ch {
-          width: 72px !important;
-        }
-
-        .store-tbl .col-tp {
-          width: 72px !important;
-        }
+        .store-tbl .col-code  { display: none; }
+        .store-tbl .col-status { width: 68px; }
+        .store-tbl .col-name   { width: auto; }
+        .store-tbl .col-ch     { width: 72px; }
+        .store-tbl .col-tp     { width: 72px; }
       }
 
-      @media(min-width:769px) and (orientation:landscape) {
-        #rank-fab {
-          display: none !important;
-        }
-
-        #rank-sheet {
-          display: none !important;
-        }
-
-        #rank-sheet-overlay {
-          display: none !important;
-        }
-
-        #mobile-menu {
-          display: none !important;
-        }
-
-        #mm-overlay {
-          display: none !important;
-        }
-      }
+      @media (min-width: 769px) and (orientation: landscape) {
+        #rank-fab,
+        #rank-sheet,
+        #rank-sheet-overlay,
+        #mobile-menu,
+        #mm-overlay { display: none; }
 
       .view-toggle {
         display: flex;
@@ -3558,6 +3481,338 @@
         background: #fff;
         color: var(--primary-d);
         box-shadow: 0 1px 4px rgba(0, 0, 0, .12);
+      }
+
+      /* ══════════════════════════════════════════
+         手機版「主要通路巡訪」介面樣式
+         ══════════════════════════════════════════ */
+      #mobile-app {
+        display: none;
+        flex-direction: column;
+        min-height: 100vh;
+        background: #F0EDE6;
+        font-family: 'Microsoft JhengHei', 'Noto Sans TC', sans-serif;
+      }
+      body.mobile-mode #mobile-app { display: flex; }
+      body.mobile-mode #topbar,
+      body.mobile-mode #stage,
+      body.mobile-mode #rank-drawer { display: none !important; }
+      body.mobile-mode { overflow: hidden; }
+
+      .mb-nav {
+        position: sticky; top: 0; z-index: 100;
+        background: #fff;
+        border-bottom: 0.5px solid rgba(0,0,0,.1);
+        padding: 0 14px;
+        min-height: 48px;
+        display: flex;
+        align-items: center;
+        gap: 0;
+      }
+      .mb-nav-back {
+        font-size: 15px; font-weight: 700;
+        color: #8BA690; cursor: pointer;
+        padding: 8px 12px 8px 0;
+        white-space: nowrap;
+      }
+      .mb-nav-crumb {
+        flex: 1;
+        display: flex; align-items: center;
+        overflow: hidden; gap: 0;
+      }
+      .mb-nav-crumb-item {
+        font-size: 12px; color: #8BA690;
+        cursor: pointer; white-space: nowrap;
+        padding: 4px 2px;
+        flex-shrink: 1;
+        overflow: hidden; text-overflow: ellipsis;
+      }
+      .mb-nav-crumb-item.current {
+        font-size: 14px; font-weight: 900;
+        color: #2D2D2D; cursor: default;
+        flex-shrink: 0;
+      }
+      .mb-nav-crumb-sep {
+        font-size: 12px; color: #bbb;
+        padding: 0 2px; flex-shrink: 0;
+      }
+      .mb-nav-title {
+        font-size: 14px; font-weight: 900;
+        color: #2D2D2D; flex: 1; text-align: center;
+      }
+
+      .mb-datatime {
+        background: #fff;
+        padding: 5px 14px;
+        font-size: 10px; color: #aaa;
+        border-bottom: 0.5px solid rgba(0,0,0,.06);
+        text-align: right;
+      }
+
+      .mb-toggle-wrap { padding: 10px 14px 6px; }
+      .mb-toggle {
+        display: flex;
+        background: rgba(0,0,0,.06);
+        border-radius: 10px;
+        padding: 3px; gap: 3px;
+      }
+      .mb-toggle-btn {
+        flex: 1; padding: 7px 0;
+        border: none; background: transparent;
+        border-radius: 8px;
+        font-size: 13px; font-weight: 700;
+        color: #888; cursor: pointer;
+        transition: all .15s;
+        font-family: inherit;
+      }
+      .mb-toggle-btn.active-r {
+        background: #fff; color: #d13030;
+        box-shadow: 0 1px 4px rgba(0,0,0,.12);
+      }
+      .mb-toggle-btn.active-g {
+        background: #fff; color: #1a9945;
+        box-shadow: 0 1px 4px rgba(0,0,0,.12);
+      }
+
+      .mb-list-wrap { padding: 6px 14px 0; }
+      .mb-table {
+        background: #fff;
+        border: 0.5px solid rgba(0,0,0,.1);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .mb-thead {
+        display: grid;
+        grid-template-columns: minmax(0,1fr) 50px 1fr 1fr 1fr;
+        align-items: center;
+        padding: 5px 12px;
+        background: rgba(0,0,0,.03);
+        border-bottom: 0.5px solid rgba(0,0,0,.08);
+        gap: 4px;
+      }
+      .mb-thead span {
+        font-size: 10px; font-weight: 800;
+        color: #888; text-align: right;
+      }
+      .mb-thead span:first-child { text-align: left; }
+      .mb-thead .mb-th-g { color: #1a9945; }
+      .mb-thead .mb-th-r { color: #d13030; }
+
+      .mb-row {
+        display: grid;
+        grid-template-columns: minmax(0,1fr) 50px 1fr 1fr 1fr;
+        align-items: center;
+        padding: 10px 12px;
+        border-bottom: 0.5px solid rgba(0,0,0,.06);
+        gap: 4px;
+        cursor: pointer;
+        transition: background .1s;
+        -webkit-tap-highlight-color: rgba(139,166,144,.12);
+      }
+      .mb-row:last-child { border-bottom: none; }
+      .mb-row:active { background: rgba(139,166,144,.08); }
+      .mb-row.parent-row {
+        background: rgba(139,166,144,.06);
+        cursor: default;
+        border-bottom: 0.5px solid rgba(139,166,144,.2);
+      }
+      .mb-row.parent-row:active { background: rgba(139,166,144,.06); }
+      .mb-row.no-drill { cursor: default; }
+      .mb-row.no-drill:active { background: transparent; }
+
+      .mb-row-name {
+        font-size: 15px; font-weight: 900;
+        color: #2D2D2D;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .mb-row.parent-row .mb-row-name {
+        font-size: 12px; font-weight: 700; color: #6a8a70;
+      }
+      .mb-row-total {
+        font-size: 11px; color: #aaa; text-align: right;
+      }
+      .mb-cell { text-align: right; white-space: nowrap; }
+      .mb-cell .mb-pct { font-size: 14px; font-weight: 900; }
+      .mb-cell .mb-qty { font-size: 10px; color: #aaa; margin-left: 2px; }
+      .mb-cell.mc-g .mb-pct { color: #1a9945; }
+      .mb-cell.mc-r .mb-pct { color: #d13030; }
+      .mb-cell.mc-zero .mb-pct {
+        font-size: 12px; font-weight: 400; color: #ccc;
+      }
+      .mb-row.parent-row .mb-pct { font-size: 12px !important; }
+      .mb-row.parent-row .mb-qty { font-size: 9px !important; }
+
+      .mb-store-panel {
+        margin: 8px 14px 0;
+        background: #fff;
+        border: 0.5px solid rgba(0,0,0,.1);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .mb-store-toggle {
+        display: flex; align-items: center;
+        justify-content: space-between;
+        padding: 11px 14px;
+        cursor: pointer;
+        border-bottom: 0.5px solid transparent;
+        transition: border-color .15s;
+      }
+      .mb-store-toggle.open {
+        border-bottom-color: rgba(0,0,0,.07);
+      }
+      .mb-store-toggle-left {
+        display: flex; align-items: center; gap: 8px;
+      }
+      .mb-store-toggle-icon {
+        width: 28px; height: 28px;
+        background: rgba(139,166,144,.12);
+        border-radius: 8px;
+        display: flex; align-items: center;
+        justify-content: center;
+        font-size: 14px;
+      }
+      .mb-store-toggle-label {
+        font-size: 13px; font-weight: 700; color: #2D2D2D;
+      }
+      .mb-store-toggle-count {
+        font-size: 11px; color: #888; margin-left: 4px;
+      }
+      .mb-store-toggle-arrow {
+        font-size: 12px; color: #bbb;
+        transition: transform .2s;
+      }
+      .mb-store-toggle.open .mb-store-toggle-arrow {
+        transform: rotate(180deg);
+      }
+      .mb-store-body { display: none; }
+      .mb-store-body.open { display: block; }
+
+      .mb-store-filter {
+        display: flex; gap: 6px;
+        padding: 8px 12px;
+        background: rgba(0,0,0,.02);
+        border-bottom: 0.5px solid rgba(0,0,0,.06);
+      }
+      .mb-store-filter-btn {
+        padding: 4px 10px;
+        border: 1px solid rgba(0,0,0,.12);
+        border-radius: 20px;
+        font-size: 11px; font-weight: 700;
+        background: #fff; color: #888;
+        cursor: pointer; font-family: inherit;
+      }
+      .mb-store-filter-btn.on-r {
+        background: rgba(217,48,37,.08);
+        border-color: rgba(217,48,37,.3);
+        color: #d13030;
+      }
+      .mb-store-filter-btn.on-g {
+        background: rgba(34,168,76,.08);
+        border-color: rgba(34,168,76,.3);
+        color: #1a9945;
+      }
+
+      .mb-store-tbl {
+        width: 100%; border-collapse: collapse;
+        font-size: 12px;
+      }
+      .mb-store-tbl th {
+        padding: 6px 10px;
+        font-size: 10px; font-weight: 700; color: #888;
+        background: rgba(0,0,0,.025);
+        border-bottom: 0.5px solid rgba(0,0,0,.08);
+        text-align: left; white-space: nowrap;
+      }
+      .mb-store-tbl td {
+        padding: 8px 10px;
+        border-bottom: 0.5px solid rgba(0,0,0,.04);
+        vertical-align: middle;
+      }
+      .mb-store-tbl tr:last-child td { border-bottom: none; }
+      .mb-store-status {
+        display: inline-block;
+        font-size: 11px; font-weight: 700;
+        padding: 2px 7px; border-radius: 5px;
+        white-space: nowrap;
+      }
+      .mb-store-status.st-g {
+        background: rgba(34,168,76,.1); color: #1a7a35;
+      }
+      .mb-store-status.st-r {
+        background: rgba(217,48,37,.1); color: #c62828;
+      }
+
+      .mb-action-bar {
+        position: sticky; bottom: 0; z-index: 100;
+        background: #fff;
+        border-top: 0.5px solid rgba(0,0,0,.1);
+        padding: 10px 14px;
+        display: flex; align-items: center; gap: 8px;
+      }
+      .mb-dl-status-wrap {
+        display: flex; gap: 6px; flex: 1;
+      }
+      .mb-dl-chip {
+        display: flex; align-items: center; gap: 5px;
+        padding: 6px 10px;
+        background: rgba(0,0,0,.04);
+        border: 1.5px solid transparent;
+        border-radius: 8px;
+        font-size: 12px; font-weight: 700; color: #888;
+        cursor: pointer;
+        transition: all .12s;
+        font-family: inherit;
+      }
+      .mb-dl-chip.checked-r {
+        background: rgba(217,48,37,.08);
+        border-color: rgba(217,48,37,.3);
+        color: #d13030;
+      }
+      .mb-dl-chip.checked-g {
+        background: rgba(34,168,76,.08);
+        border-color: rgba(34,168,76,.3);
+        color: #1a9945;
+      }
+      .mb-dl-chip .chip-check { font-size: 10px; }
+      .mb-action-btns { display: flex; gap: 6px; }
+      .mb-action-btn {
+        padding: 7px 13px;
+        background: #8BA690; color: #fff;
+        border: none; border-radius: 9px;
+        font-size: 12px; font-weight: 700;
+        cursor: pointer; font-family: inherit;
+        white-space: nowrap;
+        transition: opacity .12s;
+      }
+      .mb-action-btn:active { opacity: .7; }
+      .mb-action-btn.secondary {
+        background: rgba(0,0,0,.07); color: #555;
+      }
+
+      .mb-empty {
+        padding: 32px 14px;
+        text-align: center;
+        font-size: 13px; color: #aaa;
+        line-height: 1.8;
+      }
+      .mb-loading {
+        flex: 1; display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+        gap: 12px; color: #8BA690;
+      }
+      .mb-loading-spinner {
+        width: 32px; height: 32px;
+        border: 3px solid rgba(139,166,144,.2);
+        border-top-color: #8BA690;
+        border-radius: 50%;
+        animation: mb-spin .8s linear infinite;
+      }
+      @keyframes mb-spin { to { transform: rotate(360deg); } }
+      .mb-loading-text { font-size: 13px; font-weight: 700; }
+      .mb-scroll {
+        flex: 1; overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        padding-bottom: 20px;
       }
 
     </style>
@@ -3648,7 +3903,7 @@
       var SURVEYS_FIXED = [{
         _fixed: true,
         _active: true,
-        name: '主要通路巡訪(26.06)',
+        name: '主要通路巡訪(26.05)',
         id: '1OFquyYqZ5RPwmR2VUu5Jdjny4WZqWEXuQH_GrQONYGA',
         sheet: '主要通路分離名冊',
         range: 'A:J',
@@ -5198,6 +5453,7 @@
           }
 
           el.innerHTML =
+            '<div class="bc-cv-tbl-wrap">' +
             '<table class="bc-cv-tbl">' +
               '<thead class="bc-cv-thead"><tr>' +
                 '<th class="bc-cv-th-name">' + esc(name) + '</th>' +
@@ -5205,7 +5461,8 @@
                 theadCols +
               '</tr></thead>' +
               '<tbody class="bc-cv-tbody">' + tbodyRows + '</tbody>' +
-            '</table>';
+            '</table>' +
+            '</div>';
         } else {
           /* ── 原始格式（其他所有專案） ── */
           el.innerHTML =
@@ -5387,6 +5644,7 @@
             }
 
             card.innerHTML =
+              '<div class="bc-cv-tbl-wrap">' +
               '<table class="bc-cv-tbl">' +
                 '<thead class="bc-cv-thead"><tr>' +
                   '<th class="bc-cv-th-name bc-cv-th-name--staff">' + esc(trimName(k)) + '</th>' +
@@ -5394,7 +5652,8 @@
                   theadColsSC +
                 '</tr></thead>' +
                 '<tbody class="bc-cv-tbody">' + tbodyRowsSC + '</tbody>' +
-              '</table>';
+              '</table>' +
+              '</div>';
 
             var trackEl = document.createElement('div');
             trackEl.className = 'bc-track';
@@ -5519,6 +5778,7 @@
           }
 
           header.innerHTML =
+            '<div class="bc-cv-tbl-wrap">' +
             '<table class="bc-cv-tbl">' +
               '<thead class="bc-cv-thead"><tr>' +
                 '<th class="bc-cv-th-name sv-ph-name">' + esc(trimName(staffName)) + '</th>' +
@@ -5526,7 +5786,8 @@
                 theadCols +
               '</tr></thead>' +
               '<tbody class="bc-cv-tbody">' + tbodyRows + '</tbody>' +
-            '</table>';
+            '</table>' +
+            '</div>';
 
           var trackEl = document.createElement('div');
           trackEl.className = 'bc-track';
@@ -6356,6 +6617,559 @@
       }
 
     </script>
+  
+  <!-- ══ 手機版應用程式根節點 ══ -->
+  <div id="mobile-app">
+    <div id="mb-nav" class="mb-nav"></div>
+    <div id="mb-datatime" class="mb-datatime" style="display:none"></div>
+    <div class="mb-scroll" id="mb-scroll">
+      <div id="mb-content">
+        <div class="mb-loading">
+          <div class="mb-loading-spinner"></div>
+          <div class="mb-loading-text">載入中…</div>
+        </div>
+      </div>
+    </div>
+    <div class="mb-action-bar" id="mb-action-bar">
+      <div class="mb-dl-status-wrap" id="mb-dl-chips">
+        <button class="mb-dl-chip checked-r" id="mb-chip-r" onclick="mbToggleChip('r')">
+          <span class="chip-check">✓</span> 未達
+        </button>
+        <button class="mb-dl-chip" id="mb-chip-g" onclick="mbToggleChip('g')">
+          <span class="chip-check" style="opacity:0">✓</span> 達成
+        </button>
+      </div>
+      <div class="mb-action-btns">
+        <button class="mb-action-btn secondary" id="mb-copy-btn" onclick="mbCopy()">📋</button>
+        <button class="mb-action-btn" id="mb-dl-btn" onclick="mbDownload()">📥 下載</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  /* ══════════════════════════════════════════
+     手機版「主要通路巡訪」介面邏輯
+     ══════════════════════════════════════════ */
+
+  /* ── 狀態 ── */
+  var MB = {
+    mode: 'r',          /* 'g' 達成 | 'r' 未達 */
+    dlChips: { r: true, g: false },
+    stack: [],          /* [{ label, key, level }] level: 0=整體 1=地區 2=所 3=人員 */
+    storeOpen: false,
+    isBcCv: false       /* 是否為主要通路巡訪 */
+  };
+
+  /* ── 工具：百分比格式 ── */
+  function mbPct(n, t) {
+    if (!t) return '0%';
+    return Math.round(n / t * 100) + '%';
+  }
+
+  /* ── 工具：statByChannel 回傳三欄資料 ── */
+  function mbGetCols(rows) {
+    var cfg = _curCfg;
+    if (!cfg || !cfg.cvsWeightChannel) return null;
+    var cvsCh = cfg.cvsWeightChannel;
+    var all = { l: 0, u: 0, t: 0 };
+    var nc  = { l: 0, u: 0, t: 0 };
+    var cv  = { l: 0, u: 0, t: 0 };
+    rows.forEach(function(r) {
+      var ch = gv(r, 'channel') || '';
+      var k  = gs(r);
+      all.t++; if (k === 'l') all.l++; else all.u++;
+      if (ch === cvsCh) { cv.t++; if (k === 'l') cv.l++; else cv.u++; }
+      else              { nc.t++; if (k === 'l') nc.l++; else nc.u++; }
+    });
+    return { all: all, nc: nc, cv: cv };
+  }
+
+  /* ── 工具：渲染一個 .mb-cell ── */
+  function mbCellHtml(n, t, mode) {
+    if (!t) return '<span class="mb-cell mc-zero"><span class="mb-pct">—</span></span>';
+    var p = mbPct(n, t);
+    var isZero = (n === 0);
+    if (isZero) {
+      return '<span class="mb-cell mc-zero"><span class="mb-pct">0%</span></span>';
+    }
+    return '<span class="mb-cell mc-' + mode + '">'
+      + '<span class="mb-pct">' + p + '</span>'
+      + '<span class="mb-qty">(' + n.toLocaleString() + ')</span>'
+      + '</span>';
+  }
+
+  /* ── 渲染表頭 ── */
+  function mbHeadHtml(mode) {
+    var cls = 'mb-th-' + mode;
+    return '<div class="mb-thead">'
+      + '<span>單位</span>'
+      + '<span>家數</span>'
+      + '<span class="' + cls + '">不分類</span>'
+      + '<span class="' + cls + '">非CVS</span>'
+      + '<span class="' + cls + '">CVS</span>'
+      + '</div>';
+  }
+
+  /* ── 渲染一行資料列 ── */
+  function mbRowHtml(label, rows, clickable, isParent) {
+    var cols = mbGetCols(rows);
+    if (!cols) return '';
+    var mode = MB.mode;
+    var allN = mode === 'r' ? cols.all.u : cols.all.l;
+    var ncN  = mode === 'r' ? cols.nc.u  : cols.nc.l;
+    var cvN  = mode === 'r' ? cols.cv.u  : cols.cv.l;
+    var cls  = isParent ? ' parent-row' : (clickable ? '' : '');
+    var dataAttr = clickable ? ' data-label="' + label.replace(/"/g,'&quot;') + '"' : '';
+    return '<div class="mb-row' + cls + '"' + dataAttr + (clickable ? ' role="button"' : '') + '>'
+      + '<span class="mb-row-name">' + label + '</span>'
+      + '<span class="mb-row-total">' + cols.all.t.toLocaleString() + '</span>'
+      + mbCellHtml(allN, cols.all.t, mode)
+      + mbCellHtml(ncN,  cols.nc.t,  mode)
+      + mbCellHtml(cvN,  cols.cv.t,  mode)
+      + '</div>';
+  }
+
+  /* ── 渲染切換按鈕 ── */
+  function mbToggleHtml(mode) {
+    return '<div class="mb-toggle-wrap">'
+      + '<div class="mb-toggle">'
+      + '<button class="mb-toggle-btn' + (mode === 'r' ? ' active-r' : '') + '" onclick="mbSetMode('r')">🔴 未達</button>'
+      + '<button class="mb-toggle-btn' + (mode === 'g' ? ' active-g' : '') + '" onclick="mbSetMode('g')">✅ 達成</button>'
+      + '</div></div>';
+  }
+
+  function mbStorePanelHtml(rows, totalCount, defaultOpen) {
+    var showR = MB.dlChips.r;
+    var showG = MB.dlChips.g;
+    var filtered = rows.filter(function(r) {
+      var k = gs(r);
+      if (showR && k === 'u') return true;
+      if (showG && k === 'l') return true;
+      return false;
+    });
+
+    /* 排序：未達→達成，同狀態按店名 */
+    var sorted = filtered.slice().sort(function(a, b) {
+      var ka = gs(a), kb = gs(b);
+      if (ka === 'u' && kb !== 'u') return -1;
+      if (kb === 'u' && ka !== 'u') return  1;
+      return gv(a,'store').localeCompare(gv(b,'store'),'zh-TW');
+    });
+
+    var isOpen = defaultOpen || false;
+    var toggleCls = isOpen ? ' open' : '';
+    var bodyCls   = isOpen ? ' open' : '';
+
+    var rows_html = sorted.map(function(r) {
+      var k   = gs(r);
+      var cls = k === 'l' ? 'st-g' : 'st-r';
+      var lbl = k === 'l' ? '達成' : '未達';
+      return '<tr>'
+        + '<td style="width:46px"><span class="mb-store-status ' + cls + '">' + lbl + '</span></td>'
+        + '<td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(gv(r,'store')) + '</td>'
+        + '<td style="white-space:nowrap">' + esc(gv(r,'channel') || '—') + '</td>'
+        + '<td style="white-space:nowrap">' + esc(gv(r,'type')    || '—') + '</td>'
+        + '</tr>';
+    }).join('');
+
+    var chipR = '<button class="mb-store-filter-btn' + (showR ? ' on-r' : '') + '" onclick="mbToggleChip(\'r\')">🔴 未達</button>';
+    var chipG = '<button class="mb-store-filter-btn' + (showG ? ' on-g' : '') + '" onclick="mbToggleChip(\'g\')">✅ 達成</button>';
+
+    return '<div class="mb-store-panel" id="mb-store-panel">'
+      + '<div class="mb-store-toggle' + toggleCls + '" id="mb-store-toggle" onclick="mbToggleStore()">'
+      + '<div class="mb-store-toggle-left">'
+      + '<div class="mb-store-toggle-icon">🏪</div>'
+      + '<div>'
+      + '<span class="mb-store-toggle-label">店家清單</span>'
+      + '<span class="mb-store-toggle-count">共 ' + totalCount.toLocaleString() + ' 家 · 篩選後 ' + sorted.length + ' 家</span>'
+      + '</div></div>'
+      + '<span class="mb-store-toggle-arrow">▼</span>'
+      + '</div>'
+      + '<div class="mb-store-body' + bodyCls + '" id="mb-store-body">'
+      + '<div class="mb-store-filter">' + chipR + chipG + '</div>'
+      + (sorted.length
+        ? '<div style="overflow-x:auto"><table class="mb-store-tbl">'
+          + '<thead><tr><th>狀態</th><th>店家名稱</th><th>通路</th><th>型態</th></tr></thead>'
+          + '<tbody>' + rows_html + '</tbody>'
+          + '</table></div>'
+        : '<div class="mb-empty">無符合條件的店家</div>')
+      + '</div></div>';
+  }
+
+  /* ── 取得目前層的資料列 ── */
+  function mbCurrentRows() {
+    var rows = allRows.slice();
+    MB.stack.forEach(function(s, i) {
+      var key = ['area','office','staff'][i];
+      if (key) rows = rows.filter(function(r) { return gv(r, key) === s.key; });
+    });
+    return rows;
+  }
+
+  /* ── 依未達數量排序 ── */
+  function mbSortByMiss(items) {
+    return items.slice().sort(function(a, b) {
+      return (b.stats.u || 0) - (a.stats.u || 0);
+    });
+  }
+
+  /* ── 主渲染 ── */
+  function mbRender() {
+    var content = document.getElementById('mb-content');
+    if (!content) return;
+
+    var depth   = MB.stack.length;          /* 0=整體 1=地區 2=所 3=人員 */
+    var rows    = mbCurrentRows();
+    var mode    = MB.mode;
+
+    /* 導覽列麵包屑 */
+    mbRenderNav();
+
+    var html = mbToggleHtml(mode) + mbHeadHtml(mode) + '<div class="mb-list-wrap"><div class="mb-table">';
+
+    if (depth < 3) {
+      /* 整體/地區/所 層 → 顯示子項目清單 */
+      var groupKey = ['area','office','staff'][depth];
+      var grouped  = groupBy(rows, groupKey);
+      var items    = Object.keys(grouped).map(function(k) {
+        var r = grouped[k];
+        return { key: k, rows: r, stats: stat(r) };
+      });
+
+      /* 排序：未達多的在前 */
+      items = mbSortByMiss(items);
+      if (depth === 0) {
+        /* 整體層用地區順序再排 */
+        var areaItems = items.filter(function(x) {
+          return AREA_ORDER.some(function(a) { return x.key.indexOf(a) >= 0; });
+        });
+        var otherItems = items.filter(function(x) {
+          return !AREA_ORDER.some(function(a) { return x.key.indexOf(a) >= 0; });
+        });
+        items = areaItems.concat(otherItems);
+        items = mbSortByMiss(items);
+      }
+
+      /* 母單位置頂列（整體統計） */
+      var parentLabel = depth === 0 ? '整體' : MB.stack[depth-1].label;
+      html += mbRowHtml(parentLabel, rows, false, true);
+
+      items.forEach(function(item) {
+        html += mbRowHtml(item.key, item.rows, true, false);
+      });
+
+    } else {
+      /* 人員層（depth===3）→ 顯示該人員的摘要統計列，店家清單由下方面板展開 */
+      var parentStaff = MB.stack[2].label;
+      html += mbRowHtml(parentStaff, rows, false, true);
+
+      /* 三欄摘要：不分類 / 非CVS / CVS（無法點擊） */
+      var cfg2 = _curCfg;
+      var cvsCh2 = cfg2 && cfg2.cvsWeightChannel ? cfg2.cvsWeightChannel : 'CVS通路';
+      [
+        { label: '不分類', rows: rows },
+        { label: '非CVS', rows: rows.filter(function(r){ return gv(r,'channel') !== cvsCh2; }) },
+        { label: 'CVS',   rows: rows.filter(function(r){ return gv(r,'channel') === cvsCh2; }) }
+      ].forEach(function(g) {
+        if (!g.rows.length) return;
+        var s = stat(g.rows);
+        var n = mode === 'r' ? (s.u||0) : (s.l||0);
+        var t = s.t;
+        html += '<div class="mb-row no-drill">'
+          + '<span class="mb-row-name" style="font-size:13px;font-weight:700;color:#6a8a70;padding-left:8px">'
+          + g.label + '</span>'
+          + '<span class="mb-row-total">' + t.toLocaleString() + '</span>'
+          + mbCellHtml(n, t, mode)
+          + '<span class="mb-cell"></span>'
+          + '<span class="mb-cell"></span>'
+          + '</div>';
+      });
+    }
+
+    html += '</div></div>';
+
+    /* 店家收折面板（每層都有，人員層預設展開） */
+    html += mbStorePanelHtml(rows, rows.length, depth === 3);
+
+    content.innerHTML = html;
+
+    /* 若人員層，自動展開店家面板 */
+    if (depth === 3) {
+      MB.storeOpen = true;
+      var tog = document.getElementById('mb-store-toggle');
+      var bdy = document.getElementById('mb-store-body');
+      if (tog) tog.classList.add('open');
+      if (bdy) bdy.classList.add('open');
+    }
+
+    /* 重新綁定行點擊事件 */
+    if (depth < 3) {
+      content.querySelectorAll('.mb-row[data-label]').forEach(function(el) {
+        el.addEventListener('click', function() {
+          var label = this.getAttribute('data-label');
+          mbDrillInto(label);
+        });
+      });
+    }
+
+    /* 捲回頂部 */
+    var scroll = document.getElementById('mb-scroll');
+    if (scroll) scroll.scrollTop = 0;
+  }
+
+  /* ── 導覽列渲染 ── */
+  function mbRenderNav() {
+    var nav = document.getElementById('mb-nav');
+    if (!nav) return;
+    var stack = MB.stack;
+    if (!stack.length) {
+      nav.innerHTML = '<span class="mb-nav-title">主要通路巡訪</span>';
+      return;
+    }
+    var crumbs = '<div class="mb-nav-crumb">';
+    crumbs += '<span class="mb-nav-crumb-item" onclick="mbGoTo(-1)">整體</span>';
+    stack.forEach(function(s, i) {
+      crumbs += '<span class="mb-nav-crumb-sep">›</span>';
+      var isCurrent = (i === stack.length - 1);
+      crumbs += '<span class="mb-nav-crumb-item' + (isCurrent ? ' current' : '') + '"'
+        + (isCurrent ? '' : ' onclick="mbGoTo(' + i + ')"')
+        + '>' + s.label + '</span>';
+    });
+    crumbs += '</div>';
+    nav.innerHTML = '<span class="mb-nav-back" onclick="mbGoBack()">‹ 返回</span>' + crumbs;
+  }
+
+  /* ── 鑽取 ── */
+  function mbDrillInto(label) {
+    var depth = MB.stack.length;
+    var key   = ['area','office','staff'][depth];
+    MB.stack.push({ label: trimName(label), key: label, level: depth + 1 });
+    MB.storeOpen = false;
+    mbRender();
+  }
+
+  /* ── 返回上一層 ── */
+  function mbGoBack() {
+    if (!MB.stack.length) return;
+    MB.stack.pop();
+    MB.storeOpen = false;
+    mbRender();
+  }
+
+  /* ── 麵包屑跳層 ── */
+  function mbGoTo(idx) {
+    if (idx < 0) {
+      MB.stack = [];
+    } else {
+      MB.stack = MB.stack.slice(0, idx + 1);
+    }
+    MB.storeOpen = false;
+    mbRender();
+  }
+
+  /* ── 切換達成/未達 ── */
+  function mbSetMode(m) {
+    MB.mode = m;
+    mbRender();
+  }
+
+  /* ── 店家面板收折 ── */
+  function mbToggleStore() {
+    var toggle = document.getElementById('mb-store-toggle');
+    var body   = document.getElementById('mb-store-body');
+    if (!toggle || !body) return;
+    MB.storeOpen = !MB.storeOpen;
+    if (MB.storeOpen) {
+      toggle.classList.add('open');
+      body.classList.add('open');
+    } else {
+      toggle.classList.remove('open');
+      body.classList.remove('open');
+    }
+  }
+
+  /* ── 下載篩選晶片切換 ── */
+  function mbToggleChip(key) {
+    MB.dlChips[key] = !MB.dlChips[key];
+    /* 至少保留一個 */
+    if (!MB.dlChips.r && !MB.dlChips.g) MB.dlChips[key] = true;
+    var rBtn = document.getElementById('mb-chip-r');
+    var gBtn = document.getElementById('mb-chip-g');
+    if (rBtn) rBtn.className = 'mb-dl-chip' + (MB.dlChips.r ? ' checked-r' : '');
+    if (gBtn) gBtn.className = 'mb-dl-chip' + (MB.dlChips.g ? ' checked-g' : '');
+    /* 晶片狀態也同步更新店家面板（若已展開） */
+    var panel = document.getElementById('mb-store-panel');
+    if (panel) {
+      var rows = mbCurrentRows();
+      var depth = MB.stack.length;
+      panel.outerHTML = mbStorePanelHtml(rows, rows.length, depth === 3);
+      /* 若剛才是展開狀態，重新打開 */
+      if (MB.storeOpen) {
+        var tog = document.getElementById('mb-store-toggle');
+        var bdy = document.getElementById('mb-store-body');
+        if (tog) tog.classList.add('open');
+        if (bdy) bdy.classList.add('open');
+      }
+    }
+  }
+
+  /* ── 取得下載/複製用的資料 ── */
+  function mbGetDlRows() {
+    var rows = mbCurrentRows();
+    return rows.filter(function(r) {
+      var k = gs(r);
+      if (MB.dlChips.r && k === 'u') return true;
+      if (MB.dlChips.g && k === 'l') return true;
+      return false;
+    });
+  }
+
+  /* ── 複製 ── */
+  function mbCopy() {
+    var rows = mbGetDlRows();
+    if (!rows.length) { alert('沒有符合勾選條件的資料'); return; }
+    var breadcrumb = MB.stack.map(function(s) { return s.label; }).join(' › ');
+    var lines = [];
+    var chips = [];
+    if (MB.dlChips.r) chips.push('未達');
+    if (MB.dlChips.g) chips.push('達成');
+    lines.push('📋 主要通路巡訪' + (breadcrumb ? ' ｜ ' + breadcrumb : '') + '（' + chips.join('＋') + '）');
+    lines.push('共 ' + rows.length + ' 家');
+    lines.push('');
+    var staffMap = groupBy(rows, 'staff');
+    Object.keys(staffMap).sort(function(a,b){
+      var ua = stat(staffMap[a]).u || 0;
+      var ub = stat(staffMap[b]).u || 0;
+      return ub - ua;
+    }).forEach(function(sName) {
+      var sRows = staffMap[sName];
+      var ss = stat(sRows);
+      lines.push('👤 ' + trimName(sName) + '　'
+        + (MB.dlChips.r ? '🔴未達' + (ss.u||0) + '　' : '')
+        + (MB.dlChips.g ? '✅達成' + (ss.l||0) : ''));
+      sRows.slice().sort(function(a,b){
+        var ka = gs(a), kb = gs(b);
+        if (ka==='u' && kb!=='u') return -1;
+        if (kb==='u' && ka!=='u') return 1;
+        return gv(a,'store').localeCompare(gv(b,'store'),'zh-TW');
+      }).forEach(function(r){
+        var k = gs(r);
+        var em = k==='l' ? '✅' : '🔴';
+        lines.push('  ' + em + ' ' + gv(r,'type') + '｜' + gv(r,'store'));
+      });
+      lines.push('');
+    });
+    var text = lines.join('\n').trim();
+    var btn = document.getElementById('mb-copy-btn');
+    var orig = btn ? btn.textContent : '';
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function(){
+        if (btn) { btn.textContent = '✅'; setTimeout(function(){ btn.textContent = orig; }, 1500); }
+      });
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); } catch(e){}
+      document.body.removeChild(ta);
+      if (btn) { btn.textContent = '✅'; setTimeout(function(){ btn.textContent = orig; }, 1500); }
+    }
+  }
+
+  /* ── 下載 XLSX ── */
+  function mbDownload() {
+    if (typeof XLSX === 'undefined') { alert('SheetJS 尚未載入'); return; }
+    var rows = mbGetDlRows();
+    if (!rows.length) { alert('沒有符合勾選條件的資料'); return; }
+    var breadcrumb = MB.stack.map(function(s) { return s.label; }).join('_');
+    var chips = [];
+    if (MB.dlChips.r) chips.push('未達');
+    if (MB.dlChips.g) chips.push('達成');
+    var statusLabelMap = { l: '達成', u: '未達' };
+    var listHeader = ['狀態'].concat(allHeaders);
+    var listRows = rows.slice().sort(function(a,b){
+      var ka = gs(a), kb = gs(b);
+      if (ka==='u' && kb!=='u') return -1;
+      if (kb==='u' && ka!=='u') return 1;
+      return (gv(a,'area')+gv(a,'office')+gv(a,'staff')+gv(a,'store'))
+        .localeCompare(gv(b,'area')+gv(b,'office')+gv(b,'staff')+gv(b,'store'), 'zh-TW');
+    }).map(function(r){
+      return [statusLabelMap[gs(r)] || gs(r)].concat(r.slice(0, allHeaders.length));
+    });
+    var wb = XLSX.utils.book_new();
+    var ws = XLSX.utils.aoa_to_sheet([listHeader].concat(listRows));
+    ws['!cols'] = listHeader.map(function(h){ return { wch: Math.max(10, Math.min(30, (h||'').length*2+4)) }; });
+    XLSX.utils.book_append_sheet(wb, ws, '明細清冊');
+    var now = new Date();
+    var ts = now.getFullYear() + ('0'+(now.getMonth()+1)).slice(-2) + ('0'+now.getDate()).slice(-2);
+    var fname = '主要通路巡訪' + (breadcrumb ? '_' + breadcrumb : '') + '_' + chips.join('＋') + '_' + ts + '.xlsx';
+    XLSX.writeFile(wb, fname);
+    var btn = document.getElementById('mb-dl-btn');
+    if (btn) { btn.textContent = '✅ 完成'; setTimeout(function(){ btn.textContent = '📥 下載'; }, 1500); }
+  }
+
+  /* ── 初始化手機版 ── */
+  function mbInit() {
+    /* 偵測是否為主要通路巡訪 */
+    var isBcCv = false;
+    if (typeof SURVEYS !== 'undefined' && typeof curSurvey !== 'undefined' && curSurvey >= 0) {
+      var s = SURVEYS[curSurvey];
+      if (s && s.name && s.name.indexOf('主要通路') >= 0) isBcCv = true;
+    }
+    MB.isBcCv = isBcCv;
+    if (!isBcCv) {
+      document.getElementById('mb-content').innerHTML =
+        '<div class="mb-empty">此專案暫不支援手機版介面<br>請切換至桌機檢視</div>';
+      return;
+    }
+    MB.stack = [];
+    MB.mode  = 'r';
+    MB.storeOpen = false;
+    /* 資料時間 */
+    var dt = document.getElementById('mb-datatime');
+    if (dt && _syncTime) { dt.textContent = _syncTime; dt.style.display = ''; }
+    mbRender();
+  }
+
+  /* ── 裝置偵測：手機版啟動入口 ── */
+  function mbCheckDevice() {
+    var isMobile = window.innerWidth < 768;
+    if (!isMobile) return;
+    document.body.classList.add('mobile-mode');
+    /* 等待資料載入完成後再渲染 */
+    var orig = typeof render === 'function' ? render : null;
+    /* 覆寫 render，讓資料載入後自動觸發手機版 */
+    window._mbRenderPending = true;
+  }
+
+  /* ── 監聽桌機版 render，完成後啟動手機版 ── */
+  (function() {
+    var _origRender = null;
+    function hookRender() {
+      if (typeof render !== 'function') {
+        setTimeout(hookRender, 100); return;
+      }
+      _origRender = render;
+      window.render = function() {
+        _origRender.apply(this, arguments);
+        if (window._mbRenderPending && document.body.classList.contains('mobile-mode')) {
+          window._mbRenderPending = false;
+          mbInit();
+        }
+      };
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', function() {
+        mbCheckDevice();
+        hookRender();
+      });
+    } else {
+      mbCheckDevice();
+      hookRender();
+    }
+  })();
+  </script>
+
   </body>
 
 </html>
