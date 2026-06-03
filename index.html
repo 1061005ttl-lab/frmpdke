@@ -6477,220 +6477,6 @@
         setTimeout(function() { ls.style.display = 'none'; ls.style.transition = ''; }, 420);
       }
 
-      /* ══ 啟動 ══ */
-      document.addEventListener('DOMContentLoaded', function() { initRankDrawer(); });
-      if (document.readyState !== 'loading') { initRankDrawer(); }
-      showLoading();
-      loadSurveys(function() {
-        buildSurveySelects();
-        onSurveyChange();
-      });
-
-      /* ══ 視角切換 ══ */
-      function setViewMode(m) {
-        if (_viewMode === m) return;
-        _viewMode = m;
-        _chDrillStack = [];
-        var a = document.getElementById('vt-org'), b = document.getElementById('vt-ch');
-        if (a && b) {
-          a.className = 'vt-btn' + (m === 'org' ? ' on' : '');
-          b.className = 'vt-btn' + (m === 'ch' ? ' on' : '');
-        }
-        updateGlobalBar();
-        render('none');
-      }
-
-      function chDrillInto(level, key) {
-        var rows = visible();
-        var skip = chSkipLayers(rows);
-        if (level === 'ch') {
-          _chDrillStack = [{ level: 'ch', key: key }];
-        } else if (level === 'type') {
-          var autoCh = skip.skipCh ? Object.keys(groupBy(rows, 'channel'))[0] : null;
-          var chEntry = _chDrillStack[0] || (autoCh ? { level: 'ch', key: autoCh } : null);
-          _chDrillStack = chEntry ? [chEntry, { level: 'type', key: key }] : [{ level: 'type', key: key }];
-        } else if (level === 'area') {
-          var chRows = _chDrillStack[0] ? rows.filter(function(r) { return gv(r, 'channel') === _chDrillStack[0].key; }) : rows;
-          var autoTp = skip.skipType ? Object.keys(groupBy(chRows, 'type'))[0] : null;
-          var tpEntry = _chDrillStack[1] || (autoTp ? { level: 'type', key: autoTp } : null);
-          _chDrillStack = tpEntry ? [_chDrillStack[0], tpEntry, { level: 'area', key: key }] : [_chDrillStack[0], { level: 'area', key: key }];
-        }
-        doRender('forward', null);
-      }
-
-      function chGoToDepth(d) {
-        /* [2026-05-28] 移除 length===d 的提前 return：
-           當從深層鑽回最上層（d=0）時，_chDrillStack 已被清空但畫面可能是空白，
-           需要強制執行 doRender 重新渲染，不能因為 stack 長度已符合就跳過。 */
-        _chDrillStack = _chDrillStack.slice(0, d);
-        doRender('back', null);
-      }
-
-      function chSkipLayers(rows) {
-        var chs = Object.keys(groupBy(rows, 'channel'));
-        var skipCh = chs.length <= 1;
-        var tps = Object.keys(groupBy(rows, 'type'));
-        var skipType = tps.length <= 1;
-        return { skipCh: skipCh, skipType: skipType };
-      }
-
-      function buildChStage(container, rows) {
-        container.innerHTML = '';
-        var skip = chSkipLayers(rows);
-        var selCh = _chDrillStack[0] ? _chDrillStack[0].key : null;
-        var selTp = _chDrillStack[1] ? _chDrillStack[1].key : null;
-        var selArea = _chDrillStack[2] ? _chDrillStack[2].key : null;
-        var autoCh = skip.skipCh ? Object.keys(groupBy(rows, 'channel'))[0] : null;
-        var chRows = selCh ? rows.filter(function(r) { return gv(r, 'channel') === selCh; }) : rows;
-        var autoTp = skip.skipType ? Object.keys(groupBy(chRows, 'type'))[0] : null;
-        var tpRows = selTp ? chRows.filter(function(r) { return gv(r, 'type') === selTp; }) : chRows;
-        var aRows = selArea ? tpRows.filter(function(r) { return gv(r, 'area') === selArea; }) : tpRows;
-        if (!selCh && !selTp && !selArea) {
-          var main = makeMain();
-          main.classList.add('ch-view');
-          if (!skip.skipCh) {
-            buildChCards(main, rows);
-          } else if (!skip.skipType) {
-            buildChTypeCards(main, rows, autoCh || '整體');
-          } else {
-            var lbl = [autoTp, autoCh].filter(Boolean).join(' · ');
-            buildChAreaCards(main, rows, lbl || '整體');
-          }
-          container.appendChild(main);
-          return;
-        }
-        if (selCh && !skip.skipCh && !selTp) {
-          var side = makeSide(220);
-          buildChSide(side, rows, selCh);
-          container.appendChild(side);
-          container.appendChild(makeDivider());
-          var main = makeMain();
-          main.classList.add('area-view');
-          buildChTypeCards(main, chRows, selCh);
-          container.appendChild(main);
-          return;
-        }
-        if (selTp && !selArea) {
-          if (!skip.skipCh) {
-            var side = makeSide(220);
-            buildChSide(side, rows, selCh);
-            container.appendChild(side);
-            container.appendChild(makeDivider());
-          }
-          var side2 = makeSide(210);
-          buildChTypeSide(side2, chRows, selTp, selCh || autoCh || '');
-          container.appendChild(side2);
-          container.appendChild(makeDivider());
-          var main = makeMain();
-          main.classList.add('area-view');
-          buildChAreaCards(main, tpRows, [selCh || autoCh, selTp].filter(Boolean).join(' · '));
-          container.appendChild(main);
-          return;
-        }
-        if (selArea) {
-          if (!skip.skipCh) {
-            var side = makeSide(220);
-            buildChSide(side, rows, selCh);
-            container.appendChild(side);
-            container.appendChild(makeDivider());
-          }
-          if (!skip.skipType) {
-            var side2 = makeSide(210);
-            buildChTypeSide(side2, chRows, selTp, selCh || autoCh || '');
-            container.appendChild(side2);
-            container.appendChild(makeDivider());
-          }
-          var side3 = makeSide(200);
-          buildChAreaSide(side3, tpRows, selArea, selTp || autoTp || '');
-          container.appendChild(side3);
-          container.appendChild(makeDivider());
-          var main = makeMain();
-          main.classList.add('store-view');
-          buildStoreCards(main, aRows);
-          container.appendChild(main);
-        }
-      }
-
-      function buildChCards(c, rows) {
-        c.appendChild(makeWholeCard('整體', rows));
-        var m = groupBy(rows, 'channel');
-        var lastKey = curStatuses[curStatuses.length - 1].key;
-        var sorted = Object.keys(m).sort(function(a, b) { return (stat(m[b])[lastKey] || 0) - (stat(m[a])[lastKey] || 0); });
-        sorted.forEach(function(k) { c.appendChild(makeBigCard(k, m[k], function() { chDrillInto('ch', k); }, false)); });
-        if (!sorted.length) c.appendChild(makeEmpty('沒有符合條件的資料'));
-      }
-
-      function buildChSide(c, rows, selCh) {
-        var m = groupBy(rows, 'channel');
-        var lastKey = curStatuses[curStatuses.length - 1].key;
-        var sorted = Object.keys(m).sort(function(a, b) { return (stat(m[b])[lastKey] || 0) - (stat(m[a])[lastKey] || 0); });
-        c.appendChild(makeMiniCard('整體', rows, function() { chGoToDepth(0); }, false));
-        sorted.forEach(function(k) { c.appendChild(makeMiniCard(k, m[k], function() { chDrillInto('ch', k); }, k === selCh)); });
-      }
-
-      function buildChTypeCards(c, rows, chName) {
-        c.appendChild(makeWholeCard(chName + ' 整體', rows));
-        var m = groupBy(rows, 'type');
-        var lastKey = curStatuses[curStatuses.length - 1].key;
-        var sorted = Object.keys(m).sort(function(a, b) { return (stat(m[b])[lastKey] || 0) - (stat(m[a])[lastKey] || 0); });
-        sorted.forEach(function(k) { c.appendChild(makeBigCard(k, m[k], function() { chDrillInto('type', k); }, false)); });
-        if (!sorted.length) c.appendChild(makeEmpty('沒有符合條件的資料'));
-      }
-
-      function buildChTypeSide(c, rows, selTp, chName) {
-        var m = groupBy(rows, 'type');
-        var lastKey = curStatuses[curStatuses.length - 1].key;
-        var sorted = Object.keys(m).sort(function(a, b) { return (stat(m[b])[lastKey] || 0) - (stat(m[a])[lastKey] || 0); });
-        c.appendChild(makeMiniCard(chName + ' 整體', rows, function() { chGoToDepth(1); }, false));
-        sorted.forEach(function(k) { c.appendChild(makeMiniCard(k, m[k], function() { chDrillInto('type', k); }, k === selTp)); });
-      }
-
-      function buildChAreaCards(c, rows, label) {
-        c.appendChild(makeWholeCard(label + ' 整體', rows));
-        var m = groupBy(rows, 'area');
-        var sorted = sortArea(Object.keys(m));
-        sorted.forEach(function(k) { c.appendChild(makeBigCard(k, m[k], function() { chDrillInto('area', k); }, false)); });
-        if (!sorted.length) c.appendChild(makeEmpty('沒有符合條件的資料'));
-      }
-
-      function buildChAreaSide(c, rows, selArea, tpName) {
-        var m = groupBy(rows, 'area');
-        var sorted = sortArea(Object.keys(m));
-        c.appendChild(makeMiniCard(tpName + ' 整體', rows, function() { chGoToDepth(2); }, false));
-        sorted.forEach(function(k) { c.appendChild(makeMiniCard(k, m[k], function() { chDrillInto('area', k); }, k === selArea)); });
-      }
-
-    </script>
-  
-  <!-- ══ 手機版應用程式根節點 ══ -->
-  <div id="mobile-app">
-    <div id="mb-nav" class="mb-nav"></div>
-    <div id="mb-datatime" class="mb-datatime" style="display:none"></div>
-    <div class="mb-scroll" id="mb-scroll">
-      <div id="mb-content">
-        <div class="mb-loading">
-          <div class="mb-loading-spinner"></div>
-          <div class="mb-loading-text">載入中…</div>
-        </div>
-      </div>
-    </div>
-    <div class="mb-action-bar" id="mb-action-bar">
-      <div class="mb-dl-status-wrap" id="mb-dl-chips">
-        <button class="mb-dl-chip checked-r" id="mb-chip-r" onclick="mbToggleChip('r')">
-          <span class="chip-check">✓</span> 未達
-        </button>
-        <button class="mb-dl-chip" id="mb-chip-g" onclick="mbToggleChip('g')">
-          <span class="chip-check" style="opacity:0">✓</span> 達成
-        </button>
-      </div>
-      <div class="mb-action-btns">
-        <button class="mb-action-btn secondary" id="mb-copy-btn" onclick="mbCopy()">📋</button>
-        <button class="mb-action-btn" id="mb-dl-btn" onclick="mbDownload()">📥 下載</button>
-      </div>
-    </div>
-  </div>
-
-  <script>
   /* ══════════════════════════════════════════
      手機版「主要通路巡訪」介面邏輯
      ══════════════════════════════════════════ */
@@ -7187,7 +6973,219 @@
       document.body.classList.add('mobile-mode');
     }
   });
-  </script>
+
+      /* ══ 啟動 ══ */
+      document.addEventListener('DOMContentLoaded', function() { initRankDrawer(); });
+      if (document.readyState !== 'loading') { initRankDrawer(); }
+      showLoading();
+      loadSurveys(function() {
+        buildSurveySelects();
+        onSurveyChange();
+      });
+
+      /* ══ 視角切換 ══ */
+      function setViewMode(m) {
+        if (_viewMode === m) return;
+        _viewMode = m;
+        _chDrillStack = [];
+        var a = document.getElementById('vt-org'), b = document.getElementById('vt-ch');
+        if (a && b) {
+          a.className = 'vt-btn' + (m === 'org' ? ' on' : '');
+          b.className = 'vt-btn' + (m === 'ch' ? ' on' : '');
+        }
+        updateGlobalBar();
+        render('none');
+      }
+
+      function chDrillInto(level, key) {
+        var rows = visible();
+        var skip = chSkipLayers(rows);
+        if (level === 'ch') {
+          _chDrillStack = [{ level: 'ch', key: key }];
+        } else if (level === 'type') {
+          var autoCh = skip.skipCh ? Object.keys(groupBy(rows, 'channel'))[0] : null;
+          var chEntry = _chDrillStack[0] || (autoCh ? { level: 'ch', key: autoCh } : null);
+          _chDrillStack = chEntry ? [chEntry, { level: 'type', key: key }] : [{ level: 'type', key: key }];
+        } else if (level === 'area') {
+          var chRows = _chDrillStack[0] ? rows.filter(function(r) { return gv(r, 'channel') === _chDrillStack[0].key; }) : rows;
+          var autoTp = skip.skipType ? Object.keys(groupBy(chRows, 'type'))[0] : null;
+          var tpEntry = _chDrillStack[1] || (autoTp ? { level: 'type', key: autoTp } : null);
+          _chDrillStack = tpEntry ? [_chDrillStack[0], tpEntry, { level: 'area', key: key }] : [_chDrillStack[0], { level: 'area', key: key }];
+        }
+        doRender('forward', null);
+      }
+
+      function chGoToDepth(d) {
+        /* [2026-05-28] 移除 length===d 的提前 return：
+           當從深層鑽回最上層（d=0）時，_chDrillStack 已被清空但畫面可能是空白，
+           需要強制執行 doRender 重新渲染，不能因為 stack 長度已符合就跳過。 */
+        _chDrillStack = _chDrillStack.slice(0, d);
+        doRender('back', null);
+      }
+
+      function chSkipLayers(rows) {
+        var chs = Object.keys(groupBy(rows, 'channel'));
+        var skipCh = chs.length <= 1;
+        var tps = Object.keys(groupBy(rows, 'type'));
+        var skipType = tps.length <= 1;
+        return { skipCh: skipCh, skipType: skipType };
+      }
+
+      function buildChStage(container, rows) {
+        container.innerHTML = '';
+        var skip = chSkipLayers(rows);
+        var selCh = _chDrillStack[0] ? _chDrillStack[0].key : null;
+        var selTp = _chDrillStack[1] ? _chDrillStack[1].key : null;
+        var selArea = _chDrillStack[2] ? _chDrillStack[2].key : null;
+        var autoCh = skip.skipCh ? Object.keys(groupBy(rows, 'channel'))[0] : null;
+        var chRows = selCh ? rows.filter(function(r) { return gv(r, 'channel') === selCh; }) : rows;
+        var autoTp = skip.skipType ? Object.keys(groupBy(chRows, 'type'))[0] : null;
+        var tpRows = selTp ? chRows.filter(function(r) { return gv(r, 'type') === selTp; }) : chRows;
+        var aRows = selArea ? tpRows.filter(function(r) { return gv(r, 'area') === selArea; }) : tpRows;
+        if (!selCh && !selTp && !selArea) {
+          var main = makeMain();
+          main.classList.add('ch-view');
+          if (!skip.skipCh) {
+            buildChCards(main, rows);
+          } else if (!skip.skipType) {
+            buildChTypeCards(main, rows, autoCh || '整體');
+          } else {
+            var lbl = [autoTp, autoCh].filter(Boolean).join(' · ');
+            buildChAreaCards(main, rows, lbl || '整體');
+          }
+          container.appendChild(main);
+          return;
+        }
+        if (selCh && !skip.skipCh && !selTp) {
+          var side = makeSide(220);
+          buildChSide(side, rows, selCh);
+          container.appendChild(side);
+          container.appendChild(makeDivider());
+          var main = makeMain();
+          main.classList.add('area-view');
+          buildChTypeCards(main, chRows, selCh);
+          container.appendChild(main);
+          return;
+        }
+        if (selTp && !selArea) {
+          if (!skip.skipCh) {
+            var side = makeSide(220);
+            buildChSide(side, rows, selCh);
+            container.appendChild(side);
+            container.appendChild(makeDivider());
+          }
+          var side2 = makeSide(210);
+          buildChTypeSide(side2, chRows, selTp, selCh || autoCh || '');
+          container.appendChild(side2);
+          container.appendChild(makeDivider());
+          var main = makeMain();
+          main.classList.add('area-view');
+          buildChAreaCards(main, tpRows, [selCh || autoCh, selTp].filter(Boolean).join(' · '));
+          container.appendChild(main);
+          return;
+        }
+        if (selArea) {
+          if (!skip.skipCh) {
+            var side = makeSide(220);
+            buildChSide(side, rows, selCh);
+            container.appendChild(side);
+            container.appendChild(makeDivider());
+          }
+          if (!skip.skipType) {
+            var side2 = makeSide(210);
+            buildChTypeSide(side2, chRows, selTp, selCh || autoCh || '');
+            container.appendChild(side2);
+            container.appendChild(makeDivider());
+          }
+          var side3 = makeSide(200);
+          buildChAreaSide(side3, tpRows, selArea, selTp || autoTp || '');
+          container.appendChild(side3);
+          container.appendChild(makeDivider());
+          var main = makeMain();
+          main.classList.add('store-view');
+          buildStoreCards(main, aRows);
+          container.appendChild(main);
+        }
+      }
+
+      function buildChCards(c, rows) {
+        c.appendChild(makeWholeCard('整體', rows));
+        var m = groupBy(rows, 'channel');
+        var lastKey = curStatuses[curStatuses.length - 1].key;
+        var sorted = Object.keys(m).sort(function(a, b) { return (stat(m[b])[lastKey] || 0) - (stat(m[a])[lastKey] || 0); });
+        sorted.forEach(function(k) { c.appendChild(makeBigCard(k, m[k], function() { chDrillInto('ch', k); }, false)); });
+        if (!sorted.length) c.appendChild(makeEmpty('沒有符合條件的資料'));
+      }
+
+      function buildChSide(c, rows, selCh) {
+        var m = groupBy(rows, 'channel');
+        var lastKey = curStatuses[curStatuses.length - 1].key;
+        var sorted = Object.keys(m).sort(function(a, b) { return (stat(m[b])[lastKey] || 0) - (stat(m[a])[lastKey] || 0); });
+        c.appendChild(makeMiniCard('整體', rows, function() { chGoToDepth(0); }, false));
+        sorted.forEach(function(k) { c.appendChild(makeMiniCard(k, m[k], function() { chDrillInto('ch', k); }, k === selCh)); });
+      }
+
+      function buildChTypeCards(c, rows, chName) {
+        c.appendChild(makeWholeCard(chName + ' 整體', rows));
+        var m = groupBy(rows, 'type');
+        var lastKey = curStatuses[curStatuses.length - 1].key;
+        var sorted = Object.keys(m).sort(function(a, b) { return (stat(m[b])[lastKey] || 0) - (stat(m[a])[lastKey] || 0); });
+        sorted.forEach(function(k) { c.appendChild(makeBigCard(k, m[k], function() { chDrillInto('type', k); }, false)); });
+        if (!sorted.length) c.appendChild(makeEmpty('沒有符合條件的資料'));
+      }
+
+      function buildChTypeSide(c, rows, selTp, chName) {
+        var m = groupBy(rows, 'type');
+        var lastKey = curStatuses[curStatuses.length - 1].key;
+        var sorted = Object.keys(m).sort(function(a, b) { return (stat(m[b])[lastKey] || 0) - (stat(m[a])[lastKey] || 0); });
+        c.appendChild(makeMiniCard(chName + ' 整體', rows, function() { chGoToDepth(1); }, false));
+        sorted.forEach(function(k) { c.appendChild(makeMiniCard(k, m[k], function() { chDrillInto('type', k); }, k === selTp)); });
+      }
+
+      function buildChAreaCards(c, rows, label) {
+        c.appendChild(makeWholeCard(label + ' 整體', rows));
+        var m = groupBy(rows, 'area');
+        var sorted = sortArea(Object.keys(m));
+        sorted.forEach(function(k) { c.appendChild(makeBigCard(k, m[k], function() { chDrillInto('area', k); }, false)); });
+        if (!sorted.length) c.appendChild(makeEmpty('沒有符合條件的資料'));
+      }
+
+      function buildChAreaSide(c, rows, selArea, tpName) {
+        var m = groupBy(rows, 'area');
+        var sorted = sortArea(Object.keys(m));
+        c.appendChild(makeMiniCard(tpName + ' 整體', rows, function() { chGoToDepth(2); }, false));
+        sorted.forEach(function(k) { c.appendChild(makeMiniCard(k, m[k], function() { chDrillInto('area', k); }, k === selArea)); });
+      }
+
+    </script>
+  
+  <!-- ══ 手機版應用程式根節點 ══ -->
+  <div id="mobile-app">
+    <div id="mb-nav" class="mb-nav"></div>
+    <div id="mb-datatime" class="mb-datatime" style="display:none"></div>
+    <div class="mb-scroll" id="mb-scroll">
+      <div id="mb-content">
+        <div class="mb-loading">
+          <div class="mb-loading-spinner"></div>
+          <div class="mb-loading-text">載入中…</div>
+        </div>
+      </div>
+    </div>
+    <div class="mb-action-bar" id="mb-action-bar">
+      <div class="mb-dl-status-wrap" id="mb-dl-chips">
+        <button class="mb-dl-chip checked-r" id="mb-chip-r" onclick="mbToggleChip('r')">
+          <span class="chip-check">✓</span> 未達
+        </button>
+        <button class="mb-dl-chip" id="mb-chip-g" onclick="mbToggleChip('g')">
+          <span class="chip-check" style="opacity:0">✓</span> 達成
+        </button>
+      </div>
+      <div class="mb-action-btns">
+        <button class="mb-action-btn secondary" id="mb-copy-btn" onclick="mbCopy()">📋</button>
+        <button class="mb-action-btn" id="mb-dl-btn" onclick="mbDownload()">📥 下載</button>
+      </div>
+    </div>
+  </div>
 
   </body>
 
