@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <script>
+    (function () {
+      var input = prompt("請輸入公司英文簡稱(大小寫不分)：", "");
+      if (!input || input.toLowerCase() !== "ttl") {
+        alert("驗證失敗");
+        window.location.replace("about:blank");
+        return;
+      }
+      (function () {
+        var BASE_W = 1440;
+        function applyZoom() {
+          var ratio = Math.min(1, window.innerWidth / BASE_W);
+          ratio = Math.max(0.55, ratio);
+          document.documentElement.style.zoom = ratio;
+        }
+        applyZoom();
+        window.addEventListener('resize', applyZoom);
+      })();
+    })();
+  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>品評箱數看板</title>
+  <style>
+    :root {
+      --primary: #8BA690;
+      --primary-d: #6a8a70;
+      --bg: #F0EDE6;
+      --card: #FFFFFF;
+      --green: #22a84c;
+      --green-bg: rgba(34,168,76,.08);
+      --green-bd: rgba(34,168,76,.22);
+      --red: #d93025;
+      --red-bg: rgba(217,48,37,.08);
+      --red-bd: rgba(217,48,37,.22);
+      --blue: #1a73e8;
+      --blue-bg: rgba(26,115,232,.08);
+      --blue-bd: rgba(26,115,232,.22);
+      --text: #2D2D2D;
+      --sub: #888;
+      --border: rgba(0,0,0,0.09);
+      --shadow: rgba(80,100,85,.13);
+      --r: 12px;
+      --dur: .38s;
+      --ease: cubic-bezier(.34,1.05,.64,1);
+      --glass: rgba(255,255,255,0.72);
+      --glass-border: rgba(255,255,255,0.55);
+    }
+    *,*::before,*::after { margin:0; padding:0; box-sizing:border-box; }
+    html, body { height:100%; overflow:hidden; font-family:'Microsoft JhengHei','Noto Sans TC',sans-serif; }
+    body { display:flex; flex-direction:column; background:var(--bg); color:var(--text); }
+
+    /* ══ TOPBAR ══ */
+    #topbar {
+      flex-shrink:0;
+      background:var(--glass);
+      backdrop-filter:blur(14px);
+      -webkit-backdrop-filter:blur(14px);
+      border-bottom:1px solid var(--glass-border);
+      padding:0 16px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      min-height:48px;
+      box-shadow:0 2px 12px rgba(0,0,0,.07),0 1px 0 rgba(255,255,255,.8) inset;
+      z-index:100;
+      flex-wrap:wrap;
+    }
+    #title { font-size:14px; font-weight:900; color:var(--primary-d); letter-spacing:.5px; white-space:nowrap; flex-shrink:0; }
+    .sep { width:1px; height:18px; background:rgba(0,0,0,.1); flex-shrink:0; }
+    .tb-label { font-size:11px; color:var(--sub); white-space:nowrap; flex-shrink:0; font-weight:700; }
+    .tb-sel {
+      padding:5px 8px; border:1px solid rgba(0,0,0,.1); border-radius:7px;
+      background:rgba(255,255,255,.6); color:var(--text); font-size:12px; font-weight:600;
+      font-family:inherit; cursor:pointer; min-width:80px; outline:none;
+      transition:border-color .15s; white-space:nowrap;
+    }
+    .tb-sel:focus { border-color:var(--primary); }
+    .tb-sel:disabled { opacity:.45; cursor:default; }
+
+    /* Q chips */
+    #q-chips { display:flex; gap:5px; flex-shrink:0; }
+    .q-chip {
+      padding:4px 13px; border-radius:99px; font-size:11px; font-weight:700;
+      border:1.5px solid rgba(139,166,144,.35); cursor:pointer;
+      background:transparent; color:#4a7a55; font-family:inherit; transition:all .15s;
+    }
+    .q-chip.on { background:var(--green-bg); border-color:var(--green); color:#1e6e35; }
+
+    #ver-ts {
+      margin-left:auto; font-size:10px; color:var(--sub); white-space:nowrap;
+      background:rgba(0,0,0,.04); padding:3px 9px; border-radius:6px;
+    }
+
+    /* ══ GBAR ══ */
+    #gbar {
+      flex-shrink:0; background:rgba(255,255,255,.5); backdrop-filter:blur(8px);
+      border-bottom:1px solid rgba(0,0,0,.06); padding:0 16px;
+      display:flex; align-items:center; justify-content:space-between;
+      min-height:32px; font-size:12px; gap:10px;
+    }
+    .gb-sync { display:flex; align-items:center; gap:8px; }
+    .gb-sync-item { font-size:11px; color:var(--sub); white-space:nowrap; }
+    .gb-sync-item.badge {
+      background:rgba(139,166,144,.18); color:#4a7a55; font-weight:800;
+      font-size:12px; padding:2px 10px; border-radius:99px;
+      border:1.5px solid rgba(106,138,112,.35);
+    }
+    .gb-right { display:flex; align-items:center; gap:7px; }
+    .gb-btn {
+      padding:3px 11px; border-radius:6px; border:1px solid rgba(0,0,0,.1);
+      background:rgba(255,255,255,.7); color:var(--text); font-size:11px; font-weight:600;
+      cursor:pointer; white-space:nowrap; transition:all .14s; font-family:inherit;
+    }
+    .gb-btn:hover { border-color:var(--primary); color:var(--primary-d); }
+
+    /* ══ CONTENT ══ */
+    #content-wrap {
+      flex:1; min-height:0; display:flex; flex-direction:row;
+      overflow:hidden; position:relative;
+    }
+
+    /* ══ MAIN GRID ══ */
+    #main-area {
+      flex:1; min-width:0; overflow-y:auto; overflow-x:hidden;
+      padding:20px 24px; padding-right:56px;
+      display:grid;
+      grid-template-columns:repeat(auto-fill, minmax(clamp(280px,24vw,380px),1fr));
+      gap:16px; align-content:start;
+    }
+    #main-area::-webkit-scrollbar { width:4px; }
+    #main-area::-webkit-scrollbar-thumb { background:rgba(0,0,0,.1); border-radius:4px; }
+
+    /* ══ PERSON CARD ══ */
+    .person-card {
+      background:var(--card);
+      border-radius:var(--r);
+      border:1px solid var(--border);
+      box-shadow:0 2px 12px var(--shadow);
+      overflow:hidden;
+      transition:box-shadow .2s, transform .2s;
+    }
+    .person-card:hover { box-shadow:0 6px 24px rgba(80,100,85,.18); transform:translateY(-1px); }
+
+    .pc-header {
+      padding:12px 14px 8px;
+      border-bottom:1px solid rgba(0,0,0,.06);
+      display:flex; align-items:flex-start; justify-content:space-between; gap:8px;
+    }
+    .pc-name { font-size:14px; font-weight:900; color:var(--text); line-height:1.3; }
+    .pc-meta { font-size:10px; color:var(--sub); margin-top:2px; }
+    .pc-total {
+      flex-shrink:0; text-align:right;
+    }
+    .pc-total-num {
+      font-size:22px; font-weight:900; line-height:1;
+    }
+    .pc-total-num.pos { color:var(--green); }
+    .pc-total-num.neg { color:var(--red); }
+    .pc-total-num.nil { color:var(--sub); }
+    .pc-total-label { font-size:9px; color:var(--sub); margin-top:2px; text-align:right; }
+    .pc-total-tag {
+      display:inline-block; font-size:9px; font-weight:800;
+      padding:1px 6px; border-radius:99px; margin-top:3px;
+    }
+    .pc-total-tag.ok { background:var(--green-bg); color:var(--green); border:1px solid var(--green-bd); }
+    .pc-total-tag.ng { background:rgba(0,0,0,.05); color:var(--sub); border:1px solid rgba(0,0,0,.1); }
+
+    /* ══ TABLE ══ */
+    .pc-table { width:100%; border-collapse:collapse; }
+    .pc-table th {
+      font-size:9px; font-weight:800; color:var(--sub); letter-spacing:.4px;
+      padding:5px 10px; text-align:right; border-bottom:1px solid rgba(0,0,0,.07);
+      background:rgba(0,0,0,.02);
+    }
+    .pc-table th:first-child { text-align:left; }
+    .pc-table td {
+      font-size:12px; font-weight:600; padding:7px 10px;
+      text-align:right; border-bottom:1px solid rgba(0,0,0,.04);
+      color:var(--text);
+    }
+    .pc-table td:first-child { text-align:left; color:var(--sub); font-size:11px; font-weight:700; }
+    .pc-table tr:last-child td { border-bottom:none; }
+    .pc-table tr.total-row td {
+      font-weight:900; font-size:12px; background:rgba(0,0,0,.02);
+      border-top:1.5px solid rgba(0,0,0,.08); border-bottom:none;
+      padding:8px 10px;
+    }
+    .pc-table tr.total-row td:first-child { color:var(--text); }
+
+    td.ctn-cur { color:var(--blue); }
+    td.ctn-tgt { color:#7c3aed; }
+    td.ctn-eval { font-weight:900; }
+    td.ctn-eval.pos { color:var(--green); }
+    td.ctn-eval.neg { color:var(--red); }
+    td.ctn-eval.nil { color:var(--sub); }
+    td.ctn-eval.locked {
+      color:var(--sub);
+      font-size:11px; font-weight:600;
+    }
+
+    /* ══ RANK DRAWER ══ */
+    #rank-drawer {
+      position:absolute; top:0; right:0; bottom:0; width:240px;
+      background:var(--glass); backdrop-filter:blur(18px);
+      border-left:1px solid rgba(0,0,0,.1);
+      display:flex; flex-direction:column;
+      transition:width .3s var(--ease), box-shadow .3s;
+      overflow:hidden; z-index:50;
+      box-shadow:-4px 0 20px rgba(0,0,0,.1);
+    }
+    #rank-drawer.collapsed { width:32px; box-shadow:none; }
+    #rank-drawer.collapsed .rd-content { opacity:0; pointer-events:none; }
+    .rd-toggle {
+      width:32px; flex-shrink:0; display:flex; align-items:center;
+      justify-content:center; cursor:pointer;
+      border-bottom:1px solid rgba(0,0,0,.07); padding:10px 0;
+    }
+    #rank-drawer.collapsed .rd-toggle {
+      border-bottom:none; writing-mode:vertical-rl; height:100%;
+      padding:16px 0; font-size:10px; font-weight:700; color:var(--sub); letter-spacing:1px;
+    }
+    #rank-drawer:not(.collapsed) .rd-toggle {
+      writing-mode:horizontal-tb; flex-direction:row; width:100%;
+      padding:10px 14px; border-bottom:1px solid rgba(0,0,0,.07);
+    }
+    .rd-toggle-title { font-size:11px; font-weight:800; color:var(--text); flex:1; }
+    .rd-toggle-icon { font-size:12px; }
+    .rd-content { flex:1; overflow-y:auto; overflow-x:hidden; opacity:1; transition:opacity .2s; }
+    .rd-content::-webkit-scrollbar { width:3px; }
+    .rd-content::-webkit-scrollbar-thumb { background:rgba(0,0,0,.1); border-radius:3px; }
+    .rd-section { padding:10px 12px 6px; }
+    .rd-sec-title {
+      font-size:9px; font-weight:900; letter-spacing:.8px; color:#aaa;
+      text-transform:uppercase; margin-bottom:7px;
+      display:flex; align-items:center; gap:6px;
+    }
+    .rd-sec-title::after { content:''; flex:1; height:1px; background:rgba(0,0,0,.07); }
+    .rank-item {
+      display:flex; align-items:center; gap:8px; padding:7px 9px;
+      border-radius:9px; margin-bottom:4px; cursor:default;
+      border:1px solid transparent; transition:all .18s;
+    }
+    .rank-item:hover { background:rgba(139,166,144,.1); border-color:rgba(139,166,144,.25); }
+    .rank-no {
+      width:20px; height:20px; border-radius:50%; background:rgba(0,0,0,.07);
+      font-size:10px; font-weight:900; display:flex; align-items:center; justify-content:center;
+      flex-shrink:0; color:var(--sub);
+    }
+    .rank-no.top1 { background:#FFD700; color:#7a5500; }
+    .rank-no.top2 { background:#C0C0C0; color:#555; }
+    .rank-no.top3 { background:#CD7F32; color:#fff; }
+    .rank-info { flex:1; min-width:0; }
+    .rank-name { font-size:11px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .rank-sub { font-size:9px; color:var(--sub); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .rank-val { font-size:13px; font-weight:900; flex-shrink:0; }
+    .rank-val.pos { color:var(--green); }
+    .rank-val.neg { color:var(--red); }
+    .rank-val.nil { color:var(--sub); }
+
+    /* ══ LOADING ══ */
+    #loading {
+      position:fixed; inset:0; background:var(--bg);
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      z-index:9999; gap:12px;
+    }
+    #loading-txt { font-size:13px; font-weight:700; color:var(--sub); letter-spacing:.5px; }
+
+    /* ══ EMPTY ══ */
+    .empty-msg {
+      grid-column:1/-1; display:flex; flex-direction:column; align-items:center;
+      justify-content:center; gap:10px; padding:60px 20px; color:var(--sub);
+      font-size:13px; font-weight:600;
+    }
+    .empty-msg .ei { font-size:32px; }
+  </style>
+</head>
+<body>
+
+<div id="loading">
+  <canvas id="loading-canvas" width="280" height="110"></canvas>
+  <div id="loading-txt">載入資料中</div>
+</div>
+
+<div id="topbar">
+  <div id="title">品評箱數看板</div>
+  <div class="sep"></div>
+  <span class="tb-label">營業處</span>
+  <select class="tb-sel" id="sel-area" onchange="applyFilters()" disabled>
+    <option value="">全部</option>
+  </select>
+  <span class="tb-label">營業所</span>
+  <select class="tb-sel" id="sel-office" onchange="applyFilters()" disabled>
+    <option value="">全部</option>
+  </select>
+  <div class="sep"></div>
+  <span class="tb-label">季度</span>
+  <div id="q-chips"></div>
+  <div id="ver-ts">Ver. 1.0.0 (2026-06-03)</div>
+</div>
+
+<div id="gbar">
+  <div class="gb-sync" id="gb-sync"></div>
+  <div class="gb-right">
+    <button class="gb-btn" onclick="downloadXLSX()">📥 XLSX</button>
+  </div>
+</div>
+
+<div id="content-wrap">
+  <div id="main-area"></div>
+  <div id="rank-drawer">
+    <div class="rd-toggle" onclick="toggleRankDrawer()" id="rd-toggle">
+      <span class="rd-toggle-title">🏆 品評排行</span>
+      <span class="rd-toggle-icon">◀</span>
+    </div>
+    <div class="rd-content" id="rd-content"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+/* ══ 設定 ══ */
+var SHEET_ID   = '1vUVbEG08JXZc05rAz4owM4_IFQnjJUGuDjBUqF-Q-Mg';
+var SHEET_NAME = '店家清冊';
+var SYNC_SHEET = '輔助';
+var SYNC_CELL  = 'B1';
+
+/* 季度月份對應 */
+var QUARTERS = {
+  Q1: [1,2,3],
+  Q2: [4,5,6],
+  Q3: [7,8,9],
+  Q4: [10,11,12]
+};
+var QUARTER_LABELS = ['Q1','Q2','Q3','Q4'];
+
+/* ══ 狀態 ══ */
+var allRows    = [];
+var allHeaders = [];
+var CI         = {};
+var curQ       = '';      /* 目前選的季度 */
+var fArea      = '';
+var fOffice    = '';
+var _syncTime  = '';
+var _rankOpen  = true;
+var _runRaf    = null;
+
+/* ══ 欄位索引初始化 ══ */
+function initCI(hdrs) {
+  var MAP = {
+    year:    ['年份'],
+    month:   ['月份'],
+    quarter: ['季度'],
+    area:    ['營業處名稱'],
+    office:  ['營業所/課'],
+    staff:   ['主要訪員'],
+    type:    ['店家型態'],
+    code:    ['店家代碼'],
+    store:   ['店家名稱'],
+    grade:   ['店家等級'],
+    cur:     ['當期CTN'],
+    last:    ['去年CTN'],
+    inc:     ['增量箱數'],
+    source:  ['資料來源'],
+    role:    ['身分別'],
+    exclude: ['排除原由'],
+    mcheck:  ['月份數確認']
+  };
+  CI = {};
+  Object.keys(MAP).forEach(function(k) {
+    var found = -1;
+    MAP[k].forEach(function(name) {
+      if (found >= 0) return;
+      var i = hdrs.findIndex(function(h) { return h === name; });
+      if (i < 0) i = hdrs.findIndex(function(h) { return h.indexOf(name) >= 0; });
+      if (i >= 0) found = i;
+    });
+    CI[k] = found;
+  });
+}
+
+function gv(row, key) {
+  var i = CI[key];
+  return (i >= 0 && row[i] != null) ? String(row[i]).trim() : '';
+}
+function gn(row, key) {
+  var v = parseFloat(gv(row, key));
+  return isNaN(v) ? 0 : v;
+}
+
+/* ══ 資料載入 ══ */
+function fetchHeaders(id, sheet) {
+  var url = 'https://docs.google.com/spreadsheets/d/' + id +
+    '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheet) + '&headers=0&range=1:1';
+  return fetch(url).then(function(r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.text();
+  }).then(function(txt) {
+    var s = txt.indexOf('{'), e = txt.lastIndexOf('}');
+    if (s < 0) throw new Error('格式錯誤');
+    var json = JSON.parse(txt.slice(s, e+1));
+    var rows = (json.table && json.table.rows) || [];
+    if (!rows.length) return [];
+    return (rows[0].c || []).map(function(c) {
+      if (!c) return '';
+      if (c.f != null && String(c.f).trim()) return String(c.f).trim();
+      if (c.v != null) return String(c.v).trim();
+      return '';
+    });
+  });
+}
+
+function parseCellVal(c) {
+  if (!c || c.v == null) return '';
+  var sv = String(c.v);
+  if (sv.indexOf('Date(') === 0) {
+    var m = sv.match(/Date\((\d+),(\d+),(\d+)/);
+    if (m) return m[1] + '/' + String(Number(m[2])+1).padStart(2,'0') + '/' + String(m[3]).padStart(2,'0');
+  }
+  if (c.f != null) return String(c.f);
+  return sv;
+}
+
+function fetchSyncTime(id, sheet, cell) {
+  var url = 'https://docs.google.com/spreadsheets/d/' + id +
+    '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheet) + '&range=' + cell;
+  return fetch(url).then(function(r){ return r.text(); }).then(function(txt) {
+    var s = txt.indexOf('{'), e = txt.lastIndexOf('}');
+    if (s < 0) return '';
+    var json = JSON.parse(txt.slice(s, e+1));
+    var cell0 = json.table && json.table.rows && json.table.rows[0] &&
+                json.table.rows[0].c && json.table.rows[0].c[0];
+    if (!cell0) return '';
+    var raw = String(cell0.f || cell0.v || '').trim();
+    var dm = raw.match(/^Date\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)$/);
+    if (dm) return dm[1]+'/'+String(Number(dm[2])+1).padStart(2,'0')+'/'+String(dm[3]).padStart(2,'0')+
+      ' '+String(dm[4]).padStart(2,'0')+':'+String(dm[5]).padStart(2,'0')+':'+String(dm[6]).padStart(2,'0');
+    return raw;
+  }).catch(function(){ return ''; });
+}
+
+function loadData() {
+  showLoading();
+  var dataUrl = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+    '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(SHEET_NAME) + '&headers=0';
+
+  Promise.all([
+    fetchHeaders(SHEET_ID, SHEET_NAME),
+    fetch(dataUrl).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); }),
+    fetchSyncTime(SHEET_ID, SYNC_SHEET, SYNC_CELL)
+  ]).then(function(res) {
+    var trueHdrs = res[0];
+    var txt      = res[1];
+    _syncTime    = res[2];
+
+    var s = txt.indexOf('{'), e = txt.lastIndexOf('}');
+    var json = JSON.parse(txt.slice(s, e+1));
+    var tbl  = json.table;
+    if (!tbl || !tbl.rows || !tbl.rows.length) throw new Error('無資料');
+
+    /* 標題 */
+    var colLabels = (tbl.cols||[]).map(function(c){ return (c.label||'').trim(); });
+    var hdrRow = tbl.rows[0];
+    allHeaders = (hdrRow.c||[]).map(function(c,i){
+      if (trueHdrs[i]) return trueHdrs[i];
+      var v = (c && c.f != null && String(c.f).trim()) ? String(c.f).trim()
+            : (c && c.v != null ? String(c.v).trim() : '');
+      return v || colLabels[i] || '';
+    });
+
+    initCI(allHeaders);
+
+    /* 資料列（跳過第一列標題） */
+    allRows = tbl.rows.slice(1).map(function(row){
+      return (row.c||[]).map(parseCellVal);
+    }).filter(function(r){ return !r.every(function(v){ return !v.trim(); }); });
+
+    /* 找現有季度 */
+    var qSet = new Set();
+    allRows.forEach(function(r){ var q = gv(r,'quarter'); if(q) qSet.add(q); });
+    buildQChips(Array.from(qSet).sort());
+
+    buildFilters();
+    hideLoading();
+    render();
+    updateGbar();
+    updateRank();
+  }).catch(function(err){
+    hideLoading();
+    document.getElementById('main-area').innerHTML =
+      '<div class="empty-msg"><div class="ei">⚠️</div><div>載入失敗：' + err + '</div></div>';
+  });
+}
+
+/* ══ 季度 chips ══ */
+function buildQChips(qs) {
+  var el = document.getElementById('q-chips');
+  el.innerHTML = '';
+  /* 若找不到季度，fallback 用固定清單 */
+  var list = qs.length ? qs : QUARTER_LABELS;
+  /* 預設選第一個有資料的 */
+  if (!curQ && list.length) curQ = list[0];
+  list.forEach(function(q) {
+    var btn = document.createElement('button');
+    btn.className = 'q-chip' + (q === curQ ? ' on' : '');
+    btn.textContent = q;
+    btn.onclick = (function(qq){ return function(){ selectQ(qq); }; })(q);
+    el.appendChild(btn);
+  });
+}
+
+function selectQ(q) {
+  curQ = q;
+  document.querySelectorAll('.q-chip').forEach(function(b){
+    b.classList.toggle('on', b.textContent === q);
+  });
+  render();
+  updateRank();
+}
+
+/* ══ 篩選器 ══ */
+function buildFilters() {
+  var areas   = new Set();
+  var offices = new Set();
+  allRows.forEach(function(r){
+    var a = gv(r,'area');   if(a) areas.add(a);
+    var o = gv(r,'office'); if(o) offices.add(o);
+  });
+
+  var aEl = document.getElementById('sel-area');
+  aEl.innerHTML = '<option value="">全部</option>';
+  Array.from(areas).sort().forEach(function(a){
+    aEl.innerHTML += '<option value="'+esc(a)+'">'+esc(a)+'</option>';
+  });
+  aEl.disabled = false;
+
+  buildOfficeOptions();
+  document.getElementById('sel-office').disabled = false;
+}
+
+function buildOfficeOptions() {
+  var offices = new Set();
+  allRows.forEach(function(r){
+    if (fArea && gv(r,'area') !== fArea) return;
+    var o = gv(r,'office'); if(o) offices.add(o);
+  });
+  var oEl = document.getElementById('sel-office');
+  oEl.innerHTML = '<option value="">全部</option>';
+  Array.from(offices).sort().forEach(function(o){
+    oEl.innerHTML += '<option value="'+esc(o)+'">'+esc(o)+'</option>';
+  });
+}
+
+function applyFilters() {
+  fArea   = document.getElementById('sel-area').value;
+  fOffice = document.getElementById('sel-office').value;
+  buildOfficeOptions();
+  if (fOffice) document.getElementById('sel-office').value = fOffice;
+  render();
+  updateRank();
+}
+
+/* ══ 資料計算 ══ */
+
+/* 取得某季的月份清單 */
+function qMonths(q) {
+  return QUARTERS[q] || [];
+}
+
+/* 以人為單位，計算某季的卡片資料 */
+function calcPersonQuarter(rows, q) {
+  var months = qMonths(q);
+  var monthData = {}; /* month -> { cur, tgt, eval, valid, hasRole } */
+
+  months.forEach(function(m) {
+    monthData[m] = { cur:0, tgt:0, eval:null, hasRole:false, hasData:false };
+  });
+
+  rows.forEach(function(r) {
+    /* 排除原由不為空 → 直接排掉 */
+    if (gv(r,'exclude').trim()) return;
+    var m = parseInt(gv(r,'month'), 10);
+    if (!months.includes(m)) return;
+    if (!monthData[m]) return;
+
+    var cur  = gn(r,'cur');
+    var last = gn(r,'last');
+    var inc  = gn(r,'inc');
+    var tgt  = last + inc;
+    var role = gv(r,'role').trim();
+
+    monthData[m].cur  += cur;
+    monthData[m].tgt  += tgt;
+    monthData[m].hasData = true;
+    if (role) monthData[m].hasRole = true;
+  });
+
+  /* 計算每月品評箱數 */
+  months.forEach(function(m) {
+    var d = monthData[m];
+    if (!d.hasData) { d.eval = null; return; }
+    if (d.hasRole) {
+      d.eval = d.cur - d.tgt;
+    } else {
+      d.eval = null; /* 身分別為空，顯示 — */
+    }
+  });
+
+  /* 有效月份 = hasData + hasRole */
+  var validMonths = months.filter(function(m){ return monthData[m].hasData && monthData[m].hasRole; });
+  var totalCur  = months.reduce(function(s,m){ return s + monthData[m].cur; }, 0);
+  var totalTgt  = months.reduce(function(s,m){ return s + monthData[m].tgt; }, 0);
+
+  /* 品評箱數合計：需有效月份 ≥ 2 */
+  var totalEval = null;
+  if (validMonths.length >= 2) {
+    totalEval = validMonths.reduce(function(s,m){ return s + (monthData[m].cur - monthData[m].tgt); }, 0);
+  }
+
+  return {
+    monthData: monthData,
+    months: months,
+    validMonths: validMonths,
+    totalCur: totalCur,
+    totalTgt: totalTgt,
+    totalEval: totalEval
+  };
+}
+
+/* 取得目前篩選後的人員清單與其列資料 */
+function getPersonMap() {
+  var map = {}; /* staffName -> rows[] */
+  allRows.forEach(function(r) {
+    if (fArea   && gv(r,'area')   !== fArea)   return;
+    if (fOffice && gv(r,'office') !== fOffice) return;
+    /* 只看目前季度的月份 */
+    if (curQ) {
+      var months = qMonths(curQ);
+      var m = parseInt(gv(r,'month'), 10);
+      if (!months.includes(m)) return;
+    }
+    var staff = gv(r,'staff') || '（未知）';
+    if (!map[staff]) map[staff] = { rows:[], area:'', office:'' };
+    map[staff].rows.push(r);
+    if (!map[staff].area)   map[staff].area   = gv(r,'area');
+    if (!map[staff].office) map[staff].office = gv(r,'office');
+  });
+  return map;
+}
+
+/* ══ 渲染 ══ */
+function render() {
+  var area = document.getElementById('main-area');
+  area.innerHTML = '';
+  if (!allRows.length) return;
+
+  var pMap = getPersonMap();
+  var staffList = Object.keys(pMap);
+
+  if (!staffList.length) {
+    area.innerHTML = '<div class="empty-msg"><div class="ei">🔍</div><div>沒有符合條件的資料</div></div>';
+    return;
+  }
+
+  /* 計算每人資料，並依品評箱數排序（null 排最後） */
+  var cards = staffList.map(function(staff) {
+    var info = pMap[staff];
+    /* 用全部該人全季列算（不含篩選季度，因 getPersonMap 已過濾） */
+    /* 但要傳入所有月份的原始列（含排除），所以重新取 */
+    var allStaffRows = allRows.filter(function(r){
+      if (fArea   && gv(r,'area')   !== fArea)   return false;
+      if (fOffice && gv(r,'office') !== fOffice) return false;
+      return gv(r,'staff') === staff;
+    });
+    var qData = calcPersonQuarter(allStaffRows, curQ);
+    return { staff:staff, area:info.area, office:info.office, qData:qData };
+  });
+
+  cards.sort(function(a,b) {
+    var ae = a.qData.totalEval, be = b.qData.totalEval;
+    if (ae === null && be === null) return 0;
+    if (ae === null) return 1;
+    if (be === null) return -1;
+    return be - ae;
+  });
+
+  cards.forEach(function(c) {
+    area.appendChild(makePersonCard(c));
+  });
+}
+
+function makePersonCard(c) {
+  var q     = curQ || '';
+  var qData = c.qData;
+  var months = qData.months;
+
+  var el = document.createElement('div');
+  el.className = 'person-card';
+
+  /* 合計品評箱數 */
+  var te = qData.totalEval;
+  var teCls = te === null ? 'nil' : (te >= 0 ? 'pos' : 'neg');
+  var teStr = te === null ? '—' : (te >= 0 ? '+'+te : String(te));
+  var tagHtml = '';
+  if (te !== null) {
+    if (qData.validMonths.length >= 2) {
+      tagHtml = '<div class="pc-total-tag ok">✅ 有效</div>';
+    }
+  } else {
+    var vm = qData.validMonths.length;
+    tagHtml = '<div class="pc-total-tag ng">'+vm+'/2 個月</div>';
+  }
+
+  /* 月份名稱 */
+  var monthNames = ['','1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+
+  /* 表格列 */
+  var rowsHtml = months.map(function(m) {
+    var d = qData.monthData[m];
+    if (!d.hasData) {
+      return '<tr>' +
+        '<td>'+monthNames[m]+'</td>' +
+        '<td class="ctn-cur">—</td>' +
+        '<td class="ctn-tgt">—</td>' +
+        '<td class="ctn-eval nil">—</td>' +
+        '</tr>';
+    }
+    var evalHtml;
+    if (d.eval === null) {
+      evalHtml = '<td class="ctn-eval locked">—</td>';
+    } else {
+      var ecls = d.eval >= 0 ? 'pos' : 'neg';
+      var estr = d.eval >= 0 ? '+'+d.eval : String(d.eval);
+      evalHtml = '<td class="ctn-eval '+ecls+'">'+estr+'</td>';
+    }
+    return '<tr>' +
+      '<td>'+monthNames[m]+'</td>' +
+      '<td class="ctn-cur">'+Math.round(d.cur)+'</td>' +
+      '<td class="ctn-tgt">'+Math.round(d.tgt)+'</td>' +
+      evalHtml +
+      '</tr>';
+  }).join('');
+
+  /* 合計列 */
+  var totalEvalHtml;
+  if (te === null) {
+    totalEvalHtml = '<td class="ctn-eval nil">—</td>';
+  } else {
+    totalEvalHtml = '<td class="ctn-eval '+teCls+'">'+teStr+'</td>';
+  }
+  var totalRow = '<tr class="total-row">' +
+    '<td>合計</td>' +
+    '<td class="ctn-cur">'+Math.round(qData.totalCur)+'</td>' +
+    '<td class="ctn-tgt">'+Math.round(qData.totalTgt)+'</td>' +
+    totalEvalHtml +
+    '</tr>';
+
+  el.innerHTML =
+    '<div class="pc-header">' +
+      '<div>' +
+        '<div class="pc-name">'+esc(c.staff)+'</div>' +
+        '<div class="pc-meta">'+esc(c.area)+' · '+esc(c.office)+'</div>' +
+      '</div>' +
+      '<div class="pc-total">' +
+        '<div class="pc-total-num '+teCls+'">'+teStr+'</div>' +
+        '<div class="pc-total-label">'+q+' 品評CTN</div>' +
+        tagHtml +
+      '</div>' +
+    '</div>' +
+    '<table class="pc-table">' +
+      '<thead><tr>' +
+        '<th>月份</th><th>當期CTN</th><th>目標CTN</th><th>品評CTN</th>' +
+      '</tr></thead>' +
+      '<tbody>' + rowsHtml + totalRow + '</tbody>' +
+    '</table>';
+
+  return el;
+}
+
+/* ══ 排行榜 ══ */
+function updateRank() {
+  var content = document.getElementById('rd-content');
+  content.innerHTML = '';
+  if (!allRows.length || !curQ) return;
+
+  /* 所有人（不受篩選限制）的品評箱數 */
+  var staffMap = {};
+  allRows.forEach(function(r) {
+    var staff = gv(r,'staff') || '（未知）';
+    if (!staffMap[staff]) staffMap[staff] = { rows:[], area:'', office:'' };
+    staffMap[staff].rows.push(r);
+    if (!staffMap[staff].area)   staffMap[staff].area   = gv(r,'area');
+    if (!staffMap[staff].office) staffMap[staff].office = gv(r,'office');
+  });
+
+  var ranked = Object.keys(staffMap).map(function(staff) {
+    var qd = calcPersonQuarter(staffMap[staff].rows, curQ);
+    return { staff:staff, area:staffMap[staff].area, office:staffMap[staff].office, val:qd.totalEval };
+  }).filter(function(x){ return x.val !== null; })
+    .sort(function(a,b){ return b.val - a.val; });
+
+  if (!ranked.length) {
+    content.innerHTML = '<div style="padding:16px;font-size:11px;color:var(--sub);text-align:center;">尚無有效品評資料</div>';
+    return;
+  }
+
+  var sec = document.createElement('div');
+  sec.className = 'rd-section';
+  var title = document.createElement('div');
+  title.className = 'rd-sec-title';
+  title.textContent = curQ + ' 品評排行';
+  sec.appendChild(title);
+
+  ranked.slice(0, 20).forEach(function(x, i) {
+    var item = document.createElement('div');
+    item.className = 'rank-item';
+    var noEl = document.createElement('div');
+    noEl.className = 'rank-no' + (i===0?' top1':i===1?' top2':i===2?' top3':'');
+    noEl.textContent = String(i+1);
+    var info = document.createElement('div');
+    info.className = 'rank-info';
+    info.innerHTML = '<div class="rank-name">'+esc(x.staff)+'</div>' +
+      '<div class="rank-sub">'+esc(x.area)+' · '+esc(x.office)+'</div>';
+    var val = document.createElement('div');
+    val.className = 'rank-val ' + (x.val >= 0 ? 'pos' : 'neg');
+    val.textContent = x.val >= 0 ? '+'+x.val : String(x.val);
+    item.appendChild(noEl);
+    item.appendChild(info);
+    item.appendChild(val);
+    sec.appendChild(item);
+  });
+  content.appendChild(sec);
+}
+
+/* ══ Rank Drawer 開關 ══ */
+function toggleRankDrawer() {
+  _rankOpen = !_rankOpen;
+  var dr = document.getElementById('rank-drawer');
+  var toggle = document.getElementById('rd-toggle');
+  if (_rankOpen) {
+    dr.classList.remove('collapsed');
+    toggle.querySelector('.rd-toggle-icon').textContent = '◀';
+  } else {
+    dr.classList.add('collapsed');
+    toggle.querySelector('.rd-toggle-icon') && (toggle.querySelector('.rd-toggle-icon').textContent = '排行');
+  }
+}
+
+function initRankDrawer() {
+  var dr = document.getElementById('rank-drawer');
+  if (!_rankOpen) dr.classList.add('collapsed');
+}
+
+/* ══ GBAR ══ */
+function updateGbar() {
+  var el = document.getElementById('gb-sync');
+  var html = '';
+  if (_syncTime) html += '<span class="gb-sync-item">📊 資料同步 '+esc(_syncTime)+'</span>';
+  el.innerHTML = html;
+}
+
+/* ══ XLSX 匯出 ══ */
+function downloadXLSX() {
+  if (!window.XLSX) { alert('XLSX 套件尚未載入'); return; }
+  var pMap = getPersonMap();
+  var rows = [['人員','營業處','營業所','季度','月份','當期CTN','目標CTN','品評CTN','有效']];
+  var monthNames = ['','1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+
+  Object.keys(pMap).forEach(function(staff) {
+    var allStaffRows = allRows.filter(function(r){
+      if (fArea   && gv(r,'area')   !== fArea)   return false;
+      if (fOffice && gv(r,'office') !== fOffice) return false;
+      return gv(r,'staff') === staff;
+    });
+    var info = pMap[staff];
+    var qd = calcPersonQuarter(allStaffRows, curQ);
+    qd.months.forEach(function(m) {
+      var d = qd.monthData[m];
+      rows.push([
+        staff, info.area, info.office, curQ, monthNames[m],
+        d.hasData ? Math.round(d.cur) : '',
+        d.hasData ? Math.round(d.tgt) : '',
+        d.eval !== null ? d.eval : '',
+        qd.validMonths.length >= 2 ? 'Y' : 'N'
+      ]);
+    });
+  });
+
+  var wb = XLSX.utils.book_new();
+  var ws = XLSX.utils.aoa_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, ws, curQ || '品評箱數');
+  XLSX.writeFile(wb, '品評箱數_' + (curQ||'') + '.xlsx');
+}
+
+/* ══ 工具 ══ */
+function esc(s) {
+  return String(s==null?'':s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ══ Loading 動畫 ══ */
+function showLoading() {
+  var ls = document.getElementById('loading');
+  ls.style.display = 'flex';
+  ls.style.opacity = '1';
+  var canvas = document.getElementById('loading-canvas');
+  var ctx = canvas.getContext('2d');
+  var W = canvas.width, H = canvas.height, S = 10, C = '#8BA690';
+  var frame = 0, dots = 0;
+  var txtEl = document.getElementById('loading-txt');
+  var f0 = [
+    [0,0,1,1,0,0,0,0],[0,0,1,1,0,0,0,0],[0,1,1,1,1,0,0,0],[0,0,1,1,0,0,0,0],
+    [0,1,1,1,1,0,0,0],[0,0,0,1,1,0,0,0],[0,0,0,0,1,1,0,0],[0,1,1,0,0,0,0,0]
+  ];
+  var f1 = [
+    [0,0,1,1,0,0,0,0],[0,0,1,1,0,0,0,0],[0,1,1,1,1,0,0,0],[0,0,1,1,0,0,0,0],
+    [0,1,1,1,1,0,0,0],[0,0,0,1,1,0,0,0],[0,0,0,0,1,1,0,0],[0,1,1,0,0,0,0,0]
+  ];
+  var bricks = [];
+  for (var i = 0; i < Math.ceil(W/S)+2; i++) bricks.push(i*S);
+  if (_runRaf) cancelAnimationFrame(_runRaf);
+  function draw() {
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle = 'rgba(128,128,128,.15)';
+    for (var b=0;b<bricks.length;b++) {
+      var bx = ((bricks[b]-frame*2)%W+W)%W;
+      ctx.fillRect(bx,H-S,S-1,S-1);
+    }
+    ctx.fillStyle = C;
+    var sf = frame%8<4 ? f0 : f1;
+    for (var row=0;row<8;row++)
+      for (var col=0;col<8;col++)
+        if(sf[row][col]) ctx.fillRect(W/2-4*S+col*S,H-S-8*S-4+row*S,S-1,S-1);
+    frame++;
+    if (frame%20===0) {
+      dots = (dots+1)%4;
+      if (txtEl) txtEl.textContent = '載入資料中'+'.'.repeat(dots);
+    }
+    _runRaf = requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+function hideLoading() {
+  if (_runRaf) { cancelAnimationFrame(_runRaf); _runRaf = null; }
+  var ls = document.getElementById('loading');
+  ls.style.transition = 'opacity .4s';
+  ls.style.opacity = '0';
+  setTimeout(function(){ ls.style.display='none'; ls.style.transition=''; }, 420);
+}
+
+/* ══ 啟動 ══ */
+document.addEventListener('DOMContentLoaded', function() {
+  initRankDrawer();
+  loadData();
+});
+</script>
+</body>
+</html>
