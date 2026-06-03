@@ -10,7 +10,14 @@
           window.location.replace("about:blank");
           return;
         }
-        /* ── 智能縮放：手機（< 768px）不套 zoom，避免干擾手機版觸發 ── */
+        /* ── 手機偵測：在 <head> 最早時機就標記，確保比 render() 更早 ── */
+        if (window.innerWidth < 768) {
+          /* documentElement 此時可用，body 還沒解析到，改用 class 在 html 上，
+             等 body 出現後再搬過去 */
+          document.documentElement.classList.add('is-mobile-pre');
+        }
+
+        /* ── 智能縮放：手機（< 768px）不套 zoom ── */
         (function() {
           var BASE_W = 1440;
           function applyZoom() {
@@ -3836,6 +3843,13 @@
   </head>
 
   <body>
+    <script>
+      /* body 剛解析完就立即標記：確保後續所有 JS（含 fetch 回調）都能偵測到 mobile-mode */
+      if (document.documentElement.classList.contains('is-mobile-pre')) {
+        document.body.classList.add('mobile-mode');
+        document.documentElement.classList.remove('is-mobile-pre');
+      }
+    </script>
     <div id="loading"><canvas id="loading-canvas" width="280" height="110"></canvas>
       <div id="loading-txt">載入資料中</div>
     </div>
@@ -7192,24 +7206,12 @@
     mbRender();
   }
 
-  /* ── 裝置偵測：手機版啟動入口 ──
-     _mbActive 不再使用：改為在 render() 每次都判斷 body.mobile-mode
-     checkDevice() 只負責盡早把 class 加上去 ── */
-  (function() {
-    function checkDevice() {
-      if (window.innerWidth < 768) {
-        document.body.classList.add('mobile-mode');
-      }
+  /* ── 裝置偵測：resize 補偵測（初始化已在 body 開頭處理） ── */
+  window.addEventListener('resize', function() {
+    if (window.innerWidth < 768) {
+      document.body.classList.add('mobile-mode');
     }
-    /* 盡早執行：body 存在就直接跑 */
-    if (document.body) {
-      checkDevice();
-    } else {
-      document.addEventListener('DOMContentLoaded', checkDevice);
-    }
-    /* 橫轉時重新判斷 */
-    window.addEventListener('resize', checkDevice);
-  })();
+  });
   </script>
 
   </body>
