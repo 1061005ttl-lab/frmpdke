@@ -3844,10 +3844,11 @@
 
   <body>
     <script>
-      /* body 剛解析完就立即標記：確保後續所有 JS（含 fetch 回調）都能偵測到 mobile-mode */
+      /* body 剛解析完就立即標記；設 _mbPending 讓第一次 render() 觸發 mbInit() */
       if (document.documentElement.classList.contains('is-mobile-pre')) {
         document.body.classList.add('mobile-mode');
         document.documentElement.classList.remove('is-mobile-pre');
+        window._mbPending = true;
       }
     </script>
     <div id="loading"><canvas id="loading-canvas" width="280" height="110"></canvas>
@@ -5233,15 +5234,12 @@
       }
 
       function render(dir) {
-        /* ── 手機版：若為 mobile-mode 且是主要通路巡訪，接管畫面 ── */
-        if (document.body.classList.contains('mobile-mode')) {
-          if (typeof mbInit === 'function') {
-            /* 每次資料載入後都重新初始化手機版（例如切換專案） */
-            mbInit();
-          }
-          return; /* 手機版不執行桌機版 doRender */
-        }
         doRender(dir || 'none', null);
+        /* ── 手機版觸發：_mbPending 在 body 開頭設好，第一次 render() 才觸發 ── */
+        if (window._mbPending && typeof mbInit === 'function') {
+          window._mbPending = false;
+          mbInit();
+        }
       }
 
       /* ══ 渲染引擎 ══ */
