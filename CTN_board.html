@@ -598,27 +598,28 @@ function calcPersonQuarter(rows, q) {
     if (role) monthData[m].hasRole = true;
   });
 
+  /* 無條件進位工具 */
+  function ceil(v) { return Math.ceil(v); }
+
   /* 計算每月品評箱數 */
   months.forEach(function(m) {
     var d = monthData[m];
+    d.tgt = ceil(d.tgt); /* 目標CTN無條件進位 */
     if (!d.hasData) { d.eval = null; return; }
-    if (d.hasRole) {
-      d.eval = d.cur - d.tgt;
-    } else {
-      d.eval = null; /* 身分別為空，顯示 — */
-    }
+    /* 品評CTN = 當期 - 目標，無條件進位 */
+    d.eval = ceil(d.cur - d.tgt);
   });
 
   /* 有效月份 = hasData + hasRole */
   var validMonths = months.filter(function(m){ return monthData[m].hasData && monthData[m].hasRole; });
-  var totalCur  = months.reduce(function(s,m){ return s + monthData[m].cur; }, 0);
-  var totalTgt  = months.reduce(function(s,m){ return s + monthData[m].tgt; }, 0);
+  var totalCur = months.reduce(function(s,m){ return s + monthData[m].cur; }, 0);
+  var totalTgt = months.reduce(function(s,m){ return s + monthData[m].tgt; }, 0);
 
-  /* 品評箱數合計：需有效月份 ≥ 2 */
-  var totalEval = null;
-  if (validMonths.length >= 2) {
-    totalEval = validMonths.reduce(function(s,m){ return s + (monthData[m].cur - monthData[m].tgt); }, 0);
-  }
+  /* 品評箱數合計：所有有資料且排除原由為空的月份全部加總，一律顯示 */
+  var evalMonths = months.filter(function(m){ return monthData[m].hasData; });
+  var totalEval = evalMonths.length > 0
+    ? ceil(evalMonths.reduce(function(s,m){ return s + (monthData[m].cur - monthData[m].tgt); }, 0))
+    : null;
 
   return {
     monthData: monthData,
@@ -702,17 +703,12 @@ function makePersonCard(c) {
 
   /* 合計品評箱數 */
   var te = qData.totalEval;
-  var teCls = te === null ? 'nil' : (te >= 0 ? 'pos' : 'neg');
-  var teStr = te === null ? '—' : (te >= 0 ? '+'+te : String(te));
-  var tagHtml = '';
-  if (te !== null) {
-    if (qData.validMonths.length >= 2) {
-      tagHtml = '<div class="pc-total-tag ok">✅ 有效</div>';
-    }
-  } else {
-    var vm = qData.validMonths.length;
-    tagHtml = '<div class="pc-total-tag ng">'+vm+'/2 個月</div>';
-  }
+  var teCls = te === null ? 'nil' : (te > 0 ? 'pos' : te < 0 ? 'neg' : 'nil');
+  var teStr = te === null ? '—' : (te > 0 ? '+'+te : String(te));
+  var vm = qData.validMonths.length;
+  var tagHtml = vm >= 2
+    ? '<div class="pc-total-tag ok">✅ 有效</div>'
+    : '<div class="pc-total-tag ng">'+vm+'/2 個月</div>';
 
   /* 月份名稱 */
   var monthNames = ['','1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
@@ -728,34 +724,23 @@ function makePersonCard(c) {
         '<td class="ctn-eval nil">—</td>' +
         '</tr>';
     }
-    var evalHtml;
-    if (d.eval === null) {
-      evalHtml = '<td class="ctn-eval locked">—</td>';
-    } else {
-      var ecls = d.eval >= 0 ? 'pos' : 'neg';
-      var estr = d.eval >= 0 ? '+'+d.eval : String(d.eval);
-      evalHtml = '<td class="ctn-eval '+ecls+'">'+estr+'</td>';
-    }
+    var ev = d.eval;
+    var ecls = ev > 0 ? 'pos' : ev < 0 ? 'neg' : 'nil';
+    var estr = ev > 0 ? '+'+ev : String(ev);
     return '<tr>' +
       '<td>'+monthNames[m]+'</td>' +
       '<td class="ctn-cur">'+Math.round(d.cur)+'</td>' +
-      '<td class="ctn-tgt">'+Math.round(d.tgt)+'</td>' +
-      evalHtml +
+      '<td class="ctn-tgt">'+d.tgt+'</td>' +
+      '<td class="ctn-eval '+ecls+'">'+estr+'</td>' +
       '</tr>';
   }).join('');
 
   /* 合計列 */
-  var totalEvalHtml;
-  if (te === null) {
-    totalEvalHtml = '<td class="ctn-eval nil">—</td>';
-  } else {
-    totalEvalHtml = '<td class="ctn-eval '+teCls+'">'+teStr+'</td>';
-  }
   var totalRow = '<tr class="total-row">' +
     '<td>合計</td>' +
     '<td class="ctn-cur">'+Math.round(qData.totalCur)+'</td>' +
-    '<td class="ctn-tgt">'+Math.round(qData.totalTgt)+'</td>' +
-    totalEvalHtml +
+    '<td class="ctn-tgt">'+Math.ceil(qData.totalTgt)+'</td>' +
+    '<td class="ctn-eval '+teCls+'">'+teStr+'</td>' +
     '</tr>';
 
   el.innerHTML =
