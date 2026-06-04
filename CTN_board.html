@@ -238,6 +238,9 @@
     .detail-tbl td:first-child, .detail-tbl td:nth-child(2) { text-align:left; color:var(--text); max-width:180px; overflow:hidden; text-overflow:ellipsis; }
     .detail-tbl tr:last-child td { border-bottom:none; }
     .detail-tbl tbody tr:hover td { background:rgba(139,166,144,.15); }
+    .foreign-month td { background:rgba(255,200,50,.13); }
+    .foreign-month td:first-child { font-weight:700; }
+    .foreign-tag { font-size:9px; color:#c07000; margin-left:2px; vertical-align:super; cursor:default; }
     .d-pos { color:var(--green); font-weight:800; }
     .d-neg { color:var(--red); font-weight:800; }
     .d-nil { color:var(--sub); }
@@ -697,15 +700,17 @@ function render(){
     return;
   }
 
-  /* 取全季列計算 */
+  /* 取全季列計算：直接用 pMap 已收集的完整 rows，不再逐筆過濾單位 */
   var cards=staffList.map(function(staff){
     var info=pMap[staff];
-    var allStaffRows=allRows.filter(function(r){
-      if(fArea&&gv(r,'area')!==fArea) return false;
-      if(fOffice&&gv(r,'office')!==fOffice) return false;
-      return gv(r,'staff')===staff;
+    var qData=calcPersonQuarter(info.rows,curQ);
+    /* 記錄每個月份對應的單位，供卡片highlight使用 */
+    qData.monthArea={};
+    info.rows.forEach(function(r){
+      var m=parseInt(gv(r,'month'))||0;
+      if(!qData.monthArea[m]) qData.monthArea[m]=gv(r,'area');
     });
-    var qData=calcPersonQuarter(allStaffRows,curQ);
+    qData.personArea=info.area; /* 當季最後單位 */
     return{staff:staff,area:info.area,office:info.office,qData:qData};
   });
 
@@ -764,9 +769,14 @@ function makeCard(c){
   /* 季表格列（含家數欄）*/
   var rowsHtml=qd.months.map(function(m){
     var d=qd.monthData[m];
-    if(!d.hasData) return '<tr><td>'+MNAMES[m]+'</td><td class="ctn-stores">—</td><td class="ctn-cur">—</td><td class="ctn-tgt">—</td><td class="ctn-eval nil">—</td></tr>';
+    /* 判斷該月份的單位是否與當季最後單位不同 → highlight */
+    var monthA=qd.monthArea?qd.monthArea[m]:'';
+    var isForeign=monthA&&qd.personArea&&monthA!==qd.personArea;
+    var trCls=isForeign?' class="foreign-month"':'';
+    var mLabel=isForeign?MNAMES[m]+'<span class="foreign-tag" title="'+monthA+'">＊</span>':MNAMES[m];
+    if(!d.hasData) return '<tr'+trCls+'><td>'+mLabel+'</td><td class="ctn-stores">—</td><td class="ctn-cur">—</td><td class="ctn-tgt">—</td><td class="ctn-eval nil">—</td></tr>';
     var ev=d.eval, ecls=ev>0?'pos':ev<0?'neg':'nil', estr=ev>0?'+'+ev:String(ev);
-    return '<tr><td>'+MNAMES[m]+'</td><td class="ctn-stores">'+d.stores+'</td><td class="ctn-cur">'+d.cur+'</td><td class="ctn-tgt">'+d.tgt+'</td><td class="ctn-eval '+ecls+'">'+estr+'</td></tr>';
+    return '<tr'+trCls+'><td>'+mLabel+'</td><td class="ctn-stores">'+d.stores+'</td><td class="ctn-cur">'+d.cur+'</td><td class="ctn-tgt">'+d.tgt+'</td><td class="ctn-eval '+ecls+'">'+estr+'</td></tr>';
   }).join('');
 
   /* 合計列（用 fmt2 值顯示）*/
