@@ -94,8 +94,8 @@
     .nav-back:hover { border-color:var(--primary-d); }
     .nav-divider { width:1px; height:16px; background:rgba(0,0,0,.1); flex-shrink:0; margin:0 2px; }
     .nav-chip.nav-area-btn { font-weight:900; border-color:rgba(0,0,0,.18); }
-    #nav-office-row { display:none; background:rgba(255,255,255,.5); border-bottom:1px solid rgba(0,0,0,.06); }
-    #nav-office-row.visible { display:flex; }
+    .nav-chip.nav-office-chip { color:#555; border-color:rgba(0,0,0,.1); }
+    #nav-office-row { display:none !important; }
 
 
     /* ══ GBAR ══ */
@@ -468,7 +468,7 @@ function buildQChips(qs){
   });
 }
 
-/* ══ NAVBAR（兩行：第一行營業處，第二行所選處的營業所）══ */
+/* ══ NAVBAR（單行：全部 ｜ 北部→桃園…→花蓮 ∣ 選中處的所A 所B…）══ */
 function buildNavbar(){
   var areas=new Set();
   allRows.forEach(function(r){var a=gv(r,'area');if(a)areas.add(a);});
@@ -484,6 +484,7 @@ function buildNavbar(){
   allBtn.onclick=function(){setArea('');};
   aRow.appendChild(allBtn);
 
+  /* 各營業處 */
   areaList.forEach(function(a){
     var btn=document.createElement('button');
     btn.className='nav-chip nav-area-btn'+(fArea===a?' on':'');
@@ -493,41 +494,49 @@ function buildNavbar(){
     aRow.appendChild(btn);
   });
 
-  buildOfficeNav(fArea);
+  /* 若有選中的營業處，加分隔線 + 該處的所 */
+  appendOfficeChips(aRow, fArea);
 }
 
-function buildOfficeNav(area){
-  var oRow=document.getElementById('nav-office-row');
-  oRow.innerHTML='';
-  if(!area){oRow.classList.remove('visible');return;}
-  oRow.classList.add('visible');
+/* 把選中營業處的所 chips 附加到指定 row 末尾 */
+function appendOfficeChips(aRow, area){
+  /* 先移除舊的 office chips（class=nav-office-chip） */
+  aRow.querySelectorAll('.nav-office-chip,.nav-office-divider').forEach(function(el){el.remove();});
+  if(!area) return;
+
+  var dv=document.createElement('div');
+  dv.className='nav-divider nav-office-divider';
+  aRow.appendChild(dv);
 
   /* 全所 */
-  var allBtn=document.createElement('button');
-  allBtn.className='nav-chip all'+(fOffice===''?' on':'');
-  allBtn.textContent='全所';
-  allBtn.onclick=function(){setOffice('');};
-  oRow.appendChild(allBtn);
+  var allOBtn=document.createElement('button');
+  allOBtn.className='nav-chip nav-office-chip'+(fOffice===''?' on':'');
+  allOBtn.textContent='全所';
+  allOBtn.onclick=function(){setOffice('');};
+  aRow.appendChild(allOBtn);
 
   var offices=new Set();
   allRows.forEach(function(r){if(gv(r,'area')===area){var o=gv(r,'office');if(o)offices.add(o);}});
   Array.from(offices).sort().forEach(function(o){
     var btn=document.createElement('button');
-    btn.className='nav-chip'+(fOffice===o?' on':'');
+    btn.className='nav-chip nav-office-chip'+(fOffice===o?' on':'');
     btn.textContent=o;
     btn.onclick=(function(oo){return function(){setOffice(oo);};})(o);
-    oRow.appendChild(btn);
+    aRow.appendChild(btn);
   });
 }
+
+/* 舊版第二行不再使用 */
+function buildOfficeNav(area){}
 
 function refreshNavHighlight(){
   document.querySelectorAll('.nav-area-btn').forEach(function(b){
     b.classList.toggle('on',b.dataset.area===fArea);
   });
-  document.querySelectorAll('#nav-area-row .nav-chip.all').forEach(function(b){
+  document.querySelectorAll('#nav-area-row .nav-chip.all:not(.nav-office-chip)').forEach(function(b){
     b.classList.toggle('on',fArea==='');
   });
-  document.querySelectorAll('#nav-office-row .nav-chip').forEach(function(b){
+  document.querySelectorAll('.nav-office-chip').forEach(function(b){
     b.classList.toggle('on',b.textContent===(fOffice||'全所'));
   });
 }
@@ -535,7 +544,9 @@ function refreshNavHighlight(){
 function setArea(a){
   fArea=a; fOffice='';
   refreshNavHighlight();
-  buildOfficeNav(a);
+  /* 重新附加/移除所的 chips */
+  appendOfficeChips(document.getElementById('nav-area-row'), a);
+  refreshNavHighlight();
   render(); updateGbar(); updateRank();
 }
 
@@ -588,14 +599,16 @@ function calcPersonQuarter(rows,q){
 
   var totalCur=fmt1(months.reduce(function(s,m){return s+monthData[m].cur;},0));
   var totalTgt=fmt1(months.reduce(function(s,m){return s+monthData[m].tgt;},0));
-  var totalEval=evalMonths.length>0?fmt1(evalMonths.reduce(function(s,m){return s+monthData[m].eval;},0)):null;
+  /* totalEval: fmt1 for display; totalEvalRaw for ceiling in header */
+  var totalEvalRaw=evalMonths.length>0?evalMonths.reduce(function(s,m){return s+monthData[m].cur-monthData[m].tgt;},0):null;
+  var totalEval=totalEvalRaw!==null?fmt1(totalEvalRaw):null;
 
   /* 明細陣列，依月份排序 */
   var storeRows=Object.values(storeMap).sort(function(a,b){return a.month-b.month||(a.name>b.name?1:-1);});
   storeRows.forEach(function(s){s.tgt=fmt1(s.tgt);s.eval=fmt1(s.cur-s.tgt);});
 
   return {monthData:monthData,months:months,validMonths:validMonths,evalMonths:evalMonths,
-    totalCur:totalCur,totalTgt:totalTgt,totalEval:totalEval,storeRows:storeRows};
+    totalCur:totalCur,totalTgt:totalTgt,totalEval:totalEval,totalEvalRaw:totalEvalRaw,storeRows:storeRows};
 }
 
 /* ══ 人員資料 ══ */
@@ -638,19 +651,19 @@ function render(){
     return{staff:staff,area:info.area,office:info.office,qData:qData};
   });
 
-  /* 5. 無資料卡片不顯示 */
+  /* 0個月資料 → 不顯示卡片 */
   cards=cards.filter(function(c){return c.qData.evalMonths.length>0;});
   if(!cards.length){
     area.innerHTML='<div class="empty-msg"><div class="ei">🔍</div><div>沒有符合條件的資料</div></div>';
     return;
   }
 
-  /* 6. 有效月份<2 排最後；其餘依品評CTN降冪 */
+  /* 2個月以上資料→前排（依品評CTN降冪），1個月→後排 */
   cards.sort(function(a,b){
-    var avm=a.qData.validMonths.length, bvm=b.qData.validMonths.length;
-    var aLow=(avm<2), bLow=(bvm<2);
+    var aem=a.qData.evalMonths.length, bem=b.qData.evalMonths.length;
+    var aLow=(aem<2), bLow=(bem<2);
     if(aLow!==bLow) return aLow?1:-1;
-    var ae=a.qData.totalEval, be=b.qData.totalEval;
+    var ae=a.qData.totalEvalRaw, be=b.qData.totalEvalRaw;
     if(ae===null&&be===null) return 0;
     if(ae===null) return 1;
     if(be===null) return -1;
@@ -665,20 +678,22 @@ var MNAMES=['','1月','2月','3月','4月','5月','6月','7月','8月','9月','1
 
 function makeCard(c){
   var q=curQ||'', qd=c.qData;
-  var te=qd.totalEval;
-  var vm=qd.validMonths.length;
+  var te=qd.totalEval;         /* fmt1 → 用於表格合計列 */
+  var ter=qd.totalEvalRaw;     /* 原始值 → 用於右上角進位 */
+  var em=qd.evalMonths.length; /* 有資料的月份數 */
 
-  /* 右上角大數字：正→ceiling 負→floor，有效月份<2 → — */
+  /* 右上角：2個月以上才顯示數字，正→ceiling 負→floor */
   var bigNum, teCls;
-  if(vm<2){
+  if(em<2){
     bigNum='—'; teCls='nil';
   } else {
-    if(te===null){ bigNum='—'; teCls='nil'; }
-    else if(te>0){ bigNum='+'+Math.ceil(te); teCls='pos'; }
-    else if(te<0){ bigNum=String(Math.floor(te)); teCls='neg'; }
+    if(ter===null){ bigNum='—'; teCls='nil'; }
+    else if(ter>0){ bigNum='+'+Math.ceil(ter); teCls='pos'; }
+    else if(ter<0){ bigNum=String(Math.floor(ter)); teCls='neg'; }
     else { bigNum='0'; teCls='nil'; }
   }
 
+  var vm=qd.validMonths.length;
   var validTag=vm>=2?'<span class="pc-valid-tag ok">✅ '+vm+'/2</span>':'<span class="pc-valid-tag ng">⚠️ '+vm+'/2</span>';
 
   /* 季表格列 */
@@ -689,9 +704,10 @@ function makeCard(c){
     return '<tr><td>'+MNAMES[m]+'</td><td class="ctn-cur">'+d.cur+'</td><td class="ctn-tgt">'+d.tgt+'</td><td class="ctn-eval '+ecls+'">'+estr+'</td></tr>';
   }).join('');
 
-  /* 合計列 */
+  /* 合計列（用 fmt1 值顯示）*/
+  var teDisplayCls=te===null?'nil':(te>0?'pos':te<0?'neg':'nil');
   var teStr=te===null?'—':(te>0?'+'+te:String(te));
-  var totalRow='<tr class="total-row"><td>合計</td><td class="ctn-cur">'+qd.totalCur+'</td><td class="ctn-tgt">'+qd.totalTgt+'</td><td class="ctn-eval '+teCls+'">'+teStr+'</td></tr>';
+  var totalRow='<tr class="total-row"><td>合計</td><td class="ctn-cur">'+qd.totalCur+'</td><td class="ctn-tgt">'+qd.totalTgt+'</td><td class="ctn-eval '+teDisplayCls+'">'+teStr+'</td></tr>';
 
   var el=document.createElement('div');
   el.className='person-card';
