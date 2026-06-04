@@ -228,15 +228,16 @@
     .detail-scroll { overflow-x:auto; }
     .detail-scroll::-webkit-scrollbar { height:3px; }
     .detail-scroll::-webkit-scrollbar-thumb { background:rgba(0,0,0,.1); border-radius:3px; }
-    .detail-tbl { width:max-content; min-width:100%; border-collapse:collapse; font-size:13px; }
+    .detail-tbl { width:max-content; min-width:100%; border-collapse:collapse; font-size:15px; }
     .detail-tbl th {
-      padding:8px 12px; text-align:right; font-weight:800; font-size:11px; color:var(--sub);
+      padding:9px 14px; text-align:right; font-weight:800; font-size:12px; color:var(--sub);
       border-bottom:1px solid rgba(0,0,0,.08); background:rgba(0,0,0,.02); white-space:nowrap;
     }
     .detail-tbl th:first-child, .detail-tbl th:nth-child(2) { text-align:left; }
-    .detail-tbl td { padding:7px 12px; text-align:right; border-bottom:1px solid rgba(0,0,0,.04); white-space:nowrap; }
+    .detail-tbl td { padding:8px 14px; text-align:right; border-bottom:1px solid rgba(0,0,0,.04); white-space:nowrap; transition:background .1s; }
     .detail-tbl td:first-child, .detail-tbl td:nth-child(2) { text-align:left; color:var(--text); max-width:180px; overflow:hidden; text-overflow:ellipsis; }
     .detail-tbl tr:last-child td { border-bottom:none; }
+    .detail-tbl tbody tr:hover td { background:rgba(139,166,144,.15); }
     .d-pos { color:var(--green); font-weight:800; }
     .d-neg { color:var(--red); font-weight:800; }
     .d-nil { color:var(--sub); }
@@ -277,9 +278,9 @@
     .rank-no.top2 { background:#C0C0C0; color:#555; }
     .rank-no.top3 { background:#CD7F32; color:#fff; }
     .rank-info { flex:1; min-width:0; }
-    .rank-name { font-size:10px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .rank-sub { font-size:8px; color:var(--sub); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .rank-val { font-size:12px; font-weight:900; flex-shrink:0; }
+    .rank-name { font-size:13px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .rank-sub { font-size:10px; color:var(--sub); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .rank-val { font-size:15px; font-weight:900; flex-shrink:0; }
     .rank-val.pos { color:var(--green); }
     .rank-val.neg { color:var(--red); }
     .rank-val.nil { color:var(--sub); }
@@ -332,10 +333,10 @@
 
 <div id="content-wrap">
   <div id="main-area"></div>
-  <div id="rank-drawer">
+  <div id="rank-drawer" class="collapsed">
     <div class="rd-toggle" onclick="toggleRank()" id="rd-toggle">
       <span class="rd-toggle-title">🏆 品評排行</span>
-      <span class="rd-toggle-icon">◀</span>
+      <span class="rd-toggle-icon">▶</span>
     </div>
     <div class="rd-content" id="rd-content"></div>
   </div>
@@ -370,7 +371,7 @@ function sortAreas(arr){
 }
 
 /* ══ 狀態 ══ */
-var allRows=[], CI={}, curQ='', fArea='', fOffice='', _syncTime='', _rankOpen=true, _runRaf=null;
+var allRows=[], CI={}, curQ='', fArea='', fOffice='', _syncTime='', _rankOpen=false, _runRaf=null;
 var curSort='eval'; /* eval | stores | cur | tgt */
 
 /* ══ 欄位索引 ══ */
@@ -623,7 +624,7 @@ function calcPersonQuarter(rows,q){
   var totalTgt=fmt2(evalMonths.reduce(function(s,m){return s+monthData[m].tgt;},0));
   var totalStores=evalMonths.reduce(function(s,m){return s+monthData[m].stores;},0);
   /* totalEval: fmt2 for display; totalEvalRaw for ceiling in header */
-  var totalEvalRaw = evalMonths.length>0?evalMonths.reduce(function(s,m){return s+monthData[m].eval;},0):null;
+  var totalEvalRaw=evalMonths.length>0?evalMonths.reduce(function(s,m){return s+monthData[m].cur-monthData[m].tgt;},0):null;
   var totalEval=totalEvalRaw!==null?fmt2(totalEvalRaw):null;
 
   /* 明細陣列，依月份排序 */
@@ -728,8 +729,8 @@ function makeCard(c){
     bigNum='—'; teCls='nil';
   } else {
     if(ter===null){ bigNum='—'; teCls='nil'; }
-    else if(ter>0){ bigNum='+'+Math.ceil(fmt1(ter)); teCls='pos'; }
-    else if(ter<0){ bigNum=String(Math.floor(fmt1(ter))); teCls='neg'; }
+    else if(ter>0){ bigNum='+'+Math.ceil(ter); teCls='pos'; }
+    else if(ter<0){ bigNum=String(Math.floor(ter)); teCls='neg'; }
     else { bigNum='0'; teCls='nil'; }
   }
 
@@ -805,8 +806,7 @@ function buildDetailTable(qd,q){
     tbodyHtml+='<tr>'+rowHtml+'</tr>';
   });
 
-  return '<div class="pc-detail-header"><span>店家明細</span><button class="pc-detail-close" onclick="closeDetail(event,this)">✕ 收合</button></div>' +
-    '<div class="detail-scroll"><table class="detail-tbl"><thead><tr>'+thCols+'</tr></thead><tbody>'+tbodyHtml+'</tbody></table></div>';
+  return '<div class="detail-scroll"><table class="detail-tbl"><thead><tr>'+thCols+'</tr></thead><tbody>'+tbodyHtml+'</tbody></table></div>';
 }
 
 /* ══ Dialog 店家明細 ══ */
@@ -815,10 +815,11 @@ function openDetailDialog(e,btn){
   var card=btn.closest('.person-card');
   var qd=card._qData;
   var staff=btn.dataset.staff;
+  var totalStores=qd.totalStores;
   var dlg=document.getElementById('detail-dialog');
   var dlgTitle=document.getElementById('dlg-title');
   var dlgBody=document.getElementById('dlg-body');
-  dlgTitle.textContent=staff+' 店家明細';
+  dlgTitle.textContent=staff+'  店家明細  '+curQ+'  總家數 '+totalStores;
   dlgBody.innerHTML=buildDetailTable(qd,curQ);
   dlg.style.display='flex';
   requestAnimationFrame(function(){dlg.classList.add('open');});
@@ -828,6 +829,7 @@ function closeDetailDialog(){
   dlg.classList.remove('open');
   setTimeout(function(){dlg.style.display='none';},220);
 }
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closeDetailDialog();});
 /* 舊版相容（不再用） */
 function toggleDetail(){}
 function closeDetail(e,btn){e.stopPropagation();}
@@ -847,11 +849,18 @@ function updateRank(){
   });
   var ranked=Object.keys(staffMap).map(function(staff){
     var qd=calcPersonQuarter(staffMap[staff].rows,curQ);
-    return{staff:staff,area:staffMap[staff].area,office:staffMap[staff].office,val:qd.totalEval};
-  }).filter(function(x){return x.val!==null;}).sort(function(a,b){return b.val-a.val;});
+    var ter=qd.totalEvalRaw, em=qd.evalMonths.length;
+    var dispVal=null, dispStr='—';
+    if(em>=2&&ter!==null){
+      if(ter>0){ dispVal=Math.ceil(fmt1(ter)); dispStr='+'+dispVal; }
+      else if(ter<0){ dispVal=Math.floor(fmt1(ter)); dispStr=String(dispVal); }
+      else { dispVal=0; dispStr='0'; }
+    }
+    return{staff:staff,area:staffMap[staff].area,office:staffMap[staff].office,dispVal:dispVal,dispStr:dispStr};
+  }).filter(function(x){return x.dispVal!==null;}).sort(function(a,b){return b.dispVal-a.dispVal;});
 
   if(!ranked.length){
-    content.innerHTML='<div style="padding:16px;font-size:11px;color:var(--sub);text-align:center;">尚無有效品評資料</div>';
+    content.innerHTML='<div style="padding:16px;font-size:13px;color:var(--sub);text-align:center;">尚無有效品評資料</div>';
     return;
   }
   var sec=document.createElement('div');
@@ -870,8 +879,8 @@ function updateRank(){
     info.className='rank-info';
     info.innerHTML='<div class="rank-name">'+esc(x.staff)+'</div><div class="rank-sub">'+esc(x.area)+' · '+esc(x.office)+'</div>';
     var val=document.createElement('div');
-    val.className='rank-val '+(x.val>0?'pos':x.val<0?'neg':'nil');
-    val.textContent=x.val>0?'+'+x.val:String(x.val);
+    val.className='rank-val '+(x.dispVal>0?'pos':x.dispVal<0?'neg':'nil');
+    val.textContent=x.dispStr;
     item.appendChild(noEl);item.appendChild(info);item.appendChild(val);
     sec.appendChild(item);
   });
