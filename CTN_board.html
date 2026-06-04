@@ -23,65 +23,32 @@
     })();
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-  <title>品評箱數看板</title>
+  <title>全聯18天推廣進度看板</title>
   <style>
     :root {
-      --primary: #8BA690;
-      --primary-d: #6a8a70;
-      --bg: #F0EDE6;
-      --card: #FFFFFF;
-      --green: #22a84c;
-      --green-bg: rgba(34,168,76,.08);
-      --green-bd: rgba(34,168,76,.22);
-      --red: #d93025;
-      --red-bg: rgba(217,48,37,.08);
-      --red-bd: rgba(217,48,37,.22);
-      --blue: #1a73e8;
-      --blue-bg: rgba(26,115,232,.08);
-      --blue-bd: rgba(26,115,232,.22);
-      --text: #2D2D2D;
-      --sub: #888;
-      --border: rgba(0,0,0,0.09);
-      --shadow: rgba(80,100,85,.13);
-      --r: 12px;
-      --dur: .38s;
-      --ease: cubic-bezier(.34,1.05,.64,1);
-      --glass: rgba(255,255,255,0.72);
-      --glass-border: rgba(255,255,255,0.55);
+      --primary: #8BA690; --primary-d: #6a8a70;
+      --bg: #F0EDE6; --card: #FFFFFF;
+      --green: #22a84c; --green-bg: rgba(34,168,76,.08); --green-bd: rgba(34,168,76,.22);
+      --red: #d93025; --red-bg: rgba(217,48,37,.08); --red-bd: rgba(217,48,37,.22);
+      --blue: #1a73e8; --purple: #7c3aed;
+      --text: #2D2D2D; --sub: #888; --border: rgba(0,0,0,0.09);
+      --shadow: rgba(80,100,85,.13); --r: 12px;
+      --glass: rgba(255,255,255,0.78); --glass-border: rgba(255,255,255,0.55);
+      --card-w: 340px;
     }
     *,*::before,*::after { margin:0; padding:0; box-sizing:border-box; }
-    html, body { height:100%; overflow:hidden; font-family:'Microsoft JhengHei','Noto Sans TC',sans-serif; }
+    html,body { height:100%; overflow:hidden; font-family:'Microsoft JhengHei','Noto Sans TC',sans-serif; }
     body { display:flex; flex-direction:column; background:var(--bg); color:var(--text); }
 
     /* ══ TOPBAR ══ */
     #topbar {
-      flex-shrink:0;
-      background:var(--glass);
-      backdrop-filter:blur(14px);
-      -webkit-backdrop-filter:blur(14px);
-      border-bottom:1px solid var(--glass-border);
-      padding:0 16px;
-      display:flex;
-      align-items:center;
-      gap:8px;
-      min-height:48px;
-      box-shadow:0 2px 12px rgba(0,0,0,.07),0 1px 0 rgba(255,255,255,.8) inset;
-      z-index:100;
-      flex-wrap:wrap;
+      flex-shrink:0; background:var(--glass); backdrop-filter:blur(14px);
+      border-bottom:1px solid var(--glass-border); padding:0 16px;
+      display:flex; align-items:center; gap:10px; min-height:46px;
+      box-shadow:0 2px 12px rgba(0,0,0,.07); z-index:100;
     }
-    #title { font-size:14px; font-weight:900; color:var(--primary-d); letter-spacing:.5px; white-space:nowrap; flex-shrink:0; }
+    #title { font-size:14px; font-weight:900; color:var(--primary-d); letter-spacing:.3px; white-space:nowrap; flex-shrink:0; }
     .sep { width:1px; height:18px; background:rgba(0,0,0,.1); flex-shrink:0; }
-    .tb-label { font-size:11px; color:var(--sub); white-space:nowrap; flex-shrink:0; font-weight:700; }
-    .tb-sel {
-      padding:5px 8px; border:1px solid rgba(0,0,0,.1); border-radius:7px;
-      background:rgba(255,255,255,.6); color:var(--text); font-size:12px; font-weight:600;
-      font-family:inherit; cursor:pointer; min-width:80px; outline:none;
-      transition:border-color .15s; white-space:nowrap;
-    }
-    .tb-sel:focus { border-color:var(--primary); }
-    .tb-sel:disabled { opacity:.45; cursor:default; }
-
-    /* Q chips */
     #q-chips { display:flex; gap:5px; flex-shrink:0; }
     .q-chip {
       padding:4px 13px; border-radius:99px; font-size:11px; font-weight:700;
@@ -89,192 +56,195 @@
       background:transparent; color:#4a7a55; font-family:inherit; transition:all .15s;
     }
     .q-chip.on { background:var(--green-bg); border-color:var(--green); color:#1e6e35; }
-
-    #ver-ts {
-      margin-left:auto; font-size:10px; color:var(--sub); white-space:nowrap;
-      background:rgba(0,0,0,.04); padding:3px 9px; border-radius:6px;
+    #tb-right { margin-left:auto; display:flex; align-items:center; gap:8px; flex-shrink:0; }
+    #ver-ts { font-size:10px; color:var(--sub); white-space:nowrap; background:rgba(0,0,0,.04); padding:3px 9px; border-radius:6px; }
+    .tb-btn {
+      padding:4px 12px; border-radius:7px; border:1px solid rgba(0,0,0,.12);
+      background:rgba(255,255,255,.7); color:var(--text); font-size:11px; font-weight:700;
+      cursor:pointer; white-space:nowrap; font-family:inherit; transition:all .14s;
     }
+    .tb-btn:hover { border-color:var(--primary); color:var(--primary-d); }
+
+    /* ══ NAV BAR (營業處/所) ══ */
+    #navbar {
+      flex-shrink:0; background:rgba(255,255,255,.6); backdrop-filter:blur(8px);
+      border-bottom:1px solid rgba(0,0,0,.07); z-index:90;
+    }
+    .nav-row {
+      display:flex; align-items:center; gap:5px; padding:5px 16px;
+      flex-wrap:nowrap; overflow-x:auto; min-height:34px;
+    }
+    .nav-row::-webkit-scrollbar { height:2px; }
+    .nav-row::-webkit-scrollbar-thumb { background:rgba(0,0,0,.1); border-radius:2px; }
+    .nav-chip {
+      padding:3px 12px; border-radius:99px; font-size:11px; font-weight:700;
+      border:1.5px solid rgba(0,0,0,.1); cursor:pointer; white-space:nowrap;
+      background:transparent; color:var(--sub); font-family:inherit; transition:all .14s;
+      flex-shrink:0;
+    }
+    .nav-chip:hover { border-color:var(--primary); color:var(--primary-d); background:rgba(139,166,144,.08); }
+    .nav-chip.on { background:var(--primary-d); border-color:var(--primary-d); color:#fff; }
+    .nav-chip.all { border-color:rgba(0,0,0,.15); }
+    .nav-back {
+      padding:3px 10px; border-radius:99px; font-size:11px; font-weight:700;
+      border:1.5px solid rgba(0,0,0,.12); cursor:pointer; white-space:nowrap;
+      background:rgba(255,255,255,.8); color:var(--text); font-family:inherit;
+      flex-shrink:0; display:flex; align-items:center; gap:4px;
+    }
+    .nav-back:hover { border-color:var(--primary-d); }
+    .nav-divider { width:1px; height:16px; background:rgba(0,0,0,.1); flex-shrink:0; margin:0 2px; }
+    #nav-office-row { display:none; }
 
     /* ══ GBAR ══ */
     #gbar {
-      flex-shrink:0; background:rgba(255,255,255,.5); backdrop-filter:blur(8px);
-      border-bottom:1px solid rgba(0,0,0,.06); padding:0 16px;
-      display:flex; align-items:center; justify-content:space-between;
-      min-height:32px; font-size:12px; gap:10px;
+      flex-shrink:0; background:rgba(255,255,255,.4); border-bottom:1px solid rgba(0,0,0,.05);
+      padding:3px 16px; display:flex; align-items:center; justify-content:space-between; min-height:26px;
     }
-    .gb-sync { display:flex; align-items:center; gap:8px; }
-    .gb-sync-item { font-size:11px; color:var(--sub); white-space:nowrap; }
-    .gb-sync-item.badge {
-      background:rgba(139,166,144,.18); color:#4a7a55; font-weight:800;
-      font-size:12px; padding:2px 10px; border-radius:99px;
-      border:1.5px solid rgba(106,138,112,.35);
-    }
-    .gb-right { display:flex; align-items:center; gap:7px; }
-    .gb-btn {
-      padding:3px 11px; border-radius:6px; border:1px solid rgba(0,0,0,.1);
-      background:rgba(255,255,255,.7); color:var(--text); font-size:11px; font-weight:600;
-      cursor:pointer; white-space:nowrap; transition:all .14s; font-family:inherit;
-    }
-    .gb-btn:hover { border-color:var(--primary); color:var(--primary-d); }
+    #gb-sync { font-size:10px; color:var(--sub); }
+    #gb-count { font-size:10px; color:var(--sub); }
 
     /* ══ CONTENT ══ */
-    #content-wrap {
-      flex:1; min-height:0; display:flex; flex-direction:row;
-      overflow:hidden; position:relative;
-    }
+    #content-wrap { flex:1; min-height:0; display:flex; overflow:hidden; position:relative; }
 
-    /* ══ MAIN GRID ══ */
+    /* ══ MAIN SCROLL ══ */
     #main-area {
-      flex:1; min-width:0; overflow-y:auto; overflow-x:hidden;
-      padding:20px 24px; padding-right:56px;
-      display:grid;
-      grid-template-columns:repeat(auto-fill, minmax(clamp(280px,24vw,380px),1fr));
-      gap:16px; align-content:start;
+      flex:1; min-width:0; overflow-y:auto; overflow-x:auto;
+      padding:18px 20px; padding-right:52px;
+      display:flex; flex-wrap:wrap; gap:14px; align-content:start;
     }
     #main-area::-webkit-scrollbar { width:4px; }
     #main-area::-webkit-scrollbar-thumb { background:rgba(0,0,0,.1); border-radius:4px; }
 
     /* ══ PERSON CARD ══ */
     .person-card {
-      background:var(--card);
-      border-radius:var(--r);
-      border:1px solid var(--border);
-      box-shadow:0 2px 12px var(--shadow);
-      overflow:hidden;
-      transition:box-shadow .2s, transform .2s;
+      width:var(--card-w); flex-shrink:0;
+      background:var(--card); border-radius:var(--r);
+      border:1px solid var(--border); box-shadow:0 2px 10px var(--shadow);
+      overflow:hidden; transition:box-shadow .2s, transform .2s;
     }
-    .person-card:hover { box-shadow:0 6px 24px rgba(80,100,85,.18); transform:translateY(-1px); }
+    .person-card:hover { box-shadow:0 5px 20px rgba(80,100,85,.2); transform:translateY(-1px); }
 
+    /* 卡片 header */
     .pc-header {
-      padding:12px 14px 8px;
+      padding:11px 13px 9px;
       border-bottom:1px solid rgba(0,0,0,.06);
-      display:flex; align-items:flex-start; justify-content:space-between; gap:8px;
+      cursor:pointer; user-select:none;
     }
-    .pc-name { font-size:14px; font-weight:900; color:var(--text); line-height:1.3; }
-    .pc-meta { font-size:10px; color:var(--sub); margin-top:2px; }
-    .pc-total {
-      flex-shrink:0; text-align:right;
+    .pc-top { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+    .pc-left { flex:1; min-width:0; }
+    .pc-name-row { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+    .pc-name { font-size:13px; font-weight:900; color:var(--text); }
+    .pc-valid-tag {
+      font-size:9px; font-weight:800; padding:1px 6px; border-radius:99px;
+      border:1px solid; white-space:nowrap; flex-shrink:0;
     }
-    .pc-total-num {
-      font-size:22px; font-weight:900; line-height:1;
-    }
+    .pc-valid-tag.ok { background:var(--green-bg); color:var(--green); border-color:var(--green-bd); }
+    .pc-valid-tag.ng { background:rgba(0,0,0,.04); color:var(--sub); border-color:rgba(0,0,0,.1); }
+    .pc-meta { font-size:10px; color:var(--sub); margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+    /* 右上角品評箱數 */
+    .pc-right { flex-shrink:0; text-align:right; }
+    .pc-q-label { font-size:9px; color:var(--sub); white-space:nowrap; }
+    .pc-total-num { font-size:22px; font-weight:900; line-height:1.1; }
     .pc-total-num.pos { color:var(--green); }
     .pc-total-num.neg { color:var(--red); }
     .pc-total-num.nil { color:var(--sub); }
-    .pc-total-label { font-size:9px; color:var(--sub); margin-top:2px; text-align:right; }
-    .pc-total-tag {
-      display:inline-block; font-size:9px; font-weight:800;
-      padding:1px 6px; border-radius:99px; margin-top:3px;
-    }
-    .pc-total-tag.ok { background:var(--green-bg); color:var(--green); border:1px solid var(--green-bd); }
-    .pc-total-tag.ng { background:rgba(0,0,0,.05); color:var(--sub); border:1px solid rgba(0,0,0,.1); }
 
-    /* ══ TABLE ══ */
+    /* 展開指示 */
+    .pc-expand-hint { font-size:9px; color:var(--sub); text-align:center; padding:4px 0 2px; letter-spacing:.5px; opacity:.7; }
+
+    /* ══ 季表格 ══ */
     .pc-table { width:100%; border-collapse:collapse; }
     .pc-table th {
-      font-size:9px; font-weight:800; color:var(--sub); letter-spacing:.4px;
-      padding:5px 10px; text-align:right; border-bottom:1px solid rgba(0,0,0,.07);
+      font-size:9px; font-weight:800; color:var(--sub); letter-spacing:.3px;
+      padding:4px 10px; text-align:right; border-bottom:1px solid rgba(0,0,0,.07);
       background:rgba(0,0,0,.02);
     }
     .pc-table th:first-child { text-align:left; }
-    .pc-table td {
-      font-size:12px; font-weight:600; padding:7px 10px;
-      text-align:right; border-bottom:1px solid rgba(0,0,0,.04);
-      color:var(--text);
-    }
-    .pc-table td:first-child { text-align:left; color:var(--sub); font-size:11px; font-weight:700; }
+    .pc-table td { font-size:11px; font-weight:600; padding:6px 10px; text-align:right; border-bottom:1px solid rgba(0,0,0,.04); }
+    .pc-table td:first-child { text-align:left; color:var(--sub); font-size:10px; font-weight:700; }
     .pc-table tr:last-child td { border-bottom:none; }
-    .pc-table tr.total-row td {
-      font-weight:900; font-size:12px; background:rgba(0,0,0,.02);
-      border-top:1.5px solid rgba(0,0,0,.08); border-bottom:none;
-      padding:8px 10px;
-    }
+    .pc-table tr.total-row td { font-weight:900; font-size:11px; background:rgba(0,0,0,.02); border-top:1.5px solid rgba(0,0,0,.08); border-bottom:none; padding:7px 10px; }
     .pc-table tr.total-row td:first-child { color:var(--text); }
-
     td.ctn-cur { color:var(--blue); }
-    td.ctn-tgt { color:#7c3aed; }
+    td.ctn-tgt { color:var(--purple); }
     td.ctn-eval { font-weight:900; }
     td.ctn-eval.pos { color:var(--green); }
     td.ctn-eval.neg { color:var(--red); }
     td.ctn-eval.nil { color:var(--sub); }
-    td.ctn-eval.locked {
-      color:var(--sub);
-      font-size:11px; font-weight:600;
+
+    /* ══ 明細展開區 ══ */
+    .pc-detail { display:none; border-top:1.5px solid rgba(0,0,0,.07); background:rgba(248,248,245,.8); }
+    .pc-detail.open { display:block; }
+    .pc-detail-header {
+      padding:7px 13px 5px; display:flex; align-items:center; justify-content:space-between;
+      font-size:10px; font-weight:800; color:var(--sub); letter-spacing:.4px;
     }
+    .pc-detail-close { cursor:pointer; font-size:11px; color:var(--sub); padding:2px 6px; border-radius:5px; border:1px solid rgba(0,0,0,.1); background:#fff; }
+    .pc-detail-close:hover { border-color:var(--primary); color:var(--primary-d); }
+    .detail-scroll { overflow-x:auto; }
+    .detail-scroll::-webkit-scrollbar { height:3px; }
+    .detail-scroll::-webkit-scrollbar-thumb { background:rgba(0,0,0,.1); border-radius:3px; }
+    .detail-tbl { width:max-content; min-width:100%; border-collapse:collapse; font-size:10px; }
+    .detail-tbl th {
+      padding:4px 8px; text-align:right; font-weight:800; font-size:9px; color:var(--sub);
+      border-bottom:1px solid rgba(0,0,0,.08); background:rgba(0,0,0,.02); white-space:nowrap;
+    }
+    .detail-tbl th:first-child, .detail-tbl th:nth-child(2) { text-align:left; }
+    .detail-tbl td { padding:4px 8px; text-align:right; border-bottom:1px solid rgba(0,0,0,.04); white-space:nowrap; }
+    .detail-tbl td:first-child, .detail-tbl td:nth-child(2) { text-align:left; color:var(--text); max-width:100px; overflow:hidden; text-overflow:ellipsis; }
+    .detail-tbl tr:last-child td { border-bottom:none; }
+    .d-pos { color:var(--green); font-weight:800; }
+    .d-neg { color:var(--red); font-weight:800; }
+    .d-nil { color:var(--sub); }
+    .d-cur { color:var(--blue); }
+    .d-tgt { color:var(--purple); }
 
     /* ══ RANK DRAWER ══ */
     #rank-drawer {
-      position:absolute; top:0; right:0; bottom:0; width:240px;
+      position:absolute; top:0; right:0; bottom:0; width:220px;
       background:var(--glass); backdrop-filter:blur(18px);
       border-left:1px solid rgba(0,0,0,.1);
       display:flex; flex-direction:column;
-      transition:width .3s var(--ease), box-shadow .3s;
-      overflow:hidden; z-index:50;
-      box-shadow:-4px 0 20px rgba(0,0,0,.1);
+      transition:width .3s cubic-bezier(.34,1.05,.64,1), box-shadow .3s;
+      overflow:hidden; z-index:50; box-shadow:-3px 0 16px rgba(0,0,0,.08);
     }
-    #rank-drawer.collapsed { width:32px; box-shadow:none; }
+    #rank-drawer.collapsed { width:28px; box-shadow:none; }
     #rank-drawer.collapsed .rd-content { opacity:0; pointer-events:none; }
     .rd-toggle {
-      width:32px; flex-shrink:0; display:flex; align-items:center;
-      justify-content:center; cursor:pointer;
-      border-bottom:1px solid rgba(0,0,0,.07); padding:10px 0;
+      width:100%; flex-shrink:0; display:flex; align-items:center;
+      cursor:pointer; border-bottom:1px solid rgba(0,0,0,.07); padding:9px 12px;
     }
     #rank-drawer.collapsed .rd-toggle {
-      border-bottom:none; writing-mode:vertical-rl; height:100%;
-      padding:16px 0; font-size:10px; font-weight:700; color:var(--sub); letter-spacing:1px;
-    }
-    #rank-drawer:not(.collapsed) .rd-toggle {
-      writing-mode:horizontal-tb; flex-direction:row; width:100%;
-      padding:10px 14px; border-bottom:1px solid rgba(0,0,0,.07);
+      writing-mode:vertical-rl; justify-content:center; height:100%;
+      border-bottom:none; padding:16px 0; font-size:9px; font-weight:700; color:var(--sub); letter-spacing:1px;
     }
     .rd-toggle-title { font-size:11px; font-weight:800; color:var(--text); flex:1; }
-    .rd-toggle-icon { font-size:12px; }
-    .rd-content { flex:1; overflow-y:auto; overflow-x:hidden; opacity:1; transition:opacity .2s; }
+    .rd-toggle-icon { font-size:11px; color:var(--sub); }
+    .rd-content { flex:1; overflow-y:auto; opacity:1; transition:opacity .2s; }
     .rd-content::-webkit-scrollbar { width:3px; }
     .rd-content::-webkit-scrollbar-thumb { background:rgba(0,0,0,.1); border-radius:3px; }
-    .rd-section { padding:10px 12px 6px; }
-    .rd-sec-title {
-      font-size:9px; font-weight:900; letter-spacing:.8px; color:#aaa;
-      text-transform:uppercase; margin-bottom:7px;
-      display:flex; align-items:center; gap:6px;
-    }
+    .rd-section { padding:8px 10px 4px; }
+    .rd-sec-title { font-size:9px; font-weight:900; letter-spacing:.8px; color:#aaa; margin-bottom:6px; display:flex; align-items:center; gap:5px; }
     .rd-sec-title::after { content:''; flex:1; height:1px; background:rgba(0,0,0,.07); }
-    .rank-item {
-      display:flex; align-items:center; gap:8px; padding:7px 9px;
-      border-radius:9px; margin-bottom:4px; cursor:default;
-      border:1px solid transparent; transition:all .18s;
-    }
+    .rank-item { display:flex; align-items:center; gap:7px; padding:6px 8px; border-radius:8px; margin-bottom:3px; border:1px solid transparent; transition:all .15s; }
     .rank-item:hover { background:rgba(139,166,144,.1); border-color:rgba(139,166,144,.25); }
-    .rank-no {
-      width:20px; height:20px; border-radius:50%; background:rgba(0,0,0,.07);
-      font-size:10px; font-weight:900; display:flex; align-items:center; justify-content:center;
-      flex-shrink:0; color:var(--sub);
-    }
+    .rank-no { width:18px; height:18px; border-radius:50%; background:rgba(0,0,0,.07); font-size:9px; font-weight:900; display:flex; align-items:center; justify-content:center; flex-shrink:0; color:var(--sub); }
     .rank-no.top1 { background:#FFD700; color:#7a5500; }
     .rank-no.top2 { background:#C0C0C0; color:#555; }
     .rank-no.top3 { background:#CD7F32; color:#fff; }
     .rank-info { flex:1; min-width:0; }
-    .rank-name { font-size:11px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .rank-sub { font-size:9px; color:var(--sub); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .rank-val { font-size:13px; font-weight:900; flex-shrink:0; }
+    .rank-name { font-size:10px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .rank-sub { font-size:8px; color:var(--sub); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .rank-val { font-size:12px; font-weight:900; flex-shrink:0; }
     .rank-val.pos { color:var(--green); }
     .rank-val.neg { color:var(--red); }
     .rank-val.nil { color:var(--sub); }
 
     /* ══ LOADING ══ */
-    #loading {
-      position:fixed; inset:0; background:var(--bg);
-      display:flex; flex-direction:column; align-items:center; justify-content:center;
-      z-index:9999; gap:12px;
-    }
+    #loading { position:fixed; inset:0; background:var(--bg); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:9999; gap:12px; }
     #loading-txt { font-size:13px; font-weight:700; color:var(--sub); letter-spacing:.5px; }
-
-    /* ══ EMPTY ══ */
-    .empty-msg {
-      grid-column:1/-1; display:flex; flex-direction:column; align-items:center;
-      justify-content:center; gap:10px; padding:60px 20px; color:var(--sub);
-      font-size:13px; font-weight:600;
-    }
+    .empty-msg { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:60px 20px; color:var(--sub); font-size:13px; font-weight:600; width:100%; }
     .empty-msg .ei { font-size:32px; }
   </style>
 </head>
@@ -285,34 +255,34 @@
   <div id="loading-txt">載入資料中</div>
 </div>
 
+<!-- TOPBAR -->
 <div id="topbar">
-  <div id="title">品評箱數看板</div>
+  <div id="title">全聯18天推廣進度看板</div>
   <div class="sep"></div>
-  <span class="tb-label">營業處</span>
-  <select class="tb-sel" id="sel-area" onchange="applyFilters()" disabled>
-    <option value="">全部</option>
-  </select>
-  <span class="tb-label">營業所</span>
-  <select class="tb-sel" id="sel-office" onchange="applyFilters()" disabled>
-    <option value="">全部</option>
-  </select>
-  <div class="sep"></div>
-  <span class="tb-label">季度</span>
+  <span style="font-size:11px;color:var(--sub);font-weight:700;flex-shrink:0;">季度</span>
   <div id="q-chips"></div>
-  <div id="ver-ts">Ver. 1.0.0 (2026-06-03)</div>
+  <div id="tb-right">
+    <div id="ver-ts">Ver. 1.1.0 (2026-06-04)</div>
+    <button class="tb-btn" onclick="downloadXLSX()">📥 XLSX</button>
+  </div>
 </div>
 
+<!-- NAVBAR 營業處 -->
+<div id="navbars">
+  <div class="nav-row" id="nav-area-row"></div>
+  <div class="nav-row" id="nav-office-row"></div>
+</div>
+
+<!-- GBAR -->
 <div id="gbar">
-  <div class="gb-sync" id="gb-sync"></div>
-  <div class="gb-right">
-    <button class="gb-btn" onclick="downloadXLSX()">📥 XLSX</button>
-  </div>
+  <div id="gb-sync"></div>
+  <div id="gb-count"></div>
 </div>
 
 <div id="content-wrap">
   <div id="main-area"></div>
   <div id="rank-drawer">
-    <div class="rd-toggle" onclick="toggleRankDrawer()" id="rd-toggle">
+    <div class="rd-toggle" onclick="toggleRank()" id="rd-toggle">
       <span class="rd-toggle-title">🏆 品評排行</span>
       <span class="rd-toggle-icon">◀</span>
     </div>
@@ -327,621 +297,520 @@ var SHEET_ID   = '1vUVbEG08JXZc05rAz4owM4_IFQnjJUGuDjBUqF-Q-Mg';
 var SHEET_NAME = '店家清冊';
 var SYNC_SHEET = '輔助';
 var SYNC_CELL  = 'B1';
-
-/* 季度月份對應 */
-var QUARTERS = {
-  Q1: [1,2,3],
-  Q2: [4,5,6],
-  Q3: [7,8,9],
-  Q4: [10,11,12]
-};
-var QUARTER_LABELS = ['Q1','Q2','Q3','Q4'];
+var QUARTERS   = { Q1:[1,2,3], Q2:[4,5,6], Q3:[7,8,9], Q4:[10,11,12] };
 
 /* ══ 狀態 ══ */
-var allRows    = [];
-var allHeaders = [];
-var CI         = {};
-var curQ       = '';      /* 目前選的季度 */
-var fArea      = '';
-var fOffice    = '';
-var _syncTime  = '';
-var _rankOpen  = true;
-var _runRaf    = null;
+var allRows=[], CI={}, curQ='', fArea='', fOffice='', _syncTime='', _rankOpen=true, _runRaf=null;
 
-/* ══ 欄位索引初始化 ══ */
+/* ══ 欄位索引 ══ */
 function initCI(hdrs) {
   var MAP = {
-    year:    ['年份'],
-    month:   ['月份'],
-    quarter: ['季度'],
-    area:    ['營業處名稱'],
-    office:  ['營業所/課'],
-    staff:   ['主要訪員'],
-    type:    ['店家型態'],
-    code:    ['店家代碼'],
-    store:   ['店家名稱'],
-    grade:   ['店家等級'],
-    cur:     ['當期CTN'],
-    last:    ['去年CTN'],
-    inc:     ['增量箱數'],
-    source:  ['資料來源'],
-    role:    ['身分別'],
-    exclude: ['排除原由'],
-    mcheck:  ['月份數確認']
+    year:'年份', month:'月份', quarter:'季度', area:'營業處名稱',
+    office:'營業所/課', staff:'主要訪員', type:'店家型態',
+    code:'店家代碼', store:'店家名稱', grade:'店家等級',
+    cur:'當期CTN', last:'去年CTN', inc:'增量箱數',
+    source:'資料來源', role:'身分別', exclude:'排除原由', mcheck:'月份數確認'
   };
-  CI = {};
-  Object.keys(MAP).forEach(function(k) {
-    var found = -1;
-    MAP[k].forEach(function(name) {
-      if (found >= 0) return;
-      var i = hdrs.findIndex(function(h) { return h === name; });
-      if (i < 0) i = hdrs.findIndex(function(h) { return h.indexOf(name) >= 0; });
-      if (i >= 0) found = i;
-    });
-    CI[k] = found;
+  CI={};
+  Object.keys(MAP).forEach(function(k){
+    var i=hdrs.findIndex(function(h){ return h===MAP[k]; });
+    if(i<0) i=hdrs.findIndex(function(h){ return h.indexOf(MAP[k])>=0; });
+    CI[k]=i;
   });
 }
+function gv(row,key){ var i=CI[key]; return(i>=0&&row[i]!=null)?String(row[i]).trim():''; }
+function gn(row,key){ var v=parseFloat(gv(row,key)); return isNaN(v)?0:v; }
+function fmt1(v){ return Math.round(v*10)/10; } /* 保留1位小數 */
 
-function gv(row, key) {
-  var i = CI[key];
-  return (i >= 0 && row[i] != null) ? String(row[i]).trim() : '';
-}
-function gn(row, key) {
-  var v = parseFloat(gv(row, key));
-  return isNaN(v) ? 0 : v;
-}
-
-/* ══ 資料載入 ══ */
-function fetchHeaders(id, sheet) {
-  var url = 'https://docs.google.com/spreadsheets/d/' + id +
-    '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheet) + '&headers=0&range=1:1';
-  return fetch(url).then(function(r) {
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    return r.text();
-  }).then(function(txt) {
-    var s = txt.indexOf('{'), e = txt.lastIndexOf('}');
-    if (s < 0) throw new Error('格式錯誤');
-    var json = JSON.parse(txt.slice(s, e+1));
-    var rows = (json.table && json.table.rows) || [];
-    if (!rows.length) return [];
-    return (rows[0].c || []).map(function(c) {
-      if (!c) return '';
-      if (c.f != null && String(c.f).trim()) return String(c.f).trim();
-      if (c.v != null) return String(c.v).trim();
-      return '';
-    });
-  });
-}
-
-function parseCellVal(c) {
-  if (!c || c.v == null) return '';
-  var sv = String(c.v);
-  if (sv.indexOf('Date(') === 0) {
-    var m = sv.match(/Date\((\d+),(\d+),(\d+)/);
-    if (m) return m[1] + '/' + String(Number(m[2])+1).padStart(2,'0') + '/' + String(m[3]).padStart(2,'0');
+/* ══ 載入 ══ */
+function parseCellVal(c){
+  if(!c||c.v==null) return '';
+  var sv=String(c.v);
+  if(sv.indexOf('Date(')===0){
+    var m=sv.match(/Date\((\d+),(\d+),(\d+)/);
+    if(m) return m[1]+'/'+(+m[2]+1).toString().padStart(2,'0')+'/'+m[3].toString().padStart(2,'0');
   }
-  if (c.f != null) return String(c.f);
-  return sv;
+  return c.f!=null?String(c.f):sv;
 }
 
-function fetchSyncTime(id, sheet, cell) {
-  var url = 'https://docs.google.com/spreadsheets/d/' + id +
-    '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheet) + '&range=' + cell;
-  return fetch(url).then(function(r){ return r.text(); }).then(function(txt) {
-    var s = txt.indexOf('{'), e = txt.lastIndexOf('}');
-    if (s < 0) return '';
-    var json = JSON.parse(txt.slice(s, e+1));
-    var cell0 = json.table && json.table.rows && json.table.rows[0] &&
-                json.table.rows[0].c && json.table.rows[0].c[0];
-    if (!cell0) return '';
-    var raw = String(cell0.f || cell0.v || '').trim();
-    var dm = raw.match(/^Date\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)$/);
-    if (dm) return dm[1]+'/'+String(Number(dm[2])+1).padStart(2,'0')+'/'+String(dm[3]).padStart(2,'0')+
-      ' '+String(dm[4]).padStart(2,'0')+':'+String(dm[5]).padStart(2,'0')+':'+String(dm[6]).padStart(2,'0');
+function fetchSyncTime(id,sheet,cell){
+  var url='https://docs.google.com/spreadsheets/d/'+id+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(sheet)+'&range='+cell;
+  return fetch(url).then(function(r){return r.text();}).then(function(txt){
+    var s=txt.indexOf('{'),e=txt.lastIndexOf('}');
+    if(s<0) return '';
+    var json=JSON.parse(txt.slice(s,e+1));
+    var c0=json.table&&json.table.rows&&json.table.rows[0]&&json.table.rows[0].c&&json.table.rows[0].c[0];
+    if(!c0) return '';
+    var raw=String(c0.f||c0.v||'').trim();
+    var dm=raw.match(/^Date\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)$/);
+    if(dm) return dm[1]+'/'+(+dm[2]+1).toString().padStart(2,'0')+'/'+dm[3].toString().padStart(2,'0')+' '+dm[4].toString().padStart(2,'0')+':'+dm[5].toString().padStart(2,'0')+':'+dm[6].toString().padStart(2,'0');
     return raw;
-  }).catch(function(){ return ''; });
+  }).catch(function(){return '';});
 }
 
-function loadData() {
+function loadData(){
   showLoading();
-  var dataUrl = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
-    '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(SHEET_NAME) + '&headers=0';
+  var dataUrl='https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(SHEET_NAME)+'&headers=0';
+  var hdrUrl='https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(SHEET_NAME)+'&headers=0&range=1:1';
 
   Promise.all([
-    fetchHeaders(SHEET_ID, SHEET_NAME),
-    fetch(dataUrl).then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.text(); }),
-    fetchSyncTime(SHEET_ID, SYNC_SHEET, SYNC_CELL)
-  ]).then(function(res) {
-    var trueHdrs = res[0];
-    var txt      = res[1];
-    _syncTime    = res[2];
-
-    var s = txt.indexOf('{'), e = txt.lastIndexOf('}');
-    var json = JSON.parse(txt.slice(s, e+1));
-    var tbl  = json.table;
-    if (!tbl || !tbl.rows || !tbl.rows.length) throw new Error('無資料');
-
+    fetch(hdrUrl).then(function(r){return r.text();}),
+    fetch(dataUrl).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.text();}),
+    fetchSyncTime(SHEET_ID,SYNC_SHEET,SYNC_CELL)
+  ]).then(function(res){
     /* 標題 */
-    var colLabels = (tbl.cols||[]).map(function(c){ return (c.label||'').trim(); });
-    var hdrRow = tbl.rows[0];
-    allHeaders = (hdrRow.c||[]).map(function(c,i){
-      if (trueHdrs[i]) return trueHdrs[i];
-      var v = (c && c.f != null && String(c.f).trim()) ? String(c.f).trim()
-            : (c && c.v != null ? String(c.v).trim() : '');
-      return v || colLabels[i] || '';
+    var hs=res[0],ds=res[1]; _syncTime=res[2];
+    var hs0=JSON.parse(hs.slice(hs.indexOf('{'),hs.lastIndexOf('}')+1));
+    var trueHdrs=(hs0.table&&hs0.table.rows&&hs0.table.rows[0]&&hs0.table.rows[0].c||[]).map(function(c){
+      if(!c) return '';
+      return (c.f!=null&&String(c.f).trim())?String(c.f).trim():(c.v!=null?String(c.v).trim():'');
     });
 
+    /* 資料 */
+    var s=ds.indexOf('{'),e=ds.lastIndexOf('}');
+    var json=JSON.parse(ds.slice(s,e+1));
+    var tbl=json.table;
+    if(!tbl||!tbl.rows||!tbl.rows.length) throw new Error('無資料');
+
+    var colLabels=(tbl.cols||[]).map(function(c){return(c.label||'').trim();});
+    var allHeaders=(tbl.rows[0].c||[]).map(function(c,i){
+      if(trueHdrs[i]) return trueHdrs[i];
+      var v=(c&&c.f!=null&&String(c.f).trim())?String(c.f).trim():(c&&c.v!=null?String(c.v).trim():'');
+      return v||colLabels[i]||'';
+    });
     initCI(allHeaders);
 
-    /* 資料列（跳過第一列標題） */
-    allRows = tbl.rows.slice(1).map(function(row){
-      return (row.c||[]).map(parseCellVal);
-    }).filter(function(r){ return !r.every(function(v){ return !v.trim(); }); });
+    allRows=tbl.rows.slice(1).map(function(row){
+      return(row.c||[]).map(parseCellVal);
+    }).filter(function(r){return !r.every(function(v){return !v.trim();});});
 
-    /* 找現有季度 */
-    var qSet = new Set();
-    allRows.forEach(function(r){ var q = gv(r,'quarter'); if(q) qSet.add(q); });
+    /* 季度 chips */
+    var qSet=new Set();
+    allRows.forEach(function(r){var q=gv(r,'quarter');if(q)qSet.add(q);});
     buildQChips(Array.from(qSet).sort());
 
-    buildFilters();
+    buildNavbar();
     hideLoading();
     render();
     updateGbar();
     updateRank();
   }).catch(function(err){
     hideLoading();
-    document.getElementById('main-area').innerHTML =
-      '<div class="empty-msg"><div class="ei">⚠️</div><div>載入失敗：' + err + '</div></div>';
+    document.getElementById('main-area').innerHTML='<div class="empty-msg"><div class="ei">⚠️</div><div>載入失敗：'+err+'</div></div>';
   });
 }
 
-/* ══ 季度 chips ══ */
-function buildQChips(qs) {
-  var el = document.getElementById('q-chips');
-  el.innerHTML = '';
-  /* 若找不到季度，fallback 用固定清單 */
-  var list = qs.length ? qs : QUARTER_LABELS;
-  /* 預設選第一個有資料的 */
-  if (!curQ && list.length) curQ = list[0];
-  list.forEach(function(q) {
-    var btn = document.createElement('button');
-    btn.className = 'q-chip' + (q === curQ ? ' on' : '');
-    btn.textContent = q;
-    btn.onclick = (function(qq){ return function(){ selectQ(qq); }; })(q);
+/* ══ Q Chips ══ */
+function buildQChips(qs){
+  var el=document.getElementById('q-chips');
+  el.innerHTML='';
+  var list=qs.length?qs:['Q1','Q2','Q3','Q4'];
+  if(!curQ&&list.length) curQ=list[0];
+  list.forEach(function(q){
+    var btn=document.createElement('button');
+    btn.className='q-chip'+(q===curQ?' on':'');
+    btn.textContent=q;
+    btn.onclick=(function(qq){return function(){curQ=qq;document.querySelectorAll('.q-chip').forEach(function(b){b.classList.toggle('on',b.textContent===qq);});render();updateRank();};})(q);
     el.appendChild(btn);
   });
 }
 
-function selectQ(q) {
-  curQ = q;
-  document.querySelectorAll('.q-chip').forEach(function(b){
-    b.classList.toggle('on', b.textContent === q);
+/* ══ NAVBAR ══ */
+function buildNavbar(){
+  /* 收集所有營業處 */
+  var areas=new Set();
+  allRows.forEach(function(r){var a=gv(r,'area');if(a)areas.add(a);});
+  var areaList=Array.from(areas).sort();
+
+  var aRow=document.getElementById('nav-area-row');
+  aRow.innerHTML='';
+
+  /* 全部按鈕 */
+  var allBtn=document.createElement('button');
+  allBtn.className='nav-chip all'+(fArea===''?' on':'');
+  allBtn.textContent='全部';
+  allBtn.onclick=function(){setArea('');};
+  aRow.appendChild(allBtn);
+
+  areaList.forEach(function(a){
+    var btn=document.createElement('button');
+    btn.className='nav-chip'+(fArea===a?' on':'');
+    btn.textContent=a;
+    btn.onclick=(function(aa){return function(){setArea(aa);};})(a);
+    aRow.appendChild(btn);
   });
-  render();
-  updateRank();
 }
 
-/* ══ 篩選器 ══ */
-function buildFilters() {
-  var areas   = new Set();
-  var offices = new Set();
-  allRows.forEach(function(r){
-    var a = gv(r,'area');   if(a) areas.add(a);
-    var o = gv(r,'office'); if(o) offices.add(o);
-  });
+function buildOfficeNav(area){
+  var oRow=document.getElementById('nav-office-row');
+  oRow.innerHTML='';
+  if(!area){oRow.style.display='none';return;}
+  oRow.style.display='flex';
 
-  var aEl = document.getElementById('sel-area');
-  aEl.innerHTML = '<option value="">全部</option>';
-  Array.from(areas).sort().forEach(function(a){
-    aEl.innerHTML += '<option value="'+esc(a)+'">'+esc(a)+'</option>';
-  });
-  aEl.disabled = false;
+  /* 返回按鈕 */
+  var back=document.createElement('button');
+  back.className='nav-back';
+  back.innerHTML='◀ '+esc(area);
+  back.onclick=function(){setArea('');};
+  oRow.appendChild(back);
 
-  buildOfficeOptions();
-  document.getElementById('sel-office').disabled = false;
-}
+  var div=document.createElement('div');
+  div.className='nav-divider';
+  oRow.appendChild(div);
 
-function buildOfficeOptions() {
-  var offices = new Set();
-  allRows.forEach(function(r){
-    if (fArea && gv(r,'area') !== fArea) return;
-    var o = gv(r,'office'); if(o) offices.add(o);
-  });
-  var oEl = document.getElementById('sel-office');
-  oEl.innerHTML = '<option value="">全部</option>';
+  /* 全所按鈕 */
+  var allBtn=document.createElement('button');
+  allBtn.className='nav-chip all'+(fOffice===''?' on':'');
+  allBtn.textContent='全所';
+  allBtn.onclick=function(){setOffice('');};
+  oRow.appendChild(allBtn);
+
+  var offices=new Set();
+  allRows.forEach(function(r){if(gv(r,'area')===area){var o=gv(r,'office');if(o)offices.add(o);}});
   Array.from(offices).sort().forEach(function(o){
-    oEl.innerHTML += '<option value="'+esc(o)+'">'+esc(o)+'</option>';
+    var btn=document.createElement('button');
+    btn.className='nav-chip'+(fOffice===o?' on':'');
+    btn.textContent=o;
+    btn.onclick=(function(oo){return function(){setOffice(oo);};})(o);
+    oRow.appendChild(btn);
   });
 }
 
-function applyFilters() {
-  fArea   = document.getElementById('sel-area').value;
-  fOffice = document.getElementById('sel-office').value;
-  buildOfficeOptions();
-  if (fOffice) document.getElementById('sel-office').value = fOffice;
-  render();
-  updateRank();
+function setArea(a){
+  fArea=a; fOffice='';
+  document.querySelectorAll('#nav-area-row .nav-chip').forEach(function(b){
+    b.classList.toggle('on',b.textContent===(a||'全部'));
+  });
+  buildOfficeNav(a);
+  render(); updateGbar(); updateRank();
 }
 
-/* ══ 資料計算 ══ */
-
-/* 取得某季的月份清單 */
-function qMonths(q) {
-  return QUARTERS[q] || [];
+function setOffice(o){
+  fOffice=o;
+  document.querySelectorAll('#nav-office-row .nav-chip').forEach(function(b){
+    b.classList.toggle('on',b.textContent===(o||'全所'));
+  });
+  render(); updateGbar(); updateRank();
 }
 
-/* 以人為單位，計算某季的卡片資料 */
-function calcPersonQuarter(rows, q) {
-  var months = qMonths(q);
-  var monthData = {}; /* month -> { cur, tgt, eval, valid, hasRole } */
+/* ══ 計算 ══ */
+function calcPersonQuarter(rows,q){
+  var months=QUARTERS[q]||[];
+  var monthData={};
+  months.forEach(function(m){monthData[m]={cur:0,tgt:0,eval:0,hasRole:false,hasData:false};});
 
-  months.forEach(function(m) {
-    monthData[m] = { cur:0, tgt:0, eval:null, hasRole:false, hasData:false };
+  /* 收集各店明細用 */
+  var storeMap={}; /* "月-店碼" -> {code,name,cur,tgt} */
+
+  rows.forEach(function(r){
+    if(gv(r,'exclude').trim()) return; /* 排除 */
+    var m=parseInt(gv(r,'month'),10);
+    if(!months.includes(m)||!monthData[m]) return;
+
+    var cur=gn(r,'cur'), last=gn(r,'last'), inc=gn(r,'inc');
+    var tgt=last+inc;
+    var role=gv(r,'role').trim();
+    var code=gv(r,'code'), storeName=gv(r,'store');
+
+    monthData[m].cur+=cur;
+    monthData[m].tgt+=tgt;
+    monthData[m].hasData=true;
+    if(role) monthData[m].hasRole=true;
+
+    /* 明細 */
+    var key=m+'-'+(code||storeName);
+    if(!storeMap[key]) storeMap[key]={month:m,code:code,name:storeName,cur:0,tgt:0};
+    storeMap[key].cur+=cur;
+    storeMap[key].tgt+=tgt;
   });
 
-  rows.forEach(function(r) {
-    /* 排除原由不為空 → 直接排掉 */
-    if (gv(r,'exclude').trim()) return;
-    var m = parseInt(gv(r,'month'), 10);
-    if (!months.includes(m)) return;
-    if (!monthData[m]) return;
-
-    var cur  = gn(r,'cur');
-    var last = gn(r,'last');
-    var inc  = gn(r,'inc');
-    var tgt  = last + inc;
-    var role = gv(r,'role').trim();
-
-    monthData[m].cur  += cur;
-    monthData[m].tgt  += tgt;
-    monthData[m].hasData = true;
-    if (role) monthData[m].hasRole = true;
+  /* 每月品評（保留1位小數）*/
+  months.forEach(function(m){
+    var d=monthData[m];
+    d.tgt=fmt1(d.tgt);
+    d.eval=fmt1(d.cur-d.tgt);
   });
 
-  /* 無條件進位工具 */
-  function ceil(v) { return Math.ceil(v); }
+  var validMonths=months.filter(function(m){return monthData[m].hasData&&monthData[m].hasRole;});
+  var evalMonths=months.filter(function(m){return monthData[m].hasData;});
 
-  /* 計算每月品評箱數 */
-  months.forEach(function(m) {
-    var d = monthData[m];
-    d.tgt = ceil(d.tgt); /* 目標CTN無條件進位 */
-    if (!d.hasData) { d.eval = null; return; }
-    /* 品評CTN = 當期 - 目標，無條件進位 */
-    d.eval = ceil(d.cur - d.tgt);
-  });
+  var totalCur=fmt1(months.reduce(function(s,m){return s+monthData[m].cur;},0));
+  var totalTgt=fmt1(months.reduce(function(s,m){return s+monthData[m].tgt;},0));
+  var totalEval=evalMonths.length>0?fmt1(evalMonths.reduce(function(s,m){return s+monthData[m].eval;},0)):null;
 
-  /* 有效月份 = hasData + hasRole */
-  var validMonths = months.filter(function(m){ return monthData[m].hasData && monthData[m].hasRole; });
-  var totalCur = months.reduce(function(s,m){ return s + monthData[m].cur; }, 0);
-  var totalTgt = months.reduce(function(s,m){ return s + monthData[m].tgt; }, 0);
+  /* 明細陣列，依月份排序 */
+  var storeRows=Object.values(storeMap).sort(function(a,b){return a.month-b.month||(a.name>b.name?1:-1);});
+  storeRows.forEach(function(s){s.tgt=fmt1(s.tgt);s.eval=fmt1(s.cur-s.tgt);});
 
-  /* 品評箱數合計：所有有資料且排除原由為空的月份全部加總，一律顯示 */
-  var evalMonths = months.filter(function(m){ return monthData[m].hasData; });
-  var totalEval = evalMonths.length > 0
-    ? ceil(evalMonths.reduce(function(s,m){ return s + (monthData[m].cur - monthData[m].tgt); }, 0))
-    : null;
-
-  return {
-    monthData: monthData,
-    months: months,
-    validMonths: validMonths,
-    totalCur: totalCur,
-    totalTgt: totalTgt,
-    totalEval: totalEval
-  };
+  return {monthData:monthData,months:months,validMonths:validMonths,evalMonths:evalMonths,
+    totalCur:totalCur,totalTgt:totalTgt,totalEval:totalEval,storeRows:storeRows};
 }
 
-/* 取得目前篩選後的人員清單與其列資料 */
-function getPersonMap() {
-  var map = {}; /* staffName -> rows[] */
-  allRows.forEach(function(r) {
-    if (fArea   && gv(r,'area')   !== fArea)   return;
-    if (fOffice && gv(r,'office') !== fOffice) return;
-    /* 只看目前季度的月份 */
-    if (curQ) {
-      var months = qMonths(curQ);
-      var m = parseInt(gv(r,'month'), 10);
-      if (!months.includes(m)) return;
-    }
-    var staff = gv(r,'staff') || '（未知）';
-    if (!map[staff]) map[staff] = { rows:[], area:'', office:'' };
+/* ══ 人員資料 ══ */
+function getPersonList(){
+  var map={};
+  allRows.forEach(function(r){
+    if(fArea&&gv(r,'area')!==fArea) return;
+    if(fOffice&&gv(r,'office')!==fOffice) return;
+    var staff=gv(r,'staff')||'（未知）';
+    if(!map[staff]) map[staff]={rows:[],area:'',office:''};
     map[staff].rows.push(r);
-    if (!map[staff].area)   map[staff].area   = gv(r,'area');
-    if (!map[staff].office) map[staff].office = gv(r,'office');
+    if(!map[staff].area)   map[staff].area=gv(r,'area');
+    if(!map[staff].office) map[staff].office=gv(r,'office');
   });
   return map;
 }
 
 /* ══ 渲染 ══ */
-function render() {
-  var area = document.getElementById('main-area');
-  area.innerHTML = '';
-  if (!allRows.length) return;
+function render(){
+  var area=document.getElementById('main-area');
+  area.innerHTML='';
+  if(!allRows.length) return;
 
-  var pMap = getPersonMap();
-  var staffList = Object.keys(pMap);
-
-  if (!staffList.length) {
-    area.innerHTML = '<div class="empty-msg"><div class="ei">🔍</div><div>沒有符合條件的資料</div></div>';
+  var pMap=getPersonList();
+  var staffList=Object.keys(pMap);
+  if(!staffList.length){
+    area.innerHTML='<div class="empty-msg"><div class="ei">🔍</div><div>沒有符合條件的資料</div></div>';
     return;
   }
 
-  /* 計算每人資料，並依品評箱數排序（null 排最後） */
-  var cards = staffList.map(function(staff) {
-    var info = pMap[staff];
-    /* 用全部該人全季列算（不含篩選季度，因 getPersonMap 已過濾） */
-    /* 但要傳入所有月份的原始列（含排除），所以重新取 */
-    var allStaffRows = allRows.filter(function(r){
-      if (fArea   && gv(r,'area')   !== fArea)   return false;
-      if (fOffice && gv(r,'office') !== fOffice) return false;
-      return gv(r,'staff') === staff;
+  /* 取全季列（不限月份篩選）再算 */
+  var cards=staffList.map(function(staff){
+    var info=pMap[staff];
+    var allStaffRows=allRows.filter(function(r){
+      if(fArea&&gv(r,'area')!==fArea) return false;
+      if(fOffice&&gv(r,'office')!==fOffice) return false;
+      return gv(r,'staff')===staff;
     });
-    var qData = calcPersonQuarter(allStaffRows, curQ);
-    return { staff:staff, area:info.area, office:info.office, qData:qData };
+    var qData=calcPersonQuarter(allStaffRows,curQ);
+    return{staff:staff,area:info.area,office:info.office,qData:qData};
   });
 
-  cards.sort(function(a,b) {
-    var ae = a.qData.totalEval, be = b.qData.totalEval;
-    if (ae === null && be === null) return 0;
-    if (ae === null) return 1;
-    if (be === null) return -1;
-    return be - ae;
+  cards.sort(function(a,b){
+    var ae=a.qData.totalEval,be=b.qData.totalEval;
+    if(ae===null&&be===null) return 0;
+    if(ae===null) return 1;
+    if(be===null) return -1;
+    return be-ae;
   });
 
-  cards.forEach(function(c) {
-    area.appendChild(makePersonCard(c));
-  });
+  cards.forEach(function(c){area.appendChild(makeCard(c));});
+  document.getElementById('gb-count').textContent='顯示 '+cards.length+' 人';
 }
 
-function makePersonCard(c) {
-  var q     = curQ || '';
-  var qData = c.qData;
-  var months = qData.months;
+var MNAMES=['','1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
 
-  var el = document.createElement('div');
-  el.className = 'person-card';
+function makeCard(c){
+  var q=curQ||'', qd=c.qData;
+  var te=qd.totalEval;
+  /* 右上角大數字：正數無條件進位，負數無條件進位（保持負值）*/
+  var bigNum=te===null?'—':(te>=0?'+'+Math.ceil(te):String(Math.ceil(te)));
+  var teCls=te===null?'nil':(te>0?'pos':te<0?'neg':'nil');
+  var vm=qd.validMonths.length;
+  var validTag=vm>=2?'<span class="pc-valid-tag ok">✅ '+vm+'/2</span>':'<span class="pc-valid-tag ng">⚠️ '+vm+'/2</span>';
 
-  /* 合計品評箱數 */
-  var te = qData.totalEval;
-  var teCls = te === null ? 'nil' : (te > 0 ? 'pos' : te < 0 ? 'neg' : 'nil');
-  var teStr = te === null ? '—' : (te > 0 ? '+'+te : String(te));
-  var vm = qData.validMonths.length;
-  var tagHtml = vm >= 2
-    ? '<div class="pc-total-tag ok">✅ 有效</div>'
-    : '<div class="pc-total-tag ng">'+vm+'/2 個月</div>';
-
-  /* 月份名稱 */
-  var monthNames = ['','1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
-
-  /* 表格列 */
-  var rowsHtml = months.map(function(m) {
-    var d = qData.monthData[m];
-    if (!d.hasData) {
-      return '<tr>' +
-        '<td>'+monthNames[m]+'</td>' +
-        '<td class="ctn-cur">—</td>' +
-        '<td class="ctn-tgt">—</td>' +
-        '<td class="ctn-eval nil">—</td>' +
-        '</tr>';
-    }
-    var ev = d.eval;
-    var ecls = ev > 0 ? 'pos' : ev < 0 ? 'neg' : 'nil';
-    var estr = ev > 0 ? '+'+ev : String(ev);
-    return '<tr>' +
-      '<td>'+monthNames[m]+'</td>' +
-      '<td class="ctn-cur">'+Math.round(d.cur)+'</td>' +
-      '<td class="ctn-tgt">'+d.tgt+'</td>' +
-      '<td class="ctn-eval '+ecls+'">'+estr+'</td>' +
-      '</tr>';
+  /* 季表格列 */
+  var rowsHtml=qd.months.map(function(m){
+    var d=qd.monthData[m];
+    if(!d.hasData) return '<tr><td>'+MNAMES[m]+'</td><td class="ctn-cur">—</td><td class="ctn-tgt">—</td><td class="ctn-eval nil">—</td></tr>';
+    var ev=d.eval, ecls=ev>0?'pos':ev<0?'neg':'nil', estr=ev>0?'+'+ev:String(ev);
+    return '<tr><td>'+MNAMES[m]+'</td><td class="ctn-cur">'+d.cur+'</td><td class="ctn-tgt">'+d.tgt+'</td><td class="ctn-eval '+ecls+'">'+estr+'</td></tr>';
   }).join('');
 
   /* 合計列 */
-  var totalRow = '<tr class="total-row">' +
-    '<td>合計</td>' +
-    '<td class="ctn-cur">'+Math.round(qData.totalCur)+'</td>' +
-    '<td class="ctn-tgt">'+Math.ceil(qData.totalTgt)+'</td>' +
-    '<td class="ctn-eval '+teCls+'">'+teStr+'</td>' +
-    '</tr>';
+  var teStr=te===null?'—':(te>0?'+'+te:String(te));
+  var totalRow='<tr class="total-row"><td>合計</td><td class="ctn-cur">'+qd.totalCur+'</td><td class="ctn-tgt">'+qd.totalTgt+'</td><td class="ctn-eval '+teCls+'">'+teStr+'</td></tr>';
 
-  el.innerHTML =
-    '<div class="pc-header">' +
-      '<div>' +
-        '<div class="pc-name">'+esc(c.staff)+'</div>' +
-        '<div class="pc-meta">'+esc(c.area)+' · '+esc(c.office)+'</div>' +
-      '</div>' +
-      '<div class="pc-total">' +
-        '<div class="pc-total-num '+teCls+'">'+teStr+'</div>' +
-        '<div class="pc-total-label">'+q+' 品評CTN</div>' +
-        tagHtml +
+  /* 明細表格 */
+  var detailHtml=buildDetailTable(qd,q);
+
+  var el=document.createElement('div');
+  el.className='person-card';
+  el.innerHTML=
+    '<div class="pc-header" onclick="toggleDetail(this)">' +
+      '<div class="pc-top">' +
+        '<div class="pc-left">' +
+          '<div class="pc-name-row"><span class="pc-name">'+esc(c.staff)+'</span>'+validTag+'</div>' +
+          '<div class="pc-meta">'+esc(c.area)+' · '+esc(c.office)+'</div>' +
+        '</div>' +
+        '<div class="pc-right">' +
+          '<div class="pc-q-label">'+q+' 品評CTN</div>' +
+          '<div class="pc-total-num '+teCls+'">'+bigNum+'</div>' +
+        '</div>' +
       '</div>' +
     '</div>' +
     '<table class="pc-table">' +
-      '<thead><tr>' +
-        '<th>月份</th><th>當期CTN</th><th>目標CTN</th><th>品評CTN</th>' +
-      '</tr></thead>' +
-      '<tbody>' + rowsHtml + totalRow + '</tbody>' +
-    '</table>';
+      '<thead><tr><th>月份</th><th>當期CTN</th><th>目標CTN</th><th>品評CTN</th></tr></thead>' +
+      '<tbody>'+rowsHtml+totalRow+'</tbody>' +
+    '</table>' +
+    '<div class="pc-expand-hint">▼ 點標題展開店家明細</div>' +
+    '<div class="pc-detail">'+detailHtml+'</div>';
 
   return el;
 }
 
-/* ══ 排行榜 ══ */
-function updateRank() {
-  var content = document.getElementById('rd-content');
-  content.innerHTML = '';
-  if (!allRows.length || !curQ) return;
+function buildDetailTable(qd,q){
+  if(!qd.storeRows.length) return '<div style="padding:10px 13px;font-size:10px;color:var(--sub);">無明細資料</div>';
+  var months=qd.months;
+  /* 欄：店碼、店名、各月當期/目標/品評 */
+  var thCols='<th>店碼</th><th>店名</th>';
+  months.forEach(function(m){ thCols+='<th>'+MNAMES[m]+'<br>當期</th><th>'+MNAMES[m]+'<br>目標</th><th>'+MNAMES[m]+'<br>品評</th>'; });
 
-  /* 所有人（不受篩選限制）的品評箱數 */
-  var staffMap = {};
-  allRows.forEach(function(r) {
-    var staff = gv(r,'staff') || '（未知）';
-    if (!staffMap[staff]) staffMap[staff] = { rows:[], area:'', office:'' };
-    staffMap[staff].rows.push(r);
-    if (!staffMap[staff].area)   staffMap[staff].area   = gv(r,'area');
-    if (!staffMap[staff].office) staffMap[staff].office = gv(r,'office');
+  /* 重組：以店為行，月份為欄 */
+  var storeIndex={};
+  qd.storeRows.forEach(function(s){
+    var k=s.code||s.name;
+    if(!storeIndex[k]) storeIndex[k]={code:s.code,name:s.name,byMonth:{}};
+    storeIndex[k].byMonth[s.month]=s;
   });
 
-  var ranked = Object.keys(staffMap).map(function(staff) {
-    var qd = calcPersonQuarter(staffMap[staff].rows, curQ);
-    return { staff:staff, area:staffMap[staff].area, office:staffMap[staff].office, val:qd.totalEval };
-  }).filter(function(x){ return x.val !== null; })
-    .sort(function(a,b){ return b.val - a.val; });
+  var tbodyHtml='';
+  Object.values(storeIndex).forEach(function(s){
+    var rowHtml='<td>'+esc(s.code)+'</td><td>'+esc(s.name)+'</td>';
+    months.forEach(function(m){
+      var md=s.byMonth[m];
+      if(!md){rowHtml+='<td class="d-nil">—</td><td class="d-nil">—</td><td class="d-nil">—</td>';return;}
+      var ev=md.eval,ecls=ev>0?'d-pos':ev<0?'d-neg':'d-nil',estr=ev>0?'+'+ev:String(ev);
+      rowHtml+='<td class="d-cur">'+md.cur+'</td><td class="d-tgt">'+md.tgt+'</td><td class="'+ecls+'">'+estr+'</td>';
+    });
+    tbodyHtml+='<tr>'+rowHtml+'</tr>';
+  });
 
-  if (!ranked.length) {
-    content.innerHTML = '<div style="padding:16px;font-size:11px;color:var(--sub);text-align:center;">尚無有效品評資料</div>';
+  return '<div class="pc-detail-header"><span>店家明細</span><button class="pc-detail-close" onclick="closeDetail(event,this)">✕ 收合</button></div>' +
+    '<div class="detail-scroll"><table class="detail-tbl"><thead><tr>'+thCols+'</tr></thead><tbody>'+tbodyHtml+'</tbody></table></div>';
+}
+
+function toggleDetail(hdr){
+  var detail=hdr.parentElement.querySelector('.pc-detail');
+  if(detail) detail.classList.toggle('open');
+}
+function closeDetail(e,btn){
+  e.stopPropagation();
+  btn.closest('.pc-detail').classList.remove('open');
+}
+
+/* ══ 排行榜 ══ */
+function updateRank(){
+  var content=document.getElementById('rd-content');
+  content.innerHTML='';
+  if(!allRows.length||!curQ) return;
+  var staffMap={};
+  allRows.forEach(function(r){
+    var staff=gv(r,'staff')||'（未知）';
+    if(!staffMap[staff]) staffMap[staff]={rows:[],area:'',office:''};
+    staffMap[staff].rows.push(r);
+    if(!staffMap[staff].area) staffMap[staff].area=gv(r,'area');
+    if(!staffMap[staff].office) staffMap[staff].office=gv(r,'office');
+  });
+  var ranked=Object.keys(staffMap).map(function(staff){
+    var qd=calcPersonQuarter(staffMap[staff].rows,curQ);
+    return{staff:staff,area:staffMap[staff].area,office:staffMap[staff].office,val:qd.totalEval};
+  }).filter(function(x){return x.val!==null;}).sort(function(a,b){return b.val-a.val;});
+
+  if(!ranked.length){
+    content.innerHTML='<div style="padding:16px;font-size:11px;color:var(--sub);text-align:center;">尚無有效品評資料</div>';
     return;
   }
-
-  var sec = document.createElement('div');
-  sec.className = 'rd-section';
-  var title = document.createElement('div');
-  title.className = 'rd-sec-title';
-  title.textContent = curQ + ' 品評排行';
+  var sec=document.createElement('div');
+  sec.className='rd-section';
+  var title=document.createElement('div');
+  title.className='rd-sec-title';
+  title.textContent=curQ+' 品評排行';
   sec.appendChild(title);
-
-  ranked.slice(0, 20).forEach(function(x, i) {
-    var item = document.createElement('div');
-    item.className = 'rank-item';
-    var noEl = document.createElement('div');
-    noEl.className = 'rank-no' + (i===0?' top1':i===1?' top2':i===2?' top3':'');
-    noEl.textContent = String(i+1);
-    var info = document.createElement('div');
-    info.className = 'rank-info';
-    info.innerHTML = '<div class="rank-name">'+esc(x.staff)+'</div>' +
-      '<div class="rank-sub">'+esc(x.area)+' · '+esc(x.office)+'</div>';
-    var val = document.createElement('div');
-    val.className = 'rank-val ' + (x.val >= 0 ? 'pos' : 'neg');
-    val.textContent = x.val >= 0 ? '+'+x.val : String(x.val);
-    item.appendChild(noEl);
-    item.appendChild(info);
-    item.appendChild(val);
+  ranked.slice(0,20).forEach(function(x,i){
+    var item=document.createElement('div');
+    item.className='rank-item';
+    var noEl=document.createElement('div');
+    noEl.className='rank-no'+(i===0?' top1':i===1?' top2':i===2?' top3':'');
+    noEl.textContent=String(i+1);
+    var info=document.createElement('div');
+    info.className='rank-info';
+    info.innerHTML='<div class="rank-name">'+esc(x.staff)+'</div><div class="rank-sub">'+esc(x.area)+' · '+esc(x.office)+'</div>';
+    var val=document.createElement('div');
+    val.className='rank-val '+(x.val>0?'pos':x.val<0?'neg':'nil');
+    val.textContent=x.val>0?'+'+x.val:String(x.val);
+    item.appendChild(noEl);item.appendChild(info);item.appendChild(val);
     sec.appendChild(item);
   });
   content.appendChild(sec);
 }
 
-/* ══ Rank Drawer 開關 ══ */
-function toggleRankDrawer() {
-  _rankOpen = !_rankOpen;
-  var dr = document.getElementById('rank-drawer');
-  var toggle = document.getElementById('rd-toggle');
-  if (_rankOpen) {
-    dr.classList.remove('collapsed');
-    toggle.querySelector('.rd-toggle-icon').textContent = '◀';
-  } else {
-    dr.classList.add('collapsed');
-    toggle.querySelector('.rd-toggle-icon') && (toggle.querySelector('.rd-toggle-icon').textContent = '排行');
-  }
-}
-
-function initRankDrawer() {
-  var dr = document.getElementById('rank-drawer');
-  if (!_rankOpen) dr.classList.add('collapsed');
+/* ══ Rank toggle ══ */
+function toggleRank(){
+  _rankOpen=!_rankOpen;
+  var dr=document.getElementById('rank-drawer');
+  var icon=document.querySelector('.rd-toggle-icon');
+  dr.classList.toggle('collapsed',!_rankOpen);
+  if(icon) icon.textContent=_rankOpen?'◀':'▶';
 }
 
 /* ══ GBAR ══ */
-function updateGbar() {
-  var el = document.getElementById('gb-sync');
-  var html = '';
-  if (_syncTime) html += '<span class="gb-sync-item">📊 資料同步 '+esc(_syncTime)+'</span>';
-  el.innerHTML = html;
+function updateGbar(){
+  var el=document.getElementById('gb-sync');
+  el.textContent=_syncTime?'資料同步：'+_syncTime:'';
 }
 
-/* ══ XLSX 匯出 ══ */
-function downloadXLSX() {
-  if (!window.XLSX) { alert('XLSX 套件尚未載入'); return; }
-  var pMap = getPersonMap();
-  var rows = [['人員','營業處','營業所','季度','月份','當期CTN','目標CTN','品評CTN','有效']];
-  var monthNames = ['','1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
-
-  Object.keys(pMap).forEach(function(staff) {
-    var allStaffRows = allRows.filter(function(r){
-      if (fArea   && gv(r,'area')   !== fArea)   return false;
-      if (fOffice && gv(r,'office') !== fOffice) return false;
-      return gv(r,'staff') === staff;
+/* ══ XLSX ══ */
+function downloadXLSX(){
+  if(!window.XLSX){alert('XLSX 套件尚未載入');return;}
+  var pMap=getPersonList();
+  var rows=[['人員','營業處','營業所','季度','月份','當期CTN','目標CTN','品評CTN','有效月份數']];
+  Object.keys(pMap).forEach(function(staff){
+    var info=pMap[staff];
+    var allStaffRows=allRows.filter(function(r){
+      if(fArea&&gv(r,'area')!==fArea) return false;
+      if(fOffice&&gv(r,'office')!==fOffice) return false;
+      return gv(r,'staff')===staff;
     });
-    var info = pMap[staff];
-    var qd = calcPersonQuarter(allStaffRows, curQ);
-    qd.months.forEach(function(m) {
-      var d = qd.monthData[m];
-      rows.push([
-        staff, info.area, info.office, curQ, monthNames[m],
-        d.hasData ? Math.round(d.cur) : '',
-        d.hasData ? Math.round(d.tgt) : '',
-        d.eval !== null ? d.eval : '',
-        qd.validMonths.length >= 2 ? 'Y' : 'N'
-      ]);
+    var qd=calcPersonQuarter(allStaffRows,curQ);
+    qd.months.forEach(function(m){
+      var d=qd.monthData[m];
+      rows.push([staff,info.area,info.office,curQ,MNAMES[m],d.hasData?d.cur:'',d.hasData?d.tgt:'',d.hasData?d.eval:'',qd.validMonths.length]);
     });
   });
-
-  var wb = XLSX.utils.book_new();
-  var ws = XLSX.utils.aoa_to_sheet(rows);
-  XLSX.utils.book_append_sheet(wb, ws, curQ || '品評箱數');
-  XLSX.writeFile(wb, '品評箱數_' + (curQ||'') + '.xlsx');
+  var wb=XLSX.utils.book_new();
+  var ws=XLSX.utils.aoa_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb,ws,curQ||'品評箱數');
+  XLSX.writeFile(wb,'全聯18天_'+(curQ||'')+'.xlsx');
 }
 
 /* ══ 工具 ══ */
-function esc(s) {
-  return String(s==null?'':s)
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
-/* ══ Loading 動畫 ══ */
-function showLoading() {
-  var ls = document.getElementById('loading');
-  ls.style.display = 'flex';
-  ls.style.opacity = '1';
-  var canvas = document.getElementById('loading-canvas');
-  var ctx = canvas.getContext('2d');
-  var W = canvas.width, H = canvas.height, S = 10, C = '#8BA690';
-  var frame = 0, dots = 0;
-  var txtEl = document.getElementById('loading-txt');
-  var f0 = [
-    [0,0,1,1,0,0,0,0],[0,0,1,1,0,0,0,0],[0,1,1,1,1,0,0,0],[0,0,1,1,0,0,0,0],
-    [0,1,1,1,1,0,0,0],[0,0,0,1,1,0,0,0],[0,0,0,0,1,1,0,0],[0,1,1,0,0,0,0,0]
-  ];
-  var f1 = [
-    [0,0,1,1,0,0,0,0],[0,0,1,1,0,0,0,0],[0,1,1,1,1,0,0,0],[0,0,1,1,0,0,0,0],
-    [0,1,1,1,1,0,0,0],[0,0,0,1,1,0,0,0],[0,0,0,0,1,1,0,0],[0,1,1,0,0,0,0,0]
-  ];
-  var bricks = [];
-  for (var i = 0; i < Math.ceil(W/S)+2; i++) bricks.push(i*S);
-  if (_runRaf) cancelAnimationFrame(_runRaf);
-  function draw() {
+/* ══ Loading ══ */
+function showLoading(){
+  var ls=document.getElementById('loading');
+  ls.style.display='flex';ls.style.opacity='1';
+  var canvas=document.getElementById('loading-canvas');
+  var ctx=canvas.getContext('2d');
+  var W=canvas.width,H=canvas.height,S=10,C='#8BA690';
+  var frame=0,dots=0,txtEl=document.getElementById('loading-txt');
+  var f0=[[0,0,1,1,0,0,0,0],[0,0,1,1,0,0,0,0],[0,1,1,1,1,0,0,0],[0,0,1,1,0,0,0,0],[0,1,1,1,1,0,0,0],[0,0,0,1,1,0,0,0],[0,0,0,0,1,1,0,0],[0,1,1,0,0,0,0,0]];
+  var bricks=[];
+  for(var i=0;i<Math.ceil(W/S)+2;i++) bricks.push(i*S);
+  if(_runRaf) cancelAnimationFrame(_runRaf);
+  function draw(){
     ctx.clearRect(0,0,W,H);
-    ctx.fillStyle = 'rgba(128,128,128,.15)';
-    for (var b=0;b<bricks.length;b++) {
-      var bx = ((bricks[b]-frame*2)%W+W)%W;
-      ctx.fillRect(bx,H-S,S-1,S-1);
-    }
-    ctx.fillStyle = C;
-    var sf = frame%8<4 ? f0 : f1;
-    for (var row=0;row<8;row++)
-      for (var col=0;col<8;col++)
-        if(sf[row][col]) ctx.fillRect(W/2-4*S+col*S,H-S-8*S-4+row*S,S-1,S-1);
+    ctx.fillStyle='rgba(128,128,128,.15)';
+    for(var b=0;b<bricks.length;b++){var bx=((bricks[b]-frame*2)%W+W)%W;ctx.fillRect(bx,H-S,S-1,S-1);}
+    ctx.fillStyle=C;
+    var sf=frame%8<4?f0:f0;
+    for(var row=0;row<8;row++) for(var col=0;col<8;col++) if(sf[row][col]) ctx.fillRect(W/2-4*S+col*S,H-S-8*S-4+row*S,S-1,S-1);
     frame++;
-    if (frame%20===0) {
-      dots = (dots+1)%4;
-      if (txtEl) txtEl.textContent = '載入資料中'+'.'.repeat(dots);
-    }
-    _runRaf = requestAnimationFrame(draw);
+    if(frame%20===0){dots=(dots+1)%4;if(txtEl)txtEl.textContent='載入資料中'+'.'.repeat(dots);}
+    _runRaf=requestAnimationFrame(draw);
   }
   draw();
 }
-
-function hideLoading() {
-  if (_runRaf) { cancelAnimationFrame(_runRaf); _runRaf = null; }
-  var ls = document.getElementById('loading');
-  ls.style.transition = 'opacity .4s';
-  ls.style.opacity = '0';
-  setTimeout(function(){ ls.style.display='none'; ls.style.transition=''; }, 420);
+function hideLoading(){
+  if(_runRaf){cancelAnimationFrame(_runRaf);_runRaf=null;}
+  var ls=document.getElementById('loading');
+  ls.style.transition='opacity .4s';ls.style.opacity='0';
+  setTimeout(function(){ls.style.display='none';ls.style.transition='';},420);
 }
 
 /* ══ 啟動 ══ */
-document.addEventListener('DOMContentLoaded', function() {
-  initRankDrawer();
-  loadData();
-});
+document.addEventListener('DOMContentLoaded',function(){loadData();});
 </script>
 </body>
 </html>
