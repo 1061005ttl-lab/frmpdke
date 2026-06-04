@@ -704,13 +704,16 @@ function render(){
   var cards=staffList.map(function(staff){
     var info=pMap[staff];
     var qData=calcPersonQuarter(info.rows,curQ);
-    /* 記錄每個月份對應的單位，供卡片highlight使用 */
+    /* 記錄每個月份對應的單位（處+所），供卡片highlight使用 */
     qData.monthArea={};
+    qData.monthOffice={};
     info.rows.forEach(function(r){
       var m=parseInt(gv(r,'month'))||0;
       if(!qData.monthArea[m]) qData.monthArea[m]=gv(r,'area');
+      if(!qData.monthOffice[m]) qData.monthOffice[m]=gv(r,'office');
     });
-    qData.personArea=info.area; /* 當季最後單位 */
+    qData.personArea=info.area;     /* 當季最後營業處 */
+    qData.personOffice=info.office; /* 當季最後營業所 */
     return{staff:staff,area:info.area,office:info.office,qData:qData};
   });
 
@@ -771,9 +774,11 @@ function makeCard(c){
     var d=qd.monthData[m];
     /* 判斷該月份的單位是否與當季最後單位不同 → highlight */
     var monthA=qd.monthArea?qd.monthArea[m]:'';
-    var isForeign=monthA&&qd.personArea&&monthA!==qd.personArea;
+    var monthO=qd.monthOffice?qd.monthOffice[m]:'';
+    var isForeign=(monthA&&qd.personArea&&monthA!==qd.personArea)||(monthO&&qd.personOffice&&monthO!==qd.personOffice);
+    var foreignLabel=monthA+(monthO?(' '+monthO):'');
     var trCls=isForeign?' class="foreign-month"':'';
-    var mLabel=isForeign?MNAMES[m]+'<span class="foreign-tag" title="'+monthA+'">＊</span>':MNAMES[m];
+    var mLabel=isForeign?MNAMES[m]+'<span class="foreign-tag" title="'+foreignLabel+'">＊</span>':MNAMES[m];
     if(!d.hasData) return '<tr'+trCls+'><td>'+mLabel+'</td><td class="ctn-stores">—</td><td class="ctn-cur">—</td><td class="ctn-tgt">—</td><td class="ctn-eval nil">—</td></tr>';
     var ev=d.eval, ecls=ev>0?'pos':ev<0?'neg':'nil', estr=ev>0?'+'+ev:String(ev);
     return '<tr'+trCls+'><td>'+mLabel+'</td><td class="ctn-stores">'+d.stores+'</td><td class="ctn-cur">'+d.cur+'</td><td class="ctn-tgt">'+d.tgt+'</td><td class="ctn-eval '+ecls+'">'+estr+'</td></tr>';
