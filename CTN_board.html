@@ -638,14 +638,12 @@ function calcPersonQuarter(rows,q){
 
 /* ══ 人員資料 ══ */
 function getPersonList(){
+  /* 第一輪：全部資料不篩選，建立每人的完整rows與最後單位 */
   var map={};
   allRows.forEach(function(r){
-    if(fArea&&gv(r,'area')!==fArea) return;
-    if(fOffice&&gv(r,'office')!==fOffice) return;
     var staff=gv(r,'staff')||'（未知）';
     if(!map[staff]) map[staff]={rows:[],area:'',office:'',lastMonth:0};
     map[staff].rows.push(r);
-    /* 以當季最後月份的那筆為顯示單位 */
     var m=parseInt(gv(r,'month'))||0;
     if(m>map[staff].lastMonth){
       map[staff].lastMonth=m;
@@ -653,6 +651,14 @@ function getPersonList(){
       map[staff].office=gv(r,'office');
     }
   });
+  /* 第二輪：依最後單位篩選整人 */
+  if(fArea||fOffice){
+    Object.keys(map).forEach(function(staff){
+      var p=map[staff];
+      if(fArea&&p.area!==fArea){ delete map[staff]; return; }
+      if(fOffice&&p.office!==fOffice){ delete map[staff]; return; }
+    });
+  }
   return map;
 }
 
