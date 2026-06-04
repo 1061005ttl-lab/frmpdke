@@ -636,22 +636,35 @@ function calcPersonQuarter(rows,q){
     totalStores:totalStores,storeRows:storeRows};
 }
 
+function getQMonths(q){
+  var qm={Q1:[1,2,3],Q2:[4,5,6],Q3:[7,8,9],Q4:[10,11,12]};
+  return qm[q]||[];
+}
+
 /* ══ 人員資料 ══ */
 function getPersonList(){
-  /* 第一輪：全部資料不篩選，建立每人的完整rows與最後單位 */
+  /* 第一輪：全部資料不篩選，建立每人完整rows；同時依當季最後月份決定顯示單位 */
   var map={};
+  var qMonths=curQ?getQMonths(curQ):null; /* 當季月份陣列，例如[4,5,6] */
   allRows.forEach(function(r){
     var staff=gv(r,'staff')||'（未知）';
-    if(!map[staff]) map[staff]={rows:[],area:'',office:'',lastMonth:0};
+    if(!map[staff]) map[staff]={rows:[],area:'',office:'',lastMonth:0,lastMonthAll:0};
     map[staff].rows.push(r);
     var m=parseInt(gv(r,'month'))||0;
-    if(m>map[staff].lastMonth){
+    /* 當季最後月份 → 決定卡片顯示單位 */
+    if(qMonths&&qMonths.indexOf(m)>=0&&m>map[staff].lastMonth){
       map[staff].lastMonth=m;
       map[staff].area=gv(r,'area');
       map[staff].office=gv(r,'office');
     }
+    /* 跨季fallback：若當季無資料，用全局最後月份 */
+    if(m>map[staff].lastMonthAll){
+      map[staff].lastMonthAll=m;
+      if(!map[staff].area){ map[staff].area=gv(r,'area'); }
+      if(!map[staff].office){ map[staff].office=gv(r,'office'); }
+    }
   });
-  /* 第二輪：依最後單位篩選整人 */
+  /* 第二輪：依當季最後單位篩選整人 */
   if(fArea||fOffice){
     Object.keys(map).forEach(function(staff){
       var p=map[staff];
