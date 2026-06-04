@@ -94,7 +94,8 @@
     .nav-back:hover { border-color:var(--primary-d); }
     .nav-divider { width:1px; height:16px; background:rgba(0,0,0,.1); flex-shrink:0; margin:0 2px; }
     .nav-chip.nav-area-btn { font-weight:900; border-color:rgba(0,0,0,.18); }
-    #nav-office-row { display:none; }
+    #nav-office-row { display:none; background:rgba(255,255,255,.5); border-bottom:1px solid rgba(0,0,0,.06); }
+    #nav-office-row.visible { display:flex; }
 
 
     /* ══ GBAR ══ */
@@ -180,29 +181,32 @@
 
     /* ══ Dialog ══ */
     #detail-dialog {
-      position:fixed; inset:0; background:rgba(0,0,0,.45); z-index:500;
+      position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:500;
       display:flex; align-items:center; justify-content:center;
       opacity:0; transition:opacity .2s;
     }
     #detail-dialog.open { opacity:1; }
     .dlg-box {
-      background:#fff; border-radius:12px; max-width:90vw; max-height:82vh;
+      background:#fff; border-radius:14px;
+      width:95vw; height:92vh;
       display:flex; flex-direction:column; overflow:hidden;
-      box-shadow:0 12px 48px rgba(0,0,0,.22);
-      transform:translateY(12px); transition:transform .22s;
+      box-shadow:0 20px 80px rgba(0,0,0,.35);
+      transform:translateY(16px); transition:transform .22s;
     }
     #detail-dialog.open .dlg-box { transform:translateY(0); }
     .dlg-header {
-      padding:10px 14px; border-bottom:1px solid rgba(0,0,0,.08);
+      padding:14px 20px; border-bottom:1px solid rgba(0,0,0,.09);
       display:flex; align-items:center; justify-content:space-between;
-      font-size:12px; font-weight:800; color:var(--text); flex-shrink:0;
+      font-size:15px; font-weight:900; color:var(--text); flex-shrink:0;
+      background:rgba(248,250,248,1);
     }
     .dlg-close {
-      cursor:pointer; font-size:13px; color:var(--sub); padding:2px 7px;
-      border-radius:5px; border:1px solid rgba(0,0,0,.1); background:#fff;
+      cursor:pointer; font-size:14px; color:var(--sub); padding:4px 12px;
+      border-radius:7px; border:1px solid rgba(0,0,0,.12); background:#fff;
+      font-family:inherit; font-weight:700;
     }
     .dlg-close:hover { border-color:var(--primary); color:var(--primary-d); }
-    .dlg-body { overflow:auto; flex:1; min-height:0; }
+    .dlg-body { overflow:auto; flex:1; min-height:0; padding:4px 0; }
 
 
     .pc-detail-header {
@@ -214,14 +218,14 @@
     .detail-scroll { overflow-x:auto; }
     .detail-scroll::-webkit-scrollbar { height:3px; }
     .detail-scroll::-webkit-scrollbar-thumb { background:rgba(0,0,0,.1); border-radius:3px; }
-    .detail-tbl { width:max-content; min-width:100%; border-collapse:collapse; font-size:10px; }
+    .detail-tbl { width:max-content; min-width:100%; border-collapse:collapse; font-size:13px; }
     .detail-tbl th {
-      padding:4px 8px; text-align:right; font-weight:800; font-size:9px; color:var(--sub);
+      padding:8px 12px; text-align:right; font-weight:800; font-size:11px; color:var(--sub);
       border-bottom:1px solid rgba(0,0,0,.08); background:rgba(0,0,0,.02); white-space:nowrap;
     }
     .detail-tbl th:first-child, .detail-tbl th:nth-child(2) { text-align:left; }
-    .detail-tbl td { padding:4px 8px; text-align:right; border-bottom:1px solid rgba(0,0,0,.04); white-space:nowrap; }
-    .detail-tbl td:first-child, .detail-tbl td:nth-child(2) { text-align:left; color:var(--text); max-width:100px; overflow:hidden; text-overflow:ellipsis; }
+    .detail-tbl td { padding:7px 12px; text-align:right; border-bottom:1px solid rgba(0,0,0,.04); white-space:nowrap; }
+    .detail-tbl td:first-child, .detail-tbl td:nth-child(2) { text-align:left; color:var(--text); max-width:180px; overflow:hidden; text-overflow:ellipsis; }
     .detail-tbl tr:last-child td { border-bottom:none; }
     .d-pos { color:var(--green); font-weight:800; }
     .d-neg { color:var(--red); font-weight:800; }
@@ -299,8 +303,8 @@
 <!-- NAVBAR 營業處 -->
 <div id="navbars">
   <div class="nav-row" id="nav-area-row"></div>
-  <!-- office nav 已整合入同行，保留空 div 供相容 -->
-  <div class="nav-row" id="nav-office-row" style="display:none"></div>
+  <!-- 第二行：所選營業處的營業所 -->
+  <div class="nav-row" id="nav-office-row"></div>
 </div>
 
 <!-- GBAR -->
@@ -464,7 +468,7 @@ function buildQChips(qs){
   });
 }
 
-/* ══ NAVBAR（單行：全部 ｜ 北部▸ 所A 所B … ｜ 桃園▸ …） ══ */
+/* ══ NAVBAR（兩行：第一行營業處，第二行所選處的營業所）══ */
 function buildNavbar(){
   var areas=new Set();
   allRows.forEach(function(r){var a=gv(r,'area');if(a)areas.add(a);});
@@ -480,55 +484,58 @@ function buildNavbar(){
   allBtn.onclick=function(){setArea('');};
   aRow.appendChild(allBtn);
 
-  /* 每個營業處 + 其下所有營業所（同行） */
   areaList.forEach(function(a){
-    /* 分隔線 */
-    var dv=document.createElement('div');
-    dv.className='nav-divider'; aRow.appendChild(dv);
+    var btn=document.createElement('button');
+    btn.className='nav-chip nav-area-btn'+(fArea===a?' on':'');
+    btn.dataset.area=a;
+    btn.textContent=a;
+    btn.onclick=(function(aa){return function(){setArea(aa);};})(a);
+    aRow.appendChild(btn);
+  });
 
-    /* 營業處按鈕（可點擊選取） */
-    var aBtn=document.createElement('button');
-    aBtn.className='nav-chip nav-area-btn'+(fArea===a?' on':'');
-    aBtn.dataset.area=a;
-    aBtn.textContent=a;
-    aBtn.onclick=(function(aa){return function(){setArea(fArea===aa?'':aa);};})(a);
-    aRow.appendChild(aBtn);
+  buildOfficeNav(fArea);
+}
 
-    /* 該處的營業所 */
-    var offices=new Set();
-    allRows.forEach(function(r){if(gv(r,'area')===a){var o=gv(r,'office');if(o)offices.add(o);}});
-    Array.from(offices).sort().forEach(function(o){
-      var oBtn=document.createElement('button');
-      oBtn.className='nav-chip nav-office-btn'+(fArea===a&&fOffice===o?' on':'');
-      oBtn.dataset.area=a; oBtn.dataset.office=o;
-      oBtn.textContent=o;
-      oBtn.onclick=(function(aa,oo){return function(){
-        if(fArea===aa&&fOffice===oo){setArea('');} /* 再點取消 */
-        else{fArea=aa;fOffice=oo;refreshNavHighlight();render();updateGbar();updateRank();}
-      };})(a,o);
-      aRow.appendChild(oBtn);
-    });
+function buildOfficeNav(area){
+  var oRow=document.getElementById('nav-office-row');
+  oRow.innerHTML='';
+  if(!area){oRow.classList.remove('visible');return;}
+  oRow.classList.add('visible');
+
+  /* 全所 */
+  var allBtn=document.createElement('button');
+  allBtn.className='nav-chip all'+(fOffice===''?' on':'');
+  allBtn.textContent='全所';
+  allBtn.onclick=function(){setOffice('');};
+  oRow.appendChild(allBtn);
+
+  var offices=new Set();
+  allRows.forEach(function(r){if(gv(r,'area')===area){var o=gv(r,'office');if(o)offices.add(o);}});
+  Array.from(offices).sort().forEach(function(o){
+    var btn=document.createElement('button');
+    btn.className='nav-chip'+(fOffice===o?' on':'');
+    btn.textContent=o;
+    btn.onclick=(function(oo){return function(){setOffice(oo);};})(o);
+    oRow.appendChild(btn);
   });
 }
 
 function refreshNavHighlight(){
   document.querySelectorAll('.nav-area-btn').forEach(function(b){
-    b.classList.toggle('on',b.dataset.area===fArea&&fOffice==='');
-  });
-  document.querySelectorAll('.nav-office-btn').forEach(function(b){
-    b.classList.toggle('on',b.dataset.area===fArea&&b.dataset.office===fOffice);
+    b.classList.toggle('on',b.dataset.area===fArea);
   });
   document.querySelectorAll('#nav-area-row .nav-chip.all').forEach(function(b){
     b.classList.toggle('on',fArea==='');
   });
+  document.querySelectorAll('#nav-office-row .nav-chip').forEach(function(b){
+    b.classList.toggle('on',b.textContent===(fOffice||'全所'));
+  });
 }
-
-/* 舊版 office nav 已整合入同行，保留空函數供相容 */
-function buildOfficeNav(area){ refreshNavHighlight(); }
 
 function setArea(a){
   fArea=a; fOffice='';
   refreshNavHighlight();
+  buildOfficeNav(a);
   render(); updateGbar(); updateRank();
 }
 
@@ -661,13 +668,15 @@ function makeCard(c){
   var te=qd.totalEval;
   var vm=qd.validMonths.length;
 
-  /* 6. 有效月份<2 → 右上角顯示 — */
+  /* 右上角大數字：正→ceiling 負→floor，有效月份<2 → — */
   var bigNum, teCls;
   if(vm<2){
     bigNum='—'; teCls='nil';
   } else {
-    bigNum=te===null?'—':(te>=0?'+'+Math.ceil(te):String(Math.ceil(te)));
-    teCls=te===null?'nil':(te>0?'pos':te<0?'neg':'nil');
+    if(te===null){ bigNum='—'; teCls='nil'; }
+    else if(te>0){ bigNum='+'+Math.ceil(te); teCls='pos'; }
+    else if(te<0){ bigNum=String(Math.floor(te)); teCls='neg'; }
+    else { bigNum='0'; teCls='nil'; }
   }
 
   var validTag=vm>=2?'<span class="pc-valid-tag ok">✅ '+vm+'/2</span>':'<span class="pc-valid-tag ng">⚠️ '+vm+'/2</span>';
