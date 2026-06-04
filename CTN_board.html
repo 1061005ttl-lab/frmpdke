@@ -982,9 +982,16 @@ function showLoading(){
   ls.style.display='flex';ls.style.opacity='1';
   var canvas=document.getElementById('loading-canvas');
   var ctx=canvas.getContext('2d');
-  var W=canvas.width,H=canvas.height,S=10,C='#8BA690';
+  var W=canvas.width,H=canvas.height,S=7,C='#8BA690';
   var frame=0,dots=0,txtEl=document.getElementById('loading-txt');
-  var f0=[[0,0,1,1,0,0,0,0],[0,0,1,1,0,0,0,0],[0,1,1,1,1,0,0,0],[0,0,1,1,0,0,0,0],[0,1,1,1,1,0,0,0],[0,0,0,1,1,0,0,0],[0,0,0,0,1,1,0,0],[0,1,1,0,0,0,0,0]];
+  var f0=[
+    [0,0,1,1,0,0,0,0],[0,0,1,1,0,0,0,0],[0,1,1,1,1,0,0,0],[0,0,1,1,0,0,0,0],
+    [0,1,1,1,1,0,0,0],[0,1,0,0,1,0,0,0],[1,1,0,0,0,0,0,0],[0,1,0,0,1,1,0,0]
+  ];
+  var f1=[
+    [0,0,1,1,0,0,0,0],[0,0,1,1,0,0,0,0],[0,1,1,1,1,0,0,0],[0,0,1,1,0,0,0,0],
+    [0,1,1,1,1,0,0,0],[0,0,0,1,1,0,0,0],[0,0,0,0,1,1,0,0],[0,1,1,0,0,0,0,0]
+  ];
   var bricks=[];
   for(var i=0;i<Math.ceil(W/S)+2;i++) bricks.push(i*S);
   if(_runRaf) cancelAnimationFrame(_runRaf);
@@ -993,7 +1000,7 @@ function showLoading(){
     ctx.fillStyle='rgba(128,128,128,.15)';
     for(var b=0;b<bricks.length;b++){var bx=((bricks[b]-frame*2)%W+W)%W;ctx.fillRect(bx,H-S,S-1,S-1);}
     ctx.fillStyle=C;
-    var sf=frame%8<4?f0:f0;
+    var sf=frame%8<4?f0:f1;
     for(var row=0;row<8;row++) for(var col=0;col<8;col++) if(sf[row][col]) ctx.fillRect(W/2-4*S+col*S,H-S-8*S-4+row*S,S-1,S-1);
     frame++;
     if(frame%20===0){dots=(dots+1)%4;if(txtEl)txtEl.textContent='載入資料中'+'.'.repeat(dots);}
