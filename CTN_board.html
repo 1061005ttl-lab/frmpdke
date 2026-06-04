@@ -643,10 +643,15 @@ function getPersonList(){
     if(fArea&&gv(r,'area')!==fArea) return;
     if(fOffice&&gv(r,'office')!==fOffice) return;
     var staff=gv(r,'staff')||'（未知）';
-    if(!map[staff]) map[staff]={rows:[],area:'',office:''};
+    if(!map[staff]) map[staff]={rows:[],area:'',office:'',lastMonth:0};
     map[staff].rows.push(r);
-    if(!map[staff].area)   map[staff].area=gv(r,'area');
-    if(!map[staff].office) map[staff].office=gv(r,'office');
+    /* 以當季最後月份的那筆為顯示單位 */
+    var m=parseInt(gv(r,'month'))||0;
+    if(m>map[staff].lastMonth){
+      map[staff].lastMonth=m;
+      map[staff].area=gv(r,'area');
+      map[staff].office=gv(r,'office');
+    }
   });
   return map;
 }
