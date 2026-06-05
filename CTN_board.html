@@ -644,26 +644,25 @@ function calcPersonQuarter(rows,q){
     storeMap[key].tgt+=tgt;
   });
 
-  /* 每月品評 — 目標/品評用 fmt2（捨去到小數第2位）*/
+  /* 每月品評 — tgt/eval 對齊到最近的1/3（不用fmt2捨去，避免toFrac判斷錯誤）*/
   months.forEach(function(m){
     var d=monthData[m];
-    d.tgt=fmt2(d.tgt);
-    d.eval=fmt2(d.cur-d.tgt);
+    d.tgt=Math.round(d.tgt*3)/3;   /* 對齊到1/3 */
+    d.eval=Math.round((d.cur-d.tgt)*3)/3;
   });
 
   var validMonths=months.filter(function(m){return monthData[m].hasData&&monthData[m].hasRole;});
   var evalMonths=months.filter(function(m){return monthData[m].hasData;});
 
   var totalCur=evalMonths.reduce(function(s,m){return s+monthData[m].cur;},0);
-  var totalTgt=fmt2(evalMonths.reduce(function(s,m){return s+monthData[m].tgt;},0));
+  var totalTgt=Math.round(evalMonths.reduce(function(s,m){return s+monthData[m].tgt;},0)*3)/3;
   var totalStores=evalMonths.reduce(function(s,m){return s+monthData[m].stores;},0);
-  /* totalEval: fmt2 for display; totalEvalRaw for ceiling in header */
   var totalEvalRaw=evalMonths.length>0?evalMonths.reduce(function(s,m){return s+monthData[m].eval;},0):null;
-  var totalEval=totalEvalRaw!==null?fmt2(totalEvalRaw):null;
+  var totalEval=totalEvalRaw!==null?Math.round(totalEvalRaw*3)/3:null;
 
   /* 明細陣列，依月份排序 */
   var storeRows=Object.values(storeMap).sort(function(a,b){return a.month-b.month||(a.name>b.name?1:-1);});
-  storeRows.forEach(function(s){s.tgt=fmt2(s.tgt);s.eval=fmt2(s.cur-s.tgt);});
+  storeRows.forEach(function(s){s.tgt=Math.round(s.tgt*3)/3;s.eval=Math.round((s.cur-s.tgt)*3)/3;});
 
   return {monthData:monthData,months:months,validMonths:validMonths,evalMonths:evalMonths,
     totalCur:totalCur,totalTgt:totalTgt,totalEval:totalEval,totalEvalRaw:totalEvalRaw,
