@@ -752,10 +752,12 @@ function render(){
 
   cards.forEach(function(c){area.appendChild(makeCard(c));});
 
-  /* 顯示人數 + 預計核發箱數（只加正數品評CTN） */
+  /* 顯示人數 + 預計核發箱數（只加正數品評CTN，且需>=2個月資料） */
   var posSum=0;
   cards.forEach(function(c){
-    var ter=c.qData.totalEvalRaw;
+    var qd=c.qData;
+    if(qd.evalMonths.length<2) return;
+    var ter=qd.totalEvalRaw;
     if(ter===null) return;
     var val=Math.ceil(fmt1(ter));
     if(val>0) posSum+=val;
