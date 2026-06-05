@@ -326,7 +326,7 @@
   <span style="font-size:11px;color:var(--sub);font-weight:700;flex-shrink:0;">季度</span>
   <div id="q-chips"></div>
   <div id="tb-right">
-    <div id="ver-ts">Ver. 1.3.0 (2026-06-05)</div>
+    <div id="ver-ts">Ver. 1.3.1 (2026-06-05)</div>
     <button class="tb-btn" onclick="downloadXLSX()">📥 XLSX</button>
   </div>
 </div>
@@ -946,18 +946,18 @@ function _fracVal(v){
   return Math.round(v*3)/3;
 }
 function _fracText(v){
-  /* 回傳人讀格式，例如 4⅓ → "4 1/3"，用於 LINE */
+  /* 回傳人讀格式，使用 Unicode 分數字元 ⅓ ⅔，用於 LINE */
   if(v===null||v===undefined) return '—';
   var rounded=Math.round(v*3)/3;
   var neg=rounded<0; var abs=Math.abs(rounded);
   var intPart=Math.floor(abs+0.001);
   var rem=Math.round((abs-intPart)*3);
-  var fracStr=rem===1?'1/3':rem===2?'2/3':'';
+  var fracStr=rem===1?'⅓':rem===2?'⅔':'';
   var sign=neg?'-':'';
   if(intPart===0&&fracStr==='') return '0';
   if(intPart===0) return sign+fracStr;
   if(fracStr==='') return sign+String(intPart);
-  return sign+String(intPart)+' '+fracStr;
+  return sign+String(intPart)+fracStr;
 }
 
 /* ══ 從目前 dialog 的 _currentQd 取資料 ══ */
@@ -1041,32 +1041,28 @@ function copyExcel(){
   _doCopy(lines.join('\n'), btn);
 }
 
-/* ══ 截圖 ══ */
+/* ══ 截圖（複製到剪貼簿）══ */
 function takeScreenshot(){
   var btn=document.getElementById('btn-screenshot');
   btn.classList.add('loading');
   btn.textContent='⏳ 截圖中...';
 
-  /* 動態載入 html2canvas */
   function doCapture(){
     var body=document.getElementById('dlg-body');
     var titleEl=document.getElementById('dlg-title');
     var titleText=titleEl?titleEl.textContent.trim():'明細';
 
-    /* 建立截圖容器：標題 + 表格內容 */
     var wrapper=document.createElement('div');
-    wrapper.style.cssText='background:#fff;padding:20px 24px;font-family:Microsoft JhengHei,Noto Sans TC,sans-serif;display:inline-block;min-width:600px;';
+    wrapper.style.cssText='background:#fff;padding:20px 24px;font-family:Microsoft JhengHei,Noto Sans TC,sans-serif;display:inline-block;min-width:600px;position:fixed;top:-9999px;left:-9999px;';
 
     var h=document.createElement('div');
     h.style.cssText='font-size:15px;font-weight:900;color:#2D2D2D;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #e8e8e8;';
     h.textContent=titleText;
     wrapper.appendChild(h);
 
-    /* clone 表格 */
     var tblSrc=body.querySelector('.detail-tbl');
     if(tblSrc){
       var tblClone=tblSrc.cloneNode(true);
-      /* 把 frac-wrap span 文字整理：移除多餘空白 */
       tblClone.querySelectorAll('.frac-wrap').forEach(function(fw){
         var intEl=fw.querySelector('.frac-int');
         var remEl=fw.querySelector('.frac-rem');
@@ -1075,7 +1071,6 @@ function takeScreenshot(){
         span.textContent=t||'0';
         fw.parentNode.replaceChild(span,fw);
       });
-      /* 套用基本樣式 */
       tblClone.style.cssText='border-collapse:collapse;font-size:13px;width:max-content;min-width:100%;';
       tblClone.querySelectorAll('th').forEach(function(el){
         el.style.cssText='padding:7px 12px;text-align:right;font-size:11px;font-weight:800;color:#888;background:#f8f8f8;border-bottom:1px solid #e0e0e0;white-space:nowrap;';
@@ -1085,19 +1080,14 @@ function takeScreenshot(){
         el.style.cssText='padding:7px 12px;text-align:right;border-bottom:1px solid #f0f0f0;white-space:nowrap;';
       });
       tblClone.querySelectorAll('td:first-child,td:nth-child(2)').forEach(function(el){ el.style.textAlign='left'; });
-      /* 顏色類別 */
       tblClone.querySelectorAll('.d-pos').forEach(function(el){ el.style.color='#22a84c'; el.style.fontWeight='800'; });
       tblClone.querySelectorAll('.d-neg').forEach(function(el){ el.style.color='#d93025'; el.style.fontWeight='800'; });
       tblClone.querySelectorAll('.d-nil').forEach(function(el){ el.style.color='#aaa'; });
       tblClone.querySelectorAll('.d-cur').forEach(function(el){ el.style.color='#1a73e8'; });
       tblClone.querySelectorAll('.d-tgt').forEach(function(el){ el.style.color='#7c3aed'; });
-
-      var scrollWrap=document.createElement('div');
-      scrollWrap.appendChild(tblClone);
-      wrapper.appendChild(scrollWrap);
+      wrapper.appendChild(tblClone);
     }
 
-    /* 加浮水印時間 */
     var ts=document.createElement('div');
     ts.style.cssText='font-size:10px;color:#bbb;margin-top:12px;text-align:right;';
     ts.textContent='全聯18天推廣進度看板　'+new Date().toLocaleString('zh-TW');
@@ -1110,13 +1100,27 @@ function takeScreenshot(){
       width:wrapper.scrollWidth, height:wrapper.scrollHeight
     }).then(function(canvas){
       document.body.removeChild(wrapper);
-      /* 下載 */
-      var link=document.createElement('a');
-      link.download=titleText.replace(/\s+/g,'_')+'.png';
-      link.href=canvas.toDataURL('image/png');
-      link.click();
-      btn.classList.remove('loading');
-      _flashBtn(btn,'✅ 已下載！');
+
+      /* 優先嘗試複製到剪貼簿 */
+      if(navigator.clipboard&&window.ClipboardItem){
+        canvas.toBlob(function(blob){
+          try{
+            var item=new ClipboardItem({'image/png':blob});
+            navigator.clipboard.write([item]).then(function(){
+              btn.classList.remove('loading');
+              _flashBtn(btn,'✅ 已複製圖片！');
+            }).catch(function(){
+              /* 剪貼簿失敗 → fallback 下載 */
+              _downloadCanvas(canvas, titleText, btn);
+            });
+          }catch(e){
+            _downloadCanvas(canvas, titleText, btn);
+          }
+        },'image/png');
+      } else {
+        /* 不支援 ClipboardItem → 下載 */
+        _downloadCanvas(canvas, titleText, btn);
+      }
     }).catch(function(err){
       document.body.removeChild(wrapper);
       btn.classList.remove('loading');
@@ -1138,6 +1142,15 @@ function takeScreenshot(){
     };
     document.head.appendChild(s);
   }
+}
+
+function _downloadCanvas(canvas, titleText, btn){
+  var link=document.createElement('a');
+  link.download=titleText.replace(/\s+/g,'_')+'.png';
+  link.href=canvas.toDataURL('image/png');
+  link.click();
+  btn.classList.remove('loading');
+  _flashBtn(btn,'✅ 已下載！');
 }
 
 /* ══ 排行榜 ══ */
