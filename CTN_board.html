@@ -105,7 +105,6 @@
     .nav-chip.nav-office-chip { color:#555; border-color:rgba(0,0,0,.1); }
     #nav-office-row { display:none !important; }
 
-
     /* ══ 排序按鈕 ══ */
     .sort-btn {
       padding:3px 11px; border-radius:99px; font-size:11px; font-weight:700;
@@ -144,7 +143,7 @@
     }
     .person-card:hover { box-shadow:0 5px 20px rgba(80,100,85,.2); transform:translateY(-1px); }
 
-    /* ══ 卡片 header（舊版相容保留） ══ */
+    /* ══ 卡片 header ══ */
     .pc-valid-tag {
       font-size:10px; font-weight:800; padding:2px 7px; border-radius:99px;
       border:1px solid; white-space:nowrap; flex-shrink:0;
@@ -173,7 +172,7 @@
     td.ctn-eval.neg { color:var(--red); }
     td.ctn-eval.nil { color:var(--sub); }
 
-    /* ══ 標題列（單行）══ */
+    /* ══ 標題列 ══ */
     .pc-header { padding:11px 13px 9px; border-bottom:1px solid rgba(0,0,0,.06); }
     .pc-title-row {
       display:flex; align-items:center; gap:6px; flex-wrap:nowrap;
@@ -221,11 +220,17 @@
     .dlg-close {
       cursor:pointer; font-size:14px; color:var(--sub); padding:4px 12px;
       border-radius:7px; border:1px solid rgba(0,0,0,.12); background:#fff;
-      font-family:inherit; font-weight:700;
+      font-family:inherit; font-weight:700; transition:all .14s;
     }
     .dlg-close:hover { border-color:var(--primary); color:var(--primary-d); }
+    .dlg-copy-btn {
+      cursor:pointer; font-size:14px; color:var(--sub); padding:4px 12px;
+      border-radius:7px; border:1px solid rgba(0,0,0,.12); background:#fff;
+      font-family:inherit; font-weight:700; transition:all .14s;
+    }
+    .dlg-copy-btn:hover { border-color:var(--primary); color:var(--primary-d); }
+    .dlg-copy-btn.copied { border-color:var(--green); color:var(--green); background:var(--green-bg); }
     .dlg-body { overflow:auto; flex:1; min-height:0; padding:4px 0; }
-
 
     .pc-detail-header {
       padding:7px 13px 5px; display:flex; align-items:center; justify-content:space-between;
@@ -320,7 +325,7 @@
   <span style="font-size:11px;color:var(--sub);font-weight:700;flex-shrink:0;">季度</span>
   <div id="q-chips"></div>
   <div id="tb-right">
-    <div id="ver-ts">Ver. 1.1.0 (2026-06-04)</div>
+    <div id="ver-ts">Ver. 1.2.0 (2026-06-05)</div>
     <button class="tb-btn" onclick="downloadXLSX()">📥 XLSX</button>
   </div>
 </div>
@@ -328,7 +333,6 @@
 <!-- NAVBAR 營業處 -->
 <div id="navbars">
   <div class="nav-row" id="nav-area-row"></div>
-  <!-- 第二行：所選營業處的營業所 -->
   <div class="nav-row" id="nav-office-row"></div>
 </div>
 
@@ -361,11 +365,15 @@
   <div class="dlg-box">
     <div class="dlg-header">
       <span id="dlg-title"></span>
-      <button class="dlg-close" onclick="closeDetailDialog()">✕</button>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="dlg-copy-btn" id="dlg-copy-btn" onclick="copyDialogData()">📋 複製</button>
+        <button class="dlg-close" onclick="closeDetailDialog()">✕</button>
+      </div>
     </div>
     <div class="dlg-body" id="dlg-body"></div>
   </div>
 </div>
+
 <script>
 /* ══ 設定 ══ */
 var SHEET_ID   = '1vUVbEG08JXZc05rAz4owM4_IFQnjJUGuDjBUqF-Q-Mg';
@@ -386,7 +394,7 @@ function sortAreas(arr){
 
 /* ══ 狀態 ══ */
 var allRows=[], CI={}, curQ='', fArea='', fOffice='', _syncTime='', _rankOpen=false, _runRaf=null;
-var curSort='eval'; /* eval | stores | cur | tgt */
+var curSort='eval';
 
 /* ══ 欄位索引 ══ */
 function initCI(hdrs) {
@@ -406,8 +414,8 @@ function initCI(hdrs) {
 }
 function gv(row,key){ var i=CI[key]; return(i>=0&&row[i]!=null)?String(row[i]).trim():''; }
 function gn(row,key){ var v=parseFloat(gv(row,key)); return isNaN(v)?0:v; }
-function fmt1(v){ return Math.floor(v*10)/10; }   /* 捨去到小數第1位 */
-function fmt2(v){ return Math.floor(v*100)/100; } /* 捨去到小數第2位 */
+function fmt1(v){ return Math.floor(v*10)/10; }
+function fmt2(v){ return Math.floor(v*100)/100; }
 function toFrac(v){
   if(v===null||v===undefined) return '—';
   var rounded=Math.round(v*3)/3;
@@ -421,13 +429,27 @@ function toFrac(v){
   if(intPart===0&&fracStr==='') intStr='0';
   else if(intPart===0) intStr='';
   else intStr=String(intPart);
-  /* 兩個span：整數部分靠右，分數部分固定寬佔位 */
   return '<span class="frac-wrap"><span class="frac-int">'+sign+intStr+'</span><span class="frac-rem">'+fracStr+'</span></span>';
 }
 function toFracEval(v){
-  /* 品評CTN，負數帶-號，正數不帶+號 */
   if(v===null||v===undefined) return '—';
   return toFrac(v);
+}
+
+/* 分數轉純文字（用於複製） */
+function fracToText(v){
+  if(v===null||v===undefined) return '—';
+  var rounded=Math.round(v*3)/3;
+  var neg=rounded<0;
+  var abs=Math.abs(rounded);
+  var intPart=Math.floor(abs+0.001);
+  var rem=Math.round((abs-intPart)*3);
+  var fracStr=rem===1?'1/3':rem===2?'2/3':'';
+  var sign=neg?'-':'';
+  if(intPart===0&&fracStr==='') return '0';
+  if(intPart===0) return sign+fracStr;
+  if(fracStr==='') return sign+String(intPart);
+  return sign+String(intPart)+' '+fracStr;
 }
 
 /* ══ 載入 ══ */
@@ -466,7 +488,6 @@ function loadData(){
     fetch(dataUrl).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.text();}),
     fetchSyncTime(SHEET_ID,SYNC_SHEET,SYNC_CELL)
   ]).then(function(res){
-    /* 標題 */
     var hs=res[0],ds=res[1]; _syncTime=res[2];
     var hs0=JSON.parse(hs.slice(hs.indexOf('{'),hs.lastIndexOf('}')+1));
     var trueHdrs=(hs0.table&&hs0.table.rows&&hs0.table.rows[0]&&hs0.table.rows[0].c||[]).map(function(c){
@@ -474,7 +495,6 @@ function loadData(){
       return (c.f!=null&&String(c.f).trim())?String(c.f).trim():(c.v!=null?String(c.v).trim():'');
     });
 
-    /* 資料 */
     var s=ds.indexOf('{'),e=ds.lastIndexOf('}');
     var json=JSON.parse(ds.slice(s,e+1));
     var tbl=json.table;
@@ -492,7 +512,6 @@ function loadData(){
       return(row.c||[]).map(parseCellVal);
     }).filter(function(r){return !r.every(function(v){return !v.trim();});});
 
-    /* 季度 chips */
     var qSet=new Set();
     allRows.forEach(function(r){var q=gv(r,'quarter');if(q)qSet.add(q);});
     buildQChips(Array.from(qSet).sort());
@@ -523,7 +542,7 @@ function buildQChips(qs){
   });
 }
 
-/* ══ NAVBAR（單行：全部 ｜ 北部→桃園…→花蓮 ∣ 選中處的所A 所B…）══ */
+/* ══ NAVBAR ══ */
 function buildNavbar(){
   var areas=new Set();
   allRows.forEach(function(r){var a=gv(r,'area');if(a)areas.add(a);});
@@ -532,14 +551,12 @@ function buildNavbar(){
   var aRow=document.getElementById('nav-area-row');
   aRow.innerHTML='';
 
-  /* 全部 */
   var allBtn=document.createElement('button');
   allBtn.className='nav-chip all'+(fArea===''?' on':'');
   allBtn.textContent='全部';
   allBtn.onclick=function(){setArea('');};
   aRow.appendChild(allBtn);
 
-  /* 各營業處 */
   areaList.forEach(function(a){
     var btn=document.createElement('button');
     btn.className='nav-chip nav-area-btn'+(fArea===a?' on':'');
@@ -549,13 +566,10 @@ function buildNavbar(){
     aRow.appendChild(btn);
   });
 
-  /* 若有選中的營業處，加分隔線 + 該處的所 */
   appendOfficeChips(aRow, fArea);
 }
 
-/* 把選中營業處的所 chips 附加到指定 row 末尾 */
 function appendOfficeChips(aRow, area){
-  /* 先移除舊的 office chips（class=nav-office-chip） */
   aRow.querySelectorAll('.nav-office-chip,.nav-office-divider').forEach(function(el){el.remove();});
   if(!area) return;
 
@@ -563,7 +577,6 @@ function appendOfficeChips(aRow, area){
   dv.className='nav-divider nav-office-divider';
   aRow.appendChild(dv);
 
-  /* 全所 */
   var allOBtn=document.createElement('button');
   allOBtn.className='nav-chip nav-office-chip'+(fOffice===''?' on':'');
   allOBtn.textContent='全所';
@@ -581,7 +594,6 @@ function appendOfficeChips(aRow, area){
   });
 }
 
-/* 舊版第二行不再使用 */
 function buildOfficeNav(area){}
 
 function refreshNavHighlight(){
@@ -616,11 +628,10 @@ function calcPersonQuarter(rows,q){
   var monthData={};
   months.forEach(function(m){monthData[m]={cur:0,tgt:0,eval:0,stores:0,hasRole:false,hasData:false};});
 
-  /* 收集各店明細用 */
-  var storeMap={}; /* "月-店碼" -> {code,name,cur,tgt} */
+  var storeMap={};
 
   rows.forEach(function(r){
-    if(gv(r,'exclude').trim()) return; /* 排除 */
+    if(gv(r,'exclude').trim()) return;
     var m=parseInt(gv(r,'month'),10);
     if(!months.includes(m)||!monthData[m]) return;
 
@@ -634,7 +645,6 @@ function calcPersonQuarter(rows,q){
     monthData[m].hasData=true;
     if(role) monthData[m].hasRole=true;
 
-    /* 明細 & 家數（同月同店合併） */
     var key=m+'-'+(code||storeName);
     if(!storeMap[key]){
       storeMap[key]={month:m,code:code,name:storeName,cur:0,tgt:0};
@@ -644,10 +654,9 @@ function calcPersonQuarter(rows,q){
     storeMap[key].tgt+=tgt;
   });
 
-  /* 每月品評 — tgt/eval 對齊到最近的1/3（不用fmt2捨去，避免toFrac判斷錯誤）*/
   months.forEach(function(m){
     var d=monthData[m];
-    d.tgt=Math.round(d.tgt*3)/3;   /* 對齊到1/3 */
+    d.tgt=Math.round(d.tgt*3)/3;
     d.eval=Math.round((d.cur-d.tgt)*3)/3;
   });
 
@@ -660,7 +669,6 @@ function calcPersonQuarter(rows,q){
   var totalEvalRaw=evalMonths.length>0?evalMonths.reduce(function(s,m){return s+monthData[m].eval;},0):null;
   var totalEval=totalEvalRaw!==null?Math.round(totalEvalRaw*3)/3:null;
 
-  /* 明細陣列，依月份排序 */
   var storeRows=Object.values(storeMap).sort(function(a,b){return a.month-b.month||(a.name>b.name?1:-1);});
   storeRows.forEach(function(s){s.tgt=Math.round(s.tgt*3)/3;s.eval=Math.round((s.cur-s.tgt)*3)/3;});
 
@@ -676,28 +684,24 @@ function getQMonths(q){
 
 /* ══ 人員資料 ══ */
 function getPersonList(){
-  /* 第一輪：全部資料不篩選，建立每人完整rows；同時依當季最後月份決定顯示單位 */
   var map={};
-  var qMonths=curQ?getQMonths(curQ):null; /* 當季月份陣列，例如[4,5,6] */
+  var qMonths=curQ?getQMonths(curQ):null;
   allRows.forEach(function(r){
     var staff=gv(r,'staff')||'（未知）';
     if(!map[staff]) map[staff]={rows:[],area:'',office:'',lastMonth:0,lastMonthAll:0};
     map[staff].rows.push(r);
     var m=parseInt(gv(r,'month'))||0;
-    /* 當季最後月份 → 決定卡片顯示單位 */
     if(qMonths&&qMonths.indexOf(m)>=0&&m>map[staff].lastMonth){
       map[staff].lastMonth=m;
       map[staff].area=gv(r,'area');
       map[staff].office=gv(r,'office');
     }
-    /* 跨季fallback：若當季無資料，用全局最後月份 */
     if(m>map[staff].lastMonthAll){
       map[staff].lastMonthAll=m;
       if(!map[staff].area){ map[staff].area=gv(r,'area'); }
       if(!map[staff].office){ map[staff].office=gv(r,'office'); }
     }
   });
-  /* 第二輪：依當季最後單位篩選整人 */
   if(fArea||fOffice){
     Object.keys(map).forEach(function(staff){
       var p=map[staff];
@@ -730,11 +734,9 @@ function render(){
     return;
   }
 
-  /* 取全季列計算：直接用 pMap 已收集的完整 rows，不再逐筆過濾單位 */
   var cards=staffList.map(function(staff){
     var info=pMap[staff];
     var qData=calcPersonQuarter(info.rows,curQ);
-    /* 記錄每個月份對應的單位（處+所），供卡片highlight使用 */
     qData.monthArea={};
     qData.monthOffice={};
     info.rows.forEach(function(r){
@@ -742,25 +744,23 @@ function render(){
       if(!qData.monthArea[m]) qData.monthArea[m]=gv(r,'area');
       if(!qData.monthOffice[m]) qData.monthOffice[m]=gv(r,'office');
     });
-    qData.personArea=info.area;     /* 當季最後營業處 */
-    qData.personOffice=info.office; /* 當季最後營業所 */
+    qData.personArea=info.area;
+    qData.personOffice=info.office;
     return{staff:staff,area:info.area,office:info.office,qData:qData};
   });
 
-  /* 0個月資料 → 不顯示卡片 */
   cards=cards.filter(function(c){return c.qData.evalMonths.length>0;});
   if(!cards.length){
     area.innerHTML='<div class="empty-msg"><div class="ei">🔍</div><div>沒有符合條件的資料</div></div>';
     return;
   }
 
-  /* 2個月以上資料→前排，1個月→後排；組內依 curSort 降冪 */
   function getSortVal(c){
     var qd=c.qData;
     if(curSort==='stores') return qd.totalStores;
     if(curSort==='cur')    return qd.totalCur;
     if(curSort==='tgt')    return qd.totalTgt;
-    return qd.totalEvalRaw; /* eval */
+    return qd.totalEvalRaw;
   }
   cards.sort(function(a,b){
     var aem=a.qData.evalMonths.length, bem=b.qData.evalMonths.length;
@@ -775,7 +775,6 @@ function render(){
 
   cards.forEach(function(c){area.appendChild(makeCard(c));});
 
-  /* 顯示人數 + 預計核發箱數（只加正數品評CTN，且需>=2個月資料） */
   var posSum=0;
   cards.forEach(function(c){
     var qd=c.qData;
@@ -795,11 +794,10 @@ var MNAMES=['','1月','2月','3月','4月','5月','6月','7月','8月','9月','1
 
 function makeCard(c){
   var q=curQ||'', qd=c.qData;
-  var te=qd.totalEval;         /* fmt1 → 用於表格合計列 */
-  var ter=qd.totalEvalRaw;     /* 原始值 → 用於右上角進位 */
-  var em=qd.evalMonths.length; /* 有資料的月份數 */
+  var te=qd.totalEval;
+  var ter=qd.totalEvalRaw;
+  var em=qd.evalMonths.length;
 
-  /* 右上角：2個月以上才顯示數字，正→ceiling 負→floor */
   var bigNum, teCls;
   if(em<2){
     bigNum='—'; teCls='nil';
@@ -813,10 +811,8 @@ function makeCard(c){
   var vm=qd.validMonths.length;
   var validTag=vm>=2?'<span class="pc-valid-tag ok">✅ '+vm+'/2</span>':'<span class="pc-valid-tag ng">⚠️ '+vm+'/2</span>';
 
-  /* 季表格列（含家數欄）*/
   var rowsHtml=qd.months.map(function(m){
     var d=qd.monthData[m];
-    /* 判斷該月份的單位是否與當季最後單位不同 → highlight */
     var monthA=qd.monthArea?qd.monthArea[m]:'';
     var monthO=qd.monthOffice?qd.monthOffice[m]:'';
     var isForeign=(monthA&&qd.personArea&&monthA!==qd.personArea)||(monthO&&qd.personOffice&&monthO!==qd.personOffice);
@@ -828,13 +824,11 @@ function makeCard(c){
     return '<tr'+trCls+'><td>'+mLabel+'</td><td class="ctn-stores">'+d.stores+'</td><td class="ctn-cur">'+d.cur+'</td><td class="ctn-tgt">'+toFrac(d.tgt)+'</td><td class="ctn-eval '+ecls+'">'+toFracEval(d.eval)+'</td></tr>';
   }).join('');
 
-  /* 合計列（用 fmt2 值顯示）*/
   var teDisplayCls=te===null?'nil':(te>0?'pos':te<0?'neg':'nil');
   var totalRow='<tr class="total-row"><td>合計</td><td class="ctn-stores">'+qd.totalStores+'</td><td class="ctn-cur">'+qd.totalCur+'</td><td class="ctn-tgt">'+toFrac(qd.totalTgt)+'</td><td class="ctn-eval '+teDisplayCls+'">'+toFracEval(te)+'</td></tr>';
 
   var el=document.createElement('div');
   el.className='person-card';
-  /* 7. 標題列同一行：名字 單位 [有效標籤] ···· Q2 品評CTN +36 */
   el.innerHTML=
     '<div class="pc-header">' +
       '<div class="pc-title-row">' +
@@ -855,7 +849,6 @@ function makeCard(c){
   el.querySelector('.pc-open-detail-btn').dataset.staff=c.staff;
   el.querySelector('.pc-open-detail-btn').dataset.area=c.area;
   el.querySelector('.pc-open-detail-btn').dataset.office=c.office;
-  /* 儲存qData以供dialog用 */
   el._qData=qd;
 
   return el;
@@ -864,11 +857,9 @@ function makeCard(c){
 function buildDetailTable(qd,q){
   if(!qd.storeRows.length) return '<div style="padding:10px 13px;font-size:10px;color:var(--sub);">無明細資料</div>';
   var months=qd.months;
-  /* 欄：店碼、店名、各月當期/目標/品評 */
   var thCols='<th>店碼</th><th>店名</th>';
   months.forEach(function(m){ thCols+='<th>'+MNAMES[m]+'<br>當期</th><th>'+MNAMES[m]+'<br>目標</th><th>'+MNAMES[m]+'<br>品評</th>'; });
 
-  /* 重組：以店為行，月份為欄 */
   var storeIndex={};
   qd.storeRows.forEach(function(s){
     var k=s.code||s.name;
@@ -903,6 +894,11 @@ function openDetailDialog(e,btn){
   var dlgBody=document.getElementById('dlg-body');
   dlgTitle.textContent=staff+'  店家明細  '+curQ+'  總家數 '+totalStores;
   dlgBody.innerHTML=buildDetailTable(qd,curQ);
+  /* 重置複製按鈕狀態 */
+  var copyBtn=document.getElementById('dlg-copy-btn');
+  copyBtn.textContent='📋 複製';
+  copyBtn.classList.remove('copied');
+  copyBtn.style.color='';
   dlg.style.display='flex';
   requestAnimationFrame(function(){dlg.classList.add('open');});
 }
@@ -912,16 +908,76 @@ function closeDetailDialog(){
   setTimeout(function(){dlg.style.display='none';},220);
 }
 document.addEventListener('keydown',function(e){if(e.key==='Escape')closeDetailDialog();});
-/* 舊版相容（不再用） */
-function toggleDetail(){}
-function closeDetail(e,btn){e.stopPropagation();}
+
+/* ══ 複製 Dialog 明細 ══ */
+function copyDialogData(){
+  var titleEl=document.getElementById('dlg-title');
+  var body=document.getElementById('dlg-body');
+  var tbl=body.querySelector('.detail-tbl');
+  if(!tbl){ alert('無資料可複製'); return; }
+
+  var lines=[];
+  /* 標題行 */
+  lines.push(titleEl?titleEl.textContent.trim():'');
+  lines.push('');
+
+  /* 表頭：th 內容，換行符改空格 */
+  var ths=tbl.querySelectorAll('thead tr th');
+  var headerCells=Array.from(ths).map(function(th){
+    return th.textContent.replace(/\s+/g,' ').trim();
+  });
+  lines.push(headerCells.join('\t'));
+
+  /* 資料列：td 純文字，分數 Unicode → ASCII */
+  var rows=tbl.querySelectorAll('tbody tr');
+  rows.forEach(function(tr){
+    var cells=Array.from(tr.querySelectorAll('td')).map(function(td){
+      return td.textContent.trim()
+        .replace(/⅓/g,'1/3')
+        .replace(/⅔/g,'2/3')
+        .replace(/½/g,'1/2')
+        .replace(/¼/g,'1/4')
+        .replace(/¾/g,'3/4');
+    });
+    lines.push(cells.join('\t'));
+  });
+
+  var text=lines.join('\n');
+  var btn=document.getElementById('dlg-copy-btn');
+
+  function onSuccess(){
+    btn.textContent='✅ 已複製！';
+    btn.classList.add('copied');
+    setTimeout(function(){
+      btn.textContent='📋 複製';
+      btn.classList.remove('copied');
+    },2000);
+  }
+
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(onSuccess).catch(function(){
+      fallbackCopy(text); onSuccess();
+    });
+  } else {
+    fallbackCopy(text); onSuccess();
+  }
+}
+
+function fallbackCopy(text){
+  var ta=document.createElement('textarea');
+  ta.value=text;
+  ta.style.cssText='position:fixed;top:0;left:0;opacity:0;pointer-events:none;';
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  try{ document.execCommand('copy'); }catch(e){}
+  document.body.removeChild(ta);
+}
 
 /* ══ 排行榜 ══ */
 function updateRank(pMap){
   var content=document.getElementById('rd-content');
   content.innerHTML='';
   if(!allRows.length||!curQ) return;
-  /* 有傳入pMap（篩選後）就直接用；否則重建全員map */
   var staffMap=pMap||{};
   if(!pMap){
     allRows.forEach(function(r){
