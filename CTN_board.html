@@ -575,16 +575,15 @@ function refreshNavHighlight(){
 function setArea(a){
   fArea=a; fOffice='';
   refreshNavHighlight();
-  /* 重新附加/移除所的 chips */
   appendOfficeChips(document.getElementById('nav-area-row'), a);
   refreshNavHighlight();
-  render(); updateGbar(); updateRank();
+  render(); updateGbar();
 }
 
 function setOffice(o){
   fOffice=o;
   refreshNavHighlight();
-  render(); updateGbar(); updateRank();
+  render(); updateGbar();
 }
 
 /* ══ 計算 ══ */
@@ -752,7 +751,19 @@ function render(){
   });
 
   cards.forEach(function(c){area.appendChild(makeCard(c));});
-  document.getElementById('gb-count').textContent='顯示 '+cards.length+' 人';
+
+  /* 顯示人數 + 預計核發箱數（只加正數品評CTN） */
+  var posSum=0;
+  cards.forEach(function(c){
+    var ter=c.qData.totalEvalRaw;
+    if(ter===null) return;
+    var val=Math.ceil(fmt1(ter));
+    if(val>0) posSum+=val;
+  });
+  var countEl=document.getElementById('gb-count');
+  countEl.innerHTML='顯示 <b>'+cards.length+'</b> 人&emsp;🎁 預計核發 <b style="color:var(--pos)">+'+posSum+'</b> 箱';
+
+  updateRank(pMap);
 }
 
 var MNAMES=['','1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
@@ -882,18 +893,21 @@ function toggleDetail(){}
 function closeDetail(e,btn){e.stopPropagation();}
 
 /* ══ 排行榜 ══ */
-function updateRank(){
+function updateRank(pMap){
   var content=document.getElementById('rd-content');
   content.innerHTML='';
   if(!allRows.length||!curQ) return;
-  var staffMap={};
-  allRows.forEach(function(r){
-    var staff=gv(r,'staff')||'（未知）';
-    if(!staffMap[staff]) staffMap[staff]={rows:[],area:'',office:''};
-    staffMap[staff].rows.push(r);
-    if(!staffMap[staff].area) staffMap[staff].area=gv(r,'area');
-    if(!staffMap[staff].office) staffMap[staff].office=gv(r,'office');
-  });
+  /* 有傳入pMap（篩選後）就直接用；否則重建全員map */
+  var staffMap=pMap||{};
+  if(!pMap){
+    allRows.forEach(function(r){
+      var staff=gv(r,'staff')||'（未知）';
+      if(!staffMap[staff]) staffMap[staff]={rows:[],area:'',office:''};
+      staffMap[staff].rows.push(r);
+      if(!staffMap[staff].area) staffMap[staff].area=gv(r,'area');
+      if(!staffMap[staff].office) staffMap[staff].office=gv(r,'office');
+    });
+  }
   var ranked=Object.keys(staffMap).map(function(staff){
     var qd=calcPersonQuarter(staffMap[staff].rows,curQ);
     var ter=qd.totalEvalRaw, em=qd.evalMonths.length;
