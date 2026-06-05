@@ -249,6 +249,9 @@
     .foreign-month td { background:rgba(255,200,50,.13); }
     .foreign-month td:first-child { font-weight:700; }
     .foreign-tag { font-size:9px; color:#c07000; margin-left:2px; vertical-align:super; cursor:default; }
+    .frac-wrap { display:inline-flex; align-items:baseline; }
+    .frac-int { min-width:1.5em; text-align:right; }
+    .frac-rem { width:0.9em; text-align:left; }
     .d-pos { color:var(--green); font-weight:800; }
     .d-neg { color:var(--red); font-weight:800; }
     .d-nil { color:var(--sub); }
@@ -406,25 +409,25 @@ function gn(row,key){ var v=parseFloat(gv(row,key)); return isNaN(v)?0:v; }
 function fmt1(v){ return Math.floor(v*10)/10; }   /* 捨去到小數第1位 */
 function fmt2(v){ return Math.floor(v*100)/100; } /* 捨去到小數第2位 */
 function toFrac(v){
-  /* 把 n/3 的數值轉成帶分數字串，例如 -1.33 → "-1⅓"，0.66 → "⅔" */
   if(v===null||v===undefined) return '—';
-  var rounded=Math.round(v*3)/3; /* 對齊到最近的1/3 */
+  var rounded=Math.round(v*3)/3;
   var neg=rounded<0;
   var abs=Math.abs(rounded);
-  var intPart=Math.floor(abs+0.001); /* 避免 2.9999 被算成2 */
-  var rem=Math.round((abs-intPart)*3); /* 0=整數, 1=⅓, 2=⅔ */
+  var intPart=Math.floor(abs+0.001);
+  var rem=Math.round((abs-intPart)*3);
   var fracStr=rem===1?'⅓':rem===2?'⅔':'';
   var sign=neg?'-':'';
-  if(intPart===0&&fracStr==='') return '0';
-  if(intPart===0) return sign+fracStr;
-  return sign+intPart+fracStr;
+  var intStr;
+  if(intPart===0&&fracStr==='') intStr='0';
+  else if(intPart===0) intStr='';
+  else intStr=String(intPart);
+  /* 兩個span：整數部分靠右，分數部分固定寬佔位 */
+  return '<span class="frac-wrap"><span class="frac-int">'+sign+intStr+'</span><span class="frac-rem">'+fracStr+'</span></span>';
 }
 function toFracEval(v){
-  /* 品評CTN帶正負號版本 */
+  /* 品評CTN，負數帶-號，正數不帶+號 */
   if(v===null||v===undefined) return '—';
-  var str=toFrac(v);
-  if(str==='0'||str==='—') return str;
-  return v>0?'+'+str:str;
+  return toFrac(v);
 }
 
 /* ══ 載入 ══ */
