@@ -255,72 +255,33 @@ function showLoading()  { document.getElementById('loading').classList.add('show
 function hideLoading()  { document.getElementById('loading').classList.remove('show'); }
 
 /* ── 抓資料 ── */
-/* 關鍵：改用 headers=0，讓第一列當作資料列自己取 header。
-   gviz 在 headers=1 時會把 0/1 公式欄解成 boolean (true/false)，
-   導致 Number(cell) 比對完全失效；headers=0 + String(c.v) 才能正確取得 '0'/'1' 字串。 */
 function fetchSheet() {
   showLoading();
   var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
-    '/gviz/tq?tqx=out:json&headers=0&sheet=' + encodeURIComponent(SHEET_NAME);
+    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(SHEET_NAME);
   fetch(url)
     .then(function(r) { return r.text(); })
     .then(function(txt) {
-      var s = txt.indexOf('{'), e = txt.lastIndexOf('}');
-      if (s < 0 || e < 0) throw new Error('回應格式錯誤');
-      var json = JSON.parse(txt.slice(s, e + 1));
+      var json = JSON.parse(txt.replace(/^[^\(]+\(/, '').replace(/\);?\s*$/, ''));
       var tbl = json.table || {};
-      if (!tbl.rows || !tbl.rows.length) throw new Error('無資料');
-
-      /* 第一列 = 標題 */
-      var hdrRow = tbl.rows[0];
-      var cols = (hdrRow.c || []).map(function(c) {
-        if (!c) return '';
-        if (c.f != null && String(c.f).trim()) return String(c.f).trim();
-        if (c.v != null) return String(c.v).trim();
-        return '';
-      });
-
-      /* 其餘列 = 資料
-         gviz 對公式欄（如 =IF(...)=1 這類）即使 headers=0 仍會回傳 boolean c.v。
-         統一轉換：true→'1'，false→'0'，其餘 String(c.v)。
-         優先用 c.v；c.v 為 null 時才退回 c.f（格式化字串）。 */
-      function normCell(cell) {
-        if (!cell) return '';
-        if (cell.v === true)  return '1';
-        if (cell.v === false) return '0';
-        if (cell.v !== null && cell.v !== undefined) return String(cell.v);
-        if (cell.f != null) return String(cell.f);
-        return '';
-      }
-
-      allRows = tbl.rows.slice(1).map(function(row) {
+      var cols = (tbl.cols || []).map(function(c) { return c.label || ''; });
+      allRows = (tbl.rows || []).map(function(row) {
         var obj = {};
         (row.c || []).forEach(function(cell, i) {
-          if (!cols[i]) return;
-          obj[cols[i]] = normCell(cell);
+          obj[cols[i]] = cell ? (cell.v !== null && cell.v !== undefined ? cell.v : cell.f || '') : '';
         });
         return obj;
-      }).filter(function(r) {
-        /* 過濾全空列 */
-        return Object.values(r).some(function(v) { return v.trim() !== ''; });
       });
-
-      /* debug：印出原始 gviz 值與轉換後結果 */
-      console.log('[coverage_board] cols:', cols);
-      console.log('[coverage_board] allRows count:', allRows.length);
+      /* === DEBUG: 可上線後刪除 === */
+      console.log('[cvg] 總列數:', allRows.length);
       if (allRows.length > 0) {
-        var s = allRows[0];
-        console.log('[coverage_board] row[0] 未填寫:', JSON.stringify(s['未填寫']), '| 堆箱:', JSON.stringify(s['堆箱']), '| 端架:', JSON.stringify(s['端架']), '| 冰箱:', JSON.stringify(s['冰箱']));
+        var r0 = allRows[0];
+        console.log('[cvg] 第1列 未填寫:', r0[COL_UNFILL], typeof r0[COL_UNFILL],
+          '| 堆箱:', r0['堆箱'], typeof r0['堆箱'],
+          '| 端架:', r0['端架'], typeof r0['端架'],
+          '| 冰箱:', r0['冰箱'], typeof r0['冰箱']);
       }
-      /* 印原始 gviz cell 結構，看 c.v 的真實型別 */
-      var rawDebug = tbl.rows[1] && tbl.rows[1].c;
-      if (rawDebug) {
-        var unfillIdx = cols.indexOf('未填寫');
-        var dxIdx = cols.indexOf('堆箱');
-        console.log('[coverage_board] RAW gviz cell 未填寫:', JSON.stringify(rawDebug[unfillIdx]));
-        console.log('[coverage_board] RAW gviz cell 堆箱:', JSON.stringify(rawDebug[dxIdx]));
-      }
-
+      /* === END DEBUG === */
       fetchSyncTime();
       render();
     })
@@ -345,10 +306,11 @@ function fetchSyncTime() {
 }
 
 /* ── 計算 ──
-   未填寫 = IF(ISNUMBER(MATCH(店家代碼, 處理層!F:F, 0)), 0, 1)
-     → 0 = 店家代碼在處理層找得到 = 已填寫，有效
-     → 1 = 找不到 = 真的未填寫，排除
-   堆箱/端架/冰箱 = 1 → 有陳列；= 0 → 無
+   未填寫 = IF(ISNUMBER(MATCH(店家代碼,處理層!F:F,0)), 0, 1)
+     0 = 已填寫有效；1 = 未填寫排除
+   堆箱/端架/冰箱：1 = 有陳列
+   gviz headers=1 時公式欄 c.v 可能是 boolean(true/false) 或 number(0/1)
+   Number(false)=0, Number(true)=1, Number(0)=0, Number(1)=1 → 兩種都能處理
 */
 function calcGroup(rows) {
   var total = rows.length;
@@ -356,11 +318,15 @@ function calcGroup(rows) {
   var typeCounts = {};
   TYPES.forEach(function(t) { typeCounts[t] = 0; });
   rows.forEach(function(r) {
-    if (r[COL_UNFILL] === '1') return; /* 未填寫（找不到）= 排除 */
+    var unfill = Number(r[COL_UNFILL]);
+    if (isNaN(unfill)) unfill = (r[COL_UNFILL] === true || r[COL_UNFILL] === 'true' || r[COL_UNFILL] === '1') ? 1 : 0;
+    if (unfill === 1) return; /* 未填寫，排除 */
     valid++;
     var hasAny = false;
     TYPES.forEach(function(t) {
-      if (r[t] === '1') { typeCounts[t]++; hasAny = true; }
+      var v = Number(r[t]);
+      if (isNaN(v)) v = (r[t] === true || r[t] === 'true' || r[t] === '1') ? 1 : 0;
+      if (v === 1) { typeCounts[t]++; hasAny = true; }
     });
     if (hasAny) withDisplay++;
   });
@@ -456,9 +422,7 @@ function buildCard(name, labelText, stat, levelKey, rows) {
       '<span class="tag tag-yes">有 ' + stat.withDisplay + ' 店</span>' +
       '<span class="tag tag-no">無 ' + (stat.valid - stat.withDisplay) + ' 店</span>' +
     '</div>' +
-    '<div class="valid-note">有效 ' + stat.valid + ' 家　總計 ' + stat.total + ' 家' +
-      (stat.total - stat.valid > 0 ? '　未填 ' + (stat.total - stat.valid) + ' 家' : '') +
-    '</div>' +
+    '<div class="valid-note">有效 ' + stat.valid + ' 家　總計 ' + stat.total + ' 家' + (stat.total - stat.valid > 0 ? '　未填 ' + (stat.total - stat.valid) + ' 家' : '') + '</div>' +
     '<div class="tooltip" id="' + ttId + '">' + buildTooltipHTML(stat) + '</div>';
 
   /* hover on number */
