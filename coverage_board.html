@@ -305,9 +305,21 @@ function fetchSheet() {
         return Object.values(r).some(function(v) { return v.trim() !== ''; });
       });
 
-      /* debug：印出前 3 列看值是否正確（上線後可刪） */
+      /* debug：印出原始 gviz 值與轉換後結果 */
       console.log('[coverage_board] cols:', cols);
-      console.log('[coverage_board] sample rows:', allRows.slice(0, 3));
+      console.log('[coverage_board] allRows count:', allRows.length);
+      if (allRows.length > 0) {
+        var s = allRows[0];
+        console.log('[coverage_board] row[0] 未填寫:', JSON.stringify(s['未填寫']), '| 堆箱:', JSON.stringify(s['堆箱']), '| 端架:', JSON.stringify(s['端架']), '| 冰箱:', JSON.stringify(s['冰箱']));
+      }
+      /* 印原始 gviz cell 結構，看 c.v 的真實型別 */
+      var rawDebug = tbl.rows[1] && tbl.rows[1].c;
+      if (rawDebug) {
+        var unfillIdx = cols.indexOf('未填寫');
+        var dxIdx = cols.indexOf('堆箱');
+        console.log('[coverage_board] RAW gviz cell 未填寫:', JSON.stringify(rawDebug[unfillIdx]));
+        console.log('[coverage_board] RAW gviz cell 堆箱:', JSON.stringify(rawDebug[dxIdx]));
+      }
 
       fetchSyncTime();
       render();
@@ -333,18 +345,18 @@ function fetchSyncTime() {
 }
 
 /* ── 計算 ──
-   allRows 裡所有值已是 String，
-   未填寫 = '1' 表示「本店不填寫」，排除；'0' 或 '' 才是有效店。
-   堆箱/端架/冰箱 = '1' 表示有陳列，'0' 或 '' 表示無。
-   total = 該群組全部列數（包含未填寫），valid = 排除未填寫後的有效店數。
+   未填寫 = IF(ISNUMBER(MATCH(店家代碼, 處理層!F:F, 0)), 0, 1)
+     → 0 = 店家代碼在處理層找得到 = 已填寫，有效
+     → 1 = 找不到 = 真的未填寫，排除
+   堆箱/端架/冰箱 = 1 → 有陳列；= 0 → 無
 */
 function calcGroup(rows) {
-  var total = rows.length;      /* 總家數（含未填寫） */
+  var total = rows.length;
   var valid = 0, withDisplay = 0;
   var typeCounts = {};
   TYPES.forEach(function(t) { typeCounts[t] = 0; });
   rows.forEach(function(r) {
-    if (r[COL_UNFILL] === '1') return; /* 未填寫，跳過 */
+    if (r[COL_UNFILL] === '1') return; /* 未填寫（找不到）= 排除 */
     valid++;
     var hasAny = false;
     TYPES.forEach(function(t) {
@@ -445,7 +457,7 @@ function buildCard(name, labelText, stat, levelKey, rows) {
       '<span class="tag tag-no">無 ' + (stat.valid - stat.withDisplay) + ' 店</span>' +
     '</div>' +
     '<div class="valid-note">有效 ' + stat.valid + ' 家　總計 ' + stat.total + ' 家' +
-      (stat.total - stat.valid > 0 ? '　未填寫 ' + (stat.total - stat.valid) + ' 家' : '') +
+      (stat.total - stat.valid > 0 ? '　未填 ' + (stat.total - stat.valid) + ' 家' : '') +
     '</div>' +
     '<div class="tooltip" id="' + ttId + '">' + buildTooltipHTML(stat) + '</div>';
 
