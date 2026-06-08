@@ -3725,12 +3725,13 @@
             rows.forEach(function(row) {
               var cells = row.c || [];
               function cv(c) { return c ? ((c.v !== null && c.v !== undefined ? c.v : c.f) || '') : ''; }
-              var active = cv(cells[0]).toString().trim().toUpperCase() === 'ON';
-              var name   = cv(cells[1]).toString().trim();
-              var sid    = cv(cells[2]).toString().trim();
-              var sheet  = cv(cells[3]).toString().trim() || '店家名冊';
-              var sync   = cv(cells[4]).toString().trim() || '輔助';
-              var cell   = cv(cells[5]).toString().trim() || 'B1';
+              var active    = cv(cells[0]).toString().trim().toUpperCase() === 'ON';
+              var name      = cv(cells[1]).toString().trim();
+              var sid       = cv(cells[2]).toString().trim();
+              var sheet     = cv(cells[3]).toString().trim() || '店家名冊';
+              var sync      = cv(cells[4]).toString().trim() || '輔助';
+              var cell      = cv(cells[5]).toString().trim() || 'B1';
+              var boardType = cv(cells[6]).toString().trim() || 'standard';
               if (!name || !sid) return;
               dynamic.push({
                 _active: active,
@@ -3738,7 +3739,8 @@
                 id: sid,
                 sheet: sheet,
                 syncSheet: sync,
-                syncCell: cell
+                syncCell: cell,
+                boardType: boardType
               });
             });
             /* 固定清單置頂 → 動態進行中 → 動態已結束 */
@@ -4133,6 +4135,16 @@
       /* ══ 資料載入 ══ */
       function onSurveyChange() {
         var idx = Number(document.getElementById('sel-survey').value);
+        var cfg = SURVEYS[idx];
+        if (cfg && cfg.boardType === '覆蓋率型') {
+          window.open('coverage_board.html?sheetId=' + encodeURIComponent(cfg.id) +
+            '&name=' + encodeURIComponent(cfg.name) +
+            '&syncSheet=' + encodeURIComponent(cfg.syncSheet || '輔助') +
+            '&syncCell=' + encodeURIComponent(cfg.syncCell || 'B1'), '_blank');
+          var s = document.getElementById('sel-survey');
+          if (s && curSurvey >= 0) s.value = curSurvey;
+          return;
+        }
         if (idx === curSurvey) {
           render('none');
           return;
