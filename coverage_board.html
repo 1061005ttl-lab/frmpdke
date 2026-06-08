@@ -241,7 +241,8 @@ var TYPES      = ['堆箱','端架','冰箱'];
 var COL_AREA    = '營業處名稱';
 var COL_OFFICE  = '營業所/課';
 var COL_STAFF   = '執行人員';
-var COL_UNFILL  = '未填寫';
+var COL_UNFILL  = '未填寫';   /* 0=已填寫有效, 1=未填寫排除 */
+var COL_DISPLAY = '有二位';   /* 0=無陳列, 1=有任一陳列 */
 
 document.getElementById('tb-title').textContent = PROJ_NAME;
 
@@ -272,16 +273,6 @@ function fetchSheet() {
         });
         return obj;
       });
-      /* === DEBUG: 可上線後刪除 === */
-      console.log('[cvg] 總列數:', allRows.length);
-      if (allRows.length > 0) {
-        var r0 = allRows[0];
-        console.log('[cvg] 第1列 未填寫:', r0[COL_UNFILL], typeof r0[COL_UNFILL],
-          '| 堆箱:', r0['堆箱'], typeof r0['堆箱'],
-          '| 端架:', r0['端架'], typeof r0['端架'],
-          '| 冰箱:', r0['冰箱'], typeof r0['冰箱']);
-      }
-      /* === END DEBUG === */
       fetchSyncTime();
       render();
     })
@@ -306,31 +297,33 @@ function fetchSyncTime() {
 }
 
 /* ── 計算 ──
-   未填寫 = IF(ISNUMBER(MATCH(店家代碼,處理層!F:F,0)), 0, 1)
-     0 = 已填寫有效；1 = 未填寫排除
-   堆箱/端架/冰箱：1 = 有陳列
-   gviz headers=1 時公式欄 c.v 可能是 boolean(true/false) 或 number(0/1)
-   Number(false)=0, Number(true)=1, Number(0)=0, Number(1)=1 → 兩種都能處理
+   公式欄 gviz 回傳 number(0/1)，用 Number() 統一處理
+   未填寫: 0=有效, 1=排除
+   有二位: 1=有陳列（堆箱/端架/冰箱 任一）
+   堆箱/端架/冰箱: 1=有該類陳列
 */
+function isOne(v) {
+  return Number(v) === 1 || v === true || v === 'true' || v === '1';
+}
+
 function calcGroup(rows) {
-  var total = rows.length;
-  var valid = 0, withDisplay = 0;
+  var total    = rows.length;  /* 總家數 */
+  var unfilled = 0;            /* 未填寫家數 */
+  var valid    = 0;            /* 有效家數（已填寫） */
+  var hasDisp  = 0;            /* 有二位家數 */
   var typeCounts = {};
   TYPES.forEach(function(t) { typeCounts[t] = 0; });
+
   rows.forEach(function(r) {
-    var unfill = Number(r[COL_UNFILL]);
-    if (isNaN(unfill)) unfill = (r[COL_UNFILL] === true || r[COL_UNFILL] === 'true' || r[COL_UNFILL] === '1') ? 1 : 0;
-    if (unfill === 1) return; /* 未填寫，排除 */
+    if (isOne(r[COL_UNFILL])) { unfilled++; return; } /* 未填寫，排除 */
     valid++;
-    var hasAny = false;
+    if (isOne(r[COL_DISPLAY])) hasDisp++;
     TYPES.forEach(function(t) {
-      var v = Number(r[t]);
-      if (isNaN(v)) v = (r[t] === true || r[t] === 'true' || r[t] === '1') ? 1 : 0;
-      if (v === 1) { typeCounts[t]++; hasAny = true; }
+      if (isOne(r[t])) typeCounts[t]++;
     });
-    if (hasAny) withDisplay++;
   });
-  return { total: total, valid: valid, withDisplay: withDisplay, typeCounts: typeCounts };
+
+  return { total: total, unfilled: unfilled, valid: valid, hasDisp: hasDisp, typeCounts: typeCounts };
 }
 
 /* ── 篩選 rows ── */
@@ -405,7 +398,7 @@ function renderLevel(stage, rows, col, levelKey, labelText) {
 
 /* ── 卡片 ── */
 function buildCard(name, labelText, stat, levelKey, rows) {
-  var rate = pct(stat.withDisplay, stat.valid);
+  var rate = pct(stat.hasDisp, stat.valid);
   var card = document.createElement('div');
   card.className = 'card';
 
@@ -419,10 +412,13 @@ function buildCard(name, labelText, stat, levelKey, rows) {
       '<span class="cov-unit">%</span>' +
     '</div>' +
     '<div class="tag-row">' +
-      '<span class="tag tag-yes">有 ' + stat.withDisplay + ' 店</span>' +
-      '<span class="tag tag-no">無 ' + (stat.valid - stat.withDisplay) + ' 店</span>' +
+      '<span class="tag tag-yes">有二位 ' + stat.hasDisp + ' 店</span>' +
+      '<span class="tag tag-no">無 ' + (stat.valid - stat.hasDisp) + ' 店</span>' +
     '</div>' +
-    '<div class="valid-note">有效 ' + stat.valid + ' 家　總計 ' + stat.total + ' 家' + (stat.total - stat.valid > 0 ? '　未填 ' + (stat.total - stat.valid) + ' 家' : '') + '</div>' +
+    '<div class="valid-note">' +
+      '總 ' + stat.total + ' 家　有效 ' + stat.valid + ' 家' +
+      (stat.unfilled > 0 ? '　未填 ' + stat.unfilled + ' 家' : '') +
+    '</div>' +
     '<div class="tooltip" id="' + ttId + '">' + buildTooltipHTML(stat) + '</div>';
 
   /* hover on number */
@@ -454,7 +450,7 @@ function buildTooltipHTML(stat) {
     return '<div class="tt-row">' +
       '<span class="tt-label">' + t + '</span>' +
       '<div class="tt-bar"><div class="tt-fill" style="width:' + p + '%"></div></div>' +
-      '<span class="tt-val">' + p + '%</span>' +
+      '<span class="tt-val">' + stat.typeCounts[t] + ' 店 (' + p + '%)</span>' +
     '</div>';
   }).join('');
 }
@@ -497,28 +493,29 @@ function drillTo(idx) {
 
 /* ── dialog ── */
 function openDialog(name, labelText, stat) {
-  var rate = pct(stat.withDisplay, stat.valid);
+  var rate = pct(stat.hasDisp, stat.valid);
   document.getElementById('dlg-title').textContent = name;
   document.getElementById('dlg-sub').textContent = labelText + ' · 二位陳列明細';
   document.getElementById('dlg-main-num').textContent = rate;
 
+  /* 明細：堆箱/端架/冰箱 各自在有效店中的佔比 */
   document.getElementById('dlg-breakdown').innerHTML = TYPES.map(function(t) {
     var p = pct(stat.typeCounts[t], stat.valid);
     return '<div>' +
       '<div class="dlg-row-label">' +
         '<span class="dlg-row-name">' + t + '</span>' +
-        '<span class="dlg-row-val">' + p + '% <span class="dlg-row-cnt">(' + stat.typeCounts[t] + ' 店)</span></span>' +
+        '<span class="dlg-row-val">' + stat.typeCounts[t] + ' 店 <span class="dlg-row-cnt">(' + p + '%)</span></span>' +
       '</div>' +
       '<div class="bar-track"><div class="bar-fill" style="width:' + p + '%"></div></div>' +
     '</div>';
   }).join('');
 
   document.getElementById('dlg-footer').innerHTML =
-    '總家數 <strong>' + stat.total + '</strong> 家 &nbsp;·&nbsp; ' +
-    '有效 <strong>' + stat.valid + '</strong> 家 &nbsp;·&nbsp; ' +
-    '未填寫 <strong>' + (stat.total - stat.valid) + '</strong> 家<br>' +
-    '有陳列 <strong>' + stat.withDisplay + '</strong> 家 &nbsp;·&nbsp; ' +
-    '無陳列 <strong>' + (stat.valid - stat.withDisplay) + '</strong> 家';
+    '總家數 <strong>' + stat.total + '</strong> 家　' +
+    '有效 <strong>' + stat.valid + '</strong> 家　' +
+    '未填寫 <strong>' + stat.unfilled + '</strong> 家<br>' +
+    '有二位 <strong>' + stat.hasDisp + '</strong> 家 (' + rate + '%)　' +
+    '無陳列 <strong>' + (stat.valid - stat.hasDisp) + '</strong> 家';
 
   document.getElementById('overlay').classList.add('show');
 }
