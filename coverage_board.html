@@ -280,22 +280,34 @@ function fetchSheet() {
         return '';
       });
 
-      /* 其餘列 = 資料，所有值統一用 String(c.v) 保留原始字串（避免 boolean 問題） */
+      /* 其餘列 = 資料
+         gviz 對公式欄（如 =IF(...)=1 這類）即使 headers=0 仍會回傳 boolean c.v。
+         統一轉換：true→'1'，false→'0'，其餘 String(c.v)。
+         優先用 c.v；c.v 為 null 時才退回 c.f（格式化字串）。 */
+      function normCell(cell) {
+        if (!cell) return '';
+        if (cell.v === true)  return '1';
+        if (cell.v === false) return '0';
+        if (cell.v !== null && cell.v !== undefined) return String(cell.v);
+        if (cell.f != null) return String(cell.f);
+        return '';
+      }
+
       allRows = tbl.rows.slice(1).map(function(row) {
         var obj = {};
         (row.c || []).forEach(function(cell, i) {
           if (!cols[i]) return;
-          if (!cell || cell.v === null || cell.v === undefined) {
-            obj[cols[i]] = '';
-          } else {
-            obj[cols[i]] = String(cell.v);
-          }
+          obj[cols[i]] = normCell(cell);
         });
         return obj;
       }).filter(function(r) {
         /* 過濾全空列 */
         return Object.values(r).some(function(v) { return v.trim() !== ''; });
       });
+
+      /* debug：印出前 3 列看值是否正確（上線後可刪） */
+      console.log('[coverage_board] cols:', cols);
+      console.log('[coverage_board] sample rows:', allRows.slice(0, 3));
 
       fetchSyncTime();
       render();
