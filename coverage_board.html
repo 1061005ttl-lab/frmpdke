@@ -7,7 +7,6 @@
 <style>
 :root {
   --primary: #378ADD;
-  --primary-bg: rgba(55,138,221,.08);
   --bg: #F0EDE6;
   --card: #FFFFFF;
   --text: #2D2D2D;
@@ -23,6 +22,7 @@
 }
 *,*::before,*::after { margin:0; padding:0; box-sizing:border-box; }
 body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC',sans-serif; min-height:100vh; }
+
 /* ── toolbar ── */
 .toolbar {
   background:#fff;
@@ -47,8 +47,12 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC',sans-
   cursor:pointer;
   color:var(--text);
   transition:background .15s;
+  display:flex;
+  align-items:center;
+  gap:5px;
 }
 .back-btn:hover { background:var(--bg); }
+
 /* ── breadcrumb ── */
 .breadcrumb {
   padding:12px 20px 4px;
@@ -58,25 +62,27 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC',sans-
   font-size:13px;
   color:var(--sub);
 }
-.bc-item { cursor:pointer; color:var(--primary); }
-.bc-item:hover { text-decoration:underline; }
-.bc-sep { color:var(--border); }
-.bc-current { color:var(--text); font-weight:500; }
+.bc-item { cursor:pointer; color:var(--primary); transition:opacity .15s; }
+.bc-item:hover { opacity:.7; text-decoration:underline; }
+.bc-sep { color:#ccc; }
+.bc-current { color:var(--text); font-weight:600; }
+
 /* ── stage ── */
 .stage { padding:16px 20px 40px; }
 .level-label {
   font-size:11px;
   color:var(--sub);
-  letter-spacing:.05em;
+  letter-spacing:.08em;
   margin-bottom:10px;
-  text-transform:uppercase;
+  font-weight:500;
 }
 .grid {
   display:grid;
-  grid-template-columns:repeat(auto-fill, minmax(200px,1fr));
+  grid-template-columns:repeat(auto-fill, minmax(210px,1fr));
   gap:12px;
   margin-bottom:28px;
 }
+
 /* ── card ── */
 .card {
   background:var(--card);
@@ -84,129 +90,211 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC',sans-
   border-radius:var(--r);
   padding:14px 16px;
   cursor:pointer;
-  transition:transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+  transition:transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease), border-color .2s;
   position:relative;
   overflow:visible;
 }
-.card:hover { transform:translateY(-2px); box-shadow:0 6px 20px rgba(0,0,0,.08); }
-.card-top { font-size:12px; color:var(--sub); margin-bottom:4px; }
-.card-name { font-size:15px; font-weight:600; margin-bottom:12px; }
-.cov-row { display:flex; align-items:baseline; gap:4px; }
+.card:hover {
+  transform:translateY(-3px);
+  box-shadow:0 8px 24px rgba(0,0,0,.10);
+  border-color:rgba(55,138,221,.3);
+}
+/* drill hint arrow */
+.card::after {
+  content:'›';
+  position:absolute;
+  right:14px;
+  top:14px;
+  font-size:18px;
+  color:#ccc;
+  transition:transform .2s var(--ease), color .2s;
+}
+.card.staff-card::after { content:''; }
+.card:hover::after { transform:translateX(3px); color:var(--primary); }
+
+.card-top { font-size:11px; color:var(--sub); margin-bottom:3px; letter-spacing:.04em; }
+.card-name { font-size:15px; font-weight:700; margin-bottom:14px; padding-right:20px; }
+
+/* coverage number with hover hint */
+.cov-row { display:flex; align-items:baseline; gap:4px; position:relative; width:fit-content; }
 .cov-num {
-  font-size:30px;
+  font-size:32px;
   font-weight:700;
   color:var(--text);
   cursor:default;
+  border-bottom:2px dashed transparent;
+  transition:border-color .2s, color .2s;
+  line-height:1.1;
+}
+.cov-num:hover {
+  border-bottom-color:var(--primary);
+  color:var(--primary);
 }
 .cov-unit { font-size:13px; color:var(--sub); }
+.cov-hint {
+  position:absolute;
+  top:-18px;
+  left:0;
+  font-size:10px;
+  color:var(--primary);
+  opacity:0;
+  transition:opacity .2s;
+  white-space:nowrap;
+  pointer-events:none;
+}
+.cov-num:hover ~ .cov-hint, .cov-row:hover .cov-hint { opacity:1; }
+
 .tag-row { display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; }
 .tag {
   font-size:11px;
-  padding:3px 8px;
-  border-radius:6px;
-  font-weight:500;
+  padding:3px 9px;
+  border-radius:20px;
+  font-weight:600;
 }
 .tag-yes { background:var(--green-bg); color:var(--green); }
 .tag-no  { background:var(--red-bg);   color:var(--red); }
-.valid-note { font-size:11px; color:#aaa; margin-top:7px; }
+.valid-note { font-size:11px; color:#bbb; margin-top:7px; }
+
+/* ── mini progress bar on card ── */
+.card-bar-track {
+  height:3px;
+  background:#f0f0f0;
+  border-radius:2px;
+  margin-top:12px;
+  overflow:hidden;
+}
+.card-bar-fill {
+  height:100%;
+  background:linear-gradient(90deg, #378ADD, #5ba8f5);
+  border-radius:2px;
+  transition:width .6s var(--ease);
+}
+
 /* ── tooltip ── */
 .tooltip {
-  position:absolute;
-  bottom:calc(100% + 8px);
-  left:50%;
-  transform:translateX(-50%);
+  position:fixed;
   background:#fff;
-  border:1px solid var(--border);
+  border:1px solid rgba(0,0,0,.12);
   border-radius:10px;
-  padding:10px 14px;
-  min-width:170px;
-  z-index:200;
+  padding:12px 16px;
+  min-width:180px;
+  z-index:500;
   pointer-events:none;
   opacity:0;
-  transition:opacity .15s;
-  box-shadow:0 4px 16px rgba(0,0,0,.10);
+  transform:translateY(4px);
+  transition:opacity .18s, transform .18s;
+  box-shadow:0 8px 28px rgba(0,0,0,.14);
 }
-.tooltip.show { opacity:1; }
-.tt-row { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:3px 0; }
-.tt-label { font-size:12px; color:var(--sub); }
-.tt-bar { width:56px; height:4px; background:#eee; border-radius:2px; overflow:hidden; }
-.tt-fill { height:100%; background:var(--primary); border-radius:2px; }
-.tt-val { font-size:12px; font-weight:600; color:var(--text); }
+.tooltip.show { opacity:1; transform:translateY(0); }
+.tt-title { font-size:11px; color:var(--sub); margin-bottom:8px; letter-spacing:.04em; }
+.tt-row { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:4px 0; }
+.tt-label { font-size:12px; color:var(--sub); min-width:30px; }
+.tt-bar { flex:1; height:5px; background:#eee; border-radius:3px; overflow:hidden; }
+.tt-fill { height:100%; background:var(--primary); border-radius:3px; transition:width .4s var(--ease); }
+.tt-val { font-size:12px; font-weight:700; color:var(--text); min-width:32px; text-align:right; }
+
 /* ── overlay / dialog ── */
 .overlay {
   display:none;
   position:fixed;
   inset:0;
-  background:rgba(0,0,0,.35);
+  background:rgba(0,0,0,.4);
   z-index:300;
   align-items:center;
   justify-content:center;
+  backdrop-filter:blur(2px);
 }
 .overlay.show { display:flex; }
 .dialog {
   background:#fff;
-  border-radius:16px;
-  padding:24px;
-  width:380px;
+  border-radius:18px;
+  padding:26px;
+  width:400px;
   max-width:92vw;
-  max-height:90vh;
+  max-height:88vh;
   overflow-y:auto;
-  box-shadow:0 16px 48px rgba(0,0,0,.18);
+  box-shadow:0 20px 60px rgba(0,0,0,.22);
+  animation:dlgIn .28s var(--ease);
 }
-.dlg-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; }
-.dlg-title { font-size:17px; font-weight:700; }
+@keyframes dlgIn {
+  from { transform:scale(.94) translateY(12px); opacity:0; }
+  to   { transform:scale(1) translateY(0); opacity:1; }
+}
+.dlg-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:18px; }
+.dlg-title { font-size:18px; font-weight:700; }
 .dlg-sub { font-size:12px; color:var(--sub); margin-top:3px; }
 .dlg-close {
   background:none; border:none; cursor:pointer;
-  color:var(--sub); font-size:20px; line-height:1; padding:2px;
+  width:30px; height:30px; border-radius:50%;
+  color:var(--sub); font-size:18px; line-height:1;
+  display:flex; align-items:center; justify-content:center;
+  transition:background .15s;
 }
+.dlg-close:hover { background:#f5f5f5; }
 .dlg-main {
   display:flex; align-items:baseline; gap:6px;
-  margin-bottom:16px; padding-bottom:14px;
+  margin-bottom:20px; padding-bottom:16px;
   border-bottom:1px solid var(--border);
 }
-.dlg-main-num { font-size:40px; font-weight:700; }
+.dlg-main-num { font-size:44px; font-weight:700; color:var(--primary); }
 .dlg-main-unit { font-size:14px; color:var(--sub); }
-.dlg-breakdown { display:flex; flex-direction:column; gap:12px; margin-bottom:16px; }
-.dlg-row-label { display:flex; justify-content:space-between; font-size:13px; margin-bottom:5px; }
-.dlg-row-name { color:var(--sub); }
-.dlg-row-val { font-weight:600; }
+.dlg-breakdown { display:flex; flex-direction:column; gap:14px; margin-bottom:18px; }
+.dlg-row-label { display:flex; justify-content:space-between; font-size:13px; margin-bottom:6px; }
+.dlg-row-name { color:var(--sub); font-weight:500; }
+.dlg-row-val { font-weight:700; }
 .dlg-row-cnt { font-weight:400; color:#aaa; font-size:12px; }
-.bar-track { height:7px; background:#f0f0f0; border-radius:4px; overflow:hidden; }
-.bar-fill { height:100%; background:var(--primary); border-radius:4px; transition:width .4s var(--ease); }
+.bar-track { height:8px; background:#f0f0f0; border-radius:4px; overflow:hidden; }
+.bar-fill { height:100%; background:var(--primary); border-radius:4px; width:0; transition:width .5s var(--ease); }
 .dlg-footer {
   font-size:12px; color:var(--sub);
-  padding-top:12px; border-top:1px solid var(--border);
-  line-height:1.8;
+  padding-top:14px; border-top:1px solid var(--border);
+  line-height:2;
+  display:flex; gap:16px; flex-wrap:wrap;
 }
+.dlg-footer-item { display:flex; flex-direction:column; gap:2px; }
+.dlg-footer-val { font-size:18px; font-weight:700; color:var(--text); }
+.dlg-footer-label { font-size:11px; color:var(--sub); }
+
 /* ── loading ── */
 .loading {
   display:none;
   position:fixed; inset:0;
-  background:rgba(240,237,230,.7);
+  background:rgba(240,237,230,.8);
   z-index:400;
   align-items:center;
   justify-content:center;
-  font-size:15px;
+  flex-direction:column;
+  gap:12px;
+  font-size:14px;
   color:var(--sub);
 }
 .loading.show { display:flex; }
-/* ── empty ── */
+.spinner {
+  width:28px; height:28px;
+  border:3px solid #ddd;
+  border-top-color:var(--primary);
+  border-radius:50%;
+  animation:spin .7s linear infinite;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
 .empty { padding:60px 20px; text-align:center; color:var(--sub); font-size:14px; }
 </style>
 </head>
 <body>
 
-<div class="loading" id="loading">載入中…</div>
+<div class="loading" id="loading"><div class="spinner"></div>載入中…</div>
 
 <div class="toolbar">
-  <button class="back-btn" onclick="history.back()">← 返回</button>
+  <button class="back-btn" id="back-btn">← 返回</button>
   <span class="toolbar-title" id="tb-title">覆蓋率看板</span>
   <span class="toolbar-sync" id="tb-sync"></span>
 </div>
 
 <div class="breadcrumb" id="breadcrumb"></div>
 <div class="stage" id="stage"></div>
+
+<!-- Tooltip（fixed，JS 定位） -->
+<div class="tooltip" id="global-tooltip"></div>
 
 <!-- Dialog -->
 <div class="overlay" id="overlay" onclick="onOverlayClick(event)">
@@ -229,30 +317,39 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC',sans-
 
 <script>
 /* ── URL 參數 ── */
-var params = new URLSearchParams(location.search);
-var SHEET_ID   = params.get('sheetId')  || '';
-var PROJ_NAME  = params.get('name')     || '覆蓋率看板';
-var SYNC_SHEET = params.get('syncSheet')|| '輔助';
-var SYNC_CELL  = params.get('syncCell') || 'B1';
+var params     = new URLSearchParams(location.search);
+var SHEET_ID   = params.get('sheetId')   || '';
+var PROJ_NAME  = params.get('name')      || '覆蓋率看板';
+var SYNC_SHEET = params.get('syncSheet') || '輔助';
+var SYNC_CELL  = params.get('syncCell')  || 'B1';
 var SHEET_NAME = '店家名冊';
 var TYPES      = ['堆箱','端架','冰箱'];
-
-/* 層級欄位名稱對應 */
-var COL_AREA    = '營業處名稱';
-var COL_OFFICE  = '營業所/課';
-var COL_STAFF   = '執行人員';
-var COL_UNFILL  = '未填寫';
+var COL_AREA   = '營業處名稱';
+var COL_OFFICE = '營業所/課';
+var COL_STAFF  = '執行人員';
+var COL_UNFILL = '未填寫';
 
 document.getElementById('tb-title').textContent = PROJ_NAME;
+document.title = PROJ_NAME;
+
+/* ── 返回鍵：新分頁用 window.close，否則 history.back ── */
+document.getElementById('back-btn').addEventListener('click', function() {
+  if (window.opener || window.history.length <= 1) {
+    window.close();
+  } else {
+    history.back();
+  }
+});
 
 /* ── 狀態 ── */
 var allRows = [];
-var drillStack = []; /* [{level:'area'|'office'|'staff', key:string}] */
+var drillStack = [];
 
 /* ── 工具 ── */
 function pct(a, b) { return b === 0 ? 0 : Math.round(a / b * 100); }
-function showLoading()  { document.getElementById('loading').classList.add('show'); }
-function hideLoading()  { document.getElementById('loading').classList.remove('show'); }
+function showLoading() { document.getElementById('loading').classList.add('show'); }
+function hideLoading() { document.getElementById('loading').classList.remove('show'); }
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 /* ── 抓資料 ── */
 function fetchSheet() {
@@ -263,12 +360,12 @@ function fetchSheet() {
     .then(function(r) { return r.text(); })
     .then(function(txt) {
       var json = JSON.parse(txt.replace(/^[^\(]+\(/, '').replace(/\);?\s*$/, ''));
-      var tbl = json.table || {};
+      var tbl  = json.table || {};
       var cols = (tbl.cols || []).map(function(c) { return c.label || ''; });
-      allRows = (tbl.rows || []).map(function(row) {
+      allRows  = (tbl.rows || []).map(function(row) {
         var obj = {};
         (row.c || []).forEach(function(cell, i) {
-          obj[cols[i]] = cell ? (cell.v !== null && cell.v !== undefined ? cell.v : cell.f || '') : '';
+          obj[cols[i]] = cell ? (cell.v !== null && cell.v !== undefined ? cell.v : (cell.f || '')) : '';
         });
         return obj;
       });
@@ -277,7 +374,7 @@ function fetchSheet() {
     })
     .catch(function(err) {
       hideLoading();
-      document.getElementById('stage').innerHTML = '<div class="empty">⚠️ 載入失敗：' + err + '</div>';
+      document.getElementById('stage').innerHTML = '<div class="empty">⚠️ 載入失敗：' + esc(String(err)) + '</div>';
     });
 }
 
@@ -295,14 +392,13 @@ function fetchSyncTime() {
     .catch(function() {});
 }
 
-/* ── 計算 ── */
+/* ── 計算（未填寫=1 排除，=0 納入） ── */
 function calcGroup(rows) {
   var valid = 0, withDisplay = 0;
   var typeCounts = {};
   TYPES.forEach(function(t) { typeCounts[t] = 0; });
   rows.forEach(function(r) {
-    var unfill = Number(r[COL_UNFILL]) || 0;
-    if (unfill !== 0) return;
+    if (Number(r[COL_UNFILL]) !== 0) return; /* 未填寫=1 → 排除 */
     valid++;
     var hasAny = false;
     TYPES.forEach(function(t) {
@@ -313,31 +409,25 @@ function calcGroup(rows) {
   return { valid: valid, withDisplay: withDisplay, typeCounts: typeCounts };
 }
 
-/* ── 篩選 rows ── */
+/* ── 篩選 ── */
 function filterRows(level, key) {
-  if (level === 'area')   return allRows.filter(function(r) { return String(r[COL_AREA])   === key; });
-  if (level === 'office') return allRows.filter(function(r) { return String(r[COL_OFFICE]) === key; });
-  if (level === 'staff')  return allRows.filter(function(r) { return String(r[COL_STAFF])  === key; });
-  return allRows;
+  var col = level === 'area' ? COL_AREA : level === 'office' ? COL_OFFICE : COL_STAFF;
+  return allRows.filter(function(r) { return String(r[col]) === key; });
 }
-
-/* ── 取得目前層級的 rows ── */
 function getCurrentRows() {
-  if (drillStack.length === 0) return allRows;
+  if (!drillStack.length) return allRows;
   var last = drillStack[drillStack.length - 1];
   return filterRows(last.level, last.key);
 }
-
-/* ── 取得下一層群組 ── */
-function getNextGroups(rows, nextCol) {
-  var map = {};
+function getGroups(rows, col) {
+  var map = {}, order = [];
   rows.forEach(function(r) {
-    var k = String(r[nextCol] || '');
+    var k = String(r[col] || '');
     if (!k) return;
-    if (!map[k]) map[k] = [];
+    if (!map[k]) { map[k] = []; order.push(k); }
     map[k].push(r);
   });
-  return map;
+  return { map: map, order: order };
 }
 
 /* ── 渲染 ── */
@@ -346,168 +436,173 @@ function render() {
   buildBreadcrumb();
   var stage = document.getElementById('stage');
   stage.innerHTML = '';
-
   var depth = drillStack.length;
-  var rows = getCurrentRows();
-
-  if (depth === 0) {
-    /* 顯示 area 層 */
-    renderLevel(stage, rows, COL_AREA, 'area', '營業處');
-  } else if (depth === 1) {
-    /* 顯示 office 層 */
-    renderLevel(stage, rows, COL_OFFICE, 'office', '營業所/課');
-  } else if (depth === 2) {
-    /* 顯示 staff 層 */
-    renderLevel(stage, rows, COL_STAFF, 'staff', '業務人員');
-  } else {
-    stage.innerHTML = '<div class="empty">已到最細層級</div>';
-  }
+  var rows  = getCurrentRows();
+  if      (depth === 0) renderLevel(stage, rows, COL_AREA,   'area',   '營業處');
+  else if (depth === 1) renderLevel(stage, rows, COL_OFFICE, 'office', '營業所/課');
+  else if (depth === 2) renderLevel(stage, rows, COL_STAFF,  'staff',  '業務人員');
+  else stage.innerHTML = '<div class="empty">已到最細層級</div>';
 }
 
 function renderLevel(stage, rows, col, levelKey, labelText) {
-  var groups = getNextGroups(rows, col);
-  var keys = Object.keys(groups);
-  if (keys.length === 0) {
-    stage.innerHTML = '<div class="empty">無資料</div>';
-    return;
-  }
-  var div = document.createElement('div');
-  div.innerHTML = '<div class="level-label">' + labelText + '</div>';
+  var g = getGroups(rows, col);
+  if (!g.order.length) { stage.innerHTML = '<div class="empty">無資料</div>'; return; }
+  var wrap = document.createElement('div');
+  wrap.innerHTML = '<div class="level-label">' + esc(labelText) + '</div>';
   var grid = document.createElement('div');
   grid.className = 'grid';
-  keys.forEach(function(k) {
-    var stat = calcGroup(groups[k]);
-    grid.appendChild(buildCard(k, labelText, stat, levelKey, groups[k]));
+  g.order.forEach(function(k) {
+    var stat = calcGroup(g.map[k]);
+    grid.appendChild(buildCard(k, labelText, stat, levelKey));
   });
-  div.appendChild(grid);
-  stage.appendChild(div);
+  wrap.appendChild(grid);
+  stage.appendChild(wrap);
 }
 
 /* ── 卡片 ── */
-function buildCard(name, labelText, stat, levelKey, rows) {
+function buildCard(name, labelText, stat, levelKey) {
   var rate = pct(stat.withDisplay, stat.valid);
   var card = document.createElement('div');
-  card.className = 'card';
-
-  var ttId = 'tt-' + name.replace(/\s/g,'_') + '-' + levelKey;
+  card.className = 'card' + (levelKey === 'staff' ? ' staff-card' : '');
 
   card.innerHTML =
-    '<div class="card-top">' + labelText + '</div>' +
-    '<div class="card-name">' + name + '</div>' +
+    '<div class="card-top">' + esc(labelText) + '</div>' +
+    '<div class="card-name">' + esc(name) + '</div>' +
     '<div class="cov-row">' +
-      '<span class="cov-num" id="cn-' + ttId + '">' + rate + '</span>' +
-      '<span class="cov-unit">%</span>' +
+      '<span class="cov-num">' + rate + '</span>' +
+      '<span class="cov-unit"> %</span>' +
+      '<span class="cov-hint">▲ 移入看明細</span>' +
     '</div>' +
+    '<div class="card-bar-track"><div class="card-bar-fill" style="width:' + rate + '%"></div></div>' +
     '<div class="tag-row">' +
       '<span class="tag tag-yes">有 ' + stat.withDisplay + ' 店</span>' +
       '<span class="tag tag-no">無 ' + (stat.valid - stat.withDisplay) + ' 店</span>' +
     '</div>' +
-    '<div class="valid-note">有效店數 ' + stat.valid + ' 家</div>' +
-    '<div class="tooltip" id="' + ttId + '">' + buildTooltipHTML(stat) + '</div>';
+    '<div class="valid-note">有效店數 ' + stat.valid + ' 家</div>';
 
-  /* hover on number */
+  /* hover on number → tooltip */
   var numEl = card.querySelector('.cov-num');
   numEl.addEventListener('mouseenter', function(e) {
-    e.stopPropagation();
-    document.getElementById(ttId).classList.add('show');
+    showTooltip(e, stat, name);
+  });
+  numEl.addEventListener('mousemove', function(e) {
+    positionTooltip(e);
   });
   numEl.addEventListener('mouseleave', function() {
-    document.getElementById(ttId).classList.remove('show');
+    hideTooltip();
   });
 
-  /* click card → drill or dialog */
-  card.addEventListener('click', function(e) {
-    /* 如果是最後一層 staff，開 dialog；否則 drill down */
-    if (levelKey === 'staff') {
-      openDialog(name, labelText, stat);
-    } else {
-      drillDown(levelKey, name);
-    }
+  /* click → drill or dialog */
+  card.addEventListener('click', function() {
+    if (levelKey === 'staff') openDialog(name, labelText, stat);
+    else drillDown(levelKey, name);
   });
 
   return card;
 }
 
-function buildTooltipHTML(stat) {
-  return TYPES.map(function(t) {
-    var p = pct(stat.typeCounts[t], stat.valid);
-    return '<div class="tt-row">' +
-      '<span class="tt-label">' + t + '</span>' +
-      '<div class="tt-bar"><div class="tt-fill" style="width:' + p + '%"></div></div>' +
-      '<span class="tt-val">' + p + '%</span>' +
-    '</div>';
-  }).join('');
+/* ── Tooltip（fixed 定位，不被裁切） ── */
+var _ttVisible = false;
+var _ttStat = null;
+
+function showTooltip(e, stat, name) {
+  var tt = document.getElementById('global-tooltip');
+  tt.innerHTML =
+    '<div class="tt-title">陳列型態明細</div>' +
+    TYPES.map(function(t) {
+      var p = pct(stat.typeCounts[t], stat.valid);
+      return '<div class="tt-row">' +
+        '<span class="tt-label">' + esc(t) + '</span>' +
+        '<div class="tt-bar"><div class="tt-fill" style="width:' + p + '%"></div></div>' +
+        '<span class="tt-val">' + p + '%</span>' +
+      '</div>';
+    }).join('');
+  positionTooltip(e);
+  tt.classList.add('show');
+  _ttVisible = true;
 }
 
-/* ── drill down ── */
+function positionTooltip(e) {
+  var tt = document.getElementById('global-tooltip');
+  var tw = 200, th = 120;
+  var x = e.clientX + 14;
+  var y = e.clientY - th / 2;
+  if (x + tw > window.innerWidth - 8) x = e.clientX - tw - 14;
+  if (y < 8) y = 8;
+  if (y + th > window.innerHeight - 8) y = window.innerHeight - th - 8;
+  tt.style.left = x + 'px';
+  tt.style.top  = y + 'px';
+}
+
+function hideTooltip() {
+  document.getElementById('global-tooltip').classList.remove('show');
+  _ttVisible = false;
+}
+
+/* ── Drill ── */
 function drillDown(levelKey, key) {
   drillStack.push({ level: levelKey, key: key });
   render();
 }
 
-/* ── breadcrumb ── */
-var LEVEL_LABELS = { area:'全部', office:'', staff:'' };
-
+/* ── Breadcrumb ── */
 function buildBreadcrumb() {
   var bc = document.getElementById('breadcrumb');
-  var parts = [];
-
-  parts.push('<span class="bc-item" onclick="drillTo(-1)">全覽</span>');
-
+  var parts = ['<span class="bc-item" onclick="drillTo(-1)">全覽</span>'];
   drillStack.forEach(function(d, i) {
     parts.push('<span class="bc-sep">›</span>');
-    if (i < drillStack.length - 1) {
-      parts.push('<span class="bc-item" onclick="drillTo(' + i + ')">' + d.key + '</span>');
-    } else {
-      parts.push('<span class="bc-current">' + d.key + '</span>');
-    }
+    if (i < drillStack.length - 1)
+      parts.push('<span class="bc-item" onclick="drillTo(' + i + ')">' + esc(d.key) + '</span>');
+    else
+      parts.push('<span class="bc-current">' + esc(d.key) + '</span>');
   });
-
   bc.innerHTML = parts.join('');
 }
 
 function drillTo(idx) {
-  if (idx < 0) {
-    drillStack = [];
-  } else {
-    drillStack = drillStack.slice(0, idx + 1);
-  }
+  drillStack = idx < 0 ? [] : drillStack.slice(0, idx + 1);
   render();
 }
 
-/* ── dialog ── */
+/* ── Dialog ── */
 function openDialog(name, labelText, stat) {
   var rate = pct(stat.withDisplay, stat.valid);
   document.getElementById('dlg-title').textContent = name;
-  document.getElementById('dlg-sub').textContent = labelText + ' · 二位陳列明細';
+  document.getElementById('dlg-sub').textContent   = labelText + ' · 二位陳列明細';
   document.getElementById('dlg-main-num').textContent = rate;
 
   document.getElementById('dlg-breakdown').innerHTML = TYPES.map(function(t) {
     var p = pct(stat.typeCounts[t], stat.valid);
     return '<div>' +
       '<div class="dlg-row-label">' +
-        '<span class="dlg-row-name">' + t + '</span>' +
+        '<span class="dlg-row-name">' + esc(t) + '</span>' +
         '<span class="dlg-row-val">' + p + '% <span class="dlg-row-cnt">(' + stat.typeCounts[t] + ' 店)</span></span>' +
       '</div>' +
-      '<div class="bar-track"><div class="bar-fill" style="width:' + p + '%"></div></div>' +
+      '<div class="bar-track"><div class="bar-fill" style="width:0%"></div></div>' +
     '</div>';
   }).join('');
 
   document.getElementById('dlg-footer').innerHTML =
-    '有效店數 <strong>' + stat.valid + '</strong> 家 &nbsp;·&nbsp; ' +
-    '有陳列 <strong>' + stat.withDisplay + '</strong> 家 &nbsp;·&nbsp; ' +
-    '無陳列 <strong>' + (stat.valid - stat.withDisplay) + '</strong> 家';
+    '<div class="dlg-footer-item"><span class="dlg-footer-val">' + stat.valid + '</span><span class="dlg-footer-label">有效店數</span></div>' +
+    '<div class="dlg-footer-item"><span class="dlg-footer-val" style="color:var(--green)">' + stat.withDisplay + '</span><span class="dlg-footer-label">有陳列</span></div>' +
+    '<div class="dlg-footer-item"><span class="dlg-footer-val" style="color:var(--red)">' + (stat.valid - stat.withDisplay) + '</span><span class="dlg-footer-label">無陳列</span></div>';
 
   document.getElementById('overlay').classList.add('show');
+
+  /* 動畫延遲啟動 bar */
+  requestAnimationFrame(function() {
+    requestAnimationFrame(function() {
+      var fills = document.querySelectorAll('#dlg-breakdown .bar-fill');
+      TYPES.forEach(function(t, i) {
+        var p = pct(stat.typeCounts[t], stat.valid);
+        if (fills[i]) fills[i].style.width = p + '%';
+      });
+    });
+  });
 }
 
-function closeDialog() {
-  document.getElementById('overlay').classList.remove('show');
-}
-
-function onOverlayClick(e) {
-  if (e.target === document.getElementById('overlay')) closeDialog();
-}
+function closeDialog() { document.getElementById('overlay').classList.remove('show'); }
+function onOverlayClick(e) { if (e.target === document.getElementById('overlay')) closeDialog(); }
 
 /* ── 啟動 ── */
 if (SHEET_ID) {
