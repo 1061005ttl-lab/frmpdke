@@ -82,15 +82,15 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC',sans-
   background:var(--card);
   border:1px solid var(--border);
   border-radius:var(--r);
-  padding:14px 16px;
+  padding:20px 22px;
   cursor:pointer;
   transition:transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
   position:relative;
   overflow:visible;
 }
-.card:hover { transform:translateY(-2px); box-shadow:0 6px 20px rgba(0,0,0,.08); }
-.card-top { font-size:12px; color:var(--sub); margin-bottom:4px; }
-.card-name { font-size:15px; font-weight:600; margin-bottom:12px; }
+.card:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,0,0,.10); }
+.card-top { font-size:12px; color:var(--sub); margin-bottom:6px; }
+.card-name { font-size:18px; font-weight:700; margin-bottom:16px; }
 .cov-row { display:flex; align-items:baseline; gap:4px; }
 .cov-num {
   font-size:30px;
@@ -110,14 +110,14 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC',sans-
 .tag-no  { background:var(--red-bg);   color:var(--red); }
 .valid-note { font-size:11px; color:#aaa; margin-top:7px; }
 /* ── stat row ── */
-.stat-row { display:flex; gap:10px; margin-top:10px; }
-.stat-item { flex:1; background:var(--bg); border-radius:8px; padding:8px 10px; text-align:center; }
+.stat-row { display:flex; gap:10px; margin-top:4px; }
+.stat-item { flex:1; background:var(--bg); border-radius:10px; padding:12px 10px; text-align:center; }
 .stat-item.warn { background:var(--red-bg); }
 .stat-item.good { background:var(--green-bg); }
-.stat-label { font-size:10px; color:var(--sub); margin-bottom:3px; }
+.stat-label { font-size:11px; font-weight:500; color:var(--sub); margin-bottom:6px; }
 .stat-item.warn .stat-label { color:var(--red); }
 .stat-item.good .stat-label { color:var(--green); }
-.stat-val { font-size:22px; font-weight:700; color:var(--text); line-height:1; }
+.stat-val { font-size:28px; font-weight:800; color:var(--text); line-height:1; letter-spacing:-1px; }
 .stat-item.warn .stat-val { color:var(--red); }
 .stat-item.good .stat-val { color:var(--green); }
 /* ── tooltip ── */
@@ -138,11 +138,10 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC',sans-
   box-shadow:0 4px 16px rgba(0,0,0,.10);
 }
 .tooltip.show { opacity:1; }
-.tt-row { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:3px 0; }
-.tt-label { font-size:12px; color:var(--sub); }
-.tt-bar { width:56px; height:4px; background:#eee; border-radius:2px; overflow:hidden; }
-.tt-fill { height:100%; background:var(--primary); border-radius:2px; }
-.tt-val { font-size:12px; font-weight:600; color:var(--text); }
+.tt-title { font-size:11px; font-weight:700; color:var(--sub); margin-bottom:7px; letter-spacing:.03em; }
+.tt-row { display:flex; justify-content:space-between; align-items:center; gap:20px; padding:4px 0; }
+.tt-label { font-size:13px; color:var(--sub); }
+.tt-val { font-size:13px; font-weight:700; color:var(--text); }
 /* ── overlay / dialog ── */
 .overlay {
   display:none;
@@ -412,6 +411,8 @@ function buildCard(name, labelText, stat, levelKey, rows) {
   var card = document.createElement('div');
   card.className = 'card';
 
+  var ttId = 'tt-' + name.replace(/[^a-zA-Z0-9]/g,'_') + '-' + levelKey;
+
   card.innerHTML =
     '<div class="card-top">' + labelText + '</div>' +
     '<div class="card-name">' + name + '</div>' +
@@ -424,11 +425,18 @@ function buildCard(name, labelText, stat, levelKey, rows) {
         '<div class="stat-label">未填寫</div>' +
         '<div class="stat-val">' + stat.unfilled + '</div>' +
       '</div>' +
-      '<div class="stat-item good">' +
+      '<div class="stat-item good" id="si-' + ttId + '" style="position:relative">' +
         '<div class="stat-label">有二位</div>' +
         '<div class="stat-val">' + stat.hasDisp + '</div>' +
+        '<div class="tooltip" id="' + ttId + '">' + buildTooltipHTML(stat) + '</div>' +
       '</div>' +
     '</div>';
+
+  /* hover on 有二位 block → show tooltip */
+  var siEl = card.querySelector('#si-' + ttId);
+  var ttEl = card.querySelector('#' + ttId);
+  siEl.addEventListener('mouseenter', function(e) { e.stopPropagation(); ttEl.classList.add('show'); });
+  siEl.addEventListener('mouseleave', function() { ttEl.classList.remove('show'); });
 
   /* click card → drill or dialog */
   card.addEventListener('click', function(e) {
@@ -444,14 +452,13 @@ function buildCard(name, labelText, stat, levelKey, rows) {
 }
 
 function buildTooltipHTML(stat) {
-  return TYPES.map(function(t) {
-    var p = pct(stat.typeCounts[t], stat.valid);
+  var rows = TYPES.map(function(t) {
     return '<div class="tt-row">' +
       '<span class="tt-label">' + t + '</span>' +
-      '<div class="tt-bar"><div class="tt-fill" style="width:' + p + '%"></div></div>' +
-      '<span class="tt-val">' + stat.typeCounts[t] + ' 店 (' + p + '%)</span>' +
+      '<span class="tt-val">' + stat.typeCounts[t] + ' 家</span>' +
     '</div>';
   }).join('');
+  return '<div class="tt-title">有二位明細</div>' + rows;
 }
 
 /* ── drill down ── */
