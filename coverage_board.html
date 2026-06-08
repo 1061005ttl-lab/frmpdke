@@ -109,6 +109,17 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC',sans-
 .tag-yes { background:var(--green-bg); color:var(--green); }
 .tag-no  { background:var(--red-bg);   color:var(--red); }
 .valid-note { font-size:11px; color:#aaa; margin-top:7px; }
+/* ── stat row ── */
+.stat-row { display:flex; gap:10px; margin-top:10px; }
+.stat-item { flex:1; background:var(--bg); border-radius:8px; padding:8px 10px; text-align:center; }
+.stat-item.warn { background:var(--red-bg); }
+.stat-item.good { background:var(--green-bg); }
+.stat-label { font-size:10px; color:var(--sub); margin-bottom:3px; }
+.stat-item.warn .stat-label { color:var(--red); }
+.stat-item.good .stat-label { color:var(--green); }
+.stat-val { font-size:22px; font-weight:700; color:var(--text); line-height:1; }
+.stat-item.warn .stat-val { color:var(--red); }
+.stat-item.good .stat-val { color:var(--green); }
 /* ── tooltip ── */
 .tooltip {
   position:absolute;
@@ -220,7 +231,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC',sans-
     </div>
     <div class="dlg-main">
       <span class="dlg-main-num" id="dlg-main-num"></span>
-      <span class="dlg-main-unit">% 有效陳列覆蓋率</span>
+      <span class="dlg-main-unit">家 有二位陳列</span>
     </div>
     <div class="dlg-breakdown" id="dlg-breakdown"></div>
     <div class="dlg-footer" id="dlg-footer"></div>
@@ -398,38 +409,26 @@ function renderLevel(stage, rows, col, levelKey, labelText) {
 
 /* ── 卡片 ── */
 function buildCard(name, labelText, stat, levelKey, rows) {
-  var rate = pct(stat.hasDisp, stat.valid);
   var card = document.createElement('div');
   card.className = 'card';
-
-  var ttId = 'tt-' + name.replace(/\s/g,'_') + '-' + levelKey;
 
   card.innerHTML =
     '<div class="card-top">' + labelText + '</div>' +
     '<div class="card-name">' + name + '</div>' +
-    '<div class="cov-row">' +
-      '<span class="cov-num" id="cn-' + ttId + '">' + rate + '</span>' +
-      '<span class="cov-unit">%</span>' +
-    '</div>' +
-    '<div class="tag-row">' +
-      '<span class="tag tag-yes">有二位 ' + stat.hasDisp + ' 店</span>' +
-      '<span class="tag tag-no">無 ' + (stat.valid - stat.hasDisp) + ' 店</span>' +
-    '</div>' +
-    '<div class="valid-note">' +
-      '總 ' + stat.total + ' 家　有效 ' + stat.valid + ' 家' +
-      (stat.unfilled > 0 ? '　未填 ' + stat.unfilled + ' 家' : '') +
-    '</div>' +
-    '<div class="tooltip" id="' + ttId + '">' + buildTooltipHTML(stat) + '</div>';
-
-  /* hover on number */
-  var numEl = card.querySelector('.cov-num');
-  numEl.addEventListener('mouseenter', function(e) {
-    e.stopPropagation();
-    document.getElementById(ttId).classList.add('show');
-  });
-  numEl.addEventListener('mouseleave', function() {
-    document.getElementById(ttId).classList.remove('show');
-  });
+    '<div class="stat-row">' +
+      '<div class="stat-item">' +
+        '<div class="stat-label">總家數</div>' +
+        '<div class="stat-val">' + stat.total + '</div>' +
+      '</div>' +
+      '<div class="stat-item warn">' +
+        '<div class="stat-label">未填寫</div>' +
+        '<div class="stat-val">' + stat.unfilled + '</div>' +
+      '</div>' +
+      '<div class="stat-item good">' +
+        '<div class="stat-label">有二位</div>' +
+        '<div class="stat-val">' + stat.hasDisp + '</div>' +
+      '</div>' +
+    '</div>';
 
   /* click card → drill or dialog */
   card.addEventListener('click', function(e) {
@@ -493,29 +492,25 @@ function drillTo(idx) {
 
 /* ── dialog ── */
 function openDialog(name, labelText, stat) {
-  var rate = pct(stat.hasDisp, stat.valid);
   document.getElementById('dlg-title').textContent = name;
-  document.getElementById('dlg-sub').textContent = labelText + ' · 二位陳列明細';
-  document.getElementById('dlg-main-num').textContent = rate;
+  document.getElementById('dlg-sub').textContent = '有二位陳列明細　共 ' + stat.hasDisp + ' 家';
+  document.getElementById('dlg-main-num').textContent = stat.hasDisp;
 
-  /* 明細：堆箱/端架/冰箱 各自在有效店中的佔比 */
+  /* 明細：堆箱/端架/冰箱 各幾家 */
   document.getElementById('dlg-breakdown').innerHTML = TYPES.map(function(t) {
-    var p = pct(stat.typeCounts[t], stat.valid);
     return '<div>' +
       '<div class="dlg-row-label">' +
         '<span class="dlg-row-name">' + t + '</span>' +
-        '<span class="dlg-row-val">' + stat.typeCounts[t] + ' 店 <span class="dlg-row-cnt">(' + p + '%)</span></span>' +
+        '<span class="dlg-row-val">' + stat.typeCounts[t] + ' 家</span>' +
       '</div>' +
-      '<div class="bar-track"><div class="bar-fill" style="width:' + p + '%"></div></div>' +
+      '<div class="bar-track"><div class="bar-fill" style="width:' + pct(stat.typeCounts[t], stat.hasDisp) + '%"></div></div>' +
     '</div>';
   }).join('');
 
   document.getElementById('dlg-footer').innerHTML =
     '總家數 <strong>' + stat.total + '</strong> 家　' +
-    '有效 <strong>' + stat.valid + '</strong> 家　' +
-    '未填寫 <strong>' + stat.unfilled + '</strong> 家<br>' +
-    '有二位 <strong>' + stat.hasDisp + '</strong> 家 (' + rate + '%)　' +
-    '無陳列 <strong>' + (stat.valid - stat.hasDisp) + '</strong> 家';
+    '未填寫 <strong>' + stat.unfilled + '</strong> 家　' +
+    '有二位 <strong>' + stat.hasDisp + '</strong> 家';
 
   document.getElementById('overlay').classList.add('show');
 }
