@@ -189,6 +189,66 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC',sans-
   padding-top:12px; border-top:1px solid var(--border);
   line-height:1.8;
 }
+/* ── detail dialog ── */
+#detail-dialog {
+  position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:500;
+  display:flex; align-items:center; justify-content:center;
+  opacity:0; transition:opacity .2s;
+}
+#detail-dialog.open { opacity:1; }
+.dlg-box {
+  background:#fff; border-radius:14px;
+  width:95vw; height:92vh;
+  display:flex; flex-direction:column; overflow:hidden;
+  box-shadow:0 20px 80px rgba(0,0,0,.35);
+  transform:translateY(16px); transition:transform .22s;
+}
+#detail-dialog.open .dlg-box { transform:translateY(0); }
+.dlg-hd {
+  padding:14px 20px; border-bottom:1px solid rgba(0,0,0,.09);
+  display:flex; align-items:center; justify-content:space-between;
+  font-size:15px; font-weight:900; color:var(--text); flex-shrink:0;
+  background:rgba(248,250,248,1);
+}
+.dlg-action-btn {
+  cursor:pointer; font-size:13px; color:var(--sub); padding:4px 11px;
+  border-radius:7px; border:1px solid rgba(0,0,0,.12); background:#fff;
+  font-family:inherit; font-weight:700; transition:all .14s; white-space:nowrap;
+}
+.dlg-action-btn:hover { border-color:var(--primary); color:var(--primary); }
+.dlg-action-btn.done { border-color:var(--green); color:var(--green); background:var(--green-bg); }
+.dlg-action-btn.loading { opacity:.6; pointer-events:none; }
+.dlg-close-btn {
+  cursor:pointer; font-size:14px; color:var(--sub); padding:4px 12px;
+  border-radius:7px; border:1px solid rgba(0,0,0,.12); background:#fff;
+  font-family:inherit; font-weight:700; transition:all .14s;
+}
+.dlg-close-btn:hover { border-color:var(--primary); color:var(--primary); }
+.dlg-body { overflow:auto; flex:1; min-height:0; padding:4px 0; }
+.detail-scroll { overflow-x:auto; }
+.detail-scroll::-webkit-scrollbar { height:3px; }
+.detail-scroll::-webkit-scrollbar-thumb { background:rgba(0,0,0,.1); border-radius:3px; }
+.detail-tbl { width:max-content; min-width:100%; border-collapse:collapse; font-size:14px; }
+.detail-tbl th {
+  padding:9px 14px; text-align:left; font-weight:800; font-size:12px; color:var(--sub);
+  border-bottom:1px solid rgba(0,0,0,.08); background:rgba(0,0,0,.02); white-space:nowrap;
+}
+.detail-tbl th.r { text-align:center; }
+.detail-tbl td { padding:8px 14px; border-bottom:1px solid rgba(0,0,0,.04); white-space:nowrap; }
+.detail-tbl td.r { text-align:center; }
+.detail-tbl tr:last-child td { border-bottom:none; }
+.detail-tbl tbody tr:hover td { background:rgba(55,138,221,.07); }
+.disp-yes { color:var(--green); font-weight:800; }
+.disp-no  { color:#ccc; }
+/* ── staff card detail btn ── */
+.pc-detail-btn-row { margin-top:10px; }
+.pc-open-detail-btn {
+  font-size:12px; padding:5px 13px; border-radius:8px;
+  border:1px solid rgba(0,0,0,.13); background:#fff;
+  color:var(--text); cursor:pointer; font-family:inherit; transition:all .14s;
+}
+.pc-open-detail-btn:hover { border-color:var(--primary); color:var(--primary); }
+
 /* ── loading ── */
 .loading {
   display:none;
@@ -218,7 +278,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC',sans-
 <div class="breadcrumb" id="breadcrumb"></div>
 <div class="stage" id="stage"></div>
 
-<!-- Dialog -->
+<!-- 舊 overlay（保留給非 staff 層使用）-->
 <div class="overlay" id="overlay" onclick="onOverlayClick(event)">
   <div class="dialog" id="dialog">
     <div class="dlg-header">
@@ -234,6 +294,22 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC',sans-
     </div>
     <div class="dlg-breakdown" id="dlg-breakdown"></div>
     <div class="dlg-footer" id="dlg-footer"></div>
+  </div>
+</div>
+
+<!-- Dialog 店家明細（staff 層）-->
+<div id="detail-dialog" style="display:none" onclick="if(event.target===this)closeDetailDialog()">
+  <div class="dlg-box">
+    <div class="dlg-hd">
+      <span id="detail-dlg-title"></span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <button class="dlg-action-btn" id="btn-copy-line" onclick="copyLine()">💬 複製 LINE</button>
+        <button class="dlg-action-btn" id="btn-copy-excel" onclick="copyExcel()">📊 複製 Excel</button>
+        <button class="dlg-action-btn" id="btn-screenshot" onclick="takeScreenshot()">📸 截圖</button>
+        <button class="dlg-close-btn" onclick="closeDetailDialog()">✕</button>
+      </div>
+    </div>
+    <div class="dlg-body" id="detail-dlg-body"></div>
   </div>
 </div>
 
@@ -440,13 +516,23 @@ function buildCard(name, labelText, stat, levelKey, rows) {
 
   /* click card → drill or dialog */
   card.addEventListener('click', function(e) {
-    /* 如果是最後一層 staff，開 dialog；否則 drill down */
+    if (e.target.classList.contains('pc-open-detail-btn')) return; /* 由按鈕自己處理 */
     if (levelKey === 'staff') {
-      openDialog(name, labelText, stat);
+      openDetailDialog(name, rows, stat);
     } else {
       drillDown(levelKey, name);
     }
   });
+  /* 在 staff 卡片底部加明細按鈕 */
+  if (levelKey === 'staff') {
+    var btnRow = document.createElement('div');
+    btnRow.className = 'pc-detail-btn-row';
+    btnRow.innerHTML = '<button class="pc-open-detail-btn" onclick="event.stopPropagation();openDetailDialog('' +
+      name.replace(/'/g,"\'") + '',this.closest('.card')._rows,this.closest('.card')._stat)">📋 店家明細</button>';
+    card._rows = rows;
+    card._stat = stat;
+    card.appendChild(btnRow);
+  }
 
   return card;
 }
@@ -497,13 +583,11 @@ function drillTo(idx) {
   render();
 }
 
-/* ── dialog ── */
+/* ── dialog（統計摘要，給 area/office 層點擊保留）── */
 function openDialog(name, labelText, stat) {
   document.getElementById('dlg-title').textContent = name;
   document.getElementById('dlg-sub').textContent = '有二位陳列明細　共 ' + stat.hasDisp + ' 家';
   document.getElementById('dlg-main-num').textContent = stat.hasDisp;
-
-  /* 明細：堆箱/端架/冰箱 各幾家 */
   document.getElementById('dlg-breakdown').innerHTML = TYPES.map(function(t) {
     return '<div>' +
       '<div class="dlg-row-label">' +
@@ -513,21 +597,251 @@ function openDialog(name, labelText, stat) {
       '<div class="bar-track"><div class="bar-fill" style="width:' + pct(stat.typeCounts[t], stat.hasDisp) + '%"></div></div>' +
     '</div>';
   }).join('');
-
   document.getElementById('dlg-footer').innerHTML =
     '總家數 <strong>' + stat.total + '</strong> 家　' +
     '未填寫 <strong>' + stat.unfilled + '</strong> 家　' +
     '有二位 <strong>' + stat.hasDisp + '</strong> 家';
-
   document.getElementById('overlay').classList.add('show');
 }
-
 function closeDialog() {
   document.getElementById('overlay').classList.remove('show');
 }
-
 function onOverlayClick(e) {
   if (e.target === document.getElementById('overlay')) closeDialog();
+}
+
+/* ── 店家明細 dialog（staff 層）── */
+var _currentRows = [], _currentStaff = '', _currentStat = null;
+
+function buildDetailTable(rows, stat) {
+  var colCode = '店家代碼', colName = '店家名稱';
+  if (!rows.length) return '<div style="padding:16px 20px;font-size:13px;color:var(--sub);">無明細資料</div>';
+
+  /* 排序：先有二位，再依店名 */
+  var sorted = rows.slice().filter(function(r){ return !isOne(r[COL_UNFILL]); });
+  sorted.sort(function(a, b) {
+    var ad = isOne(a[COL_DISPLAY]) ? 0 : 1;
+    var bd = isOne(b[COL_DISPLAY]) ? 0 : 1;
+    if (ad !== bd) return ad - bd;
+    return String(a[colName]||'').localeCompare(String(b[colName]||''), 'zh-TW');
+  });
+
+  var thCols = '<th>店碼</th><th>店名</th><th class="r">有二位</th>';
+  TYPES.forEach(function(t) { thCols += '<th class="r">' + t + '</th>'; });
+
+  var tbodyHtml = sorted.map(function(r) {
+    var code = r[colCode] || '';
+    var name = r[colName] || '';
+    var hasD = isOne(r[COL_DISPLAY]);
+    var dispCell = hasD
+      ? '<td class="r disp-yes">✅</td>'
+      : '<td class="r disp-no">—</td>';
+    var typeCells = TYPES.map(function(t) {
+      return isOne(r[t])
+        ? '<td class="r disp-yes">✅</td>'
+        : '<td class="r disp-no">—</td>';
+    }).join('');
+    return '<tr><td>' + esc(code) + '</td><td>' + esc(name) + '</td>' + dispCell + typeCells + '</tr>';
+  }).join('');
+
+  return '<div class="detail-scroll"><table class="detail-tbl"><thead><tr>' + thCols + '</tr></thead><tbody>' + tbodyHtml + '</tbody></table></div>';
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function openDetailDialog(name, rows, stat) {
+  _currentRows = rows;
+  _currentStaff = name;
+  _currentStat = stat;
+  var totalValid = stat.valid, unfilled = stat.unfilled;
+  document.getElementById('detail-dlg-title').textContent =
+    '【' + name + '】店家明細　有效 ' + totalValid + ' 家　有二位 ' + stat.hasDisp + ' 家';
+  document.getElementById('detail-dlg-body').innerHTML = buildDetailTable(rows, stat);
+  ['btn-copy-line','btn-copy-excel','btn-screenshot'].forEach(function(id){
+    var b = document.getElementById(id);
+    if (b) { b.classList.remove('done','loading'); }
+  });
+  var dlg = document.getElementById('detail-dialog');
+  dlg.style.display = 'flex';
+  requestAnimationFrame(function(){ dlg.classList.add('open'); });
+}
+function closeDetailDialog() {
+  var dlg = document.getElementById('detail-dialog');
+  dlg.classList.remove('open');
+  setTimeout(function(){ dlg.style.display = 'none'; }, 220);
+}
+document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeDetailDialog(); });
+
+/* ── 複製共用工具 ── */
+function _flashBtn(btn, label) {
+  var orig = btn.textContent;
+  btn.textContent = label;
+  btn.classList.add('done');
+  setTimeout(function(){ btn.textContent = orig; btn.classList.remove('done'); }, 2000);
+}
+function fallbackCopy(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none;';
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  try { document.execCommand('copy'); } catch(e) {}
+  document.body.removeChild(ta);
+}
+function _doCopy(text, btn) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text)
+      .then(function(){ _flashBtn(btn, '✅ 已複製！'); })
+      .catch(function(){ fallbackCopy(text); _flashBtn(btn, '✅ 已複製！'); });
+  } else {
+    fallbackCopy(text); _flashBtn(btn, '✅ 已複製！');
+  }
+}
+
+/* ── 複製 LINE ── */
+function copyLine() {
+  var btn = document.getElementById('btn-copy-line');
+  if (!_currentRows.length) { _flashBtn(btn, '⚠️ 無資料'); return; }
+  var stat = _currentStat;
+  var lines = [];
+  lines.push('【' + _currentStaff + '】店家明細');
+  lines.push('有效 ' + stat.valid + ' 家　有二位 ' + stat.hasDisp + ' 家（未填寫 ' + stat.unfilled + ' 家）');
+  TYPES.forEach(function(t){ lines.push(t + '：' + stat.typeCounts[t] + ' 家'); });
+  lines.push('─────────────────');
+  var colCode = '店家代碼', colName = '店家名稱';
+  var sorted = _currentRows.slice().filter(function(r){ return !isOne(r[COL_UNFILL]); });
+  sorted.sort(function(a, b) {
+    var ad = isOne(a[COL_DISPLAY]) ? 0 : 1, bd = isOne(b[COL_DISPLAY]) ? 0 : 1;
+    if (ad !== bd) return ad - bd;
+    return String(a[colName]||'').localeCompare(String(b[colName]||''), 'zh-TW');
+  });
+  sorted.forEach(function(r) {
+    var code = r[colCode] || '', name = r[colName] || '';
+    var hasD = isOne(r[COL_DISPLAY]);
+    var typeStr = TYPES.filter(function(t){ return isOne(r[t]); }).join('、');
+    lines.push((hasD ? '✅ ' : '✗  ') + name + (code ? ' (' + code + ')' : '') + (typeStr ? '  [' + typeStr + ']' : ''));
+  });
+  _doCopy(lines.join('
+'), btn);
+}
+
+/* ── 複製 Excel ── */
+function copyExcel() {
+  var btn = document.getElementById('btn-copy-excel');
+  if (!_currentRows.length) { _flashBtn(btn, '⚠️ 無資料'); return; }
+  var colCode = '店家代碼', colName = '店家名稱';
+  var headers = ['店碼', '店名', '有二位'].concat(TYPES);
+  var lines = [];
+  lines.push(document.getElementById('detail-dlg-title').textContent.trim());
+  lines.push('');
+  lines.push(headers.join('	'));
+  var sorted = _currentRows.slice().filter(function(r){ return !isOne(r[COL_UNFILL]); });
+  sorted.sort(function(a, b) {
+    var ad = isOne(a[COL_DISPLAY]) ? 0 : 1, bd = isOne(b[COL_DISPLAY]) ? 0 : 1;
+    if (ad !== bd) return ad - bd;
+    return String(a[colName]||'').localeCompare(String(b[colName]||''), 'zh-TW');
+  });
+  sorted.forEach(function(r) {
+    var code = r[colCode] || '', name = r[colName] || '';
+    var cells = [code, name, isOne(r[COL_DISPLAY]) ? 1 : 0];
+    TYPES.forEach(function(t){ cells.push(isOne(r[t]) ? 1 : 0); });
+    lines.push(cells.join('	'));
+  });
+  _doCopy(lines.join('
+'), btn);
+}
+
+/* ── 截圖 ── */
+function takeScreenshot() {
+  var btn = document.getElementById('btn-screenshot');
+  btn.classList.add('loading');
+  btn.textContent = '⏳ 截圖中...';
+
+  function doCapture() {
+    var body = document.getElementById('detail-dlg-body');
+    var titleText = document.getElementById('detail-dlg-title').textContent.trim();
+
+    var wrapper = document.createElement('div');
+    wrapper.style.cssText = 'background:#fff;padding:20px 24px;font-family:Microsoft JhengHei,Noto Sans TC,sans-serif;display:inline-block;min-width:500px;position:fixed;top:-9999px;left:-9999px;';
+
+    var h = document.createElement('div');
+    h.style.cssText = 'font-size:15px;font-weight:900;color:#2D2D2D;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #e8e8e8;';
+    h.textContent = titleText;
+    wrapper.appendChild(h);
+
+    var tblSrc = body.querySelector('.detail-tbl');
+    if (tblSrc) {
+      var tblClone = tblSrc.cloneNode(true);
+      tblClone.style.cssText = 'border-collapse:collapse;font-size:13px;width:max-content;min-width:100%;';
+      tblClone.querySelectorAll('th').forEach(function(el){
+        el.style.cssText = 'padding:7px 12px;text-align:left;font-size:11px;font-weight:800;color:#888;background:#f8f8f8;border-bottom:1px solid #e0e0e0;white-space:nowrap;';
+      });
+      tblClone.querySelectorAll('th.r').forEach(function(el){ el.style.textAlign = 'center'; });
+      tblClone.querySelectorAll('td').forEach(function(el){
+        el.style.cssText = 'padding:7px 12px;border-bottom:1px solid #f0f0f0;white-space:nowrap;';
+      });
+      tblClone.querySelectorAll('td.r').forEach(function(el){ el.style.textAlign = 'center'; });
+      tblClone.querySelectorAll('.disp-yes').forEach(function(el){ el.style.color = '#3B6D11'; el.style.fontWeight = '800'; });
+      tblClone.querySelectorAll('.disp-no').forEach(function(el){ el.style.color = '#ccc'; });
+      wrapper.appendChild(tblClone);
+    }
+
+    var ts = document.createElement('div');
+    ts.style.cssText = 'font-size:10px;color:#bbb;margin-top:12px;text-align:right;';
+    ts.textContent = PROJ_NAME + '　' + new Date().toLocaleString('zh-TW');
+    wrapper.appendChild(ts);
+
+    document.body.appendChild(wrapper);
+    html2canvas(wrapper, {
+      scale: 2, backgroundColor: '#ffffff', useCORS: true,
+      width: wrapper.scrollWidth, height: wrapper.scrollHeight
+    }).then(function(canvas) {
+      document.body.removeChild(wrapper);
+      if (navigator.clipboard && window.ClipboardItem) {
+        canvas.toBlob(function(blob) {
+          try {
+            var item = new ClipboardItem({'image/png': blob});
+            navigator.clipboard.write([item]).then(function(){
+              btn.classList.remove('loading');
+              _flashBtn(btn, '✅ 已複製圖片！');
+            }).catch(function(){ _downloadCanvas(canvas, titleText, btn); });
+          } catch(e) { _downloadCanvas(canvas, titleText, btn); }
+        }, 'image/png');
+      } else {
+        _downloadCanvas(canvas, titleText, btn);
+      }
+    }).catch(function(err) {
+      document.body.removeChild(wrapper);
+      btn.classList.remove('loading');
+      btn.textContent = '📸 截圖';
+      alert('截圖失敗：' + err);
+    });
+  }
+
+  if (window.html2canvas) {
+    doCapture();
+  } else {
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    s.onload = doCapture;
+    s.onerror = function(){
+      btn.classList.remove('loading');
+      btn.textContent = '📸 截圖';
+      alert('html2canvas 載入失敗，請確認網路連線');
+    };
+    document.head.appendChild(s);
+  }
+}
+
+function _downloadCanvas(canvas, titleText, btn) {
+  var link = document.createElement('a');
+  link.download = titleText.replace(/\s+/g, '_') + '.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+  btn.classList.remove('loading');
+  _flashBtn(btn, '✅ 已下載！');
 }
 
 /* ── 啟動 ── */
