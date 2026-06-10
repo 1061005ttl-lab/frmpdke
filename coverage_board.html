@@ -211,6 +211,11 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .d-yes { color:var(--green); font-weight:700; }
 .d-no  { color:#ccc; }
 
+.detail-tbl th.th-left { text-align:left; }
+.detail-tbl td.td-org  { text-align:left; color:var(--sub); font-size:12px; }
+.detail-tbl td.td-code { text-align:left; color:var(--sub); font-size:12px; font-weight:600; }
+.detail-tbl td.td-name { text-align:left; color:var(--text); font-weight:600; }
+
 /* ── loading ── */
 .loading {
   display:none;
@@ -264,7 +269,7 @@ var SHEET_ID   = params.get('sheetId')   || '';
 var PROJ_NAME  = params.get('name')      || '\u8986\u84CB\u7387\u770B\u677F';
 var SYNC_SHEET = params.get('syncSheet') || '\u8F14\u52A9';
 var SYNC_CELL  = params.get('syncCell')  || 'B1';
-var SHEET_NAME = '\u5E97\u5BB6\u540D\u518A';
+var SHEET_NAME = params.get('sheet')     || '\u5E97\u5BB6\u540D\u518A';
 var TYPES      = ['\u5806\u7BB1','\u7AEF\u67B6','\u51B0\u7BB1'];
 
 /* \u5C64\u7D1A\u6B04\u4F4D\u540D\u7A31 */
@@ -282,9 +287,10 @@ document.getElementById('tb-title').textContent = PROJ_NAME;
 var allRows    = [];
 var drillStack = [];
 
-/* \u76EE\u524D dialog \u4F7F\u7528\u7684\u8CC7\u6599 */
-var _dialogStaffName = '';
-var _dialogRows      = [];
+/* \u76EE\u524D dialog \u8CC7\u6599 */
+var _dialogTitle = '';
+var _dialogRows  = [];
+var _dialogLevel = 'staff'; /* area / office / staff */
 
 /* \u2500\u2500 \u5DE5\u5177 \u2500\u2500 */
 function pct(a, b) { return b === 0 ? 0 : Math.round(a / b * 100); }
@@ -336,20 +342,15 @@ function fetchSyncTime() {
 
 /* \u2500\u2500 \u8A08\u7B97 \u2500\u2500 */
 function calcGroup(rows) {
-  var total    = rows.length;
-  var unfilled = 0;
-  var valid    = 0;
-  var hasDisp  = 0;
+  var total = rows.length, unfilled = 0, valid = 0, hasDisp = 0;
   var typeCounts = {};
   TYPES.forEach(function(t) { typeCounts[t] = 0; });
-
   rows.forEach(function(r) {
     if (isOne(r[COL_UNFILL])) { unfilled++; return; }
     valid++;
     if (isOne(r[COL_DISPLAY])) hasDisp++;
     TYPES.forEach(function(t) { if (isOne(r[t])) typeCounts[t]++; });
   });
-
   return { total:total, unfilled:unfilled, valid:valid, hasDisp:hasDisp, typeCounts:typeCounts };
 }
 
@@ -414,7 +415,6 @@ function buildCard(name, labelText, stat, levelKey, rows) {
   var card  = document.createElement('div');
   card.className = 'card';
   var ttId  = 'tt-' + name.replace(/[^a-zA-Z0-9]/g,'_') + '-' + levelKey;
-  var isStaff = (levelKey === 'staff');
 
   card.innerHTML =
     '<div class="card-top">' + labelText + '</div>' +
@@ -434,11 +434,9 @@ function buildCard(name, labelText, stat, levelKey, rows) {
         '<div class="tooltip" id="' + ttId + '">' + buildTooltipHTML(stat) + '</div>' +
       '</div>' +
     '</div>' +
-    (isStaff
-      ? '<div class="card-detail-btn-row">' +
-          '<button class="card-detail-btn" id="dbtn-'+ttId+'">\uD83D\uDCCB \u5E97\u5BB6\u660E\u7D30</button>' +
-        '</div>'
-      : '');
+    '<div class="card-detail-btn-row">' +
+      '<button class="card-detail-btn" id="dbtn-' + ttId + '">\uD83D\uDCCB \u5E97\u5BB6\u660E\u7D30</button>' +
+    '</div>';
 
   /* hover tooltip */
   var siEl = card.querySelector('#si-' + ttId);
@@ -446,27 +444,23 @@ function buildCard(name, labelText, stat, levelKey, rows) {
   siEl.addEventListener('mouseenter', function(e) { e.stopPropagation(); ttEl.classList.add('show'); });
   siEl.addEventListener('mouseleave', function()  { ttEl.classList.remove('show'); });
 
-  /* click \u884C\u70BA */
-  if (isStaff) {
-    /* \u5361\u7247\u672C\u9AD4\u9EDE\u64CA \u2192 \u958B\u660E\u7D30\uFF08\u6392\u9664 tooltip \u5340\u57DF\uFF09 */
-    card.addEventListener('click', function(e) {
-      if (e.target.closest('#si-' + ttId)) return; /* tooltip \u5340\u4E0D\u89F8\u767C */
-      openDialog(name, stat, rows);
-    });
-    /* \u660E\u7D30\u6309\u9215\uFF1A\u78BA\u4FDD\u4E5F\u80FD\u89F8\u767C */
-    var dbtn = card.querySelector('#dbtn-' + ttId);
-    if (dbtn) {
-      dbtn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        openDialog(name, stat, rows);
-      });
-    }
-  } else {
-    card.addEventListener('click', function(e) {
-      if (e.target.closest('#si-' + ttId)) return;
+  /* \u660E\u7D30\u6309\u9215\uFF1A\u958B dialog */
+  var dbtn = card.querySelector('#dbtn-' + ttId);
+  dbtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    openDialog(name, levelKey, rows);
+  });
+
+  /* \u5361\u7247\u672C\u9AD4\u9EDE\u64CA\uFF1A\u975E staff \u5C64 drill down\uFF0Cstaff \u5C64\u958B\u660E\u7D30 */
+  card.addEventListener('click', function(e) {
+    if (e.target.closest('#si-' + ttId)) return;
+    if (e.target.closest('#dbtn-' + ttId)) return;
+    if (levelKey === 'staff') {
+      openDialog(name, levelKey, rows);
+    } else {
       drillDown(levelKey, name);
-    });
-  }
+    }
+  });
 
   return card;
 }
@@ -493,7 +487,7 @@ function buildBreadcrumb() {
   drillStack.forEach(function(d, i) {
     parts.push('<span class="bc-sep">\u203A</span>');
     if (i < drillStack.length - 1)
-      parts.push('<span class="bc-item" onclick="drillTo('+i+')">' + esc(d.key) + '</span>');
+      parts.push('<span class="bc-item" onclick="drillTo(' + i + ')">' + esc(d.key) + '</span>');
     else
       parts.push('<span class="bc-current">' + esc(d.key) + '</span>');
   });
@@ -508,59 +502,103 @@ function drillTo(idx) {
 /* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
    \u2500\u2500 \u5E97\u5BB6\u660E\u7D30 Dialog \u2500\u2500
 \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */
-function buildStoreTable(rows) {
-  /* \u53EA\u53D6\u6709\u6548\uFF08\u672A\u586B\u5BEB=0\uFF09\u7684\u5E97\uFF0C\u4F9D\u300C\u6709\u4E8C\u4F4D\u300D\u512A\u5148\u6392\u5E8F */
+
+/*
+  levelKey \u6C7A\u5B9A\u986F\u793A\u6B04\u4F4D\uFF1A
+    area   \u2192 \u71DF\u696D\u6240/\u8AB2 + \u4E3B\u8981\u8A2A\u54E1 + \u5E97\u78BC + \u5E97\u540D + \u6709\u4E8C\u4F4D + \u5404\u985E\u578B
+    office \u2192 \u4E3B\u8981\u8A2A\u54E1 + \u5E97\u78BC + \u5E97\u540D + \u6709\u4E8C\u4F4D + \u5404\u985E\u578B
+    staff  \u2192 \u5E97\u78BC + \u5E97\u540D + \u6709\u4E8C\u4F4D + \u5404\u985E\u578B
+  \u6392\u5E8F\uFF1A\u6709\u4E8C\u4F4D\u512A\u5148 \u2192 \u4F9D\u986F\u793A\u5C64\u7D1A\u7684\u4E0A\u5C64\u6B04\u4F4D \u2192 \u5E97\u540D
+*/
+
+function sortedValidRows(rows) {
   var valid = rows.filter(function(r) { return !isOne(r[COL_UNFILL]); });
   valid.sort(function(a, b) {
+    /* \u6709\u4E8C\u4F4D\u512A\u5148 */
     var da = isOne(a[COL_DISPLAY]) ? 0 : 1;
     var db = isOne(b[COL_DISPLAY]) ? 0 : 1;
     if (da !== db) return da - db;
+    /* \u6B21\u8981\u6392\u5E8F\uFF1A\u71DF\u696D\u6240/\u8AB2 \u2192 \u57F7\u884C\u4EBA\u54E1 \u2192 \u5E97\u540D */
+    var oa = String(a[COL_OFFICE] || ''), ob = String(b[COL_OFFICE] || '');
+    if (oa !== ob) return oa > ob ? 1 : -1;
+    var sa = String(a[COL_STAFF] || ''), sb = String(b[COL_STAFF] || '');
+    if (sa !== sb) return sa > sb ? 1 : -1;
     var na = String(a[COL_NAME] || ''), nb = String(b[COL_NAME] || '');
     return na > nb ? 1 : na < nb ? -1 : 0;
   });
+  return valid;
+}
 
-  var html = '<div class="detail-scroll"><table class="detail-tbl">' +
-    '<thead><tr>' +
-    '<th>\u5E97\u78BC</th><th>\u5E97\u540D</th><th>\u6709\u4E8C\u4F4D</th>' +
-    TYPES.map(function(t) { return '<th>' + t + '</th>'; }).join('') +
-    '</tr></thead><tbody>';
+function buildStoreTable(rows, levelKey) {
+  var valid = sortedValidRows(rows);
+
+  /* \u4F9D\u5C64\u7D1A\u6C7A\u5B9A\u524D\u7DB4\u6B04 */
+  var extraCols = [];
+  if (levelKey === 'area')   extraCols = [COL_OFFICE, COL_STAFF];
+  if (levelKey === 'office') extraCols = [COL_STAFF];
+  /* staff \u5C64\u4E0D\u9700\u8981\u524D\u7DB4\u6B04 */
+
+  /* \u6B04\u6A19\u984C\u5C0D\u7167 */
+  var colLabels = {};
+  colLabels[COL_OFFICE] = '\u71DF\u696D\u6240/\u8AB2';
+  colLabels[COL_STAFF]  = '\u4E3B\u8981\u8A2A\u54E1';
+
+  var html = '<div class="detail-scroll"><table class="detail-tbl"><thead><tr>';
+
+  /* \u524D\u7DB4\u6B04\u6A19\u982D */
+  extraCols.forEach(function(c) {
+    html += '<th class="th-left">' + (colLabels[c] || c) + '</th>';
+  });
+
+  html += '<th class="th-left">\u5E97\u78BC</th>' +
+          '<th class="th-left">\u5E97\u540D</th>' +
+          '<th>\u6709\u4E8C\u4F4D</th>';
+  TYPES.forEach(function(t) { html += '<th>' + t + '</th>'; });
+  html += '</tr></thead><tbody>';
 
   valid.forEach(function(r) {
-    var code = String(r[COL_CODE] || '\u2014');
-    var name = esc(String(r[COL_NAME] || '\u2014'));
-    var disp = isOne(r[COL_DISPLAY]);
-    html += '<tr>' +
-      '<td>' + esc(code) + '</td>' +
-      '<td>' + name + '</td>' +
-      '<td>' + (disp ? '<span class="d-yes">\u2705</span>' : '<span class="d-no">\u2014</span>') + '</td>' +
-      TYPES.map(function(t) {
-        return '<td>' + (isOne(r[t]) ? '<span class="d-yes">\u2705</span>' : '<span class="d-no">\u2014</span>') + '</td>';
-      }).join('') +
-    '</tr>';
+    var disp  = isOne(r[COL_DISPLAY]);
+    var code  = esc(String(r[COL_CODE] || '\u2014'));
+    var name  = esc(String(r[COL_NAME] || '\u2014'));
+    html += '<tr>';
+    extraCols.forEach(function(c) {
+      html += '<td class="td-org">' + esc(String(r[c] || '\u2014')) + '</td>';
+    });
+    html += '<td class="td-code">' + code + '</td>' +
+            '<td class="td-name">' + name + '</td>' +
+            '<td>' + (disp ? '<span class="d-yes">\u2705</span>' : '<span class="d-no">\u2014</span>') + '</td>';
+    TYPES.forEach(function(t) {
+      html += '<td>' + (isOne(r[t]) ? '<span class="d-yes">\u2705</span>' : '<span class="d-no">\u2014</span>') + '</td>';
+    });
+    html += '</tr>';
   });
 
   html += '</tbody></table></div>';
   return html;
 }
 
-function openDialog(staffName, stat, rows) {
-  _dialogStaffName = staffName;
-  _dialogRows      = rows;
+function openDialog(displayName, levelKey, rows) {
+  _dialogTitle = displayName;
+  _dialogRows  = rows;
+  _dialogLevel = levelKey;
 
-  var valid    = rows.filter(function(r) { return !isOne(r[COL_UNFILL]); });
-  var hasDisp  = valid.filter(function(r) { return isOne(r[COL_DISPLAY]); }).length;
+  var valid   = rows.filter(function(r) { return !isOne(r[COL_UNFILL]); });
+  var hasDisp = valid.filter(function(r) { return isOne(r[COL_DISPLAY]); }).length;
 
+  var levelLabel = levelKey === 'area' ? '\u71DF\u696D\u8655' : levelKey === 'office' ? '\u71DF\u696D\u6240/\u8AB2' : '\u4EBA\u54E1';
   document.getElementById('dlg-title').textContent =
-    '\u3010' + staffName + '\u3011\u5E97\u5BB6\u660E\u7D30\u3000\u6709\u6548 ' + valid.length + ' \u5BB6\u3000\u6709\u4E8C\u4F4D ' + hasDisp + ' \u5BB6';
+    '\u3010' + displayName + '\u3011\u5E97\u5BB6\u660E\u7D30\u3000\u6709\u6548 ' + valid.length + ' \u5BB6\u3000\u6709\u4E8C\u4F4D ' + hasDisp + ' \u5BB6';
 
-  document.getElementById('dlg-body').innerHTML = buildStoreTable(rows);
+  document.getElementById('dlg-body').innerHTML = buildStoreTable(rows, levelKey);
 
   /* \u91CD\u7F6E\u6309\u9215 */
   ['btn-copy-line','btn-copy-excel','btn-screenshot'].forEach(function(id) {
     var b = document.getElementById(id);
-    if (b) { b.classList.remove('done','loading'); b.textContent =
-      id==='btn-copy-line'  ? '\uD83D\uDCAC \u8907\u88FD LINE' :
-      id==='btn-copy-excel' ? '\uD83D\uDCCA \u8907\u88FD Excel' : '\uD83D\uDCF8 \u622A\u5716'; }
+    if (b) {
+      b.classList.remove('done','loading');
+      b.textContent = id === 'btn-copy-line'  ? '\uD83D\uDCAC \u8907\u88FD LINE' :
+                      id === 'btn-copy-excel' ? '\uD83D\uDCCA \u8907\u88FD Excel' : '\uD83D\uDCF8 \u622A\u5716';
+    }
   });
 
   var dlg = document.getElementById('detail-dialog');
@@ -611,40 +649,45 @@ function copyLine() {
   var btn = document.getElementById('btn-copy-line');
   if (!_dialogRows.length) { _flashBtn(btn, '\u26A0\uFE0F \u7121\u8CC7\u6599'); return; }
 
-  var valid   = _dialogRows.filter(function(r) { return !isOne(r[COL_UNFILL]); });
-  valid.sort(function(a, b) {
-    var da = isOne(a[COL_DISPLAY]) ? 0 : 1;
-    var db = isOne(b[COL_DISPLAY]) ? 0 : 1;
-    if (da !== db) return da - db;
-    var na = String(a[COL_NAME] || ''), nb = String(b[COL_NAME] || '');
-    return na > nb ? 1 : na < nb ? -1 : 0;
-  });
-
+  var valid   = sortedValidRows(_dialogRows);
   var hasDisp = valid.filter(function(r) { return isOne(r[COL_DISPLAY]); }).length;
   var lines   = [];
+  var lv      = _dialogLevel;
 
-  lines.push('\u3010' + _dialogStaffName + '\u3011\u5E97\u5BB6\u660E\u7D30');
+  lines.push('\u3010' + _dialogTitle + '\u3011\u5E97\u5BB6\u660E\u7D30');
   lines.push('\u6709\u6548 ' + valid.length + ' \u5BB6\u3000\u6709\u4E8C\u4F4D ' + hasDisp + ' \u5BB6');
   lines.push('\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');
 
+  var curGroup = null; /* \u7528\u4F86\u505A\u5206\u7D44\u5C0F\u6A19 */
+
   valid.forEach(function(r) {
+    /* \u4E0A\u5C64\u5C64\u7D1A\u5206\u7D44\u6A19\u984C\uFF08area \u5C64\u6309\u71DF\u696D\u6240/\u8AB2\u5206\u7D44\uFF0Coffice \u5C64\u6309\u8A2A\u54E1\u5206\u7D44\uFF09*/
+    var groupKey = lv === 'area'   ? String(r[COL_OFFICE] || '') :
+                   lv === 'office' ? String(r[COL_STAFF]  || '') : null;
+    if (groupKey !== null && groupKey !== curGroup) {
+      curGroup = groupKey;
+      if (groupKey) lines.push('\n\u258C ' + groupKey);
+    }
+
     var code = String(r[COL_CODE] || '');
     var name = String(r[COL_NAME] || '\u2014');
     var disp = isOne(r[COL_DISPLAY]);
     var types = TYPES.filter(function(t) { return isOne(r[t]); });
 
     if (disp) {
-      lines.push('\u2705 ' + name + (code ? ' (' + code + ')' : ''));
-      if (types.length) lines.push('   \u2514 ' + types.join('\u3001'));
+      lines.push('  \u2705 ' + name + (code ? ' (' + code + ')' : ''));
+      if (types.length) lines.push('     \u2514 ' + types.join('\u3001'));
     } else {
-      lines.push('\u2014 ' + name + (code ? ' (' + code + ')' : ''));
+      lines.push('  \u2014 ' + name + (code ? ' (' + code + ')' : ''));
     }
   });
 
   lines.push('\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');
-  lines.push('\u5806\u7BB1 ' + _dialogRows.reduce(function(s,r){return s+(isOne(r['\u5806\u7BB1'])?1:0);},0) +
-    ' \u5BB6\u3000\u7AEF\u67B6 ' + _dialogRows.reduce(function(s,r){return s+(isOne(r['\u7AEF\u67B6'])?1:0);},0) +
-    ' \u5BB6\u3000\u51B0\u7BB1 ' + _dialogRows.reduce(function(s,r){return s+(isOne(r['\u51B0\u7BB1'])?1:0);},0) + ' \u5BB6');
+  lines.push(
+    '\u5806\u7BB1 ' + _dialogRows.reduce(function(s,r){return s+(isOne(r['\u5806\u7BB1'])?1:0);},0) + ' \u5BB6\u3000' +
+    '\u7AEF\u67B6 ' + _dialogRows.reduce(function(s,r){return s+(isOne(r['\u7AEF\u67B6'])?1:0);},0) + ' \u5BB6\u3000' +
+    '\u51B0\u7BB1 ' + _dialogRows.reduce(function(s,r){return s+(isOne(r['\u51B0\u7BB1'])?1:0);},0) + ' \u5BB6'
+  );
 
   _doCopy(lines.join('\n'), btn);
 }
@@ -654,26 +697,28 @@ function copyExcel() {
   var btn = document.getElementById('btn-copy-excel');
   if (!_dialogRows.length) { _flashBtn(btn, '\u26A0\uFE0F \u7121\u8CC7\u6599'); return; }
 
-  var valid = _dialogRows.filter(function(r) { return !isOne(r[COL_UNFILL]); });
-  valid.sort(function(a, b) {
-    var da = isOne(a[COL_DISPLAY]) ? 0 : 1;
-    var db = isOne(b[COL_DISPLAY]) ? 0 : 1;
-    if (da !== db) return da - db;
-    var na = String(a[COL_NAME] || ''), nb = String(b[COL_NAME] || '');
-    return na > nb ? 1 : na < nb ? -1 : 0;
-  });
-
+  var valid = sortedValidRows(_dialogRows);
+  var lv    = _dialogLevel;
   var lines = [];
+
   lines.push(document.getElementById('dlg-title').textContent.trim());
   lines.push('');
-  lines.push(['\u5E97\u78BC', '\u5E97\u540D', '\u6709\u4E8C\u4F4D'].concat(TYPES).join('\t'));
+
+  /* \u6B04\u982D */
+  var headers = [];
+  if (lv === 'area')   headers = ['\u71DF\u696D\u6240/\u8AB2', '\u4E3B\u8981\u8A2A\u54E1'];
+  if (lv === 'office') headers = ['\u4E3B\u8981\u8A2A\u54E1'];
+  headers = headers.concat(['\u5E97\u78BC', '\u5E97\u540D', '\u6709\u4E8C\u4F4D']).concat(TYPES);
+  lines.push(headers.join('\t'));
 
   valid.forEach(function(r) {
-    var row = [
-      String(r[COL_CODE] || ''),
-      String(r[COL_NAME] || ''),
-      isOne(r[COL_DISPLAY]) ? 1 : 0
-    ].concat(TYPES.map(function(t) { return isOne(r[t]) ? 1 : 0; }));
+    var row = [];
+    if (lv === 'area')   { row.push(String(r[COL_OFFICE]||'')); row.push(String(r[COL_STAFF]||'')); }
+    if (lv === 'office') { row.push(String(r[COL_STAFF]||'')); }
+    row.push(String(r[COL_CODE]  || ''));
+    row.push(String(r[COL_NAME]  || ''));
+    row.push(isOne(r[COL_DISPLAY]) ? 1 : 0);
+    TYPES.forEach(function(t) { row.push(isOne(r[t]) ? 1 : 0); });
     lines.push(row.join('\t'));
   });
 
@@ -682,7 +727,7 @@ function copyExcel() {
 
 /* \u2500\u2500 \u622A\u5716 \u2500\u2500 */
 function takeScreenshot() {
-  var btn  = document.getElementById('btn-screenshot');
+  var btn = document.getElementById('btn-screenshot');
   btn.classList.add('loading');
   btn.textContent = '\u23F3 \u622A\u5716\u4E2D...';
 
@@ -690,9 +735,8 @@ function takeScreenshot() {
     var body      = document.getElementById('dlg-body');
     var titleText = document.getElementById('dlg-title').textContent.trim();
 
-    /* \u5EFA\u7ACB\u96E2\u5C4F\u5FEB\u7167\u5BB9\u5668 */
     var wrapper = document.createElement('div');
-    wrapper.style.cssText = 'background:#fff;padding:20px 24px;font-family:Microsoft JhengHei,Noto Sans TC,sans-serif;display:inline-block;min-width:600px;position:fixed;top:-9999px;left:-9999px;';
+    wrapper.style.cssText = 'background:#fff;padding:20px 24px;font-family:Microsoft JhengHei,Noto Sans TC,sans-serif;display:inline-block;min-width:700px;position:fixed;top:-9999px;left:-9999px;';
 
     var h = document.createElement('div');
     h.style.cssText = 'font-size:15px;font-weight:900;color:#2D2D2D;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #e8e8e8;';
@@ -706,12 +750,12 @@ function takeScreenshot() {
       tblClone.querySelectorAll('th').forEach(function(el) {
         el.style.cssText = 'padding:7px 12px;text-align:center;font-size:11px;font-weight:800;color:#888;background:#f8f8f8;border-bottom:1px solid #e0e0e0;white-space:nowrap;';
       });
-      tblClone.querySelectorAll('th:first-child,th:nth-child(2)').forEach(function(el) { el.style.textAlign = 'left'; });
+      tblClone.querySelectorAll('th.th-left').forEach(function(el) { el.style.textAlign = 'left'; });
       tblClone.querySelectorAll('td').forEach(function(el) {
         el.style.cssText = 'padding:7px 12px;text-align:center;border-bottom:1px solid #f0f0f0;white-space:nowrap;';
       });
-      tblClone.querySelectorAll('td:first-child').forEach(function(el) { el.style.textAlign = 'left'; el.style.color = '#888'; });
-      tblClone.querySelectorAll('td:nth-child(2)').forEach(function(el) { el.style.textAlign = 'left'; });
+      tblClone.querySelectorAll('td.td-org,td.td-code').forEach(function(el) { el.style.textAlign = 'left'; el.style.color = '#888'; });
+      tblClone.querySelectorAll('td.td-name').forEach(function(el) { el.style.textAlign = 'left'; });
       tblClone.querySelectorAll('.d-yes').forEach(function(el) { el.style.color = '#3B6D11'; el.style.fontWeight = '700'; });
       tblClone.querySelectorAll('.d-no').forEach(function(el)  { el.style.color = '#ccc'; });
       wrapper.appendChild(tblClone);
@@ -719,7 +763,7 @@ function takeScreenshot() {
 
     var ts = document.createElement('div');
     ts.style.cssText = 'font-size:10px;color:#bbb;margin-top:12px;text-align:right;';
-    ts.textContent   = PROJ_NAME + '\u3000' + new Date().toLocaleString('zh-TW');
+    ts.textContent = PROJ_NAME + '\u3000' + new Date().toLocaleString('zh-TW');
     wrapper.appendChild(ts);
 
     document.body.appendChild(wrapper);
@@ -729,20 +773,14 @@ function takeScreenshot() {
       width:wrapper.scrollWidth, height:wrapper.scrollHeight
     }).then(function(canvas) {
       document.body.removeChild(wrapper);
-
       if (navigator.clipboard && window.ClipboardItem) {
         canvas.toBlob(function(blob) {
           try {
             var item = new ClipboardItem({'image/png': blob});
             navigator.clipboard.write([item])
-              .then(function() {
-                btn.classList.remove('loading');
-                _flashBtn(btn, '\u2705 \u5DF2\u8907\u88FD\u5716\u7247\uFF01');
-              })
+              .then(function() { btn.classList.remove('loading'); _flashBtn(btn, '\u2705 \u5DF2\u8907\u88FD\u5716\u7247\uFF01'); })
               .catch(function() { _downloadCanvas(canvas, titleText, btn); });
-          } catch(e) {
-            _downloadCanvas(canvas, titleText, btn);
-          }
+          } catch(e) { _downloadCanvas(canvas, titleText, btn); }
         }, 'image/png');
       } else {
         _downloadCanvas(canvas, titleText, btn);
@@ -758,8 +796,8 @@ function takeScreenshot() {
   if (window.html2canvas) {
     doCapture();
   } else {
-    var s  = document.createElement('script');
-    s.src  = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
     s.onload  = doCapture;
     s.onerror = function() {
       btn.classList.remove('loading');
