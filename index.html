@@ -3585,6 +3585,11 @@
       <div class="sep"></div><span class="tb-label">專案</span><select class="tb-sel" id="sel-survey" onchange="onSurveyChange()" disabled>
         <option>載入中…</option>
       </select>
+      <div class="sep" id="ym-sep" style="display:none"></div><span class="tb-label" id="sel-year-wrap" style="display:none">年份</span><select class="tb-sel" id="sel-year" onchange="onYearFilter()" disabled style="display:none">
+        <option value="">全部</option>
+      </select><span class="tb-label" id="sel-month-wrap" style="display:none">月份</span><select class="tb-sel" id="sel-month" onchange="onMonthFilter()" disabled style="display:none">
+        <option value="">全部</option>
+      </select>
       <div class="sep"></div><span class="tb-label">營業處</span><select class="tb-sel" id="sel-area" onchange="onAreaFilter()" disabled>
         <option value="">全部</option>
       </select><span class="tb-label">營業所</span><select class="tb-sel" id="sel-office" onchange="onOfficeFilter()" disabled>
@@ -3611,6 +3616,14 @@
       <div class="mm-section">
         <div class="mm-row"><span class="tb-label">專案</span><select class="tb-sel" id="mm-survey" onchange="mmSurvey(this)" disabled>
             <option>載入中…</option>
+          </select></div>
+      </div>
+      <div class="mm-section">
+        <div class="mm-row" id="mm-year-wrap" style="display:none"><span class="tb-label">年份</span><select class="tb-sel" id="mm-year" onchange="fYear=this.value;document.getElementById('sel-year').value=this.value;updateClearBtn();render('none');updateRankDrawer();" disabled>
+            <option value="">全部</option>
+          </select></div>
+        <div class="mm-row" id="mm-month-wrap" style="display:none"><span class="tb-label">月份</span><select class="tb-sel" id="mm-month" onchange="fMonth=this.value;document.getElementById('sel-month').value=this.value;updateClearBtn();render('none');updateRankDrawer();" disabled>
+            <option value="">全部</option>
           </select></div>
       </div>
       <div class="mm-section">
@@ -3710,7 +3723,7 @@
         }, {
         _fixed: true,
         _active: true,
-        name: '量販店執行進度表(26.06)',
+        name: '量販店執行進度表',
         id: '10uZU9Np9SZmBR-wfSzwAjy1d08Acy7gzWK81YAuTgjI',
         sheet: '不分級店家',
         syncSheet: '輔助',
@@ -3813,6 +3826,8 @@
         allHeaders = [];
       var chips = {};
       var curStatuses = [];
+      var fYear = '',
+        fMonth = '';
       var fArea = '',
         fOffice = '',
         fStaff = '';
@@ -3931,6 +3946,8 @@
 
       function initCI() {
         var MAP = {
+          year: ['年份'],
+          month: ['月份'],
           area: ['營業處名稱', '營業處'],
           office: ['營業所/課', '營業所'],
           staff: ['執行人員', '業務員', '訪員'],
@@ -4132,6 +4149,8 @@
 
       function visible() {
         return allRows.filter(function(r) {
+          if (fYear && gv(r, 'year') !== fYear) return false;
+          if (fMonth && gv(r, 'month') !== fMonth) return false;
           if (fArea && gv(r, 'area') !== fArea) return false;
           if (fOffice && gv(r, 'office') !== fOffice) return false;
           if (fStaff && gv(r, 'staff') !== fStaff) return false;
@@ -4174,6 +4193,8 @@
         allRows = [];
         allHeaders = [];
         curStatuses = [];
+        fYear = '';
+        fMonth = '';
         fArea = '';
         fOffice = '';
         fStaff = '';
@@ -4660,6 +4681,7 @@
       /* ══ 篩選器 ══ */
       function buildFilters() {
         var aSet = new Set();
+        var yearSet = new Set(), monthSet = new Set();
         _oMap = {};
         _sMap = {};
         var chSet = new Set(), tpSet = new Set();
@@ -4669,8 +4691,11 @@
         fChSet = null;
         fTpSet = null;
         allRows.forEach(function(r) {
+          var yr = gv(r, 'year'), mo = gv(r, 'month');
           var a = gv(r, 'area'), o = gv(r, 'office'), s = gv(r, 'staff');
           var ch = gv(r, 'channel'), tp = gv(r, 'type');
+          if (yr) yearSet.add(yr);
+          if (mo) monthSet.add(mo);
           if (a) {
             aSet.add(a);
             if (!_oMap[a]) _oMap[a] = new Set();
@@ -4688,6 +4713,28 @@
           }
           if (tp) tpSet.add(tp);
         });
+        /* 年份：數字升冪排列；月份：數字升冪排列 */
+        var yearArr = Array.from(yearSet).sort(function(a, b) { return Number(a) - Number(b); });
+        var monthArr = Array.from(monthSet).sort(function(a, b) { return Number(a) - Number(b); });
+        var hasYM = yearArr.length > 0 || monthArr.length > 0;
+        fillSelYM('sel-year', yearArr);
+        fillSelYM('sel-month', monthArr);
+        fillSelYM('mm-year', yearArr);
+        fillSelYM('mm-month', monthArr);
+        ['sel-year', 'sel-month', 'mm-year', 'mm-month'].forEach(function(id) {
+          var el = document.getElementById(id);
+          if (el) el.disabled = !hasYM;
+        });
+        ['sel-year', 'sel-month', 'sel-year-wrap', 'sel-month-wrap'].forEach(function(id) {
+          var el = document.getElementById(id);
+          if (el) el.style.display = hasYM ? '' : 'none';
+        });
+        ['mm-year-wrap', 'mm-month-wrap'].forEach(function(id) {
+          var el = document.getElementById(id);
+          if (el) el.style.display = hasYM ? '' : 'none';
+        });
+        var ymSep = document.getElementById('ym-sep');
+        if (ymSep) ymSep.style.display = hasYM ? '' : 'none';
         fillSel('sel-area', Array.from(aSet));
         _allCh = Array.from(chSet).sort(function(a, b) { return a.localeCompare(b, 'zh-TW'); });
         _allTp = Array.from(tpSet).sort(function(a, b) { return a.localeCompare(b, 'zh-TW'); });
@@ -4699,6 +4746,34 @@
         });
         document.getElementById('sel-area').disabled = false;
         onAreaFilter(false);
+      }
+
+      function fillSelYM(id, items) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        var prev = el.value;
+        el.innerHTML = '<option value="">全部</option>' + items.map(function(v) {
+          return '<option value="' + esc(v) + '">' + esc(v) + '</option>';
+        }).join('');
+        if (prev) el.value = prev;
+      }
+
+      function onYearFilter() {
+        fYear = document.getElementById('sel-year').value;
+        var mmEl = document.getElementById('mm-year');
+        if (mmEl) mmEl.value = fYear;
+        updateClearBtn();
+        render('none');
+        updateRankDrawer();
+      }
+
+      function onMonthFilter() {
+        fMonth = document.getElementById('sel-month').value;
+        var mmEl = document.getElementById('mm-month');
+        if (mmEl) mmEl.value = fMonth;
+        updateClearBtn();
+        render('none');
+        updateRankDrawer();
       }
 
       function fillSel(id, items) {
@@ -4754,17 +4829,19 @@
         var btn = document.getElementById('clear-btn');
         if (!btn) return;
         var allOn = curStatuses.every(function(s) { return chips[s.key]; });
-        var hasFilter = fArea || fOffice || fStaff || fChSet !== null || fTpSet !== null || !allOn;
+        var hasFilter = fYear || fMonth || fArea || fOffice || fStaff || fChSet !== null || fTpSet !== null || !allOn;
         btn.style.display = hasFilter ? '' : 'none';
       }
 
       function clearAllFilters() {
+        fYear = '';
+        fMonth = '';
         fArea = '';
         fOffice = '';
         fStaff = '';
         fChSet = null;
         fTpSet = null;
-        ['sel-area', 'sel-office', 'sel-staff'].forEach(function(id) {
+        ['sel-year', 'sel-month', 'sel-area', 'sel-office', 'sel-staff', 'mm-year', 'mm-month'].forEach(function(id) {
           var el = document.getElementById(id);
           if (el) el.value = '';
         });
@@ -5935,7 +6012,7 @@
       });
 
       function syncMmSelects() {
-        ['survey', 'area', 'office', 'staff'].forEach(function(k) {
+        ['survey', 'year', 'month', 'area', 'office', 'staff'].forEach(function(k) {
           var main = document.getElementById('sel-' + k);
           var mm = document.getElementById('mm-' + k);
           if (main && mm) {
