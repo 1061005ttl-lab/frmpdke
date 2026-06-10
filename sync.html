@@ -5,21 +5,358 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>業務王同步中心</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; overflow: hidden; background: #fff; }
-    iframe {
-      width: 100%;
-      height: 100%;
-      border: none;
-      display: block;
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    :root {
+      --primary: #5a8a6a;
+      --bg: #f5f5f5;
+      --card: #ffffff;
+      --border: #e0e0e0;
+      --text-main: #222;
+      --text-secondary: #888;
     }
+
+    html, body {
+      height: 100dvh;
+      font-family: 'Microsoft JhengHei', 'PingFang TC', sans-serif;
+      background: var(--bg);
+      color: var(--text-main);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    .wa-header {
+      flex-shrink: 0;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+      z-index: 200;
+    }
+    .wa-header-title { font-size: 16px; font-weight: 700; flex: 1; }
+    .wa-header-btns  { display: flex; gap: 6px; align-items: center; }
+    .wa-btn-sm {
+      background: none;
+      border: 1.5px solid var(--primary);
+      color: var(--primary);
+      border-radius: 7px;
+      padding: 5px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .wa-btn-sm:active { opacity: 0.7; }
+
+    /* ── 任務捲動區 ── */
+    .wa-scroll {
+      flex: 1;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 10px 10px 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+    }
+
+    /* ── 任務卡片 ── */
+    .task-card {
+      background: var(--card);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .task-row-top { display: flex; align-items: center; gap: 8px; }
+    .task-info { flex: 1; min-width: 0; }
+    .task-name {
+      font-size: 14px; font-weight: 700;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .task-date { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+    .task-btns { display: flex; gap: 6px; flex-shrink: 0; }
+
+    .btn-sync {
+      padding: 8px 14px;
+      background: var(--primary);
+      color: white; border: none;
+      border-radius: 8px; font-size: 13px; font-weight: 700;
+      cursor: pointer; white-space: nowrap;
+      min-height: 44px;
+      transition: transform 0.1s, opacity 0.2s;
+    }
+    .btn-sync:active  { transform: scale(0.96); }
+    .btn-sync:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .btn-sync.running  { background: #FBBC04; color: #333; }
+    .btn-sync.done-ok  { background: #34A853; }
+    .btn-sync.done-err { background: #EA4335; }
+
+    .btn-sheet {
+      padding: 8px 10px;
+      background: var(--card); color: var(--primary);
+      border: 1.5px solid var(--primary);
+      border-radius: 8px; font-size: 15px; font-weight: 700;
+      cursor: pointer; text-decoration: none;
+      display: flex; align-items: center; justify-content: center;
+      min-height: 44px; min-width: 44px;
+    }
+    .btn-sheet:active { opacity: 0.7; }
+
+    /* ── 進度條 ── */
+    .task-progress { display: none; flex-direction: column; gap: 4px; }
+    .task-progress.show { display: flex; }
+    .progress-bar-wrap {
+      background: var(--border); border-radius: 99px; height: 5px; overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%; background: var(--primary);
+      border-radius: 99px; width: 0%; transition: width 0.4s ease;
+    }
+    .progress-bar.pulse { animation: waPulse 1.2s ease-in-out infinite; }
+    @keyframes waPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .progress-info { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-secondary); }
+    .progress-timer { font-weight: 700; color: var(--text-main); font-family: monospace; }
+
+    /* ── Log 區 ── */
+    .wa-log {
+      flex-shrink: 0;
+      background: var(--card);
+      border-top: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      height: 32vh; min-height: 80px; max-height: 55vh;
+    }
+    .wa-log-header {
+      padding: 7px 12px; font-size: 13px; font-weight: 700;
+      border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+      flex-shrink: 0;
+    }
+    .wa-log-clear {
+      background: none; border: none;
+      color: var(--text-secondary); font-size: 12px; cursor: pointer; padding: 4px 8px;
+    }
+    .wa-log-content {
+      overflow-y: auto; -webkit-overflow-scrolling: touch;
+      padding: 6px 8px; flex: 1; min-height: 0;
+    }
+    .log-item {
+      padding: 6px 10px; border-radius: 7px; font-size: 12px;
+      margin-bottom: 5px; border-left: 3px solid var(--border);
+      background: var(--bg); line-height: 1.6;
+    }
+    .log-item.success { border-left-color: #34A853; }
+    .log-item.error   { border-left-color: #EA4335; }
+    .log-item.running { border-left-color: #FBBC04; }
+    .log-time    { font-size: 10px; color: var(--text-secondary); font-family: monospace; margin-right: 3px; }
+    .log-elapsed { font-size: 11px; font-weight: 700; color: var(--text-secondary); margin-left: 5px; }
+    .log-empty   { padding: 14px; text-align: center; color: var(--text-secondary); font-size: 13px; }
+
+    /* ── 載入/空狀態 ── */
+    .loading-wrap, .empty-state {
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 50px 20px; gap: 12px; color: var(--text-secondary);
+    }
+    .spinner {
+      width: 34px; height: 34px;
+      border: 3px solid var(--border); border-top-color: var(--primary);
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
-  <iframe
-    src="https://script.google.com/macros/s/AKfycbzD_xArMQFAFGLVzWYNKWJ9hek4ldx0v0qAHLLugdOzOPFgfgiCCIga0LeSzhnnWDjJ0g/exec"
-    allow="same-origin"
-    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
-  ></iframe>
+
+  <div class="wa-header">
+    <span style="font-size:20px">💾</span>
+    <span class="wa-header-title">業務王同步中心</span>
+    <div class="wa-header-btns">
+      <button class="wa-btn-sm" onclick="loadTasks()">🔄 重新載入</button>
+    </div>
+  </div>
+
+  <div class="wa-scroll" id="app">
+    <div class="loading-wrap">
+      <div class="spinner"></div>
+      <div>正在載入任務...</div>
+    </div>
+  </div>
+
+  <div class="wa-log">
+    <div class="wa-log-header">
+      <span>📋 執行紀錄</span>
+      <button class="wa-log-clear" onclick="clearLog()">清除</button>
+    </div>
+    <div class="wa-log-content" id="log-content">
+      <div class="log-empty">尚無紀錄</div>
+    </div>
+  </div>
+
+  <script>
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbwNmy6uS6NiOzMNJfVeWn7R98tub-DWHPNaj2FW5BnVneq-KbSZ82yYDuIvVLEk_dKPaA/exec';
+    let tasks = [];
+
+    function nowTime() {
+      return [new Date().getHours(), new Date().getMinutes(), new Date().getSeconds()]
+        .map(n => String(n).padStart(2,'0')).join(':');
+    }
+
+    function addLog(html, cssClass = '') {
+      const c = document.getElementById('log-content');
+      if (!c) return null;
+      c.querySelector('.log-empty')?.remove();
+      const div = document.createElement('div');
+      div.className = 'log-item ' + cssClass;
+      div.innerHTML = html;
+      c.insertBefore(div, c.firstChild);
+      return div;
+    }
+
+    function clearLog() {
+      const c = document.getElementById('log-content');
+      if (c) c.innerHTML = '<div class="log-empty">尚無紀錄</div>';
+    }
+
+    async function loadTasks() {
+      document.getElementById('app').innerHTML = `
+        <div class="loading-wrap"><div class="spinner"></div><div>正在載入任務...</div></div>`;
+      try {
+        const res = await fetch(GAS_URL + '?action=getTasks');
+        const json = await res.json();
+        if (!json.ok) throw new Error(json.message || '載入失敗');
+        tasks = json.data.filter(t => t.targetId && t.targetId.trim() !== '');
+        render(tasks);
+      } catch(e) {
+        document.getElementById('app').innerHTML = `
+          <div class="empty-state"><div style="font-size:38px">⚠️</div><div>載入失敗：${e.message}</div></div>`;
+      }
+    }
+
+    function render(data) {
+      if (!data || data.length === 0) {
+        document.getElementById('app').innerHTML = `
+          <div class="empty-state"><div style="font-size:38px">📋</div><div>沒有可同步的任務</div></div>`;
+        return;
+      }
+      document.getElementById('app').innerHTML = data.map((task, i) => `
+        <div class="task-card">
+          <div class="task-row-top">
+            <div class="task-info">
+              <div class="task-name">${task.name}</div>
+              ${task.dateText ? `<div class="task-date">${task.dateText}</div>` : ''}
+            </div>
+            <div class="task-btns">
+              <button class="btn-sync" id="btn-sync-${i}" onclick="startSync(${i})">🔄 同步</button>
+              <a class="btn-sheet" href="https://docs.google.com/spreadsheets/d/${task.targetId}" target="_blank">📊</a>
+            </div>
+          </div>
+          <div class="task-progress" id="progress-${i}">
+            <div class="progress-bar-wrap">
+              <div class="progress-bar pulse" id="bar-${i}"></div>
+            </div>
+            <div class="progress-info">
+              <span id="progress-msg-${i}">準備中...</span>
+              <span class="progress-timer" id="progress-time-${i}">0.0 秒</span>
+            </div>
+          </div>
+        </div>`).join('');
+    }
+
+    async function startSync(i) {
+      const btn = document.getElementById(`btn-sync-${i}`);
+      if (btn.disabled) return;
+
+      const task = tasks[i];
+      const timeStr = nowTime();
+      const startTime = Date.now();
+
+      btn.disabled = true;
+      btn.className = 'btn-sync running';
+      btn.textContent = '⏳ 同步中';
+
+      const progressEl = document.getElementById(`progress-${i}`);
+      const barEl      = document.getElementById(`bar-${i}`);
+      const msgEl      = document.getElementById(`progress-msg-${i}`);
+      const timeEl     = document.getElementById(`progress-time-${i}`);
+      progressEl.classList.add('show');
+
+      const logEl = addLog(
+        `<span class="log-time">${timeStr}</span> ⏳ 【${task.name}】同步中...`, 'running'
+      );
+
+      const timer = setInterval(() => {
+        const e = ((Date.now() - startTime) / 1000).toFixed(1);
+        timeEl.textContent = `${e} 秒`;
+        barEl.style.width = Math.min(85, (Date.now() - startTime) / 700) + '%';
+      }, 100);
+
+      try {
+        const res = await fetch(GAS_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'syncTask', index: task._originalIndex })
+        });
+        const json = await res.json();
+        clearInterval(timer);
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+
+        if (json.ok) {
+          barEl.classList.remove('pulse');
+          barEl.style.width = '100%';
+          barEl.style.background = '#34A853';
+          msgEl.textContent = '✅ 同步完成';
+          timeEl.textContent = `${elapsed} 秒`;
+          btn.className = 'btn-sync done-ok';
+          btn.textContent = '✅ 完成';
+          btn.disabled = false;
+          btn.onclick = () => resetCard(i);
+          if (logEl) {
+            logEl.className = 'log-item success';
+            logEl.innerHTML = `<span class="log-time">${timeStr}</span> ✅ 【${task.name}】同步成功 <span class="log-elapsed">${elapsed}秒</span>`;
+          }
+        } else {
+          throw new Error(json.message || '同步失敗');
+        }
+      } catch(e) {
+        clearInterval(timer);
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+        barEl.classList.remove('pulse');
+        barEl.style.width = '100%';
+        barEl.style.background = '#EA4335';
+        msgEl.textContent = '❌ 同步失敗';
+        timeEl.textContent = `${elapsed} 秒`;
+        btn.className = 'btn-sync done-err';
+        btn.textContent = '❌ 重試';
+        btn.disabled = false;
+        btn.onclick = () => { resetCard(i); startSync(i); };
+        if (logEl) {
+          logEl.className = 'log-item error';
+          logEl.innerHTML = `<span class="log-time">${timeStr}</span> ❌ 【${task.name}】失敗 <span class="log-elapsed">${elapsed}秒</span><br><small>${e.message}</small>`;
+        }
+      }
+    }
+
+    function resetCard(i) {
+      const btn        = document.getElementById(`btn-sync-${i}`);
+      const progressEl = document.getElementById(`progress-${i}`);
+      const barEl      = document.getElementById(`bar-${i}`);
+      btn.className    = 'btn-sync';
+      btn.textContent  = '🔄 同步';
+      btn.disabled     = false;
+      btn.onclick      = () => startSync(i);
+      progressEl.classList.remove('show');
+      barEl.style.width      = '0%';
+      barEl.style.background = '';
+      barEl.classList.add('pulse');
+    }
+
+    loadTasks();
+  </script>
 </body>
 </html>
