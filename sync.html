@@ -36,10 +36,8 @@
       align-items: center;
       gap: 8px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.07);
-      z-index: 200;
     }
     .wa-header-title { font-size: 16px; font-weight: 700; flex: 1; }
-    .wa-header-btns  { display: flex; gap: 6px; align-items: center; }
     .wa-btn-sm {
       background: none;
       border: 1.5px solid var(--primary);
@@ -102,7 +100,7 @@
       padding: 8px 10px;
       background: var(--card); color: var(--primary);
       border: 1.5px solid var(--primary);
-      border-radius: 8px; font-size: 15px; font-weight: 700;
+      border-radius: 8px; font-size: 15px;
       cursor: pointer; text-decoration: none;
       display: flex; align-items: center; justify-content: center;
       min-height: 44px; min-width: 44px;
@@ -124,27 +122,66 @@
     .progress-info { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-secondary); }
     .progress-timer { font-weight: 700; color: var(--text-main); font-family: monospace; }
 
-    /* ── Log 區 ── */
+    /* ── Log 抽屜 ── */
     .wa-log {
       flex-shrink: 0;
       background: var(--card);
       border-top: 1px solid var(--border);
-      display: flex; flex-direction: column;
-      height: 32vh; min-height: 80px; max-height: 55vh;
+      display: flex;
+      flex-direction: column;
+      transition: height 0.3s ease;
+      height: 44px;
+      overflow: hidden;
+    }
+    .wa-log.open {
+      height: 38vh;
     }
     .wa-log-header {
-      padding: 7px 12px; font-size: 13px; font-weight: 700;
-      border-bottom: 1px solid var(--border);
-      display: flex; justify-content: space-between; align-items: center;
+      padding: 0 12px;
+      height: 44px;
+      min-height: 44px;
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      user-select: none;
+    }
+    .wa-log-header:active { opacity: 0.7; }
+    .wa-log-left { display: flex; align-items: center; gap: 7px; }
+    .wa-log-arrow {
+      font-size: 11px;
+      color: var(--text-secondary);
+      transition: transform 0.3s ease;
+    }
+    .wa-log.open .wa-log-arrow { transform: rotate(180deg); }
+
+    /* 未讀紅點 */
+    .wa-log-dot {
+      width: 7px; height: 7px;
+      background: #EA4335;
+      border-radius: 50%;
+      display: none;
       flex-shrink: 0;
     }
+    .wa-log-dot.show { display: block; }
+
     .wa-log-clear {
       background: none; border: none;
-      color: var(--text-secondary); font-size: 12px; cursor: pointer; padding: 4px 8px;
+      color: var(--text-secondary); font-size: 12px;
+      cursor: pointer; padding: 4px 8px;
+      display: none;
     }
+    .wa-log.open .wa-log-clear { display: block; }
+
     .wa-log-content {
-      overflow-y: auto; -webkit-overflow-scrolling: touch;
-      padding: 6px 8px; flex: 1; min-height: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 6px 8px;
+      flex: 1;
+      min-height: 0;
     }
     .log-item {
       padding: 6px 10px; border-radius: 7px; font-size: 12px;
@@ -177,9 +214,7 @@
   <div class="wa-header">
     <span style="font-size:20px">💾</span>
     <span class="wa-header-title">業務王同步中心</span>
-    <div class="wa-header-btns">
-      <button class="wa-btn-sm" onclick="loadTasks()">🔄 重新載入</button>
-    </div>
+    <button class="wa-btn-sm" onclick="loadTasks()">🔄 重新載入</button>
   </div>
 
   <div class="wa-scroll" id="app">
@@ -189,10 +224,16 @@
     </div>
   </div>
 
-  <div class="wa-log">
-    <div class="wa-log-header">
-      <span>📋 執行紀錄</span>
-      <button class="wa-log-clear" onclick="clearLog()">清除</button>
+  <div class="wa-log" id="wa-log">
+    <div class="wa-log-header" onclick="toggleLog()">
+      <div class="wa-log-left">
+        <span>📋 執行紀錄</span>
+        <div class="wa-log-dot" id="log-dot"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button class="wa-log-clear" onclick="event.stopPropagation();clearLog()">清除</button>
+        <span class="wa-log-arrow">▲</span>
+      </div>
     </div>
     <div class="wa-log-content" id="log-content">
       <div class="log-empty">尚無紀錄</div>
@@ -202,6 +243,14 @@
   <script>
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbwNmy6uS6NiOzMNJfVeWn7R98tub-DWHPNaj2FW5BnVneq-KbSZ82yYDuIvVLEk_dKPaA/exec';
     let tasks = [];
+
+    function toggleLog() {
+      const log = document.getElementById('wa-log');
+      log.classList.toggle('open');
+      if (log.classList.contains('open')) {
+        document.getElementById('log-dot').classList.remove('show');
+      }
+    }
 
     function nowTime() {
       return [new Date().getHours(), new Date().getMinutes(), new Date().getSeconds()]
@@ -216,12 +265,17 @@
       div.className = 'log-item ' + cssClass;
       div.innerHTML = html;
       c.insertBefore(div, c.firstChild);
+      const log = document.getElementById('wa-log');
+      if (!log.classList.contains('open')) {
+        document.getElementById('log-dot').classList.add('show');
+      }
       return div;
     }
 
     function clearLog() {
       const c = document.getElementById('log-content');
       if (c) c.innerHTML = '<div class="log-empty">尚無紀錄</div>';
+      document.getElementById('log-dot').classList.remove('show');
     }
 
     async function loadTasks() {
