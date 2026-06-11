@@ -4286,13 +4286,13 @@
       function fetchHeaders(id, sheet) {
         var url = 'https://docs.google.com/spreadsheets/d/' + id +
           '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheet) +
-          '&headers=1&range=A1:ZZ1';
+          '&headers=0&range=1:1';
         return fetch(url).then(function(r) {
           if (!r.ok) throw new Error('HTTP ' + r.status);
           return r.text();
         }).then(function(txt) {
           var s = txt.indexOf('{'), e = txt.lastIndexOf('}');
-          if (s < 0 || e < 0) throw new Error('header 回應格式錯誤');
+          if (s < 0 || e < 0) return [];
           var json = JSON.parse(txt.slice(s, e + 1));
           var rows = (json.table && json.table.rows) || [];
           if (!rows.length || !rows[0].c) return [];
@@ -4302,7 +4302,7 @@
             if (c.v != null) return String(c.v).trim();
             return '';
           });
-        });
+        }).catch(function() { return []; }); /* fetchHeaders 失敗時 fallback 到空陣列，由主資料自行解析 header */
       }
 
       function fetchSheetP(id, sheet, cfg) {
@@ -4622,7 +4622,14 @@
           }).filter(function(r) { return !r.every(function(v) { return !v.trim(); }); });
 
           var statuses = autoDetectStatuses(hdrs, rawRows);
-          if (!statuses || !statuses.length) throw new Error('無法辨識狀態欄位');
+          if (!statuses || !statuses.length) {
+            /* 通用專案找不到 0/1 狀態欄，可能是該 Sheet 用文字狀態欄，嘗試找「狀態」欄 */
+            var fallbackIdx = hdrs.findIndex(function(h) { return h && (h.indexOf('狀態') >= 0 || h.indexOf('達成') >= 0 || h.indexOf('訪況') >= 0); });
+            if (fallbackIdx >= 0) {
+              throw new Error('找到可能的狀態欄「' + hdrs[fallbackIdx] + '」，但此專案需在「特殊專案進階設定」分頁設定 statusMode=text。');
+            }
+            throw new Error('無法辨識狀態欄位，請確認該專案的 Sheet 有 0/1 狀態欄');
+          }
           var statusColSet = new Set(statuses.map(function(s) { return s.colIdx; }));
 
           var processedRows = rawRows.map(function(vals) {
