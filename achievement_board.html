@@ -4159,10 +4159,7 @@
         var idx = Number(document.getElementById('sel-survey').value);
         var cfg = SURVEYS[idx];
         if (cfg && cfg.boardType === '覆蓋率型') {
-          window.open('coverage_board.html?sheetId=' + encodeURIComponent(cfg.id) +
-            '&name=' + encodeURIComponent(cfg.name) +
-            '&syncSheet=' + encodeURIComponent(cfg.syncSheet || '輔助') +
-            '&syncCell=' + encodeURIComponent(cfg.syncCell || 'B1'), '_blank');
+          window.open('coverage_board.html?sheetId=' + encodeURIComponent(cfg.id), '_blank');
           var s = document.getElementById('sel-survey');
           if (s && curSurvey >= 0) s.value = curSurvey;
           return;
@@ -4289,7 +4286,7 @@
       function fetchHeaders(id, sheet) {
         var url = 'https://docs.google.com/spreadsheets/d/' + id +
           '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheet) +
-          '&headers=0&range=1:1';
+          '&headers=1&range=A1:ZZ1';
         return fetch(url).then(function(r) {
           if (!r.ok) throw new Error('HTTP ' + r.status);
           return r.text();
@@ -6288,6 +6285,15 @@
       loadSpecialConfig(function() {
         loadSurveys(function() {
           buildSurveySelects();
+          /* 若 URL 帶有 sheetId，自動選到對應專案 */
+          var urlSheetId = (new URLSearchParams(location.search)).get('sheetId') || '';
+          if (urlSheetId) {
+            var matchIdx = SURVEYS.findIndex(function(s) { return s.id === urlSheetId; });
+            if (matchIdx >= 0) {
+              var sel = document.getElementById('sel-survey');
+              if (sel) sel.value = matchIdx;
+            }
+          }
           onSurveyChange();
         });
       });
