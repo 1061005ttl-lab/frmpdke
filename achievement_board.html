@@ -4284,24 +4284,28 @@
          gviz 對數字/日期儲存格的欄名常回傳空 label 或 Date(...)，
          直接讀第一列資料儲存格才能拿到原始標題字串。*/
       function fetchHeaders(id, sheet) {
+        /* 策略：用 headers=1 讓 gviz 自動把第一列當標題，
+           tbl.cols[i].label 就是真正的欄位名稱，不加 range 避免 404。
+           失敗或全空時 fallback 到空陣列，由呼叫端自行從 rows[0] 取 */
         var url = 'https://docs.google.com/spreadsheets/d/' + id +
           '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheet) +
-          '&headers=0&range=1:1';
+          '&headers=1';
         return fetch(url).then(function(r) {
-          if (!r.ok) throw new Error('HTTP ' + r.status);
+          if (!r.ok) throw new Error('HTTP ' + r.status + '（Sheet「' + sheet + '」不存在或未公開）');
           return r.text();
         }).then(function(txt) {
           var s = txt.indexOf('{'), e = txt.lastIndexOf('}');
           if (s < 0 || e < 0) return [];
           var json = JSON.parse(txt.slice(s, e + 1));
-          var rows = (json.table && json.table.rows) || [];
-          if (!rows.length || !rows[0].c) return [];
-          return rows[0].c.map(function(c) {
-            if (!c) return '';
-            if (c.f != null && String(c.f).trim()) return String(c.f).trim();
-            if (c.v != null) return String(c.v).trim();
-            return '';
+          /* headers=1 時 tbl.cols[i].label 就是真正的欄位名稱 */
+          var cols = (json.table && json.table.cols) || [];
+          if (!cols.length) return [];
+          var result = cols.map(function(c) {
+            return (c.label || '').trim();
           });
+          /* 若全部是空字串，回傳空陣列讓呼叫端自行從 rows[0] 取 */
+          if (result.every(function(v) { return !v; })) return [];
+          return result;
         }).catch(function() { return []; }); /* fetchHeaders 失敗時 fallback 到空陣列，由主資料自行解析 header */
       }
 
@@ -4336,7 +4340,7 @@
         Promise.all([
           fetchHeaders(id, sheet),
           fetch(dataUrl).then(function(r) {
-            if (!r.ok) throw new Error('HTTP ' + r.status);
+            if (!r.ok) throw new Error('HTTP ' + r.status + '（Sheet「' + sheet + '」不存在或未公開）');
             return r.text();
           })
         ]).then(function(results) {
@@ -4473,7 +4477,7 @@
         Promise.all([
           fetchHeaders(id, sheet),
           fetch(dataUrl).then(function(r) {
-            if (!r.ok) throw new Error('HTTP ' + r.status);
+            if (!r.ok) throw new Error('HTTP ' + r.status + '（Sheet「' + sheet + '」不存在或未公開）');
             return r.text();
           })
         ]).then(function(results) {
@@ -4602,7 +4606,7 @@
         Promise.all([
           fetchHeaders(id, sheet),
           fetch(dataUrl).then(function(r) {
-            if (!r.ok) throw new Error('HTTP ' + r.status);
+            if (!r.ok) throw new Error('HTTP ' + r.status + '（Sheet「' + sheet + '」不存在或未公開）');
             return r.text();
           })
         ]).then(function(results) {
@@ -4612,10 +4616,18 @@
           if (s < 0 || e < 0) throw new Error('回應格式錯誤');
           var json = JSON.parse(txt.slice(s, e + 1));
           var tbl = json.table;
-          if (!tbl || !tbl.cols) throw new Error('無資料');
-          /* 優先用 fetchHeaders 結果；若該位置為空再退回 tbl.cols[i].label */
-          var hdrs = (tbl.cols || []).map(function(c, i) {
-            return (trueHdrs[i]) ? trueHdrs[i] : (c.label || '');
+          if (!tbl || !tbl.rows || !tbl.rows.length) throw new Error('無資料');
+          /* headers=0 → 第一列是標題列，需從 tbl.rows[0] 讀取
+             優先順序：fetchHeaders 結果 > rows[0] 的 c.f/c.v > tbl.cols[i].label */
+          var colLabels = (tbl.cols || []).map(function(c) { return (c.label || '').trim(); });
+          var hdrRow = tbl.rows[0];
+          var hdrs = (hdrRow.c || []).map(function(c, i) {
+            if (trueHdrs[i]) return trueHdrs[i];
+            var v = (c && c.f != null && String(c.f).trim()) ? String(c.f).trim()
+                  : (c && c.v != null ? String(c.v).trim() : '');
+            if (/^\d+$/.test(v) && colLabels[i]) return colLabels[i];
+            if (/^Date\(/.test(v) && colLabels[i]) return colLabels[i];
+            return v || colLabels[i] || '';
           });
           var rawRows = (tbl.rows || []).slice(1).map(function(row) {
             return (row.c || []).map(function(c) { return c && c.v != null ? String(c.v) : ''; });
