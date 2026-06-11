@@ -3710,6 +3710,7 @@
               var sDef     = cv(cells[5]);
               var extraStr = cv(cells[6]);
               var flagStr  = cv(cells[7]);
+              console.log('[loadSpecialConfig] row:', name, '| cells.length:', cells.length, '| sMode:', sMode, '| sCol:', JSON.stringify(sCol), '| sCol2:', JSON.stringify(sCol2), '| sDef:', JSON.stringify(sDef));
               if (!name || !sid) return;
               var cfg = { _fixed:true, _active:true, name:name, id:sid, statusMode:sMode, statusCol:sCol };
               if (sCol2) cfg.statusCol2 = sCol2;
@@ -3719,7 +3720,19 @@
               }
               if (sMode === 'combo') cfg.statusVal = { pass:'已查', pass2:'已達', fail2:'未達' };
               if (extraStr) cfg.extraCols = extraStr.split(',').map(function(s){return s.trim();}).filter(Boolean);
-              if (flagStr) flagStr.split(',').forEach(function(f){ var fl=f.trim(); if(fl) cfg[fl]=true; });
+              if (flagStr) flagStr.split(',').forEach(function(f){
+                var fl = f.trim();
+                if (!fl) return;
+                /* 支援 key=value 格式（如 sheet=CVS訪查情形、statusVal=已查:已達:未達） */
+                var eqIdx = fl.indexOf('=');
+                if (eqIdx > 0) {
+                  var k = fl.slice(0, eqIdx).trim();
+                  var v = fl.slice(eqIdx + 1).trim();
+                  cfg[k] = v;
+                } else {
+                  cfg[fl] = true;
+                }
+              });
               list.push(cfg);
             });
             SURVEYS_FIXED = list;
@@ -4213,6 +4226,9 @@
         showLoading();
         var cfg = SURVEYS[idx];
         if (!cfg) return;
+        /* SURVEYS_FIXED 的特殊專案沒有 sheet 屬性，預設用「店家名冊」 */
+        if (!cfg.sheet) cfg.sheet = '店家名冊';
+        console.log('[onSurveyChange] cfg:', JSON.stringify({ name: cfg.name, id: cfg.id, sheet: cfg.sheet, statusMode: cfg.statusMode, statusCol: cfg.statusCol, statusCol2: cfg.statusCol2, statusDefs: !!cfg.statusDefs }));
         var p1 = fetchSheetP(cfg.id, cfg.sheet, cfg);
         var p2 = cfg.syncSheet ? fetchSyncTime(cfg.id, cfg.syncSheet, cfg.syncCell) : Promise.resolve('');
         var p3 = cfg.dataTimeSheet ? fetchSyncTime(cfg.id, cfg.dataTimeSheet, cfg.dataTimeCell) : Promise.resolve('');
@@ -4379,6 +4395,8 @@
           }).filter(function(r) { return !r.every(function(v) { return !v.trim(); }); });
 
           /* 找兩欄的索引 */
+          if (!cfg.statusCol) throw new Error('設定錯誤：主狀態欄（statusCol）未設定，請檢查特殊專案進階設定');
+          if (!cfg.statusCol2) throw new Error('設定錯誤：副狀態欄（statusCol2）未設定，請檢查特殊專案進階設定');
           var col1Idx = hdrs.findIndex(function(h) { return h === cfg.statusCol; });
           var col2Idx = hdrs.findIndex(function(h) { return h === cfg.statusCol2; });
           if (col1Idx < 0) throw new Error('找不到狀態欄：' + cfg.statusCol);
