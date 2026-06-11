@@ -3727,11 +3727,14 @@
               if (flagStr) flagStr.split(',').forEach(function(f){
                 var fl = f.trim();
                 if (!fl) return;
-                /* 支援 key=value 格式（如 sheet=CVS訪查情形、statusVal=已查:已達:未達） */
+                /* 支援 key=value 格式（如 sheet=CVS訪查情形、monthCols=true） */
                 var eqIdx = fl.indexOf('=');
                 if (eqIdx > 0) {
                   var k = fl.slice(0, eqIdx).trim();
                   var v = fl.slice(eqIdx + 1).trim();
+                  /* 自動轉換 true/false 字串為 boolean */
+                  if (v === 'true') v = true;
+                  else if (v === 'false') v = false;
                   cfg[k] = v;
                 } else {
                   cfg[fl] = true;
@@ -4565,7 +4568,15 @@
               return { key: d.key, colIdx: statusColIdx, col: cfg.statusCol, label: d.label, labelShort: d.labelShort, cls: d.cls, emoji: d.emoji };
             });
             statusMap = {};
-            cfg.statusDefs.forEach(function(d) { statusMap[d.val] = d.key; });
+            cfg.statusDefs.forEach(function(d) { if (d.val) statusMap[d.val] = d.key; });
+            /* Checkbox 支援：gviz 對勾選框回傳 true/false，自動對應到第一個和最後一個 key */
+            var firstKey = cfg.statusDefs[0] && cfg.statusDefs[0].key;
+            var lastKey  = cfg.statusDefs[cfg.statusDefs.length - 1] && cfg.statusDefs[cfg.statusDefs.length - 1].key;
+            if (firstKey && !statusMap['true'])  statusMap['true']  = firstKey;
+            if (lastKey  && !statusMap['false']) statusMap['false'] = lastKey;
+            /* 也對應顯示符號 ✓/✗ */
+            if (firstKey && !statusMap['✓']) statusMap['✓'] = firstKey;
+            if (lastKey  && !statusMap['✗']) statusMap['✗'] = lastKey;
           } else {
             statuses = [
               { key: 'l', colIdx: statusColIdx, col: cfg.statusCol, label: '✅ 達成', labelShort: '達成', cls: 'g', emoji: '✅' },
