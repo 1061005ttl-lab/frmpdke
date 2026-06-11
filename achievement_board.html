@@ -3687,66 +3687,85 @@
         ]
       };
 
-      /* 特殊專案由 loadSpecialConfig() 載入 */
-      var SURVEYS_FIXED = [];
+      /* 特殊專案：直接寫死，不靠試算表讀取，確保設定完整 */
+      var SURVEYS_FIXED = [{
+        _fixed: true,
+        _active: true,
+        name: '主要通路巡訪(26.06)',
+        id: '1OFquyYqZ5RPwmR2VUu5Jdjny4WZqWEXuQH_GrQONYGA',
+        sheet: '主要通路分離名冊',
+        range: 'A:J',
+        statusMode: 'text',
+        statusCol: '訪況',
+        statusMap: { '達成': 'l', '未達': 'u' },
+        monthCol: '*月',
+        dataTimeSheet: '資料來源',
+        dataTimeCell: 'E2',
+        cvsWeightChannel: 'CVS通路',
+        cvsWeightCap: 0.7
+      }, {
+        _fixed: true,
+        _active: true,
+        name: 'CVS跨月訪頻',
+        id: '1PGURKUrWDCs1c2KFgRlcTDl9ufCS4mxMzIK31F8Up2c',
+        sheet: 'CVS訪查情形',
+        syncSheet: '輔助',
+        syncCell: 'B1',
+        statusMode: 'text',
+        statusCol: '執行達成',
+        statusDefs: [
+          { key: 'l', val: '✔', label: '✅ 達成', labelShort: '達成', cls: 'g', emoji: '✅' },
+          { key: 'y', val: '━', label: '🟡 閉店', labelShort: '閉店', cls: 'y', emoji: '🟡' },
+          { key: 'u', val: '✖', label: '🔴 未達', labelShort: '未達', cls: 'r', emoji: '🔴' }
+        ],
+        monthCols: 'auto',
+        defaultChannel: 'CVS通路',
+        pctDecimals: 1,
+        noGrade: true
+      }, {
+        _fixed: true,
+        _active: true,
+        name: '連鎖超市執行進度表(26.06)',
+        id: '10uZU9Np9SZmBR-wfSzwAjy1d08Acy7gzWK81YAuTgjI',
+        sheet: '不分級店家',
+        syncSheet: '輔助',
+        syncCell: 'B1',
+        statusMode: 'combo',
+        statusCol: '查核達成',
+        statusCol2: '巡補達成',
+        statusVal: { pass: '已查', pass2: '已達', fail2: '未達' },
+        statusDefs: [
+          { key: 'l', label: '✅ 全達成',   labelShort: '全達成',   cls: 'g', emoji: '✅' },
+          { key: 'y', label: '🟡 部分達成', labelShort: '部分達成', cls: 'y', emoji: '🟡' },
+          { key: 'u', label: '🔴 未查',     labelShort: '未查',     cls: 'r', emoji: '🔴' }
+        ],
+        extraCols: ['查核達成', '巡補達成', '訪', '查', '巡', '督', '到', '特殊情形'],
+        noGrade: true,
+        noChannel: true
+      }, {
+        _fixed: true,
+        _active: true,
+        name: '量販通路執行進度表',
+        id: '1XEZXmosV6xmG6X_2pwjTxFHXCUHapD93ycv1Kq7YZC8',
+        sheet: '不分級店家',
+        syncSheet: '輔助',
+        syncCell: 'B1',
+        statusMode: 'text',
+        statusCol: '巡補達成',
+        statusDefs: [
+          { key: 'l', val: '已達', label: '✅ 已達成', labelShort: '已達成', cls: 'g', emoji: '✅' },
+          { key: 'u', val: '未達', label: '🔴 未達成', labelShort: '未達成', cls: 'r', emoji: '🔴' }
+        ],
+        extraCols: ['巡補達成', '訪', '查', '巡', '督', '到', '特殊情形'],
+        noGrade: true,
+        noChannel: true
+      }];
 
       /* 全域 SURVEYS，啟動後由 loadSurveys() 填入 */
       var SURVEYS = [];
 
-      /* ── 從「特殊專案進階設定」分頁讀入特殊 config ── */
-      function loadSpecialConfig(callback) {
-        var url = 'https://docs.google.com/spreadsheets/d/' + MGMT_SHEET_ID +
-          '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(SPECIAL_SHEET_NAME);
-        fetch(url)
-          .then(function(r) { return r.text(); })
-          .then(function(txt) {
-            var json = JSON.parse(txt.replace(/^[^\(]+\(/, '').replace(/\);?\s*$/, ''));
-            var rows = (json.table && json.table.rows) || [];
-            var list = [];
-            rows.forEach(function(row) {
-              var cells = row.c || [];
-              function cv(c) { return c ? String(c.v !== null && c.v !== undefined ? c.v : c.f || '').trim() : ''; }
-              var name     = cv(cells[0]);
-              var sid      = cv(cells[1]);
-              var sMode    = cv(cells[2]) || 'text';
-              var sCol     = cv(cells[3]);
-              var sCol2    = cv(cells[4]);
-              var sDef     = cv(cells[5]);
-              var extraStr = cv(cells[6]);
-              var flagStr  = cv(cells[7]);
-              console.log('[loadSpecialConfig] row:', name, '| cells.length:', cells.length, '| sMode:', sMode, '| sCol:', JSON.stringify(sCol), '| sCol2:', JSON.stringify(sCol2), '| sDef:', JSON.stringify(sDef));
-              if (!name || !sid) return;
-              var cfg = { _fixed:true, _active:true, name:name, id:sid, statusMode:sMode, statusCol:sCol };
-              if (sCol2) cfg.statusCol2 = sCol2;
-              if (sDef) {
-                if (STATUS_TEMPLATES[sDef]) cfg.statusDefs = STATUS_TEMPLATES[sDef];
-                else { try { cfg.statusDefs = JSON.parse(sDef); } catch(e) {} }
-              }
-              if (sMode === 'combo') cfg.statusVal = { pass:'已查', pass2:'已達', fail2:'未達' };
-              if (extraStr) cfg.extraCols = extraStr.split(',').map(function(s){return s.trim();}).filter(Boolean);
-              if (flagStr) flagStr.split(',').forEach(function(f){
-                var fl = f.trim();
-                if (!fl) return;
-                /* 支援 key=value 格式（如 sheet=CVS訪查情形、monthCols=true） */
-                var eqIdx = fl.indexOf('=');
-                if (eqIdx > 0) {
-                  var k = fl.slice(0, eqIdx).trim();
-                  var v = fl.slice(eqIdx + 1).trim();
-                  /* 自動轉換 true/false 字串為 boolean */
-                  if (v === 'true') v = true;
-                  else if (v === 'false') v = false;
-                  cfg[k] = v;
-                } else {
-                  cfg[fl] = true;
-                }
-              });
-              list.push(cfg);
-            });
-            SURVEYS_FIXED = list;
-            callback();
-          })
-          .catch(function() { SURVEYS_FIXED = []; callback(); });
-      }
+      /* ── loadSpecialConfig：SURVEYS_FIXED 已 hardcoded，直接 callback ── */
+      function loadSpecialConfig(callback) { callback(); }
 
       /* ── 從管理分頁動態載入專案清單 ── */
       function loadSurveys(callback) {
@@ -4233,8 +4252,6 @@
         showLoading();
         var cfg = SURVEYS[idx];
         if (!cfg) return;
-        /* SURVEYS_FIXED 的特殊專案沒有 sheet 屬性，預設用「店家名冊」 */
-        if (!cfg.sheet) cfg.sheet = '店家名冊';
         console.log('[onSurveyChange] cfg:', JSON.stringify({ name: cfg.name, id: cfg.id, sheet: cfg.sheet, statusMode: cfg.statusMode, statusCol: cfg.statusCol, statusCol2: cfg.statusCol2, statusDefs: !!cfg.statusDefs }));
         var p1 = fetchSheetP(cfg.id, cfg.sheet, cfg);
         var p2 = cfg.syncSheet ? fetchSyncTime(cfg.id, cfg.syncSheet, cfg.syncCell) : Promise.resolve('');
