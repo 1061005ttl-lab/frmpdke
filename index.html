@@ -156,22 +156,25 @@ body{background:var(--bg);color:var(--text);min-height:100vh;}
 
 <script>
 
-/* \u2550\u2550 \u8A2D\u5B9A \u2550\u2550 */
+/* ══ 設定 ══ */
 var MGMT_ID     = '1PR9OR7BIGyTpcH8QSMRXkPhQTr4h3m0UK3gET29f19s';
-var LOGIN_SHEET = '\u767B\u5165\u8207\u9801\u9762\u8A2D\u5B9A';
-var PROJ_SHEET  = '\u5C08\u6848\u7BA1\u7406';
+var LOGIN_SHEET = '登入與頁面設定';
+var PROJ_SHEET  = '專案管理';
 var AUTH_KEY    = 'ttl_auth_v1';
 
-/* \u2550\u2550 \u72C0\u614B \u2550\u2550 */
+/* 同步時間 fetch 逾時（毫秒） */
+var SYNC_TIMEOUT = 8000;
+
+/* ══ 狀態 ══ */
 var _password = 'ttl';
 var _pageMap  = {
-  '\u9054\u6210\u7387\u578B':  'achievement_board.html',
-  '\u8986\u84CB\u7387\u578B':  'coverage_board.html',
-  '\u734E\u52F5\u9054\u6210\u578B':'award_board.html'
+  '達成率型':  'achievement_board.html',
+  '覆蓋率型':  'coverage_board.html',
+  '獎勵達成型':'award_board.html'
 };
 var _surveys = { on:[], off:[] };
 
-/* \u2550\u2550 \u5DE5\u5177 \u2550\u2550 */
+/* ══ 工具 ══ */
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 function parseGvizDate(v){
@@ -191,21 +194,43 @@ function gvizFetch(sheetId, sheetName){
     .then(function(txt){ return JSON.parse(txt.replace(/^[^\(]+\(/,'').replace(/\);?\s*$/,'')); });
 }
 
-/* \u2550\u2550 Auth \u2550\u2550 */
+/* fetch 加逾時包裝 */
+function fetchWithTimeout(url, ms){
+  return Promise.race([
+    fetch(url),
+    new Promise(function(_,rej){
+      setTimeout(function(){ rej(new Error('timeout')); }, ms);
+    })
+  ]);
+}
+
+/* ══ 表頭列偵測：跳過明顯是佔位文字的列 ══ */
+var HEADER_KEYWORDS = ['專案名','試算表 ID','試算表ID','sheetid','project','專案'];
+function isHeaderRow(name, sid){
+  var n = name.toLowerCase(), s = sid.toLowerCase();
+  for(var i=0;i<HEADER_KEYWORDS.length;i++){
+    if(n === HEADER_KEYWORDS[i].toLowerCase()) return true;
+  }
+  /* sid 不像真實 Google Sheets ID（長度通常 44 字元，只含英數字與 -_） */
+  if(sid.length < 20) return true;
+  return false;
+}
+
+/* ══ Auth ══ */
 function setAuth(){ localStorage.setItem(AUTH_KEY,'1'); }
 function clearAuth(){ localStorage.removeItem(AUTH_KEY); }
 function hasAuth(){ return localStorage.getItem(AUTH_KEY)==='1'; }
 
-/* \u2550\u2550 Loading \u2550\u2550 */
+/* ══ Loading ══ */
 function showLoading(msg){
-  document.getElementById('loading-text').textContent = msg||'\u8F09\u5165\u4E2D\u2026';
+  document.getElementById('loading-text').textContent = msg||'載入中…';
   document.getElementById('loading-screen').classList.add('show');
 }
 function hideLoading(){
   document.getElementById('loading-screen').classList.remove('show');
 }
 
-/* \u2550\u2550 \u8B80\u767B\u5165\u8A2D\u5B9A\uFF08\u66F4\u65B0\u5BC6\u78BC\u548C\u9801\u9762\u5C0D\u7167\uFF09\u2550\u2550 */
+/* ══ 讀登入設定（更新密碼和頁面對照） ══ */
 function loadLoginConfig(){
   return gvizFetch(MGMT_ID, LOGIN_SHEET)
     .then(function(json){
@@ -215,26 +240,26 @@ function loadLoginConfig(){
         var key=String(cv(cells[0])).trim();
         var b=String(cv(cells[1])).trim();
         var c=String(cv(cells[2])).trim();
-        if(key==='\u5BC6\u78BC') _password=b.toLowerCase();
-        if(key==='\u9801\u9762\u5C0D\u7167'&&b&&c) _pageMap[b]=c;
+        if(key==='密碼') _password=b.toLowerCase();
+        if(key==='頁面對照'&&b&&c) _pageMap[b]=c;
       });
     })
     .catch(function(){});
 }
 
-/* \u2550\u2550 \u767B\u5165 \u2550\u2550 */
+/* ══ 登入 ══ */
 function doLogin(){
   var input=document.getElementById('login-input');
   var btn=document.getElementById('login-btn');
   var err=document.getElementById('login-err');
   var val=input.value.trim().toLowerCase();
-  if(!val){ err.textContent='\u8ACB\u8F38\u5165\u516C\u53F8\u82F1\u6587\u7C21\u7A31'; shakeInput(); return; }
-  if(val!==_password){ err.textContent='\u7B26\u865F\u932F\u8AA4\uFF0C\u8ACB\u518D\u8A66\u4E00\u6B21'; input.value=''; shakeInput(); input.focus(); return; }
+  if(!val){ err.textContent='請輸入公司英文簡稱'; shakeInput(); return; }
+  if(val!==_password){ err.textContent='符號錯誤，請再試一次'; input.value=''; shakeInput(); input.focus(); return; }
   err.textContent='';
-  btn.disabled=true; btn.textContent='\u9A57\u8B49\u4E2D\u2026';
+  btn.disabled=true; btn.textContent='驗證中…';
   setAuth();
   document.getElementById('login-screen').style.display='none';
-  showLoading('\u8F09\u5165\u5C08\u6848\u6E05\u55AE\u2026');
+  showLoading('載入專案清單…');
   loadProjects();
 }
 
@@ -248,7 +273,7 @@ function doLogout(){
   clearAuth(); location.reload();
 }
 
-/* \u2550\u2550 \u8B80\u5C08\u6848\u6E05\u55AE \u2550\u2550 */
+/* ══ 讀專案清單 ══ */
 function loadProjects(){
   gvizFetch(MGMT_ID, PROJ_SHEET)
     .then(function(json){
@@ -259,11 +284,13 @@ function loadProjects(){
         var active=String(cv(cells[0])).trim().toUpperCase()==='ON';
         var name=String(cv(cells[1])).trim();
         var sid=String(cv(cells[2])).trim();
-        var sheet=String(cv(cells[3])).trim()||'\u5E97\u5BB6\u540D\u518A';
-        var sync=String(cv(cells[4])).trim()||'\u8F14\u52A9';
+        var sheet=String(cv(cells[3])).trim()||'店家名冊';
+        var sync=String(cv(cells[4])).trim()||'輔助';
         var cell=String(cv(cells[5])).trim()||'B1';
-        var btype=String(cv(cells[6])).trim()||'\u9054\u6210\u7387\u578B';
+        var btype=String(cv(cells[6])).trim()||'達成率型';
+        /* ── 修正①：跳過空列與表頭佔位列 ── */
         if(!name||!sid) return;
+        if(isHeaderRow(name,sid)) return;
         var p={name:name,id:sid,sheet:sheet,syncSheet:sync,syncCell:cell,boardType:btype};
         if(active) onList.push(p); else offList.push(p);
       });
@@ -274,16 +301,16 @@ function loadProjects(){
     })
     .catch(function(){
       hideLoading();
-      document.getElementById('stage').innerHTML='<div class="empty">\u26A0\uFE0F \u5C08\u6848\u6E05\u55AE\u8F09\u5165\u5931\u6557\uFF0C\u8ACB\u91CD\u65B0\u6574\u7406\u9801\u9762</div>';
+      document.getElementById('stage').innerHTML='<div class="empty">⚠️ 專案清單載入失敗，請重新整理頁面</div>';
       document.getElementById('main-screen').style.display='flex';
     });
 }
 
-/* \u2550\u2550 \u6E32\u67D3\u5165\u53E3 \u2550\u2550 */
+/* ══ 渲染入口 ══ */
 var TYPE_STYLE={
-  '\u9054\u6210\u7387\u578B': {accent:'#8BA690',badgeBg:'rgba(139,166,144,.12)',badgeFg:'#4a7a55',icon:'\uD83D\uDCCA'},
-  '\u8986\u84CB\u7387\u578B': {accent:'#378ADD',badgeBg:'rgba(55,138,221,.10)',badgeFg:'#1a5fa8',icon:'\uD83D\uDDFA\uFE0F'},
-  '\u734E\u52F5\u9054\u6210\u578B':{accent:'#d4900a',badgeBg:'rgba(212,144,10,.10)',badgeFg:'#7a5000',icon:'\uD83C\uDFC6'}
+  '達成率型': {accent:'#8BA690',badgeBg:'rgba(139,166,144,.12)',badgeFg:'#4a7a55',icon:'📊'},
+  '覆蓋率型': {accent:'#378ADD',badgeBg:'rgba(55,138,221,.10)',badgeFg:'#1a5fa8',icon:'🗺️'},
+  '獎勵達成型':{accent:'#d4900a',badgeBg:'rgba(212,144,10,.10)',badgeFg:'#7a5000',icon:'🏆'}
 };
 
 function renderPortal(){
@@ -291,11 +318,11 @@ function renderPortal(){
   var stage=document.getElementById('stage');
   stage.innerHTML='';
   if(!_surveys.on.length&&!_surveys.off.length){
-    stage.innerHTML='<div class="empty">\u76EE\u524D\u6C92\u6709\u5C08\u6848</div>'; return;
+    stage.innerHTML='<div class="empty">目前沒有專案</div>'; return;
   }
   if(_surveys.on.length){
     var lbl=document.createElement('div');
-    lbl.className='section-label'; lbl.textContent='\uD83D\uDFE2  \u9032\u884C\u4E2D\u5C08\u6848';
+    lbl.className='section-label'; lbl.textContent='🟢  進行中專案';
     stage.appendChild(lbl);
     var grid=document.createElement('div'); grid.className='proj-grid';
     _surveys.on.forEach(function(p){ grid.appendChild(buildCard(p,false)); });
@@ -304,12 +331,12 @@ function renderPortal(){
   if(_surveys.off.length){
     var toggle=document.createElement('div');
     toggle.className='off-toggle';
-    toggle.innerHTML='\u25B6 \u5DF2\u7D50\u675F\u5C08\u6848\uFF08'+_surveys.off.length+'\u500B\uFF09';
+    toggle.innerHTML='▶ 已結束專案（'+_surveys.off.length+'個）';
     toggle.onclick=function(){
       var sec=document.getElementById('off-section');
       var open=sec.style.display==='block';
       sec.style.display=open?'none':'block';
-      toggle.innerHTML=(open?'\u25B6':'\u25BC')+' \u5DF2\u7D50\u675F\u5C08\u6848\uFF08'+_surveys.off.length+'\u500B\uFF09';
+      toggle.innerHTML=(open?'▶':'▼')+' 已結束專案（'+_surveys.off.length+'個）';
     };
     stage.appendChild(toggle);
     var sec=document.createElement('div'); sec.id='off-section';
@@ -320,7 +347,7 @@ function renderPortal(){
 }
 
 function buildCard(proj,isOff){
-  var sty=TYPE_STYLE[proj.boardType]||TYPE_STYLE['\u9054\u6210\u7387\u578B'];
+  var sty=TYPE_STYLE[proj.boardType]||TYPE_STYLE['達成率型'];
   var card=document.createElement('div');
   card.className='proj-card'+(isOff?' off':'');
   card.id='card-'+proj.id;
@@ -328,54 +355,51 @@ function buildCard(proj,isOff){
   card.innerHTML=
     '<span class="badge">'+sty.icon+' '+esc(proj.boardType)+'</span>'+
     '<div class="proj-name">'+esc(proj.name)+'</div>'+
-    '<div class="proj-sync" id="sync-'+esc(proj.id)+'">\u23F3 \u8B80\u53D6\u4E2D\u2026</div>'+
-    (!isOff?'<span class="proj-arrow">\u203A</span>':'');
+    '<div class="proj-sync" id="sync-'+esc(proj.id)+'">'+(!isOff?'⏳ 讀取中…':'')+'</div>'+
+    (!isOff?'<span class="proj-arrow">›</span>':'');
   if(!isOff) card.addEventListener('click',function(){ openProject(proj); });
   return card;
 }
 
 function openProject(proj){
   var page=_pageMap[proj.boardType];
-  if(!page){ alert('\u627E\u4E0D\u5230\u5C0D\u61C9\u9801\u9762\uFF1A'+proj.boardType); return; }
-  /* \u540C\u5206\u9801\u8DF3\u8F49\uFF0C\u4E0D\u958B\u65B0\u5206\u9801\uFF0ClocalStorage \u5FC5\u7136\u5171\u4EAB */
+  if(!page){ alert('找不到對應頁面：'+proj.boardType); return; }
   window.location.href=page+'?sheetId='+encodeURIComponent(proj.id);
 }
 
-/* \u2550\u2550 \u80CC\u666F\u62C9\u540C\u6B65\u6642\u9593 \u2550\u2550 */
+/* ══ 背景拉同步時間（修正②：加逾時，off 卡片不顯示讀取中） ══ */
 function fetchAllSyncTimes(list){
   list.forEach(function(proj){
+    var el=document.getElementById('sync-'+proj.id);
     if(!proj.syncSheet||!proj.syncCell){
-      var el=document.getElementById('sync-'+proj.id);
       if(el) el.textContent=''; return;
     }
     var url='https://docs.google.com/spreadsheets/d/'+proj.id+
       '/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(proj.syncSheet)+'&range='+proj.syncCell;
-    fetch(url).then(function(r){return r.text();})
+    fetchWithTimeout(url, SYNC_TIMEOUT)
+      .then(function(r){ return r.text(); })
       .then(function(txt){
         var json=JSON.parse(txt.replace(/^[^\(]+\(/,'').replace(/\);?\s*$/,''));
         var val=''; try{val=json.table.rows[0].c[0].v||'';}catch(e){}
-        var el=document.getElementById('sync-'+proj.id);
-        if(el) el.textContent=val?'\uD83D\uDCCA \u540C\u6B65 '+parseGvizDate(String(val)):'';
-      }).catch(function(){
-        var el=document.getElementById('sync-'+proj.id);
+        if(el) el.textContent=val?'📊 同步 '+parseGvizDate(String(val)):'';
+      })
+      .catch(function(){
         if(el) el.textContent='';
       });
   });
 }
 
-/* \u2550\u2550 \u555F\u52D5 \u2550\u2550 */
+/* ══ 啟動 ══ */
 (function(){
-  /* \u5FEB\u901F\u901A\u9053\uFF1A\u5DF2\u6709 token \u76F4\u63A5\u8DF3\u904E\u767B\u5165 */
   if(hasAuth()){
     document.getElementById('loading-screen').classList.add('show');
-    document.getElementById('loading-text').textContent='\u8F09\u5165\u5C08\u6848\u6E05\u55AE\u2026';
-    loadLoginConfig(); /* \u80CC\u666F\u66F4\u65B0\u8A2D\u5B9A\uFF0C\u4E0D\u7B49\u5F85 */
+    document.getElementById('loading-text').textContent='載入專案清單…';
+    loadLoginConfig();
     loadProjects();
     return;
   }
-  /* \u672A\u767B\u5165\uFF1A\u8B80\u53D6\u5BC6\u78BC\u5F8C\u986F\u793A\u767B\u5165\u6846 */
   document.getElementById('loading-screen').classList.add('show');
-  document.getElementById('loading-text').textContent='\u521D\u59CB\u5316\u4E2D\u2026';
+  document.getElementById('loading-text').textContent='初始化中…';
   loadLoginConfig().then(function(){
     document.getElementById('loading-screen').classList.remove('show');
     document.getElementById('login-screen').style.display='flex';
