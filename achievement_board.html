@@ -26,7 +26,8 @@
                   空白時：若 L欄進階JSON 有 statusMap 則用 statusMap，
                            否則自動偵測 0/1 欄（通用專案）
   G 額外欄位     明細表額外顯示的欄位，半形逗號分隔（不能有空格）
-  H 功能旗標     noGrade（隱藏等級欄）、noChannel（隱藏通路欄），逗號分隔
+  H 功能旗標     noGrade（隱藏等級欄）、noChannel（隱藏通路欄）、noVisits（隱藏標準/已訪欄），逗號分隔
+                  注意：若 Sheet 無訪次欄位（CI['visits']<0），標準/已訪欄自動隱藏，無需填 noVisits
   I 資料分頁名稱  覆蓋「專案管理」 D欄的 Sheet 分頁名
   J 資料同步分頁  覆蓋「專案管理」 E欄的同步分頁
   K 資料同步格    覆蓋「專案管理」 F欄的同步格（如 B1、E2）
@@ -5882,7 +5883,7 @@
         var cfg2 = _curCfg || {};
         var noGrade   = !!cfg2.noGrade;
         var noChannel = !!cfg2.noChannel;
-        var noVisits  = !!cfg2.noVisits;
+        var noVisits  = !!cfg2.noVisits || CI['visits'] < 0;
         var extraCols = Array.isArray(cfg2.extraCols) ? cfg2.extraCols : [];
         /* extraCols \u6B04\u4F4D\u5728 allHeaders \u4E2D\u7684\u7D22\u5F15 */
         var extraColIdxs = extraCols.map(function(name) {
@@ -5898,8 +5899,8 @@
           '<th class="col-tp" style="width:80px">\u5E97\u5BB6\u578B\u614B</th>' +
           (noGrade ? '' : '<th class="col-grade" style="width:50px">\u7B49\u7D1A</th>') +
           '<th class="col-code" style="width:120px">\u5E97\u5BB6\u4EE3\u78BC</th>' +
-          (noGrade ? '' : '<th class="col-visits" style="width:46px;text-align:center">\u6A19\u6E96</th>') +
-          (noGrade ? '' : '<th class="col-visits" style="width:46px;text-align:center">\u5DF2\u8A2A</th>') +
+          (noVisits ? '' : '<th class="col-visits" style="width:46px;text-align:center">\u6A19\u6E96</th>') +
+          (noVisits ? '' : '<th class="col-visits" style="width:46px;text-align:center">\u5DF2\u8A2A</th>') +
           extraCols.map(function(name) {
             return '<th class="col-visits" style="width:64px;text-align:center">' + esc(name) + '</th>';
           }).join('') +
@@ -5925,7 +5926,7 @@
             '<td class="col-tp td-sub">' + esc(gv(r, 'type')) + '</td>' +
             (noGrade ? '' : '<td class="col-grade td-sub">' + esc(grade) + '</td>') +
             '<td class="col-code td-sub">' + esc(gv(r, 'code')) + '</td>' +
-            (noGrade ? '' :
+            (noVisits ? '' :
               '<td class="col-visits td-sub" style="text-align:center">' + esc(String(std)) + '</td>' +
               '<td class="col-visits td-sub" style="text-align:center"' + visitsCls + '>' + esc(visitsVal) + '</td>'
             ) +
