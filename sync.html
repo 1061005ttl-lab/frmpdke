@@ -108,6 +108,12 @@
     }
     .btn-sheet:active { opacity: 0.7; }
 
+    /* ── 看板按鈕（橘色調，與試算表按鈕做區分）── */
+    .btn-board {
+      color: #e07b00;
+      border-color: #e07b00;
+    }
+
     /* ── 進度條 ── */
     .task-progress { display: none; flex-direction: column; gap: 4px; }
     .task-progress.show { display: flex; }
@@ -243,6 +249,15 @@
 
   <script>
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbwNmy6uS6NiOzMNJfVeWn7R98tub-DWHPNaj2FW5BnVneq-KbSZ82yYDuIvVLEk_dKPaA/exec';
+
+    // ── 看板對應設定 ──
+    const BOARD_BASE = 'https://1061005ttl-lab.github.io/frmpdke/';
+    const BOARD_FILE = {
+      '達成率型':  'achievement_board.html',
+      '覆蓋率型':  'coverage_board.html',
+      '獎勵達成型': 'award_board.html'
+    };
+
     let tasks = [];
 
     function toggleLog() {
@@ -300,7 +315,18 @@
           <div class="empty-state"><div style="font-size:38px">📋</div><div>沒有可同步的任務</div></div>`;
         return;
       }
-      document.getElementById('app').innerHTML = data.map((task, i) => `
+      document.getElementById('app').innerHTML = data.map((task, i) => {
+        // 看板按鈕：僅問卷且有對應 boardType 才顯示
+        const boardFile = (task.dataType === '問卷' && task.boardType)
+          ? BOARD_FILE[task.boardType] : null;
+        const boardBtn = boardFile
+          ? `<a class="btn-sheet btn-board"
+               href="${BOARD_BASE}${boardFile}?id=${encodeURIComponent(task.targetId)}"
+               target="_blank"
+               title="${task.boardType}">📊</a>`
+          : '';
+
+        return `
         <div class="task-card">
           <div class="task-row-top">
             <div class="task-info">
@@ -310,7 +336,8 @@
             </div>
             <div class="task-btns">
               <button class="btn-sync" id="btn-sync-${i}" onclick="startSync(${i})">🔄 同步</button>
-              <a class="btn-sheet" href="https://docs.google.com/spreadsheets/d/${task.targetId}" target="_blank">📊</a>
+              ${boardBtn}
+              <a class="btn-sheet" href="https://docs.google.com/spreadsheets/d/${task.targetId}" target="_blank" title="開啟試算表">🗂</a>
             </div>
           </div>
           <div class="task-progress" id="progress-${i}">
@@ -322,7 +349,8 @@
               <span class="progress-timer" id="progress-time-${i}">0.0 秒</span>
             </div>
           </div>
-        </div>`).join('');
+        </div>`;
+      }).join('');
     }
 
     async function startSync(i) {
