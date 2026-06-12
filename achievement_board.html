@@ -3821,7 +3821,14 @@
               /* L \u9032\u968EJSON\uFF1A\u5408\u4F75\u6240\u6709\u7279\u6B8A\u6B04\u4F4D */
               if (advJson) {
                 try {
-                  var adv = JSON.parse(advJson);
+                  /* gviz API \u6709\u6642\u6703\u628A JSON \u88E1\u7684\u5F15\u865F\u505A HTML entity \u7DE8\u78BC\uFF0C\u5148 decode */
+                  var cleanJson = advJson
+                    .replace(/&quot;/g, '"')
+                    .replace(/&#39;/g, "'")
+                    .replace(/&amp;/g, '&')
+                    .replace(/&lt;/g, '<')
+                    .replace(/&gt;/g, '>');
+                  var adv = JSON.parse(cleanJson);
                   /* \u9010\u4E00\u5408\u4F75\uFF0C\u4FDD\u7559\u578B\u5225 */
                   ['range','monthCol','monthCols','defaultChannel','pctDecimals',
                    'cvsWeightChannel','cvsWeightCap','statusMap','statusVal'
