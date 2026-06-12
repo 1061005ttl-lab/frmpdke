@@ -404,16 +404,24 @@ function fetchAllSyncTimes(list){
 
 /* \u2550\u2550 \u555F\u52D5 \u2550\u2550 */
 (function(){
+  /* \u5FEB\u901F\u901A\u9053\uFF1A\u5DF2\u767B\u5165\u8005\u4E0D\u9700\u7B49 loadLoginConfig\uFF0C\u76F4\u63A5\u9032\u4E3B\u756B\u9762 */
+  if(hasSession()){
+    showLoading('\u8F09\u5165\u5C08\u6848\u6E05\u55AE\u2026');
+    /* \u80CC\u666F\u540C\u6B65\u8B80\u53D6\u767B\u5165\u8A2D\u5B9A\uFF08\u66F4\u65B0 pageMap\uFF09\uFF0C\u540C\u6642\u8F09\u5165\u5C08\u6848 */
+    loadLoginConfig().catch(function(){});
+    loadProjects();
+    return;
+  }
+  /* \u672A\u767B\u5165\uFF1A\u5148\u8B80\u767B\u5165\u8A2D\u5B9A\uFF08\u53D6\u5F97\u5BC6\u78BC\uFF09\uFF0C\u518D\u986F\u793A\u767B\u5165\u6846 */
   showLoading('\u521D\u59CB\u5316\u4E2D\u2026');
   loadLoginConfig().then(function(){
-    if(hasSession()){
-      showLoading('\u8F09\u5165\u5C08\u6848\u6E05\u55AE\u2026');
-      loadProjects();
-    } else {
-      hideLoading();
-      document.getElementById('login-screen').style.display = 'flex';
-      setTimeout(function(){ document.getElementById('login-input').focus(); }, 120);
-    }
+    hideLoading();
+    document.getElementById('login-screen').style.display = 'flex';
+    setTimeout(function(){ document.getElementById('login-input').focus(); }, 120);
+  }).catch(function(){
+    hideLoading();
+    document.getElementById('login-screen').style.display = 'flex';
+    setTimeout(function(){ document.getElementById('login-input').focus(); }, 120);
   });
 })();
 
