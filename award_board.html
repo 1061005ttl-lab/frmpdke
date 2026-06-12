@@ -11,7 +11,7 @@
     gtag('config', 'G-3XTQ1DT3LQ');
   </script>
   <script>
-    /* ── Session 驗證 ── */
+    /* \u2500\u2500 Session \u9A57\u8B49 \u2500\u2500 */
     (function () {
       if (localStorage.getItem('ttl_auth_v1') !== '1') {
         window.location.replace('index.html');
@@ -376,19 +376,19 @@
 </div>
 
 <script>
-/* ══ 設定 ══ */
-/* ── 設定（從管理分頁讀取）── */
+/* \u2550\u2550 \u8A2D\u5B9A \u2550\u2550 */
+/* \u2500\u2500 \u8A2D\u5B9A\uFF08\u5F9E\u7BA1\u7406\u5206\u9801\u8B80\u53D6\uFF09\u2500\u2500 */
 var MGMT_ID    = '1PR9OR7BIGyTpcH8QSMRXkPhQTr4h3m0UK3gET29f19s';
-var MGMT_SHEET = '專案管理';
+var MGMT_SHEET = '\u5C08\u6848\u7BA1\u7406';
 var SHEET_ID   = (new URLSearchParams(location.search)).get('sheetId') || '1vUVbEG08JXZc05rAz4owM4_IFQnjJUGuDjBUqF-Q-Mg';
-var SHEET_NAME = '店家清冊';
-var SYNC_SHEET = '輔助';
+var SHEET_NAME = '\u5E97\u5BB6\u6E05\u518A';
+var SYNC_SHEET = '\u8F14\u52A9';
 var SYNC_CELL  = 'B1';
-var PROJ_NAME  = '獎勵達成看板';
+var PROJ_NAME  = '\u734E\u52F5\u9054\u6210\u770B\u677F';
 var QUARTERS   = { Q1:[1,2,3], Q2:[4,5,6], Q3:[7,8,9], Q4:[10,11,12] };
 
-/* ══ 固定營業處排序 ══ */
-var AREA_ORDER = ['北部','桃園','臺中','嘉義','臺南','高雄','花蓮'];
+/* \u2550\u2550 \u56FA\u5B9A\u71DF\u696D\u8655\u6392\u5E8F \u2550\u2550 */
+var AREA_ORDER = ['\u5317\u90E8','\u6843\u5712','\u81FA\u4E2D','\u5609\u7FA9','\u81FA\u5357','\u9AD8\u96C4','\u82B1\u84EE'];
 function sortAreas(arr){
   return arr.slice().sort(function(a,b){
     var ai=AREA_ORDER.indexOf(a), bi=AREA_ORDER.indexOf(b);
@@ -397,18 +397,18 @@ function sortAreas(arr){
   });
 }
 
-/* ══ 狀態 ══ */
+/* \u2550\u2550 \u72C0\u614B \u2550\u2550 */
 var allRows=[], CI={}, curQ='', fArea='', fOffice='', _syncTime='', _rankOpen=false, _runRaf=null;
 var curSort='eval';
 
-/* ══ 欄位索引 ══ */
+/* \u2550\u2550 \u6B04\u4F4D\u7D22\u5F15 \u2550\u2550 */
 function initCI(hdrs) {
   var MAP = {
-    year:'年份', month:'月份', quarter:'季度', area:'營業處名稱',
-    office:'營業所/課', staff:'主要訪員', type:'店家型態',
-    code:'店家代碼', store:'店家名稱', grade:'店家等級',
-    cur:'當期CTN', last:'去年CTN', inc:'增量箱數',
-    source:'資料來源', role:'身分別', exclude:'排除原由', mcheck:'月份數確認'
+    year:'\u5E74\u4EFD', month:'\u6708\u4EFD', quarter:'\u5B63\u5EA6', area:'\u71DF\u696D\u8655\u540D\u7A31',
+    office:'\u71DF\u696D\u6240/\u8AB2', staff:'\u4E3B\u8981\u8A2A\u54E1', type:'\u5E97\u5BB6\u578B\u614B',
+    code:'\u5E97\u5BB6\u4EE3\u78BC', store:'\u5E97\u5BB6\u540D\u7A31', grade:'\u5E97\u5BB6\u7B49\u7D1A',
+    cur:'\u7576\u671FCTN', last:'\u53BB\u5E74CTN', inc:'\u589E\u91CF\u7BB1\u6578',
+    source:'\u8CC7\u6599\u4F86\u6E90', role:'\u8EAB\u5206\u5225', exclude:'\u6392\u9664\u539F\u7531', mcheck:'\u6708\u4EFD\u6578\u78BA\u8A8D'
   };
   CI={};
   Object.keys(MAP).forEach(function(k){
@@ -422,13 +422,13 @@ function gn(row,key){ var v=parseFloat(gv(row,key)); return isNaN(v)?0:v; }
 function fmt1(v){ return Math.floor(v*10)/10; }
 function fmt2(v){ return Math.floor(v*100)/100; }
 function toFrac(v){
-  if(v===null||v===undefined) return '—';
+  if(v===null||v===undefined) return '\u2014';
   var rounded=Math.round(v*3)/3;
   var neg=rounded<0;
   var abs=Math.abs(rounded);
   var intPart=Math.floor(abs+0.001);
   var rem=Math.round((abs-intPart)*3);
-  var fracStr=rem===1?'⅓':rem===2?'⅔':'';
+  var fracStr=rem===1?'\u2153':rem===2?'\u2154':'';
   var sign=neg?'-':'';
   var intStr;
   if(intPart===0&&fracStr==='') intStr='0';
@@ -437,13 +437,13 @@ function toFrac(v){
   return '<span class="frac-wrap"><span class="frac-int">'+sign+intStr+'</span><span class="frac-rem">'+fracStr+'</span></span>';
 }
 function toFracEval(v){
-  if(v===null||v===undefined) return '—';
+  if(v===null||v===undefined) return '\u2014';
   return toFrac(v);
 }
 
-/* 分數轉純文字（用於複製） */
+/* \u5206\u6578\u8F49\u7D14\u6587\u5B57\uFF08\u7528\u65BC\u8907\u88FD\uFF09 */
 function fracToText(v){
-  if(v===null||v===undefined) return '—';
+  if(v===null||v===undefined) return '\u2014';
   var rounded=Math.round(v*3)/3;
   var neg=rounded<0;
   var abs=Math.abs(rounded);
@@ -457,7 +457,7 @@ function fracToText(v){
   return sign+String(intPart)+' '+fracStr;
 }
 
-/* ══ 載入 ══ */
+/* \u2550\u2550 \u8F09\u5165 \u2550\u2550 */
 function parseCellVal(c){
   if(!c||c.v==null) return '';
   var sv=String(c.v);
@@ -503,7 +503,7 @@ function loadData(){
     var s=ds.indexOf('{'),e=ds.lastIndexOf('}');
     var json=JSON.parse(ds.slice(s,e+1));
     var tbl=json.table;
-    if(!tbl||!tbl.rows||!tbl.rows.length) throw new Error('無資料');
+    if(!tbl||!tbl.rows||!tbl.rows.length) throw new Error('\u7121\u8CC7\u6599');
 
     var colLabels=(tbl.cols||[]).map(function(c){return(c.label||'').trim();});
     var allHeaders=(tbl.rows[0].c||[]).map(function(c,i){
@@ -528,11 +528,11 @@ function loadData(){
     updateRank();
   }).catch(function(err){
     hideLoading();
-    document.getElementById('main-area').innerHTML='<div class="empty-msg"><div class="ei">⚠️</div><div>載入失敗：'+err+'</div></div>';
+    document.getElementById('main-area').innerHTML='<div class="empty-msg"><div class="ei">\u26A0\uFE0F</div><div>\u8F09\u5165\u5931\u6557\uFF1A'+err+'</div></div>';
   });
 }
 
-/* ══ Q Chips ══ */
+/* \u2550\u2550 Q Chips \u2550\u2550 */
 function buildQChips(qs){
   var el=document.getElementById('q-chips');
   el.innerHTML='';
@@ -547,7 +547,7 @@ function buildQChips(qs){
   });
 }
 
-/* ══ NAVBAR ══ */
+/* \u2550\u2550 NAVBAR \u2550\u2550 */
 function buildNavbar(){
   var areas=new Set();
   allRows.forEach(function(r){var a=gv(r,'area');if(a)areas.add(a);});
@@ -558,7 +558,7 @@ function buildNavbar(){
 
   var allBtn=document.createElement('button');
   allBtn.className='nav-chip all'+(fArea===''?' on':'');
-  allBtn.textContent='全部';
+  allBtn.textContent='\u5168\u90E8';
   allBtn.onclick=function(){setArea('');};
   aRow.appendChild(allBtn);
 
@@ -584,7 +584,7 @@ function appendOfficeChips(aRow, area){
 
   var allOBtn=document.createElement('button');
   allOBtn.className='nav-chip nav-office-chip'+(fOffice===''?' on':'');
-  allOBtn.textContent='全所';
+  allOBtn.textContent='\u5168\u6240';
   allOBtn.onclick=function(){setOffice('');};
   aRow.appendChild(allOBtn);
 
@@ -609,7 +609,7 @@ function refreshNavHighlight(){
     b.classList.toggle('on',fArea==='');
   });
   document.querySelectorAll('.nav-office-chip').forEach(function(b){
-    b.classList.toggle('on',b.textContent===(fOffice||'全所'));
+    b.classList.toggle('on',b.textContent===(fOffice||'\u5168\u6240'));
   });
 }
 
@@ -627,7 +627,7 @@ function setOffice(o){
   render(); updateGbar();
 }
 
-/* ══ 計算 ══ */
+/* \u2550\u2550 \u8A08\u7B97 \u2550\u2550 */
 function calcPersonQuarter(rows,q){
   var months=QUARTERS[q]||[];
   var monthData={};
@@ -687,12 +687,12 @@ function getQMonths(q){
   return qm[q]||[];
 }
 
-/* ══ 人員資料 ══ */
+/* \u2550\u2550 \u4EBA\u54E1\u8CC7\u6599 \u2550\u2550 */
 function getPersonList(){
   var map={};
   var qMonths=curQ?getQMonths(curQ):null;
   allRows.forEach(function(r){
-    var staff=gv(r,'staff')||'（未知）';
+    var staff=gv(r,'staff')||'\uFF08\u672A\u77E5\uFF09';
     if(!map[staff]) map[staff]={rows:[],area:'',office:'',lastMonth:0,lastMonthAll:0};
     map[staff].rows.push(r);
     var m=parseInt(gv(r,'month'))||0;
@@ -717,7 +717,7 @@ function getPersonList(){
   return map;
 }
 
-/* ══ 排序切換 ══ */
+/* \u2550\u2550 \u6392\u5E8F\u5207\u63DB \u2550\u2550 */
 function setSort(s){
   curSort=s;
   document.querySelectorAll('.sort-btn').forEach(function(b){
@@ -726,7 +726,7 @@ function setSort(s){
   render();
 }
 
-/* ══ 渲染 ══ */
+/* \u2550\u2550 \u6E32\u67D3 \u2550\u2550 */
 function render(){
   var area=document.getElementById('main-area');
   area.innerHTML='';
@@ -735,7 +735,7 @@ function render(){
   var pMap=getPersonList();
   var staffList=Object.keys(pMap);
   if(!staffList.length){
-    area.innerHTML='<div class="empty-msg"><div class="ei">🔍</div><div>沒有符合條件的資料</div></div>';
+    area.innerHTML='<div class="empty-msg"><div class="ei">\uD83D\uDD0D</div><div>\u6C92\u6709\u7B26\u5408\u689D\u4EF6\u7684\u8CC7\u6599</div></div>';
     return;
   }
 
@@ -756,7 +756,7 @@ function render(){
 
   cards=cards.filter(function(c){return c.qData.evalMonths.length>0;});
   if(!cards.length){
-    area.innerHTML='<div class="empty-msg"><div class="ei">🔍</div><div>沒有符合條件的資料</div></div>';
+    area.innerHTML='<div class="empty-msg"><div class="ei">\uD83D\uDD0D</div><div>\u6C92\u6709\u7B26\u5408\u689D\u4EF6\u7684\u8CC7\u6599</div></div>';
     return;
   }
 
@@ -790,12 +790,12 @@ function render(){
     if(val>0) posSum+=val;
   });
   var countEl=document.getElementById('gb-count');
-  countEl.innerHTML='顯示 <b>'+cards.length+'</b> 人&emsp;🎁 預計核發 <b style="color:var(--pos)">+'+posSum+'</b> 箱';
+  countEl.innerHTML='\u986F\u793A <b>'+cards.length+'</b> \u4EBA&emsp;\uD83C\uDF81 \u9810\u8A08\u6838\u767C <b style="color:var(--pos)">+'+posSum+'</b> \u7BB1';
 
   updateRank(pMap);
 }
 
-var MNAMES=['','1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+var MNAMES=['','1\u6708','2\u6708','3\u6708','4\u6708','5\u6708','6\u6708','7\u6708','8\u6708','9\u6708','10\u6708','11\u6708','12\u6708'];
 
 function makeCard(c){
   var q=curQ||'', qd=c.qData;
@@ -805,16 +805,16 @@ function makeCard(c){
 
   var bigNum, teCls;
   if(em<2){
-    bigNum='—'; teCls='nil';
+    bigNum='\u2014'; teCls='nil';
   } else {
-    if(ter===null){ bigNum='—'; teCls='nil'; }
+    if(ter===null){ bigNum='\u2014'; teCls='nil'; }
     else if(ter>0){ bigNum='+'+Math.ceil(fmt1(ter)); teCls='pos'; }
     else if(ter<0){ bigNum=String(Math.floor(fmt1(ter))); teCls='neg'; }
     else { bigNum='0'; teCls='nil'; }
   }
 
   var vm=qd.validMonths.length;
-  var validTag=vm>=2?'<span class="pc-valid-tag ok">✅ '+vm+'/2</span>':'<span class="pc-valid-tag ng">⚠️ '+vm+'/2</span>';
+  var validTag=vm>=2?'<span class="pc-valid-tag ok">\u2705 '+vm+'/2</span>':'<span class="pc-valid-tag ng">\u26A0\uFE0F '+vm+'/2</span>';
 
   var rowsHtml=qd.months.map(function(m){
     var d=qd.monthData[m];
@@ -823,14 +823,14 @@ function makeCard(c){
     var isForeign=(monthA&&qd.personArea&&monthA!==qd.personArea)||(monthO&&qd.personOffice&&monthO!==qd.personOffice);
     var foreignLabel=monthA+(monthO?(' '+monthO):'');
     var trCls=isForeign?' class="foreign-month"':'';
-    var mLabel=isForeign?MNAMES[m]+'<span class="foreign-tag" title="'+foreignLabel+'">＊</span>':MNAMES[m];
-    if(!d.hasData) return '<tr'+trCls+'><td>'+mLabel+'</td><td class="ctn-stores">—</td><td class="ctn-cur">—</td><td class="ctn-tgt">—</td><td class="ctn-eval nil">—</td></tr>';
+    var mLabel=isForeign?MNAMES[m]+'<span class="foreign-tag" title="'+foreignLabel+'">\uFF0A</span>':MNAMES[m];
+    if(!d.hasData) return '<tr'+trCls+'><td>'+mLabel+'</td><td class="ctn-stores">\u2014</td><td class="ctn-cur">\u2014</td><td class="ctn-tgt">\u2014</td><td class="ctn-eval nil">\u2014</td></tr>';
     var ev=d.eval, ecls=ev>0?'pos':ev<0?'neg':'nil';
     return '<tr'+trCls+'><td>'+mLabel+'</td><td class="ctn-stores">'+d.stores+'</td><td class="ctn-cur">'+d.cur+'</td><td class="ctn-tgt">'+toFrac(d.tgt)+'</td><td class="ctn-eval '+ecls+'">'+toFracEval(d.eval)+'</td></tr>';
   }).join('');
 
   var teDisplayCls=te===null?'nil':(te>0?'pos':te<0?'neg':'nil');
-  var totalRow='<tr class="total-row"><td>合計</td><td class="ctn-stores">'+qd.totalStores+'</td><td class="ctn-cur">'+qd.totalCur+'</td><td class="ctn-tgt">'+toFrac(qd.totalTgt)+'</td><td class="ctn-eval '+teDisplayCls+'">'+toFracEval(te)+'</td></tr>';
+  var totalRow='<tr class="total-row"><td>\u5408\u8A08</td><td class="ctn-stores">'+qd.totalStores+'</td><td class="ctn-cur">'+qd.totalCur+'</td><td class="ctn-tgt">'+toFrac(qd.totalTgt)+'</td><td class="ctn-eval '+teDisplayCls+'">'+toFracEval(te)+'</td></tr>';
 
   var el=document.createElement('div');
   el.className='person-card';
@@ -838,18 +838,18 @@ function makeCard(c){
     '<div class="pc-header">' +
       '<div class="pc-title-row">' +
         '<span class="pc-name">'+esc(c.staff)+'</span>' +
-        '<span class="pc-unit">'+esc(c.area)+'·'+esc(c.office)+'</span>' +
+        '<span class="pc-unit">'+esc(c.area)+'\u00B7'+esc(c.office)+'</span>' +
         validTag +
         '<span class="pc-title-spacer"></span>' +
-        '<span class="pc-q-label">'+q+' 品評CTN</span>' +
+        '<span class="pc-q-label">'+q+' \u54C1\u8A55CTN</span>' +
         '<span class="pc-total-num '+teCls+'">'+bigNum+'</span>' +
       '</div>' +
     '</div>' +
     '<table class="pc-table">' +
-      '<thead><tr><th>月份</th><th>家數</th><th>當期CTN</th><th>目標CTN</th><th>品評CTN</th></tr></thead>' +
+      '<thead><tr><th>\u6708\u4EFD</th><th>\u5BB6\u6578</th><th>\u7576\u671FCTN</th><th>\u76EE\u6A19CTN</th><th>\u54C1\u8A55CTN</th></tr></thead>' +
       '<tbody>'+rowsHtml+totalRow+'</tbody>' +
     '</table>' +
-    '<div class="pc-detail-btn-row"><button class="pc-open-detail-btn" onclick="openDetailDialog(event,this)">📋 店家明細</button></div>';
+    '<div class="pc-detail-btn-row"><button class="pc-open-detail-btn" onclick="openDetailDialog(event,this)">\uD83D\uDCCB \u5E97\u5BB6\u660E\u7D30</button></div>';
 
   el.querySelector('.pc-open-detail-btn').dataset.staff=c.staff;
   el.querySelector('.pc-open-detail-btn').dataset.area=c.area;
@@ -860,10 +860,10 @@ function makeCard(c){
 }
 
 function buildDetailTable(qd,q){
-  if(!qd.storeRows.length) return '<div style="padding:10px 13px;font-size:10px;color:var(--sub);">無明細資料</div>';
+  if(!qd.storeRows.length) return '<div style="padding:10px 13px;font-size:10px;color:var(--sub);">\u7121\u660E\u7D30\u8CC7\u6599</div>';
   var months=qd.months;
-  var thCols='<th>店碼</th><th>店名</th>';
-  months.forEach(function(m){ thCols+='<th>'+MNAMES[m]+'<br>當期</th><th>'+MNAMES[m]+'<br>目標</th><th>'+MNAMES[m]+'<br>品評</th>'; });
+  var thCols='<th>\u5E97\u78BC</th><th>\u5E97\u540D</th>';
+  months.forEach(function(m){ thCols+='<th>'+MNAMES[m]+'<br>\u7576\u671F</th><th>'+MNAMES[m]+'<br>\u76EE\u6A19</th><th>'+MNAMES[m]+'<br>\u54C1\u8A55</th>'; });
 
   var storeIndex={};
   qd.storeRows.forEach(function(s){
@@ -877,7 +877,7 @@ function buildDetailTable(qd,q){
     var rowHtml='<td>'+esc(s.code)+'</td><td>'+esc(s.name)+'</td>';
     months.forEach(function(m){
       var md=s.byMonth[m];
-      if(!md){rowHtml+='<td class="d-nil">—</td><td class="d-nil">—</td><td class="d-nil">—</td>';return;}
+      if(!md){rowHtml+='<td class="d-nil">\u2014</td><td class="d-nil">\u2014</td><td class="d-nil">\u2014</td>';return;}
       var ev=md.eval,ecls=ev>0?'d-pos':ev<0?'d-neg':'d-nil';
       rowHtml+='<td class="d-cur">'+md.cur+'</td><td class="d-tgt">'+toFrac(md.tgt)+'</td><td class="'+ecls+'">'+toFracEval(md.eval)+'</td>';
     });
@@ -887,7 +887,7 @@ function buildDetailTable(qd,q){
   return '<div class="detail-scroll"><table class="detail-tbl"><thead><tr>'+thCols+'</tr></thead><tbody>'+tbodyHtml+'</tbody></table></div>';
 }
 
-/* ══ Dialog 店家明細 ══ */
+/* \u2550\u2550 Dialog \u5E97\u5BB6\u660E\u7D30 \u2550\u2550 */
 function openDetailDialog(e,btn){
   e.stopPropagation();
   var card=btn.closest('.person-card');
@@ -899,9 +899,9 @@ function openDetailDialog(e,btn){
   var dlg=document.getElementById('detail-dialog');
   var dlgTitle=document.getElementById('dlg-title');
   var dlgBody=document.getElementById('dlg-body');
-  dlgTitle.textContent=staff+'  店家明細  '+curQ+'  總家數 '+totalStores;
+  dlgTitle.textContent=staff+'  \u5E97\u5BB6\u660E\u7D30  '+curQ+'  \u7E3D\u5BB6\u6578 '+totalStores;
   dlgBody.innerHTML=buildDetailTable(qd,curQ);
-  /* 重置按鈕狀態 */
+  /* \u91CD\u7F6E\u6309\u9215\u72C0\u614B */
   ['btn-copy-line','btn-copy-excel','btn-screenshot'].forEach(function(id){
     var b=document.getElementById(id);
     if(b){ b.classList.remove('done','loading'); }
@@ -916,7 +916,7 @@ function closeDetailDialog(){
 }
 document.addEventListener('keydown',function(e){if(e.key==='Escape')closeDetailDialog();});
 
-/* ══ 複製共用工具 ══ */
+/* \u2550\u2550 \u8907\u88FD\u5171\u7528\u5DE5\u5177 \u2550\u2550 */
 function _flashBtn(btn, label){
   var orig=btn.textContent;
   btn.textContent=label;
@@ -935,26 +935,26 @@ function fallbackCopy(text){
 function _doCopy(text, btn){
   if(navigator.clipboard&&navigator.clipboard.writeText){
     navigator.clipboard.writeText(text)
-      .then(function(){ _flashBtn(btn,'✅ 已複製！'); })
-      .catch(function(){ fallbackCopy(text); _flashBtn(btn,'✅ 已複製！'); });
+      .then(function(){ _flashBtn(btn,'\u2705 \u5DF2\u8907\u88FD\uFF01'); })
+      .catch(function(){ fallbackCopy(text); _flashBtn(btn,'\u2705 \u5DF2\u8907\u88FD\uFF01'); });
   } else {
-    fallbackCopy(text); _flashBtn(btn,'✅ 已複製！');
+    fallbackCopy(text); _flashBtn(btn,'\u2705 \u5DF2\u8907\u88FD\uFF01');
   }
 }
 
-/* ══ 分數轉文字工具 ══ */
+/* \u2550\u2550 \u5206\u6578\u8F49\u6587\u5B57\u5DE5\u5177 \u2550\u2550 */
 function _fracVal(v){
-  /* 回傳數值（用於 Excel 小數） */
+  /* \u56DE\u50B3\u6578\u503C\uFF08\u7528\u65BC Excel \u5C0F\u6578\uFF09 */
   return Math.round(v*3)/3;
 }
 function _fracText(v){
-  /* 回傳人讀格式，使用 Unicode 分數字元 ⅓ ⅔，用於 LINE */
-  if(v===null||v===undefined) return '—';
+  /* \u56DE\u50B3\u4EBA\u8B80\u683C\u5F0F\uFF0C\u4F7F\u7528 Unicode \u5206\u6578\u5B57\u5143 \u2153 \u2154\uFF0C\u7528\u65BC LINE */
+  if(v===null||v===undefined) return '\u2014';
   var rounded=Math.round(v*3)/3;
   var neg=rounded<0; var abs=Math.abs(rounded);
   var intPart=Math.floor(abs+0.001);
   var rem=Math.round((abs-intPart)*3);
-  var fracStr=rem===1?'⅓':rem===2?'⅔':'';
+  var fracStr=rem===1?'\u2153':rem===2?'\u2154':'';
   var sign=neg?'-':'';
   if(intPart===0&&fracStr==='') return '0';
   if(intPart===0) return sign+fracStr;
@@ -962,20 +962,20 @@ function _fracText(v){
   return sign+String(intPart)+fracStr;
 }
 
-/* ══ 從目前 dialog 的 _currentQd 取資料 ══ */
+/* \u2550\u2550 \u5F9E\u76EE\u524D dialog \u7684 _currentQd \u53D6\u8CC7\u6599 \u2550\u2550 */
 var _currentQd=null, _currentStaff='';
 
-/* ══ LINE 摘要格式複製 ══ */
+/* \u2550\u2550 LINE \u6458\u8981\u683C\u5F0F\u8907\u88FD \u2550\u2550 */
 function copyLine(){
   var btn=document.getElementById('btn-copy-line');
-  if(!_currentQd){ _flashBtn(btn,'⚠️ 無資料'); return; }
+  if(!_currentQd){ _flashBtn(btn,'\u26A0\uFE0F \u7121\u8CC7\u6599'); return; }
   var qd=_currentQd, months=qd.months;
   var lines=[];
-  lines.push('【'+_currentStaff+'】店家明細 '+curQ);
-  lines.push('總家數 '+qd.totalStores+' 家');
-  lines.push('─────────────────');
+  lines.push('\u3010'+_currentStaff+'\u3011\u5E97\u5BB6\u660E\u7D30 '+curQ);
+  lines.push('\u7E3D\u5BB6\u6578 '+qd.totalStores+' \u5BB6');
+  lines.push('\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');
 
-  /* 建立 storeIndex（與 buildDetailTable 相同邏輯）*/
+  /* \u5EFA\u7ACB storeIndex\uFF08\u8207 buildDetailTable \u76F8\u540C\u908F\u8F2F\uFF09*/
   var storeIndex={};
   qd.storeRows.forEach(function(s){
     var k=s.code||s.name;
@@ -984,41 +984,41 @@ function copyLine(){
   });
 
   Object.values(storeIndex).forEach(function(s){
-    lines.push('▸ '+s.name+(s.code?' ('+s.code+')':''));
+    lines.push('\u25B8 '+s.name+(s.code?' ('+s.code+')':''));
     months.forEach(function(m){
       var md=s.byMonth[m];
       if(!md) return;
       var evalStr=_fracText(md.eval);
       var sign=md.eval>0?'+':'';
-      lines.push('  '+MNAMES[m]+'：當期 '+md.cur+' / 目標 '+_fracText(md.tgt)+' / 品評 '+sign+evalStr);
+      lines.push('  '+MNAMES[m]+'\uFF1A\u7576\u671F '+md.cur+' / \u76EE\u6A19 '+_fracText(md.tgt)+' / \u54C1\u8A55 '+sign+evalStr);
     });
   });
 
-  lines.push('─────────────────');
+  lines.push('\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');
   var totalEvalStr=_fracText(qd.totalEval);
   var totalSign=qd.totalEval>0?'+':'';
-  lines.push('合計：當期 '+qd.totalCur+' / 目標 '+_fracText(qd.totalTgt)+' / 品評 '+totalSign+totalEvalStr);
+  lines.push('\u5408\u8A08\uFF1A\u7576\u671F '+qd.totalCur+' / \u76EE\u6A19 '+_fracText(qd.totalTgt)+' / \u54C1\u8A55 '+totalSign+totalEvalStr);
 
   _doCopy(lines.join('\n'), btn);
 }
 
-/* ══ Excel 格式複製（小數，Tab 分隔）══ */
+/* \u2550\u2550 Excel \u683C\u5F0F\u8907\u88FD\uFF08\u5C0F\u6578\uFF0CTab \u5206\u9694\uFF09\u2550\u2550 */
 function copyExcel(){
   var btn=document.getElementById('btn-copy-excel');
   var body=document.getElementById('dlg-body');
   var tbl=body.querySelector('.detail-tbl');
-  if(!tbl||!_currentQd){ _flashBtn(btn,'⚠️ 無資料'); return; }
+  if(!tbl||!_currentQd){ _flashBtn(btn,'\u26A0\uFE0F \u7121\u8CC7\u6599'); return; }
 
   var lines=[];
   var titleEl=document.getElementById('dlg-title');
   lines.push(titleEl?titleEl.textContent.trim():'');
   lines.push('');
 
-  /* 表頭 */
+  /* \u8868\u982D */
   var ths=tbl.querySelectorAll('thead tr th');
   lines.push(Array.from(ths).map(function(th){ return th.textContent.replace(/\s+/g,' ').trim(); }).join('\t'));
 
-  /* 資料列：分數欄位用數值，其餘原文 */
+  /* \u8CC7\u6599\u5217\uFF1A\u5206\u6578\u6B04\u4F4D\u7528\u6578\u503C\uFF0C\u5176\u9918\u539F\u6587 */
   var qd=_currentQd, months=qd.months;
   var storeIndex={};
   qd.storeRows.forEach(function(s){
@@ -1032,7 +1032,7 @@ function copyExcel(){
     months.forEach(function(m){
       var md=s.byMonth[m];
       if(!md){ cells.push('','',''); return; }
-      /* 當期是整數，目標/品評轉小數（到2位，向下取捨） */
+      /* \u7576\u671F\u662F\u6574\u6578\uFF0C\u76EE\u6A19/\u54C1\u8A55\u8F49\u5C0F\u6578\uFF08\u52302\u4F4D\uFF0C\u5411\u4E0B\u53D6\u6368\uFF09 */
       var tgtNum=Math.floor(_fracVal(md.tgt)*100)/100;
       var evNum=Math.floor(_fracVal(md.eval)*100)/100;
       cells.push(md.cur, tgtNum, evNum);
@@ -1043,16 +1043,16 @@ function copyExcel(){
   _doCopy(lines.join('\n'), btn);
 }
 
-/* ══ 截圖（複製到剪貼簿）══ */
+/* \u2550\u2550 \u622A\u5716\uFF08\u8907\u88FD\u5230\u526A\u8CBC\u7C3F\uFF09\u2550\u2550 */
 function takeScreenshot(){
   var btn=document.getElementById('btn-screenshot');
   btn.classList.add('loading');
-  btn.textContent='⏳ 截圖中...';
+  btn.textContent='\u23F3 \u622A\u5716\u4E2D...';
 
   function doCapture(){
     var body=document.getElementById('dlg-body');
     var titleEl=document.getElementById('dlg-title');
-    var titleText=titleEl?titleEl.textContent.trim():'明細';
+    var titleText=titleEl?titleEl.textContent.trim():'\u660E\u7D30';
 
     var wrapper=document.createElement('div');
     wrapper.style.cssText='background:#fff;padding:20px 24px;font-family:Microsoft JhengHei,Noto Sans TC,sans-serif;display:inline-block;min-width:600px;position:fixed;top:-9999px;left:-9999px;';
@@ -1092,7 +1092,7 @@ function takeScreenshot(){
 
     var ts=document.createElement('div');
     ts.style.cssText='font-size:10px;color:#bbb;margin-top:12px;text-align:right;';
-    ts.textContent='全聯18天推廣進度看板　'+new Date().toLocaleString('zh-TW');
+    ts.textContent='\u5168\u806F18\u5929\u63A8\u5EE3\u9032\u5EA6\u770B\u677F\u3000'+new Date().toLocaleString('zh-TW');
     wrapper.appendChild(ts);
 
     document.body.appendChild(wrapper);
@@ -1103,16 +1103,16 @@ function takeScreenshot(){
     }).then(function(canvas){
       document.body.removeChild(wrapper);
 
-      /* 優先嘗試複製到剪貼簿 */
+      /* \u512A\u5148\u5617\u8A66\u8907\u88FD\u5230\u526A\u8CBC\u7C3F */
       if(navigator.clipboard&&window.ClipboardItem){
         canvas.toBlob(function(blob){
           try{
             var item=new ClipboardItem({'image/png':blob});
             navigator.clipboard.write([item]).then(function(){
               btn.classList.remove('loading');
-              _flashBtn(btn,'✅ 已複製圖片！');
+              _flashBtn(btn,'\u2705 \u5DF2\u8907\u88FD\u5716\u7247\uFF01');
             }).catch(function(){
-              /* 剪貼簿失敗 → fallback 下載 */
+              /* \u526A\u8CBC\u7C3F\u5931\u6557 \u2192 fallback \u4E0B\u8F09 */
               _downloadCanvas(canvas, titleText, btn);
             });
           }catch(e){
@@ -1120,14 +1120,14 @@ function takeScreenshot(){
           }
         },'image/png');
       } else {
-        /* 不支援 ClipboardItem → 下載 */
+        /* \u4E0D\u652F\u63F4 ClipboardItem \u2192 \u4E0B\u8F09 */
         _downloadCanvas(canvas, titleText, btn);
       }
     }).catch(function(err){
       document.body.removeChild(wrapper);
       btn.classList.remove('loading');
-      btn.textContent='📸 截圖';
-      alert('截圖失敗：'+err);
+      btn.textContent='\uD83D\uDCF8 \u622A\u5716';
+      alert('\u622A\u5716\u5931\u6557\uFF1A'+err);
     });
   }
 
@@ -1139,8 +1139,8 @@ function takeScreenshot(){
     s.onload=doCapture;
     s.onerror=function(){
       btn.classList.remove('loading');
-      btn.textContent='📸 截圖';
-      alert('html2canvas 載入失敗，請確認網路連線');
+      btn.textContent='\uD83D\uDCF8 \u622A\u5716';
+      alert('html2canvas \u8F09\u5165\u5931\u6557\uFF0C\u8ACB\u78BA\u8A8D\u7DB2\u8DEF\u9023\u7DDA');
     };
     document.head.appendChild(s);
   }
@@ -1152,10 +1152,10 @@ function _downloadCanvas(canvas, titleText, btn){
   link.href=canvas.toDataURL('image/png');
   link.click();
   btn.classList.remove('loading');
-  _flashBtn(btn,'✅ 已下載！');
+  _flashBtn(btn,'\u2705 \u5DF2\u4E0B\u8F09\uFF01');
 }
 
-/* ══ 排行榜 ══ */
+/* \u2550\u2550 \u6392\u884C\u699C \u2550\u2550 */
 function updateRank(pMap){
   var content=document.getElementById('rd-content');
   content.innerHTML='';
@@ -1163,7 +1163,7 @@ function updateRank(pMap){
   var staffMap=pMap||{};
   if(!pMap){
     allRows.forEach(function(r){
-      var staff=gv(r,'staff')||'（未知）';
+      var staff=gv(r,'staff')||'\uFF08\u672A\u77E5\uFF09';
       if(!staffMap[staff]) staffMap[staff]={rows:[],area:'',office:''};
       staffMap[staff].rows.push(r);
       if(!staffMap[staff].area) staffMap[staff].area=gv(r,'area');
@@ -1173,7 +1173,7 @@ function updateRank(pMap){
   var ranked=Object.keys(staffMap).map(function(staff){
     var qd=calcPersonQuarter(staffMap[staff].rows,curQ);
     var ter=qd.totalEvalRaw, em=qd.evalMonths.length;
-    var dispVal=null, dispStr='—';
+    var dispVal=null, dispStr='\u2014';
     if(em>=2&&ter!==null){
       if(ter>0){ dispVal=Math.ceil(fmt1(ter)); dispStr='+'+dispVal; }
       else if(ter<0){ dispVal=Math.floor(fmt1(ter)); dispStr=String(dispVal); }
@@ -1183,14 +1183,14 @@ function updateRank(pMap){
   }).filter(function(x){return x.dispVal!==null;}).sort(function(a,b){return b.dispVal-a.dispVal;});
 
   if(!ranked.length){
-    content.innerHTML='<div style="padding:16px;font-size:13px;color:var(--sub);text-align:center;">尚無有效品評資料</div>';
+    content.innerHTML='<div style="padding:16px;font-size:13px;color:var(--sub);text-align:center;">\u5C1A\u7121\u6709\u6548\u54C1\u8A55\u8CC7\u6599</div>';
     return;
   }
   var sec=document.createElement('div');
   sec.className='rd-section';
   var title=document.createElement('div');
   title.className='rd-sec-title';
-  title.textContent=curQ+' 品評排行';
+  title.textContent=curQ+' \u54C1\u8A55\u6392\u884C';
   sec.appendChild(title);
   ranked.slice(0,20).forEach(function(x,i){
     var item=document.createElement('div');
@@ -1200,7 +1200,7 @@ function updateRank(pMap){
     noEl.textContent=String(i+1);
     var info=document.createElement('div');
     info.className='rank-info';
-    info.innerHTML='<div class="rank-name">'+esc(x.staff)+'</div><div class="rank-sub">'+esc(x.area)+' · '+esc(x.office)+'</div>';
+    info.innerHTML='<div class="rank-name">'+esc(x.staff)+'</div><div class="rank-sub">'+esc(x.area)+' \u00B7 '+esc(x.office)+'</div>';
     var val=document.createElement('div');
     val.className='rank-val '+(x.dispVal>0?'pos':x.dispVal<0?'neg':'nil');
     val.textContent=x.dispStr;
@@ -1210,26 +1210,26 @@ function updateRank(pMap){
   content.appendChild(sec);
 }
 
-/* ══ Rank toggle ══ */
+/* \u2550\u2550 Rank toggle \u2550\u2550 */
 function toggleRank(){
   _rankOpen=!_rankOpen;
   var dr=document.getElementById('rank-drawer');
   var icon=document.querySelector('.rd-toggle-icon');
   dr.classList.toggle('collapsed',!_rankOpen);
-  if(icon) icon.textContent=_rankOpen?'◀':'▶';
+  if(icon) icon.textContent=_rankOpen?'\u25C0':'\u25B6';
 }
 
-/* ══ GBAR ══ */
+/* \u2550\u2550 GBAR \u2550\u2550 */
 function updateGbar(){
   var el=document.getElementById('gb-sync');
-  el.textContent=_syncTime?'資料同步：'+_syncTime:'';
+  el.textContent=_syncTime?'\u8CC7\u6599\u540C\u6B65\uFF1A'+_syncTime:'';
 }
 
-/* ══ XLSX ══ */
+/* \u2550\u2550 XLSX \u2550\u2550 */
 function downloadXLSX(){
-  if(!window.XLSX){alert('XLSX 套件尚未載入');return;}
+  if(!window.XLSX){alert('XLSX \u5957\u4EF6\u5C1A\u672A\u8F09\u5165');return;}
   var pMap=getPersonList();
-  var rows=[['人員','營業處','營業所','季度','月份','當期CTN','目標CTN','品評CTN','有效月份數']];
+  var rows=[['\u4EBA\u54E1','\u71DF\u696D\u8655','\u71DF\u696D\u6240','\u5B63\u5EA6','\u6708\u4EFD','\u7576\u671FCTN','\u76EE\u6A19CTN','\u54C1\u8A55CTN','\u6709\u6548\u6708\u4EFD\u6578']];
   Object.keys(pMap).forEach(function(staff){
     var info=pMap[staff];
     var allStaffRows=allRows.filter(function(r){
@@ -1245,14 +1245,14 @@ function downloadXLSX(){
   });
   var wb=XLSX.utils.book_new();
   var ws=XLSX.utils.aoa_to_sheet(rows);
-  XLSX.utils.book_append_sheet(wb,ws,curQ||'品評箱數');
-  XLSX.writeFile(wb,'全聯18天_'+(curQ||'')+'.xlsx');
+  XLSX.utils.book_append_sheet(wb,ws,curQ||'\u54C1\u8A55\u7BB1\u6578');
+  XLSX.writeFile(wb,'\u5168\u806F18\u5929_'+(curQ||'')+'.xlsx');
 }
 
-/* ══ 工具 ══ */
+/* \u2550\u2550 \u5DE5\u5177 \u2550\u2550 */
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
-/* ══ Loading ══ */
+/* \u2550\u2550 Loading \u2550\u2550 */
 function showLoading(){
   var ls=document.getElementById('loading');
   ls.style.display='flex';ls.style.opacity='1';
@@ -1279,7 +1279,7 @@ function showLoading(){
     var sf=frame%8<4?f0:f1;
     for(var row=0;row<8;row++) for(var col=0;col<8;col++) if(sf[row][col]) ctx.fillRect(W/2-4*S+col*S,H-S-8*S-4+row*S,S-1,S-1);
     frame++;
-    if(frame%20===0){dots=(dots+1)%4;if(txtEl)txtEl.textContent='載入資料中'+'.'.repeat(dots);}
+    if(frame%20===0){dots=(dots+1)%4;if(txtEl)txtEl.textContent='\u8F09\u5165\u8CC7\u6599\u4E2D'+'.'.repeat(dots);}
     _runRaf=requestAnimationFrame(draw);
   }
   draw();
@@ -1291,9 +1291,9 @@ function hideLoading(){
   setTimeout(function(){ls.style.display='none';ls.style.transition='';},420);
 }
 
-/* ══ 啟動 ══ */
+/* \u2550\u2550 \u555F\u52D5 \u2550\u2550 */
 document.addEventListener('DOMContentLoaded',function(){
-  /* 從管理分頁取得此專案設定，再載入資料 */
+  /* \u5F9E\u7BA1\u7406\u5206\u9801\u53D6\u5F97\u6B64\u5C08\u6848\u8A2D\u5B9A\uFF0C\u518D\u8F09\u5165\u8CC7\u6599 */
   var url = 'https://docs.google.com/spreadsheets/d/'+MGMT_ID+
     '/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(MGMT_SHEET);
   fetch(url).then(function(r){return r.text();})
