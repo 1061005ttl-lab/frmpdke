@@ -144,7 +144,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 }
 .grid {
   display:grid;
-  grid-template-columns:repeat(auto-fit, minmax(280px,1fr));
+  grid-template-columns:repeat(auto-fit, minmax(360px,1fr));
   gap:12px;
   margin-bottom:28px;
 }
@@ -161,6 +161,12 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   overflow:visible;
 }
 .card:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,0,0,.10); }
+.card-overall {
+  border-color:var(--primary);
+  background:var(--primary-bg);
+}
+.card-overall .card-top { color:var(--primary); font-weight:700; }
+.card-overall .card-name { color:var(--primary); }
 .card-top { font-size:12px; color:var(--sub); margin-bottom:6px; }
 .card-name { font-size:18px; font-weight:700; margin-bottom:16px; }
 .cov-row { display:flex; align-items:baseline; gap:4px; }
@@ -590,28 +596,37 @@ function render() {
   var stage=document.getElementById('stage');
   stage.innerHTML='';
   var depth=drillStack.length, rows=getCurrentRows();
-  if     (depth===0) renderLevel(stage,rows,COL_AREA,  'area',  '\u71DF\u696D\u8655');
-  else if(depth===1) renderLevel(stage,rows,COL_OFFICE,'office','\u71DF\u696D\u6240/\u8AB2');
-  else if(depth===2) renderLevel(stage,rows,COL_STAFF, 'staff', '\u696D\u52D9\u4EBA\u54E1');
+  /* 整體卡片名稱：第一層「全台」，第二層取上層營業處名，第三層取上層營業所名 */
+  var overallName;
+  if(depth===0) overallName='\u5168\u53F0';
+  else overallName=drillStack[drillStack.length-1].key;
+  if     (depth===0) renderLevel(stage,rows,COL_AREA,  'area',  '\u71DF\u696D\u8655', overallName);
+  else if(depth===1) renderLevel(stage,rows,COL_OFFICE,'office','\u71DF\u696D\u6240/\u8AB2', overallName);
+  else if(depth===2) renderLevel(stage,rows,COL_STAFF, 'staff', '\u696D\u52D9\u4EBA\u54E1', overallName);
   else stage.innerHTML='<div class="empty">\u5DF2\u5230\u6700\u7D30\u5C64\u7D1A</div>';
 }
 
-function renderLevel(stage, rows, col, levelKey, labelText) {
+function renderLevel(stage, rows, col, levelKey, labelText, overallName) {
   var groups=getNextGroups(rows,col), keys=Object.keys(groups);
   if(!keys.length){ stage.innerHTML='<div class="empty">\u7121\u8CC7\u6599</div>'; return; }
   var div=document.createElement('div');
   div.innerHTML='<div class="level-label">'+labelText+'</div>';
   var grid=document.createElement('div'); grid.className='grid';
-  keys.forEach(function(k){ grid.appendChild(buildCard(k,labelText,calcGroup(groups[k]),levelKey,groups[k])); });
+  /* 插入整體卡片（不 drill，點即開 dialog 顯示該層全部店） */
+  var overallCard=buildCard(overallName, labelText, calcGroup(rows), levelKey, rows, true);
+  grid.appendChild(overallCard);
+  keys.forEach(function(k){ grid.appendChild(buildCard(k,labelText,calcGroup(groups[k]),levelKey,groups[k],false)); });
   div.appendChild(grid); stage.appendChild(div);
 }
 
 /* \u2500\u2500 \u5361\u7247 \u2500\u2500 */
-function buildCard(name, labelText, stat, levelKey, rows) {
-  var card=document.createElement('div'); card.className='card';
-  var ttId='tt-'+name.replace(/[^a-zA-Z0-9]/g,'_')+'-'+levelKey;
+function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
+  var card=document.createElement('div');
+  card.className='card'+(isOverall?' card-overall':'');
+  var ttId='tt-'+name.replace(/[^a-zA-Z0-9]/g,'_')+'-'+levelKey+(isOverall?'-all':'');
+  var topLabel=isOverall?('\u6574\u9AD4\u6982\u6CC1'):labelText;
   card.innerHTML=
-    '<div class="card-top">'+labelText+'</div>'+
+    '<div class="card-top">'+topLabel+'</div>'+
     '<div class="card-name">'+esc(name)+'</div>'+
     '<div class="stat-row">'+
       '<div class="stat-item"><div class="stat-label">\u7E3D\u5BB6\u6578</div><div class="stat-val">'+stat.total+'</div></div>'+
@@ -635,6 +650,8 @@ function buildCard(name, labelText, stat, levelKey, rows) {
   });
   card.addEventListener('click',function(e){
     if(e.target.closest('#si-'+ttId)||e.target.closest('#dbtn-'+ttId)) return;
+    /* 整體卡片：永遠開 dialog，不 drill down */
+    if(isOverall){ openDialog(name,levelKey,rows); return; }
     if(levelKey==='staff') openDialog(name,levelKey,rows);
     else drillDown(levelKey,name);
   });
