@@ -36,8 +36,9 @@
   → E/F 欄指定從哪張工作表的哪個儲存格讀取「最後同步時間」，顯示在卡片底部。
 
 【OFF 專案為何還顯示卡片】
-  設計用途：讓管理者確認「這個專案建立過、現在已結束」，避免誤以為資料遺失。
-  如果不需要此功能，可在 renderPortal() 中刪除 off 區塊的整段邏輯。
+  OFF 只代表活動結束、資料不再更新，但歷史資料仍有檢視價值。
+  OFF 卡片灰化（視覺區隔）但仍可點擊，跳轉到對應看板查看歷史資料。
+  折疊在「已結束專案」底下，避免干擾進行中專案的操作。
 
 【看板類型與對應頁面（預設）】
   達成率型   → achievement_board.html  （以箱數/業績達成率為主）
@@ -159,8 +160,7 @@ body{background:var(--bg);color:var(--text);min-height:100vh;}
   content:'';position:absolute;top:0;left:0;right:0;height:3px;
   background:var(--accent,#8BA690);border-radius:var(--r) var(--r) 0 0;
 }
-.proj-card.off{opacity:.5;cursor:default;}
-.proj-card.off:hover{transform:none;box-shadow:none;}
+.proj-card.off{opacity:.55;}
 .badge{
   display:inline-block;font-size:10px;font-weight:700;
   padding:2px 8px;border-radius:5px;margin-bottom:8px;
@@ -355,7 +355,7 @@ function loadProjects(){
       _surveys={on:onList,off:offList};
       hideLoading();
       renderPortal();
-      fetchAllSyncTimes(onList);
+      fetchAllSyncTimes(onList.concat(offList));
     })
     .catch(function(){
       hideLoading();
@@ -411,11 +411,11 @@ function buildCard(proj,isOff){
   card.id='card-'+proj.id;
   card.style.cssText='--accent:'+sty.accent+';--badge-bg:'+sty.badgeBg+';--badge-fg:'+sty.badgeFg+';';
   card.innerHTML=
-    '<span class="badge">'+sty.icon+' '+esc(proj.boardType)+'</span>'+
+    '<span class="badge">'+sty.icon+' '+esc(proj.boardType)+(isOff?' · 已結束':'')+'</span>'+
     '<div class="proj-name">'+esc(proj.name)+'</div>'+
-    '<div class="proj-sync" id="sync-'+esc(proj.id)+'">'+(!isOff?'⏳ 讀取中…':'')+'</div>'+
-    (!isOff?'<span class="proj-arrow">›</span>':'');
-  if(!isOff) card.addEventListener('click',function(){ openProject(proj); });
+    '<div class="proj-sync" id="sync-'+esc(proj.id)+'">⏳ 讀取中…</div>'+
+    '<span class="proj-arrow">›</span>';
+  card.addEventListener('click',function(){ openProject(proj); });
   return card;
 }
 
