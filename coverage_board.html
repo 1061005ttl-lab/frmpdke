@@ -1,3 +1,48 @@
+<!--
+════════════════════════════════════════════════════════════
+  coverage_board.html  ─  覆蓋率型看板
+════════════════════════════════════════════════════════════
+
+【這個檔案在做什麼】
+  顯示「覆蓋率型」專案的店家陳列／上架覆蓋狀況。
+  支援多種欄位組合（有二位/已上架/未進貨…），
+  欄位定義由管理表「覆蓋率型專案管理」分頁動態載入，
+  不需修改此 HTML 即可支援不同專案。
+
+【啟動流程】
+  1. 從 URL 取得 sheetId
+  2. 讀「覆蓋率型專案管理」→ 取得本專案的桶設定（BUCKET_A/B/C、LABEL_B/C）
+  3. 讀「專案管理」→ 取得專案名稱、資料分頁、同步時間欄位
+  4. 讀專案試算表主資料 → 渲染
+
+【覆蓋率型專案管理分頁欄位（A～G）】
+  A 專案名        僅供辨識，建議與「專案管理」B欄一致
+  B 專案ID        Google Sheet ID，需與「專案管理」C欄一致
+  C 未知群組標題   通常填「未填寫」，目前僅供備註，程式以 C 欄第一欄為 COL_UNFILL
+  D 未知欄位      逗號分隔，第一欄為未填寫判斷欄（如：未填寫）
+  E 已有群組標題   顯示在 stat 卡上的標題（如：有二位、已上架）
+  F 已有欄位      逗號分隔，所有算「已有」的欄位（如：堆箱,端架,冰箱 或 原貨架,冰箱）
+  G 未有群組標題   顯示在 stat 卡上的標題（如：未進貨、未上架），無則留空
+  H 未有欄位      逗號分隔，所有算「未有」的欄位，無則留空
+
+【範例設定】
+  CVS雲泡二位陳列：B=1ELDfc…  D=未填寫  E=有二位  F=堆箱,端架,冰箱  G=  H=
+  量全雲泡上架調查：B=1VO4Dh…  D=未填寫  E=已上架  F=原貨架,冰箱  G=未進貨  H=未進貨
+
+【卡片 stat 顯示邏輯】
+  總家數  = 全部列數
+  未填寫  = C欄第一欄為 1 的列數
+  已有    = BUCKET_B 任一欄為 1 的列數（標題由 D 欄決定）
+  未有    = BUCKET_C 任一欄為 1 的列數（標題由 F 欄決定，若 G 欄空則不顯示此卡）
+  Tooltip = BUCKET_B 超過一欄時才出現，逐欄顯示各類型數量
+
+【常數位置（需改設定時看這裡）】
+  MGMT_ID       → 管理表的 Google Sheets ID
+  MGMT_SHEET    → 專案管理工作表名稱
+  COV_CFG_SHEET → 覆蓋率型專案管理工作表名稱
+
+════════════════════════════════════════════════════════════
+-->
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -292,16 +337,23 @@ var MGMT_SHEET = '\u5C08\u6848\u7BA1\u7406';
 var SYNC_SHEET_DEFAULT = '\u8F14\u52A9';
 var SYNC_CELL_DEFAULT  = 'B1';
 var SHEET_NAME_DEFAULT = '\u5E97\u5BB6\u540D\u518A';
-var TYPES = ['\u5806\u7BB1','\u7AEF\u67B6','\u51B0\u7BB1'];
-
-/* \u5C64\u7D1A\u6B04\u4F4D\u540D\u7A31 */
+/* 層級欄位名稱 */
 var COL_AREA    = '\u71DF\u696D\u8655\u540D\u7A31';
 var COL_OFFICE  = '\u71DF\u696D\u6240/\u8AB2';
 var COL_STAFF   = '\u57F7\u884C\u4EBA\u54E1';
 var COL_UNFILL  = '\u672A\u586B\u5BEB';
-var COL_DISPLAY = '\u6709\u4E8C\u4F4D';
 var COL_CODE    = '\u5E97\u5BB6\u4EE3\u78BC';
 var COL_NAME    = '\u5E97\u5BB6\u540D\u7A31';
+
+/* 動態桶設定（由覆蓋率型專案管理分頁載入） */
+var BUCKET_A = [];          /* 未知欄位列表（通常只有一欄：未填寫） */
+var BUCKET_B = [];          /* 已有欄位列表（堆箱/端架/冰箱 or 原貨架/冰箱） */
+var BUCKET_C = [];          /* 未有欄位列表（未進貨/未上架 or 空） */
+var LABEL_B  = '\u5DF2\u6709';   /* 已有 stat 卡標題，預設「已有」 */
+var LABEL_C  = '\u672A\u6709';   /* 未有 stat 卡標題，預設「未有」 */
+
+/* 覆蓋率型專案管理分頁名稱 */
+var COV_CFG_SHEET = '\u8986\u84CB\u7387\u578B\u5C08\u6848\u7BA1\u7406';
 
 /* \u2500\u2500 \u5F9E URL \u53EA\u8B80 sheetId\uFF0C\u5176\u9918\u5168\u5F9E\u7BA1\u7406\u5206\u9801\u67E5 \u2500\u2500 */
 var params   = new URLSearchParams(location.search);
@@ -350,10 +402,45 @@ function init() {
     document.getElementById('stage').innerHTML = '<div class="empty">\u26A0\uFE0F \u7F3A\u5C11 sheetId \u53C3\u6578</div>';
     return;
   }
-  var url = 'https://docs.google.com/spreadsheets/d/' + MGMT_ID +
-    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(MGMT_SHEET);
-  fetch(url)
+  /* 先讀「覆蓋率型專案管理」取得桶設定，再讀「專案管理」取得基本資料 */
+  function parseCsv(s){ return s.split(',').map(function(t){ return t.trim(); }).filter(Boolean); }
+
+  var urlCfg = 'https://docs.google.com/spreadsheets/d/' + MGMT_ID +
+    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(COV_CFG_SHEET);
+  fetch(urlCfg)
     .then(function(r){ return r.text(); })
+    .then(function(txt){
+      var json = JSON.parse(txt.replace(/^[^\(]+\(/, '').replace(/\);?\s*$/, ''));
+      var rows = (json.table && json.table.rows) || [];
+      rows.forEach(function(row){
+        var cells = row.c || [];
+        function cv(c){ return c ? String(c.v!==null&&c.v!==undefined ? c.v : c.f||'').trim() : ''; }
+        var sid = cv(cells[1]);
+        if (!sid || sid.length < 20) return; /* 跳過表頭列 */
+        if (sid !== SHEET_ID) return;
+        /* A:專案名  B:專案ID  C:未知群組標題  D:未知欄位  E:已有群組標題  F:已有欄位  G:未有群組標題  H:未有欄位 */
+        var labelA = cv(cells[2]);
+        var colsA  = parseCsv(cv(cells[3]));
+        var labelB = cv(cells[4]);
+        var colsB  = parseCsv(cv(cells[5]));
+        var labelC = cv(cells[6]);
+        var colsC  = parseCsv(cv(cells[7]));
+        if (colsA.length) BUCKET_A = colsA;
+        if (colsB.length) BUCKET_B = colsB;
+        if (colsC.length) BUCKET_C = colsC;
+        if (labelB) LABEL_B = labelB;
+        if (labelC) LABEL_C = labelC;
+        /* COL_UNFILL 取桶A第一欄，若有設定的話 */
+        if (colsA.length) COL_UNFILL = colsA[0];
+      });
+    })
+    .catch(function(){})
+    .then(function(){
+      /* 不論桶設定是否讀到，繼續讀「專案管理」 */
+      var urlMgmt = 'https://docs.google.com/spreadsheets/d/' + MGMT_ID +
+        '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(MGMT_SHEET);
+      return fetch(urlMgmt).then(function(r){ return r.text(); });
+    })
     .then(function(txt){
       var json = JSON.parse(txt.replace(/^[^\(]+\(/, '').replace(/\);?\s*$/, ''));
       var rows = (json.table && json.table.rows) || [];
@@ -371,23 +458,22 @@ function init() {
         var boardType = cv(cells[6]);
         if (!name || !sid) return;
         if (boardType !== '\u8986\u84CB\u7387\u578B') return;
-        /* \u7B26\u5408\u76EE\u524D sheetId \u2192 \u586B\u5165\u8A2D\u5B9A */
         if (sid === SHEET_ID) {
           PROJ_NAME  = name;
           SHEET_NAME = sheet;
           SYNC_SHEET = sync;
           SYNC_CELL  = cell;
         }
-        if (active) coverageProjs.push({ name:name, id:sid });
+        coverageProjs.push({ name:name, id:sid, active:active });
       });
 
       document.getElementById('tb-title').textContent = PROJ_NAME;
       document.title = PROJ_NAME;
 
-      /* \u5207\u63DB\u4E0B\u62C9\uFF1A\u6709\u591A\u500B ON \u7684\u8986\u84CB\u7387\u578B\u624D\u986F\u793A */
-      if (coverageProjs.length > 1) {
+      var onProjs = coverageProjs.filter(function(p){ return p.active; });
+      if (onProjs.length > 1) {
         var sel = document.getElementById('proj-sel');
-        sel.innerHTML = coverageProjs.map(function(p){
+        sel.innerHTML = onProjs.map(function(p){
           var selected = p.id === SHEET_ID ? ' selected' : '';
           return '<option value="' + esc(p.id) + '"' + selected + '>' + esc(p.name) + '</option>';
         }).join('');
@@ -398,7 +484,6 @@ function init() {
       fetchSyncTime();
     })
     .catch(function(){
-      /* \u7BA1\u7406\u5206\u9801\u8B80\u5931\u6557\uFF1A\u7528 sheetId \u76F4\u63A5\u5617\u8A66\u8F09\u5165\uFF0Ctitle \u4FDD\u6301\u9810\u8A2D */
       document.getElementById('tb-title').textContent = PROJ_NAME;
       fetchSheet();
       fetchSyncTime();
@@ -451,18 +536,29 @@ function fetchSyncTime() {
     .catch(function(){});
 }
 
-/* \u2500\u2500 \u8A08\u7B97 \u2500\u2500 */
+/* ── 計算 ── */
+function isDispRow(r){
+  /* bucketB 任一欄為 1 → 已有 */
+  return BUCKET_B.some(function(t){ return isOne(r[t]); });
+}
+function isNoRow(r){
+  /* bucketC 任一欄為 1 → 未有 */
+  return BUCKET_C.some(function(t){ return isOne(r[t]); });
+}
 function calcGroup(rows) {
-  var total=rows.length, unfilled=0, valid=0, hasDisp=0;
-  var typeCounts={};
-  TYPES.forEach(function(t){ typeCounts[t]=0; });
+  var total=rows.length, unfilled=0, valid=0, hasDisp=0, hasNo=0;
+  var bCounts={}, cCounts={};
+  BUCKET_B.forEach(function(t){ bCounts[t]=0; });
+  BUCKET_C.forEach(function(t){ cCounts[t]=0; });
   rows.forEach(function(r){
     if(isOne(r[COL_UNFILL])){ unfilled++; return; }
     valid++;
-    if(isOne(r[COL_DISPLAY])) hasDisp++;
-    TYPES.forEach(function(t){ if(isOne(r[t])) typeCounts[t]++; });
+    if(isDispRow(r)) hasDisp++;
+    if(isNoRow(r))   hasNo++;
+    BUCKET_B.forEach(function(t){ if(isOne(r[t])) bCounts[t]++; });
+    BUCKET_C.forEach(function(t){ if(isOne(r[t])) cCounts[t]++; });
   });
-  return { total:total, unfilled:unfilled, valid:valid, hasDisp:hasDisp, typeCounts:typeCounts };
+  return { total:total, unfilled:unfilled, valid:valid, hasDisp:hasDisp, hasNo:hasNo, bCounts:bCounts, cCounts:cCounts };
 }
 
 /* \u2500\u2500 \u7BE9\u9078 \u2500\u2500 */
@@ -521,15 +617,18 @@ function buildCard(name, labelText, stat, levelKey, rows) {
       '<div class="stat-item"><div class="stat-label">\u7E3D\u5BB6\u6578</div><div class="stat-val">'+stat.total+'</div></div>'+
       '<div class="stat-item warn"><div class="stat-label">\u672A\u586B\u5BEB</div><div class="stat-val">'+stat.unfilled+'</div></div>'+
       '<div class="stat-item good" id="si-'+ttId+'" style="position:relative">'+
-        '<div class="stat-label">\u6709\u4E8C\u4F4D</div><div class="stat-val">'+stat.hasDisp+'</div>'+
-        '<div class="tooltip" id="'+ttId+'">'+buildTooltipHTML(stat)+'</div>'+
+        '<div class="stat-label">'+LABEL_B+'</div><div class="stat-val">'+stat.hasDisp+'</div>'+
+        (BUCKET_B.length>1?'<div class="tooltip" id="'+ttId+'">'+buildTooltipHTML(stat)+'</div>':'')+
       '</div>'+
+      (BUCKET_C.length?'<div class="stat-item warn"><div class="stat-label">'+LABEL_C+'</div><div class="stat-val">'+stat.hasNo+'</div></div>':'')+
     '</div>'+
     '<div class="card-detail-btn-row"><button class="card-detail-btn" id="dbtn-'+ttId+'">\uD83D\uDCCB \u5E97\u5BB6\u660E\u7D30</button></div>';
 
   var siEl=card.querySelector('#si-'+ttId), ttEl=card.querySelector('#'+ttId);
-  siEl.addEventListener('mouseenter',function(e){ e.stopPropagation(); ttEl.classList.add('show'); });
-  siEl.addEventListener('mouseleave',function(){ ttEl.classList.remove('show'); });
+  if(siEl&&ttEl){
+    siEl.addEventListener('mouseenter',function(e){ e.stopPropagation(); ttEl.classList.add('show'); });
+    siEl.addEventListener('mouseleave',function(){ ttEl.classList.remove('show'); });
+  }
 
   card.querySelector('#dbtn-'+ttId).addEventListener('click',function(e){
     e.stopPropagation(); openDialog(name,levelKey,rows);
@@ -543,9 +642,9 @@ function buildCard(name, labelText, stat, levelKey, rows) {
 }
 
 function buildTooltipHTML(stat) {
-  return '<div class="tt-title">\u6709\u4E8C\u4F4D\u660E\u7D30</div>'+
-    TYPES.map(function(t){
-      return '<div class="tt-row"><span class="tt-label">'+t+'</span><span class="tt-val">'+stat.typeCounts[t]+' \u5BB6</span></div>';
+  return '<div class="tt-title">'+LABEL_B+'\u660E\u7D30</div>'+
+    BUCKET_B.map(function(t){
+      return '<div class="tt-row"><span class="tt-label">'+t+'</span><span class="tt-val">'+(stat.bCounts[t]||0)+' \u5BB6</span></div>';
     }).join('');
 }
 
@@ -567,7 +666,7 @@ function buildBreadcrumb(){
 function sortedValidRows(rows){
   var valid=rows.filter(function(r){ return !isOne(r[COL_UNFILL]); });
   valid.sort(function(a,b){
-    var da=isOne(a[COL_DISPLAY])?0:1, db=isOne(b[COL_DISPLAY])?0:1;
+    var da=isDispRow(a)?0:1, db=isDispRow(b)?0:1;
     if(da!==db) return da-db;
     var oa=String(a[COL_OFFICE]||''), ob=String(b[COL_OFFICE]||'');
     if(oa!==ob) return oa>ob?1:-1;
@@ -585,17 +684,19 @@ function buildStoreTable(rows, levelKey){
   var colLabels={}; colLabels[COL_OFFICE]='\u71DF\u696D\u6240/\u8AB2'; colLabels[COL_STAFF]='\u4E3B\u8981\u8A2A\u54E1';
   var html='<div class="detail-scroll"><table class="detail-tbl"><thead><tr>';
   extraCols.forEach(function(c){ html+='<th class="th-left">'+(colLabels[c]||c)+'</th>'; });
-  html+='<th class="th-left">\u5E97\u78BC</th><th class="th-left">\u5E97\u540D</th><th>\u6709\u4E8C\u4F4D</th>';
-  TYPES.forEach(function(t){ html+='<th>'+t+'</th>'; });
+  html+='<th class="th-left">\u5E97\u78BC</th><th class="th-left">\u5E97\u540D</th><th>'+LABEL_B+'</th>';
+  if(BUCKET_B.length>1) BUCKET_B.forEach(function(t){ html+='<th>'+t+'</th>'; });
+  if(BUCKET_C.length)   BUCKET_C.forEach(function(t){ html+='<th>'+t+'</th>'; });
   html+='</tr></thead><tbody>';
   valid.forEach(function(r){
-    var disp=isOne(r[COL_DISPLAY]);
     html+='<tr>';
     extraCols.forEach(function(c){ html+='<td class="td-org">'+esc(String(r[c]||'\u2014'))+'</td>'; });
+    var disp=isDispRow(r);
     html+='<td class="td-code">'+esc(String(r[COL_CODE]||'\u2014'))+'</td>'+
           '<td class="td-name">'+esc(String(r[COL_NAME]||'\u2014'))+'</td>'+
           '<td>'+(disp?'<span class="d-yes">\u2705</span>':'<span class="d-no">\u2014</span>')+'</td>';
-    TYPES.forEach(function(t){ html+='<td>'+(isOne(r[t])?'<span class="d-yes">\u2705</span>':'<span class="d-no">\u2014</span>')+'</td>'; });
+    if(BUCKET_B.length>1) BUCKET_B.forEach(function(t){ html+='<td>'+(isOne(r[t])?'<span class="d-yes">\u2705</span>':'<span class="d-no">\u2014</span>')+'</td>'; });
+    if(BUCKET_C.length)   BUCKET_C.forEach(function(t){ html+='<td>'+(isOne(r[t])?'<span class="d-yes">\u2705</span>':'<span class="d-no">\u2014</span>')+'</td>'; });
     html+='</tr>';
   });
   html+='</tbody></table></div>';
@@ -605,9 +706,11 @@ function buildStoreTable(rows, levelKey){
 function openDialog(displayName, levelKey, rows){
   _dialogTitle=displayName; _dialogRows=rows; _dialogLevel=levelKey;
   var valid=rows.filter(function(r){ return !isOne(r[COL_UNFILL]); });
-  var hasDisp=valid.filter(function(r){ return isOne(r[COL_DISPLAY]); }).length;
+  var hasDisp=valid.filter(function(r){ return isDispRow(r); }).length;
+  var hasNo=valid.filter(function(r){ return isNoRow(r); }).length;
+  var titleExtra=LABEL_B+' '+hasDisp+' \u5BB6'+(BUCKET_C.length?' \u3000'+LABEL_C+' '+hasNo+' \u5BB6':'');
   document.getElementById('dlg-title').textContent=
-    '\u3010'+displayName+'\u3011\u5E97\u5BB6\u660E\u7D30\u3000\u6709\u6548 '+valid.length+' \u5BB6\u3000\u6709\u4E8C\u4F4D '+hasDisp+' \u5BB6';
+    '\u3010'+displayName+'\u3011\u5E97\u5BB6\u660E\u7D30\u3000\u6709\u6548 '+valid.length+' \u5BB6\u3000'+titleExtra;
   document.getElementById('dlg-body').innerHTML=buildStoreTable(rows,levelKey);
   ['btn-copy-line','btn-copy-excel','btn-screenshot'].forEach(function(id){
     var b=document.getElementById(id); if(!b) return;
@@ -648,21 +751,24 @@ function copyLine(){
   var btn=document.getElementById('btn-copy-line');
   if(!_dialogRows.length){ _flashBtn(btn,'\u26A0\uFE0F \u7121\u8CC7\u6599'); return; }
   var valid=sortedValidRows(_dialogRows), lv=_dialogLevel;
-  var hasDisp=valid.filter(function(r){ return isOne(r[COL_DISPLAY]); }).length;
-  var lines=['\u3010'+_dialogTitle+'\u3011\u5E97\u5BB6\u660E\u7D30','\u6709\u6548 '+valid.length+' \u5BB6\u3000\u6709\u4E8C\u4F4D '+hasDisp+' \u5BB6','\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500'];
+  var hasDisp=valid.filter(function(r){ return isDispRow(r); }).length;
+  var hasNo=valid.filter(function(r){ return isNoRow(r); }).length;
+  var summary='\u6709\u6548 '+valid.length+' \u5BB6\u3000'+LABEL_B+' '+hasDisp+' \u5BB6'+(BUCKET_C.length?' \u3000'+LABEL_C+' '+hasNo+' \u5BB6':'');
+  var lines=['\u3010'+_dialogTitle+'\u3011\u5E97\u5BB6\u660E\u7D30',summary,'\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500'];
   var curGroup=null;
   valid.forEach(function(r){
     var groupKey=lv==='area'?String(r[COL_OFFICE]||''):lv==='office'?String(r[COL_STAFF]||''):null;
     if(groupKey!==null&&groupKey!==curGroup){ curGroup=groupKey; if(groupKey) lines.push('\n\u258C '+groupKey); }
-    var code=String(r[COL_CODE]||''), name=String(r[COL_NAME]||'\u2014'), disp=isOne(r[COL_DISPLAY]);
-    var types=TYPES.filter(function(t){ return isOne(r[t]); });
-    if(disp){ lines.push('  \u2705 '+name+(code?' ('+code+')':'')); if(types.length) lines.push('     \u2514 '+types.join('\u3001')); }
+    var code=String(r[COL_CODE]||''), name=String(r[COL_NAME]||'\u2014'), disp=isDispRow(r), noDisp=isNoRow(r);
+    var activeTypes=BUCKET_B.filter(function(t){ return isOne(r[t]); });
+    if(disp){ lines.push('  \u2705 '+name+(code?' ('+code+')':'')); if(activeTypes.length) lines.push('     \u2514 '+activeTypes.join('\u3001')); }
+    else if(noDisp) lines.push('  \u274C '+name+(code?' ('+code+')':'')+'\uff08'+LABEL_C+'\uff09');
     else lines.push('  \u2014 '+name+(code?' ('+code+')':''));
   });
   lines.push('\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');
-  lines.push('\u5806\u7BB1 '+_dialogRows.reduce(function(s,r){ return s+(isOne(r['\u5806\u7BB1'])?1:0); },0)+' \u5BB6\u3000'+
-             '\u7AEF\u67B6 '+_dialogRows.reduce(function(s,r){ return s+(isOne(r['\u7AEF\u67B6'])?1:0); },0)+' \u5BB6\u3000'+
-             '\u51B0\u7BB1 '+_dialogRows.reduce(function(s,r){ return s+(isOne(r['\u51B0\u7BB1'])?1:0); },0)+' \u5BB6');
+  var footParts=BUCKET_B.map(function(t){ return t+' '+_dialogRows.reduce(function(s,r){ return s+(isOne(r[t])?1:0); },0)+' \u5BB6'; });
+  if(BUCKET_C.length) BUCKET_C.forEach(function(t){ footParts.push(t+' '+_dialogRows.reduce(function(s,r){ return s+(isOne(r[t])?1:0); },0)+' \u5BB6'); });
+  if(footParts.length) lines.push(footParts.join('\u3000'));
   _doCopy(lines.join('\n'),btn);
 }
 
@@ -674,15 +780,17 @@ function copyExcel(){
   var headers=[];
   if(lv==='area')   headers=['\u71DF\u696D\u6240/\u8AB2','\u4E3B\u8981\u8A2A\u54E1'];
   if(lv==='office') headers=['\u4E3B\u8981\u8A2A\u54E1'];
-  headers=headers.concat(['\u5E97\u78BC','\u5E97\u540D','\u6709\u4E8C\u4F4D']).concat(TYPES);
+  var dynCols=[LABEL_B].concat(BUCKET_B.length>1?BUCKET_B:[]).concat(BUCKET_C);
+  headers=headers.concat(['\u5E97\u78BC','\u5E97\u540D']).concat(dynCols);
   lines.push(headers.join('\t'));
   valid.forEach(function(r){
     var row=[];
     if(lv==='area'){ row.push(String(r[COL_OFFICE]||'')); row.push(String(r[COL_STAFF]||'')); }
     if(lv==='office') row.push(String(r[COL_STAFF]||''));
     row.push(String(r[COL_CODE]||'')); row.push(String(r[COL_NAME]||''));
-    row.push(isOne(r[COL_DISPLAY])?1:0);
-    TYPES.forEach(function(t){ row.push(isOne(r[t])?1:0); });
+    row.push(isDispRow(r)?1:0);
+    if(BUCKET_B.length>1) BUCKET_B.forEach(function(t){ row.push(isOne(r[t])?1:0); });
+    BUCKET_C.forEach(function(t){ row.push(isOne(r[t])?1:0); });
     lines.push(row.join('\t'));
   });
   _doCopy(lines.join('\n'),btn);
