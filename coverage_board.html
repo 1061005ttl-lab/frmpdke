@@ -167,6 +167,8 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 }
 .card-overall .card-top { color:var(--primary); font-weight:700; }
 .card-overall .card-name { color:var(--primary); }
+.card-top-overall { font-size:12px; color:var(--primary); font-weight:700; margin-bottom:14px; display:flex; align-items:baseline; gap:6px; }
+.card-name-inline { font-size:18px; font-weight:800; color:var(--primary); }
 .card-top { font-size:12px; color:var(--sub); margin-bottom:6px; }
 .card-name { font-size:18px; font-weight:700; margin-bottom:16px; }
 .cov-row { display:flex; align-items:baseline; gap:4px; }
@@ -304,6 +306,30 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 
 /* ── empty ── */
 .empty { padding:60px 20px; text-align:center; color:var(--sub); font-size:14px; }
+
+/* ── lamp chips (toolbar 燈號切換) ── */
+.lamp-bar {
+  display:flex; align-items:center; gap:6px; flex-shrink:0;
+}
+.lamp-chip {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:4px 10px; border-radius:20px; font-size:12px; font-weight:700;
+  border:1px solid rgba(0,0,0,.12); background:#f5f5f5; color:#999;
+  cursor:pointer; transition:all .18s; font-family:inherit; white-space:nowrap;
+  user-select:none;
+}
+.lamp-chip .lamp-dot {
+  width:8px; height:8px; border-radius:50%; background:#ccc; flex-shrink:0; transition:background .18s;
+}
+.lamp-chip.on { background:var(--green-bg); color:var(--green); border-color:var(--green-bd); }
+.lamp-chip.on .lamp-dot { background:var(--green); }
+.lamp-chip.warn.on { background:var(--red-bg); color:var(--red); border-color:rgba(163,45,45,.25); }
+.lamp-chip.warn.on .lamp-dot { background:var(--red); }
+/* ── stat-pct 百分比小字 ── */
+.stat-pct { font-size:11px; font-weight:600; color:#aaa; margin-top:3px; line-height:1; }
+.stat-item.good .stat-pct { color:var(--green); opacity:.7; }
+.stat-item.warn .stat-pct { color:var(--red); opacity:.7; }
+.stat-pct.hidden { visibility:hidden; }
 </style>
 </head>
 <body>
@@ -315,6 +341,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   <span class="toolbar-title" id="tb-title">覆蓋率看板</span>
   <select class="proj-sel" id="proj-sel" style="display:none" onchange="switchProject(this.value)"></select>
   <span class="sync-note" id="tb-sync"></span>
+  <div class="lamp-bar" id="lamp-bar" style="display:none"></div>
 </div>
 
 <div class="breadcrumb" id="breadcrumb"></div>
@@ -377,6 +404,52 @@ var drillStack = [];
 var _dialogTitle = '';
 var _dialogRows  = [];
 var _dialogLevel = 'staff';
+
+/* ── 燈號 chips 狀態 ── */
+/* chips: { [key]: true/false }  key = BUCKET_B or BUCKET_C 欄位名稱 */
+var chips = {};
+/* 初始全開 */
+function initChips() {
+  chips = {};
+  BUCKET_B.forEach(function(t){ chips[t] = true; });
+  BUCKET_C.forEach(function(t){ chips[t] = true; });
+  renderLampBar();
+}
+function renderLampBar() {
+  var bar = document.getElementById('lamp-bar');
+  if (!bar) return;
+  var hasLamps = BUCKET_B.length > 0 || BUCKET_C.length > 0;
+  if (!hasLamps) { bar.style.display = 'none'; return; }
+  bar.style.display = 'flex';
+  bar.innerHTML = '';
+  BUCKET_B.forEach(function(t) {
+    var btn = document.createElement('button');
+    btn.className = 'lamp-chip' + (chips[t] ? ' on' : '');
+    btn.innerHTML = '<span class="lamp-dot"></span>' + t;
+    btn.dataset.key = t;
+    btn.addEventListener('click', function() { toggleLamp(t); });
+    bar.appendChild(btn);
+  });
+  BUCKET_C.forEach(function(t) {
+    var btn = document.createElement('button');
+    btn.className = 'lamp-chip warn' + (chips[t] ? ' on' : '');
+    btn.innerHTML = '<span class="lamp-dot"></span>' + t;
+    btn.dataset.key = t;
+    btn.addEventListener('click', function() { toggleLamp(t); });
+    bar.appendChild(btn);
+  });
+}
+function toggleLamp(key) {
+  chips[key] = !chips[key];
+  /* 更新按鈕樣式 */
+  var bar = document.getElementById('lamp-bar');
+  if (bar) {
+    bar.querySelectorAll('.lamp-chip').forEach(function(btn) {
+      if (btn.dataset.key === key) btn.classList.toggle('on', chips[key]);
+    });
+  }
+  render();
+}
 
 /* \u2500\u2500 \u5DE5\u5177 \u2500\u2500 */
 function pct(a,b){ return b===0?0:Math.round(a/b*100); }
@@ -486,11 +559,13 @@ function init() {
         sel.style.display = '';
       }
 
+      initChips();
       fetchSheet();
       fetchSyncTime();
     })
     .catch(function(){
       document.getElementById('tb-title').textContent = PROJ_NAME;
+      initChips();
       fetchSheet();
       fetchSyncTime();
     });
@@ -544,18 +619,20 @@ function fetchSyncTime() {
 
 /* ── 計算 ── */
 function isDispRow(r){
-  /* bucketB 任一欄為 1 → 已有 */
-  return BUCKET_B.some(function(t){ return isOne(r[t]); });
+  /* 燈打開的 BUCKET_B 任一欄為 1 → 已有 */
+  return BUCKET_B.filter(function(t){ return chips[t]; }).some(function(t){ return isOne(r[t]); });
 }
 function isNoRow(r){
-  /* bucketC 任一欄為 1 → 未有 */
-  return BUCKET_C.some(function(t){ return isOne(r[t]); });
+  /* 燈打開的 BUCKET_C 任一欄為 1 → 未有 */
+  return BUCKET_C.filter(function(t){ return chips[t]; }).some(function(t){ return isOne(r[t]); });
 }
 function calcGroup(rows) {
   var total=rows.length, unfilled=0, valid=0, hasDisp=0, hasNo=0;
   var bCounts={}, cCounts={};
   BUCKET_B.forEach(function(t){ bCounts[t]=0; });
   BUCKET_C.forEach(function(t){ cCounts[t]=0; });
+  /* 分母 = 燈打開的狀態所涵蓋的有效店家數 */
+  var denomB=0, denomC=0;
   rows.forEach(function(r){
     if(isOne(r[COL_UNFILL])){ unfilled++; return; }
     valid++;
@@ -564,7 +641,11 @@ function calcGroup(rows) {
     BUCKET_B.forEach(function(t){ if(isOne(r[t])) bCounts[t]++; });
     BUCKET_C.forEach(function(t){ if(isOne(r[t])) cCounts[t]++; });
   });
-  return { total:total, unfilled:unfilled, valid:valid, hasDisp:hasDisp, hasNo:hasNo, bCounts:bCounts, cCounts:cCounts };
+  /* 燈打開的有效家數：對應 BUCKET_B 和 BUCKET_C 各自的燈开的小計 */
+  denomB = valid; /* 已有的分母 = 有效家數 */
+  denomC = valid; /* 未有的分母 = 有效家數 */
+  return { total:total, unfilled:unfilled, valid:valid, hasDisp:hasDisp, hasNo:hasNo,
+           bCounts:bCounts, cCounts:cCounts, denomB:denomB, denomC:denomC };
 }
 
 /* \u2500\u2500 \u7BE9\u9078 \u2500\u2500 */
@@ -625,17 +706,23 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
   card.className='card'+(isOverall?' card-overall':'');
   var ttId='tt-'+name.replace(/[^a-zA-Z0-9]/g,'_')+'-'+levelKey+(isOverall?'-all':'');
   var topLabel=isOverall?('\u6574\u9AD4\u6982\u6CC1'):labelText;
+  var pctB = stat.denomB > 0 ? Math.round(stat.hasDisp/stat.denomB*100)+'%' : '';
+  var pctC = stat.denomC > 0 ? Math.round(stat.hasNo/stat.denomC*100)+'%' : '';
+  var topHtml = isOverall
+    ? '<div class="card-top card-top-overall">'+topLabel+' <span class="card-name-inline">'+esc(name)+'</span></div>'
+    : '<div class="card-top">'+topLabel+'</div><div class="card-name">'+esc(name)+'</div>';
   card.innerHTML=
-    '<div class="card-top">'+topLabel+'</div>'+
-    '<div class="card-name">'+esc(name)+'</div>'+
+    topHtml+
+    (!isOverall ? '' : '')+
     '<div class="stat-row">'+
-      '<div class="stat-item"><div class="stat-label">\u7E3D\u5BB6\u6578</div><div class="stat-val">'+stat.total+'</div></div>'+
-      '<div class="stat-item warn"><div class="stat-label">\u672A\u586B\u5BEB</div><div class="stat-val">'+stat.unfilled+'</div></div>'+
+      '<div class="stat-item"><div class="stat-label">\u7E3D\u5BB6\u6578</div><div class="stat-val">'+stat.total+'</div><div class="stat-pct hidden">&nbsp;</div></div>'+
+      '<div class="stat-item warn"><div class="stat-label">\u672A\u586B\u5BEB</div><div class="stat-val">'+stat.unfilled+'</div><div class="stat-pct hidden">&nbsp;</div></div>'+
       '<div class="stat-item good" id="si-'+ttId+'" style="position:relative">'+
         '<div class="stat-label">'+LABEL_B+'</div><div class="stat-val">'+stat.hasDisp+'</div>'+
+        '<div class="stat-pct'+(pctB?'':' hidden')+'">'+( pctB||'&nbsp;')+'</div>'+
         (BUCKET_B.length>1?'<div class="tooltip" id="'+ttId+'">'+buildTooltipHTML(stat)+'</div>':'')+
       '</div>'+
-      (BUCKET_C.length?'<div class="stat-item warn"><div class="stat-label">'+LABEL_C+'</div><div class="stat-val">'+stat.hasNo+'</div></div>':'')+
+      (BUCKET_C.length?'<div class="stat-item warn"><div class="stat-label">'+LABEL_C+'</div><div class="stat-val">'+stat.hasNo+'</div><div class="stat-pct'+(pctC?'':' hidden')+'">'+( pctC||'&nbsp;')+'</div></div>':'')+
     '</div>'+
     '<div class="card-detail-btn-row"><button class="card-detail-btn" id="dbtn-'+ttId+'">\uD83D\uDCCB \u5E97\u5BB6\u660E\u7D30</button></div>';
 
