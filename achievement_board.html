@@ -3603,7 +3603,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 3.5.7 (2026-06-16)</div>
+      <div id="ver-ts">Ver. 3.5.8 (2026-06-16)</div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
     </div>
@@ -6286,31 +6286,55 @@
           if (pathEl && pathEl.textContent.trim()) titleParts.push(pathEl.textContent.trim());
           var fname = (titleParts[0] || '達成看板') + '_' + new Date().toLocaleDateString('zh-TW').replace(/\//g, '') + '.png';
 
-          html2canvas(target, {
-            scale: 2,
-            backgroundColor: '#f0ece3',
-            useCORS: true,
-            scrollX: -window.scrollX,
-            scrollY: -window.scrollY,
-            windowWidth: document.documentElement.scrollWidth,
-            windowHeight: document.documentElement.scrollHeight
-          }).then(function(canvas) {
-            if (navigator.clipboard && window.ClipboardItem) {
-              canvas.toBlob(function(blob) {
-                try {
-                  navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]).then(function() {
-                    btn.disabled = false;
-                    flash('shot-btn', '✅ 已複製圖片！', '📸 截圖');
-                  }).catch(function() { _dlCanvas(canvas, fname); });
-                } catch(e) { _dlCanvas(canvas, fname); }
-              }, 'image/png');
-            } else {
-              _dlCanvas(canvas, fname);
-            }
-          }).catch(function(err) {
-            btn.disabled = false;
-            btn.textContent = '📸 截圖';
-            alert('截圖失敗：' + err);
+          /* 暫停所有 animation，讓元素維持最終狀態 */
+          var styleTag = document.createElement('style');
+          styleTag.id = '__shot_freeze';
+          styleTag.textContent = '*, *::before, *::after { animation-duration: 0s !important; animation-delay: 0s !important; transition-duration: 0s !important; opacity: 1 !important; }';
+          document.head.appendChild(styleTag);
+
+          /* 給瀏覽器一幀讓樣式生效再截 */
+          requestAnimationFrame(function() {
+            requestAnimationFrame(function() {
+              var W = target.scrollWidth;
+              var H = target.scrollHeight;
+
+              html2canvas(target, {
+                scale: 2,
+                backgroundColor: '#f0ece3',
+                useCORS: true,
+                width: W,
+                height: H,
+                scrollX: 0,
+                scrollY: 0,
+                windowWidth: W,
+                windowHeight: H,
+                x: 0,
+                y: 0
+              }).then(function(canvas) {
+                /* 恢復動畫 */
+                var freeze = document.getElementById('__shot_freeze');
+                if (freeze) freeze.parentNode.removeChild(freeze);
+
+                if (navigator.clipboard && window.ClipboardItem) {
+                  canvas.toBlob(function(blob) {
+                    try {
+                      navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]).then(function() {
+                        btn.disabled = false;
+                        flash('shot-btn', '✅ 已複製圖片！', '📸 截圖');
+                      }).catch(function() { _dlCanvas(canvas, fname); });
+                    } catch(e) { _dlCanvas(canvas, fname); }
+                  }, 'image/png');
+                } else {
+                  _dlCanvas(canvas, fname);
+                }
+              }).catch(function(err) {
+                var freeze = document.getElementById('__shot_freeze');
+                if (freeze) freeze.parentNode.removeChild(freeze);
+                btn.disabled = false;
+                btn.textContent = '📸 截圖';
+                alert('截圖失敗：' + err);
+              });
+            });
           });
         }
 
