@@ -804,16 +804,6 @@
         letter-spacing: -1.5px;
       }
 
-      .mc-bar {
-        height: 5px;
-        background: rgba(0, 0, 0, .07);
-        border-radius: 99px;
-        overflow: hidden;
-        display: flex;
-        margin-bottom: 7px;
-        width: 100%;
-      }
-
       .mc-sts {
         display: flex;
         justify-content: flex-start;
@@ -858,47 +848,33 @@
         opacity: .75;
       }
 
-      /* ══ 整體卡（深色英雄） ══ */
+      /* ══ 整體卡（統一大卡樣式，不再深色英雄） ══ */
       .big-card.whole {
-        grid-column: 1/-1;
         cursor: default;
-        background: linear-gradient(130deg, #1a1f2e 0%, #22293a 60%, #1e2d26 100%);
+        background: #fff;
         border-radius: var(--r);
-        padding: 22px 28px;
+        padding: 14px 16px;
         display: flex;
-        flex-direction: row;
-        align-items: center;
-        gap: 28px;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, .28), 0 1px 0 rgba(255, 255, 255, .06) inset;
+        flex-direction: column;
+        gap: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, .05), 0 1px 0 rgba(255, 255, 255, .9) inset;
         position: relative;
         overflow: hidden;
         animation: cardPop .34s var(--ease) both;
-        border: 1px solid rgba(255, 255, 255, .07);
-        min-height: 110px;
+        border: 1.5px solid rgba(139, 166, 144, .45);
       }
 
+      /* 整體卡左側色條（固定顯示，不需 hover） */
       .big-card.whole::before {
         content: '';
         position: absolute;
-        top: -60px;
-        right: -40px;
-        width: 220px;
-        height: 220px;
-        border-radius: 50%;
-        background: radial-gradient(circle, rgba(139, 166, 144, .12) 0%, transparent 65%);
-        pointer-events: none;
-      }
-
-      .big-card.whole::after {
-        content: '';
-        position: absolute;
-        bottom: -50px;
-        left: 100px;
-        width: 160px;
-        height: 160px;
-        border-radius: 50%;
-        background: radial-gradient(circle, rgba(80, 120, 200, .06) 0%, transparent 65%);
-        pointer-events: none;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 3px;
+        background: linear-gradient(180deg, var(--primary-d), var(--primary));
+        opacity: 1;
+        border-radius: 3px 0 0 3px;
       }
 
       .wc-left {
@@ -1147,7 +1123,7 @@
         gap: 8px;
         transition: border-color .2s, box-shadow .2s, transform .22s var(--ease);
         animation: cardPop .34s var(--ease) both;
-        padding: 14px 16px 22px 16px; /* 底部22px = 14px內距 + 8px進度條空間 */
+        padding: 14px 16px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, .05), 0 1px 0 rgba(255, 255, 255, .9) inset;
       }
 
@@ -3662,7 +3638,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 3.4.0 (2026-05-27)</div>
+      <div id="ver-ts">Ver. 3.5.0 (2026-06-16)</div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
     </div>
@@ -5336,59 +5312,39 @@
         var t = statBase(s) || 1;
         var el = document.createElement('div');
         el.className = 'big-card whole';
-        var ww = statWeighted(rows);
-        var vd = visitsWeightedDetail(rows);
-        var vReal = (CI['visits'] >= 0) ? visitsSum(rows) : -1;
 
-        var dualHtml = '';
-        var sbc = statByChannel(rows);
-        var hasBothCh = sbc && sbc.cvs.t > 0;
-        if (hasBothCh) {
-          var nc = sbc.nonCvs, cv = sbc.cvs;
-          var ncT = nc.t || 1;
-          var cvWL = cv.l;
-          var cvWU = cv.weighted ? 0 : cv.u;
-          var cvWT = (cv.weighted ? cv.l : cv.t) || 1;
+        var isCvsProject = !!((_curCfg || {}).cvsWeightChannel);
 
-          /* [2026-05-28] \u6B21\u6578\u8CC7\u8A0A\u79FB\u9664\uFF0C\u756B\u9762\u904E\u65BC\u64C1\u64E0\u4E14\u975E\u91CD\u8981\u8CC7\u8A0A */
-          var wTotalVisits = '';
-          var wNcVisits = '';
-          var wCvVisits = '';
-
-          function wcTriCells(statKey, total, isCvs) {
-            return curStatuses.map(function(st) {
-              var num, denom;
-              if (statKey === 'total') {
-                num = s[st.key] || 0; denom = t;
-              } else if (isCvs) {
-                num = (st.key === 'l') ? cvWL : (st.key === 'u' || st.key === 'r') ? cvWU : 0;
-                denom = cvWT;
-              } else {
-                num = (st.key === 'l') ? nc.l : (st.key === 'u' || st.key === 'r') ? nc.u : 0;
-                denom = ncT;
-              }
-              var cls = st.cls;
-              var noteHtml = (isCvs && cv.weighted && st.key === 'u') ? '<span class="wc-tri-tag">\u9054\u6A19</span>' : '';
-              return '<div class="wc-tri-cell ' + cls + '"><span class="wc-tri-pct">' + pct(num, denom) + '%</span><span class="wc-tri-num">(' + num + ')</span>' + noteHtml + '</div>';
-            }).join('');
+        if (isCvsProject) {
+          var sbc = statByChannel(rows);
+          var hasBothCh = sbc && sbc.cvs.t > 0;
+          var theadCols = buildCvsTheadCols();
+          var tbodyRows = '';
+          if (hasBothCh) {
+            var nc = sbc.nonCvs, cv = sbc.cvs;
+            tbodyRows =
+              '<tr><td class="bc-cv-lbl">\u4E0D\u5206\u985E</td><td class="bc-cv-cnt">' + s.t + '</td>' + buildCvsTdRow('total', t, false, false, s, s) + '</tr>' +
+              '<tr><td class="bc-cv-lbl">\u975ECVS</td><td class="bc-cv-cnt">' + nc.t + '</td>' + buildCvsTdRow(nc, nc.t || 1, false, false, s, s) + '</tr>' +
+              '<tr><td class="bc-cv-lbl">CVS</td><td class="bc-cv-cnt">' + cv.t + '</td>' + buildCvsTdRow(cv, cv.t || 1, true, cv.weighted, s, s) + '</tr>';
+          } else {
+            tbodyRows = '<tr><td class="bc-cv-lbl">\u4E0D\u5206\u985E</td><td class="bc-cv-cnt">' + s.t + '</td>' + buildCvsTdRow('total', t, false, false, s, s) + '</tr>';
           }
-
-          dualHtml = '<div class="wc-tri">' +
-            '<div class="wc-tri-row noncvs">' +
-              '<div class="wc-tri-hdr">\uD83D\uDCCB \u975ECVS\uFF08' + nc.t + '\u5BB6\uFF09' + wNcVisits + '</div>' +
-              '<div class="wc-tri-cells">' + wcTriCells('nc', ncT, false) + '</div>' +
+          el.classList.add('bc-cv-card');
+          el.innerHTML =
+            '<table class="bc-cv-tbl">' +
+              '<thead class="bc-cv-thead"><tr>' +
+                '<th class="bc-cv-th-name">' + esc(name) + '</th>' +
+                '<th class="bc-cv-th-cnt">\u7E3D\u5BB6\u6578</th>' +
+                theadCols +
+              '</tr></thead>' +
+              '<tbody class="bc-cv-tbody">' + tbodyRows + '</tbody>' +
+            '</table>';
+        } else {
+          el.innerHTML =
+            '<div class="bc-head">' +
+              '<span class="bc-name">' + esc(name) + '</span>' +
+              '<span class="bc-total">' + s.t + '</span>' +
             '</div>' +
-            '<div class="wc-tri-row cvs">' +
-              '<div class="wc-tri-hdr">\u2696\uFE0F CVS\uFF08' + cv.t + '\u5BB6\uFF09' + wCvVisits + '</div>' +
-              '<div class="wc-tri-cells">' + wcTriCells('cv', cv.t || 1, true) + '</div>' +
-            '</div>' +
-          '</div>';
-        }
-
-        el.innerHTML = '<div class="wc-left"><div class="wc-label">' + esc(name) + '</div><div class="wc-total">' + s.t + '</div></div>' +
-          '<div class="wc-divider"></div>' +
-          '<div class="wc-right">' +
-            '<div class="wc-track">' + segs(s) + '</div>' +
             '<div class="bc-inline-stats">' +
               curStatuses.map(function(st) {
                 var realNum = s[st.key] || 0;
@@ -5397,9 +5353,8 @@
                 return '<span class="bc-inline-st ' + st.cls + '"><span class="bc-inline-lbl">' + esc(st.label) + '</span>' +
                   '<span class="bc-inline-num-row"><span class="bc-inline-pct">' + pct(realNum, t) + '%</span><span class="bc-inline-num">(' + realNum + ')</span></span></span>';
               }).join('') +
-            '</div>' +
-            dualHtml +
-          '</div>';
+            '</div>';
+        }
         return el;
       }
 
@@ -5512,11 +5467,6 @@
             '</div>';
         }
 
-        var trackEl = document.createElement('div');
-        trackEl.className = 'bc-track';
-        trackEl.innerHTML = segs(s);
-        el.appendChild(trackEl);
-
         if (onClick) el.addEventListener('click', onClick);
         return el;
       }
@@ -5529,7 +5479,6 @@
         var el = document.createElement('div');
         el.className = 'mini-card' + (isSel ? ' sel' : '');
         el.innerHTML = '<div class="mc-top"><span class="mc-name">' + esc(name) + '</span><span class="mc-total">' + s.t + '</span></div>' +
-          '<div class="mc-bar">' + segs(s) + '</div>' +
           '<div class="mc-sts">' + curStatuses.map(function(st) {
             var p = pct(s[st.key] || 0, t);
             return '<span class="mc-s ' + st.cls + '">' + esc(st.emoji) + p + '%</span>';
@@ -5624,7 +5573,6 @@
         summary.innerHTML = '<div class="ss-title">\uD83D\uDC65 ' + esc(aName) + ' \u00B7 ' + esc(oName) + '</div>' +
           '<div class="ss-total">' + ts.t + '</div>' +
           '<div class="ss-bar-wrap">' +
-            '<div class="ss-bar">' + segs(ts) + '</div>' +
             '<div class="ss-sts">' +
               curStatuses.map(function(st) {
                 var num = ts[st.key] || 0;
@@ -5684,11 +5632,6 @@
                 '<tbody class="bc-cv-tbody">' + tbodyRowsSC + '</tbody>' +
               '</table>';
 
-            var trackEl = document.createElement('div');
-            trackEl.className = 'bc-track';
-            trackEl.innerHTML = segs(s);
-            card.appendChild(trackEl);
-
           } else {
             /* \u2500\u2500 \u5176\u4ED6\u5C08\u6848\uFF1A\u539F\u6709 staff-card \u683C\u5F0F \u2500\u2500 */
             card.className = 'staff-card' + (isSel ? ' sel' : '');
@@ -5728,13 +5671,7 @@
               '</div>' +
               '</div>' +
               scInlineStats +
-              dualCardHtml +
-              '<div class="sc-bar">' +
-              curStatuses.map(function(st) {
-                var v = s[st.key] || 0;
-                return v ? '<div class="sc-bar-' + st.cls + '" style="flex:' + v + '"></div>' : '';
-              }).join('') +
-            '</div>';
+              dualCardHtml;
           }
           card.addEventListener('click', function() { drillInto('staff', k); });
           c.appendChild(card);
@@ -5815,11 +5752,6 @@
               '</tr></thead>' +
               '<tbody class="bc-cv-tbody">' + tbodyRows + '</tbody>' +
             '</table>';
-
-          var trackEl = document.createElement('div');
-          trackEl.className = 'bc-track';
-          trackEl.innerHTML = segs(s);
-          header.appendChild(trackEl);
 
         } else {
           /* \u2500\u2500 \u5176\u4ED6\u5C08\u6848\uFF1A\u539F\u6709 store-header \u683C\u5F0F \u2500\u2500 */
