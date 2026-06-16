@@ -3603,7 +3603,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 3.5.5 (2026-06-16)</div>
+      <div id="ver-ts">Ver. 3.5.6 (2026-06-16)</div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
     </div>
@@ -3646,7 +3646,7 @@
     </div>
     <div id="gbar">
       <div class="gb-path" id="gb-path"></div>
-      <div class="gb-right"><span class="gb-sync" id="gb-sync"></span><button class="gb-btn" id="copy-btn" onclick="copyList()">📋 複製</button><button class="gb-btn" id="csv-btn" onclick="downloadCSV()">📥 XLSX</button></div>
+      <div class="gb-right"><span class="gb-sync" id="gb-sync"></span><button class="gb-btn" id="copy-btn" onclick="copyList()">📋 複製</button><button class="gb-btn" id="shot-btn" onclick="takeScreenshot()">📸 截圖</button><button class="gb-btn" id="csv-btn" onclick="downloadCSV()">📥 XLSX</button></div>
     </div>
     <div id="content-wrap">
       <div id="stage"></div>
@@ -6267,6 +6267,103 @@
         if (!b) return;
         b.textContent = on;
         setTimeout(function() { b.textContent = off; }, 2000);
+      }
+
+      /* ══ 截圖 ══ */
+      function takeScreenshot() {
+        var btn = document.getElementById('shot-btn');
+        btn.textContent = '⏳ 截圖中...';
+        btn.disabled = true;
+
+        function doCapture() {
+          /* 擷取目標：整個看板內容區（包含側欄+卡片） */
+          var target = document.getElementById('content-wrap');
+
+          /* 在截圖用 wrapper 上加標題列 */
+          var wrapper = document.createElement('div');
+          wrapper.style.cssText = 'background:#f0ece3;padding:0;font-family:Microsoft JhengHei,Noto Sans TC,sans-serif;display:inline-block;min-width:' + target.scrollWidth + 'px;position:fixed;top:-99999px;left:-99999px;';
+
+          /* 標題列 */
+          var hdr = document.createElement('div');
+          hdr.style.cssText = 'background:#fff;padding:10px 20px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(0,0,0,.08);';
+          /* 左側：專案名稱＋路徑 */
+          var titleParts = [];
+          var specialEl = document.querySelector('.mm-special-label');
+          if (specialEl) titleParts.push(specialEl.textContent.trim());
+          var pathEl = document.getElementById('gb-path');
+          if (pathEl) titleParts.push(pathEl.textContent.trim());
+          var left = document.createElement('span');
+          left.style.cssText = 'font-size:13px;font-weight:800;color:#333;';
+          left.textContent = titleParts.filter(Boolean).join('　·　') || '業務王達成看板';
+          /* 右側：時間戳 */
+          var right = document.createElement('span');
+          right.style.cssText = 'font-size:11px;color:#999;';
+          right.textContent = new Date().toLocaleString('zh-TW');
+          hdr.appendChild(left);
+          hdr.appendChild(right);
+          wrapper.appendChild(hdr);
+
+          /* 複製內容區 */
+          var clone = target.cloneNode(true);
+          clone.style.cssText = 'width:' + target.scrollWidth + 'px;position:relative;';
+          wrapper.appendChild(clone);
+
+          document.body.appendChild(wrapper);
+
+          html2canvas(wrapper, {
+            scale: 2,
+            backgroundColor: '#f0ece3',
+            useCORS: true,
+            width: wrapper.scrollWidth,
+            height: wrapper.scrollHeight,
+            scrollX: 0,
+            scrollY: 0
+          }).then(function(canvas) {
+            document.body.removeChild(wrapper);
+            var fname = (titleParts[0] || '達成看板') + '_' + new Date().toLocaleDateString('zh-TW').replace(/\//g, '') + '.png';
+            /* 優先複製到剪貼簿 */
+            if (navigator.clipboard && window.ClipboardItem) {
+              canvas.toBlob(function(blob) {
+                try {
+                  navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]).then(function() {
+                    btn.disabled = false;
+                    flash('shot-btn', '✅ 已複製圖片！', '📸 截圖');
+                  }).catch(function() { _dlCanvas(canvas, fname); });
+                } catch(e) { _dlCanvas(canvas, fname); }
+              }, 'image/png');
+            } else {
+              _dlCanvas(canvas, fname);
+            }
+          }).catch(function(err) {
+            document.body.removeChild(wrapper);
+            btn.disabled = false;
+            btn.textContent = '📸 截圖';
+            alert('截圖失敗：' + err);
+          });
+        }
+
+        function _dlCanvas(canvas, fname) {
+          var a = document.createElement('a');
+          a.download = fname;
+          a.href = canvas.toDataURL('image/png');
+          a.click();
+          btn.disabled = false;
+          flash('shot-btn', '✅ 已下載！', '📸 截圖');
+        }
+
+        if (window.html2canvas) {
+          doCapture();
+        } else {
+          var s = document.createElement('script');
+          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+          s.onload = doCapture;
+          s.onerror = function() {
+            btn.disabled = false;
+            btn.textContent = '📸 截圖';
+            alert('html2canvas 載入失敗，請確認網路連線');
+          };
+          document.head.appendChild(s);
+        }
       }
 
       /* \u2550\u2550 \u8F09\u5165\u52D5\u756B \u2550\u2550 */
