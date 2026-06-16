@@ -413,6 +413,7 @@ function initChips() {
   chips = {};
   BUCKET_B.forEach(function(t){ chips[t] = true; });
   BUCKET_C.forEach(function(t){ chips[t] = true; });
+  chips['__other__'] = true; /* 其他狀態（未填任何 BUCKET）的店家 */
   renderLampBar();
 }
 function renderLampBar() {
@@ -438,6 +439,13 @@ function renderLampBar() {
     btn.addEventListener('click', function() { toggleLamp(t); });
     bar.appendChild(btn);
   });
+  /* 其他燈（未填任何狀態的店） */
+  var btnOther = document.createElement('button');
+  btnOther.className = 'lamp-chip' + (chips['__other__'] ? ' on' : '');
+  btnOther.innerHTML = '<span class="lamp-dot"></span>其他';
+  btnOther.dataset.key = '__other__';
+  btnOther.addEventListener('click', function() { toggleLamp('__other__'); });
+  bar.appendChild(btnOther);
 }
 function toggleLamp(key) {
   chips[key] = !chips[key];
@@ -618,34 +626,57 @@ function fetchSyncTime() {
 }
 
 /* ── 計算 ── */
+
+/* 判斷一列屬於哪個狀態組（用於燈號筛選）
+   回傳 'B:欄位名'  如果屬於 BUCKET_B
+   回傳 'C:欄位名'  如果屬於 BUCKET_C
+   回傳 'unfill'       如果是未填寫
+   回傳 'other'        其他（如未進貨等無 BUCKET 的店）
+*/
+function rowStatus(r) {
+  if (isOne(r[COL_UNFILL])) return 'unfill';
+  for (var i=0; i<BUCKET_B.length; i++) { if (isOne(r[BUCKET_B[i]])) return 'B:'+BUCKET_B[i]; }
+  for (var j=0; j<BUCKET_C.length; j++) { if (isOne(r[BUCKET_C[j]])) return 'C:'+BUCKET_C[j]; }
+  return 'other';
+}
+
+/* 燈狀態筛選：燈關掉的店家排除 */
+function applyChips(rows) {
+  return rows.filter(function(r) {
+    var st = rowStatus(r);
+    if (st === 'unfill') return true; /* 未填寫永遠納入 */
+    if (st === 'other') return chips['__other__'] !== false;
+    var key = st.slice(2); /* 去掉 'B:' 或 'C:' */
+    return chips[key] !== false; /* 燈打開才納入 */
+  });
+}
+
 function isDispRow(r){
-  /* 燈打開的 BUCKET_B 任一欄為 1 → 已有 */
-  return BUCKET_B.filter(function(t){ return chips[t]; }).some(function(t){ return isOne(r[t]); });
+  return BUCKET_B.some(function(t){ return isOne(r[t]); });
 }
 function isNoRow(r){
-  /* 燈打開的 BUCKET_C 任一欄為 1 → 未有 */
-  return BUCKET_C.filter(function(t){ return chips[t]; }).some(function(t){ return isOne(r[t]); });
+  return BUCKET_C.some(function(t){ return isOne(r[t]); });
 }
+
 function calcGroup(rows) {
-  var total=rows.length, unfilled=0, valid=0, hasDisp=0, hasNo=0;
-  var bCounts={}, cCounts={};
-  BUCKET_B.forEach(function(t){ bCounts[t]=0; });
-  BUCKET_C.forEach(function(t){ cCounts[t]=0; });
-  /* 分母 = 燈打開的狀態所涵蓋的有效店家數 */
-  var denomB=0, denomC=0;
-  rows.forEach(function(r){
-    if(isOne(r[COL_UNFILL])){ unfilled++; return; }
-    valid++;
-    if(isDispRow(r)) hasDisp++;
-    if(isNoRow(r))   hasNo++;
-    BUCKET_B.forEach(function(t){ if(isOne(r[t])) bCounts[t]++; });
-    BUCKET_C.forEach(function(t){ if(isOne(r[t])) cCounts[t]++; });
+  var filtered = applyChips(rows); /* 燈筛後的店家 */
+  var total = filtered.length;
+  var unfilled = 0, hasDisp = 0, hasNo = 0;
+  var bCounts = {}, cCounts = {};
+  BUCKET_B.forEach(function(t){ bCounts[t] = 0; });
+  BUCKET_C.forEach(function(t){ cCounts[t] = 0; });
+  filtered.forEach(function(r){
+    if (isOne(r[COL_UNFILL])) { unfilled++; return; }
+    if (isDispRow(r)) hasDisp++;
+    if (isNoRow(r))   hasNo++;
+    BUCKET_B.forEach(function(t){ if (isOne(r[t])) bCounts[t]++; });
+    BUCKET_C.forEach(function(t){ if (isOne(r[t])) cCounts[t]++; });
   });
-  /* 燈打開的有效家數：對應 BUCKET_B 和 BUCKET_C 各自的燈开的小計 */
-  denomB = valid; /* 已有的分母 = 有效家數 */
-  denomC = valid; /* 未有的分母 = 有效家數 */
-  return { total:total, unfilled:unfilled, valid:valid, hasDisp:hasDisp, hasNo:hasNo,
-           bCounts:bCounts, cCounts:cCounts, denomB:denomB, denomC:denomC };
+  var valid = total - unfilled;
+  /* 分母 = 總家數（含未填寫，依燈筛選後） */
+  return { total:total, unfilled:unfilled, valid:valid,
+           hasDisp:hasDisp, hasNo:hasNo,
+           bCounts:bCounts, cCounts:cCounts };
 }
 
 /* \u2500\u2500 \u7BE9\u9078 \u2500\u2500 */
@@ -706,23 +737,22 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
   card.className='card'+(isOverall?' card-overall':'');
   var ttId='tt-'+name.replace(/[^a-zA-Z0-9]/g,'_')+'-'+levelKey+(isOverall?'-all':'');
   var topLabel=isOverall?('\u6574\u9AD4\u6982\u6CC1'):labelText;
-  var pctB = stat.denomB > 0 ? Math.round(stat.hasDisp/stat.denomB*100)+'%' : '';
-  var pctC = stat.denomC > 0 ? Math.round(stat.hasNo/stat.denomC*100)+'%' : '';
+  var T = stat.total;
+  function fp(n){ return T>0 ? Math.round(n/T*100)+'%' : '—'; }
   var topHtml = isOverall
     ? '<div class="card-top card-top-overall">'+topLabel+' <span class="card-name-inline">'+esc(name)+'</span></div>'
     : '<div class="card-top">'+topLabel+'</div><div class="card-name">'+esc(name)+'</div>';
   card.innerHTML=
     topHtml+
-    (!isOverall ? '' : '')+
     '<div class="stat-row">'+
       '<div class="stat-item"><div class="stat-label">\u7E3D\u5BB6\u6578</div><div class="stat-val">'+stat.total+'</div><div class="stat-pct hidden">&nbsp;</div></div>'+
-      '<div class="stat-item warn"><div class="stat-label">\u672A\u586B\u5BEB</div><div class="stat-val">'+stat.unfilled+'</div><div class="stat-pct hidden">&nbsp;</div></div>'+
+      '<div class="stat-item warn"><div class="stat-label">\u672A\u586B\u5BEB</div><div class="stat-val">'+stat.unfilled+'</div><div class="stat-pct">'+fp(stat.unfilled)+'</div></div>'+
       '<div class="stat-item good" id="si-'+ttId+'" style="position:relative">'+
         '<div class="stat-label">'+LABEL_B+'</div><div class="stat-val">'+stat.hasDisp+'</div>'+
-        '<div class="stat-pct'+(pctB?'':' hidden')+'">'+( pctB||'&nbsp;')+'</div>'+
+        '<div class="stat-pct">'+fp(stat.hasDisp)+'</div>'+
         (BUCKET_B.length>1?'<div class="tooltip" id="'+ttId+'">'+buildTooltipHTML(stat)+'</div>':'')+
       '</div>'+
-      (BUCKET_C.length?'<div class="stat-item warn"><div class="stat-label">'+LABEL_C+'</div><div class="stat-val">'+stat.hasNo+'</div><div class="stat-pct'+(pctC?'':' hidden')+'">'+( pctC||'&nbsp;')+'</div></div>':'')+
+      (BUCKET_C.length?'<div class="stat-item warn"><div class="stat-label">'+LABEL_C+'</div><div class="stat-val">'+stat.hasNo+'</div><div class="stat-pct">'+fp(stat.hasNo)+'</div></div>':'')+
     '</div>'+
     '<div class="card-detail-btn-row"><button class="card-detail-btn" id="dbtn-'+ttId+'">\uD83D\uDCCB \u5E97\u5BB6\u660E\u7D30</button></div>';
 
