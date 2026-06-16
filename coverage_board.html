@@ -305,7 +305,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .dlg-action-btn:hover { border-color:var(--primary); color:var(--primary); }
 .dlg-action-btn.done { border-color:var(--green); color:var(--green); background:var(--green-bg); }
 .dlg-action-btn.loading { opacity:.6; pointer-events:none; }
-.dlg-body { overflow:auto; flex:1; min-height:0; padding:0; scrollbar-width:thin; scrollbar-color:rgba(0,0,0,.25) transparent; }
+.dlg-body { overflow:auto; flex:1; min-height:0; padding:4px 0; scrollbar-width:thin; scrollbar-color:rgba(0,0,0,.25) transparent; }
 .dlg-body::-webkit-scrollbar { width:8px; }
 .dlg-body::-webkit-scrollbar-track { background:rgba(0,0,0,.04); border-radius:4px; }
 .dlg-body::-webkit-scrollbar-thumb { background:rgba(0,0,0,.25); border-radius:4px; }
@@ -367,32 +367,6 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 
 /* ── empty ── */
 .empty { padding:60px 20px; text-align:center; color:var(--sub); font-size:14px; }
-
-/* ── view-toggle ── */
-.view-toggle {
-  display:inline-flex;
-  border:1px solid var(--border);
-  border-radius:10px;
-  overflow:hidden;
-  flex-shrink:0;
-}
-.vt-btn {
-  padding:5px 14px;
-  font-size:12px;
-  font-weight:700;
-  font-family:inherit;
-  cursor:pointer;
-  border:none;
-  background:transparent;
-  color:var(--sub);
-  transition:all .15s;
-  white-space:nowrap;
-}
-.vt-btn.active {
-  background:var(--primary);
-  color:#fff;
-}
-.vt-btn:not(.active):hover { background:var(--primary-bg); color:var(--primary); }
 
 /* ── lamp chips (toolbar 燈號切換) ── */
 .lamp-bar {
@@ -479,10 +453,6 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   <button class="back-btn" id="back-btn" onclick="goBack()">← 返回</button>
   <span class="toolbar-title" id="tb-title">覆蓋率看板</span>
   <select class="proj-sel" id="proj-sel" style="display:none" onchange="switchProject(this.value)"></select>
-  <div class="view-toggle" id="view-toggle">
-    <button class="vt-btn active" id="vt-org"     onclick="setViewMode('org')">\U0001f3e2 組織</button>
-    <button class="vt-btn"        id="vt-channel" onclick="setViewMode('channel')">\U0001f3ea 通路</button>
-  </div>
   <span class="sync-note" id="tb-sync"></span>
   <div class="lamp-bar" id="lamp-bar" style="display:none"></div>
 </div>
@@ -513,16 +483,13 @@ var MGMT_SHEET = '\u5C08\u6848\u7BA1\u7406';
 var SYNC_SHEET_DEFAULT = '\u8F14\u52A9';
 var SYNC_CELL_DEFAULT  = 'B1';
 var SHEET_NAME_DEFAULT = '\u5E97\u5BB6\u540D\u518A';
-/* 層級欄位名稱（組織視角） */
+/* 層級欄位名稱 */
 var COL_AREA    = '\u71DF\u696D\u8655\u540D\u7A31';
 var COL_OFFICE  = '\u71DF\u696D\u6240/\u8AB2';
 var COL_STAFF   = '\u57F7\u884C\u4EBA\u54E1';
 var COL_UNFILL  = '\u672A\u586B\u5BEB';
 var COL_CODE    = '\u5E97\u5BB6\u4EE3\u78BC';
 var COL_NAME    = '\u5E97\u5BB6\u540D\u7A31';
-/* 通路視角欄位 */
-var COL_CHANNEL = '\u901A\u8DEF\u5225';   /* 通路別 */
-var COL_TYPE    = '\u5E97\u5BB6\u578B\u614B'; /* 店家型態 */
 
 /* 動態桶設定（由覆蓋率型專案管理分頁載入） */
 var BUCKET_A = [];          /* 未知欄位列表（通常只有一欄：未填寫） */
@@ -850,11 +817,9 @@ function calcGroup(rows) {
 
 /* \u2500\u2500 \u7BE9\u9078 \u2500\u2500 */
 function filterRows(level, key) {
-  if(level==='area')    return allRows.filter(function(r){ return String(r[COL_AREA])===key; });
-  if(level==='office')  return allRows.filter(function(r){ return String(r[COL_OFFICE])===key; });
-  if(level==='staff')   return allRows.filter(function(r){ return String(r[COL_STAFF])===key; });
-  if(level==='channel') return allRows.filter(function(r){ return String(r[COL_CHANNEL])===key; });
-  if(level==='type')    return allRows.filter(function(r){ return String(r[COL_TYPE])===key; });
+  if(level==='area')   return allRows.filter(function(r){ return String(r[COL_AREA])===key; });
+  if(level==='office') return allRows.filter(function(r){ return String(r[COL_OFFICE])===key; });
+  if(level==='staff')  return allRows.filter(function(r){ return String(r[COL_STAFF])===key; });
   return allRows;
 }
 function getCurrentRows() {
@@ -872,16 +837,6 @@ function getNextGroups(rows, col) {
   return map;
 }
 
-/* \u2500\u2500 視角切換 \u2500\u2500 */
-function setViewMode(mode) {
-  if (viewMode === mode) return;
-  viewMode = mode;
-  drillStack = [];
-  document.getElementById('vt-org').classList.toggle('active',     mode === 'org');
-  document.getElementById('vt-channel').classList.toggle('active', mode === 'channel');
-  render();
-}
-
 /* \u2500\u2500 \u6E32\u67D3 \u2500\u2500 */
 function render() {
   hideLoading();
@@ -889,20 +844,14 @@ function render() {
   var stage=document.getElementById('stage');
   stage.innerHTML='';
   var depth=drillStack.length, rows=getCurrentRows();
-  var overallName = depth===0 ? '\u5168\u53F0' : drillStack[drillStack.length-1].key;
-
-  if (viewMode === 'channel') {
-    /* 通路視角：通路別 → 店家型態 → dialog */
-    if      (depth===0) renderLevel(stage,rows,COL_CHANNEL,'channel','\u901A\u8DEF\u5225', overallName);
-    else if (depth===1) renderLevel(stage,rows,COL_TYPE,   'type',   '\u5E97\u5BB6\u578B\u614B', overallName);
-    else stage.innerHTML='<div class="empty">\u5DF2\u5230\u6700\u7D30\u5C64\u7D1A</div>';
-  } else {
-    /* 組織視角 */
-    if      (depth===0) renderLevel(stage,rows,COL_AREA,  'area',  '\u71DF\u696D\u8655', overallName);
-    else if (depth===1) renderLevel(stage,rows,COL_OFFICE,'office','\u71DF\u696D\u6240/\u8AB2', overallName);
-    else if (depth===2) renderLevel(stage,rows,COL_STAFF, 'staff', '\u696D\u52D9\u4EBA\u54E1', overallName);
-    else stage.innerHTML='<div class="empty">\u5DF2\u5230\u6700\u7D30\u5C64\u7D1A</div>';
-  }
+  /* 整體卡片名稱：第一層「全台」，第二層取上層營業處名，第三層取上層營業所名 */
+  var overallName;
+  if(depth===0) overallName='\u5168\u53F0';
+  else overallName=drillStack[drillStack.length-1].key;
+  if     (depth===0) renderLevel(stage,rows,COL_AREA,  'area',  '\u71DF\u696D\u8655', overallName);
+  else if(depth===1) renderLevel(stage,rows,COL_OFFICE,'office','\u71DF\u696D\u6240/\u8AB2', overallName);
+  else if(depth===2) renderLevel(stage,rows,COL_STAFF, 'staff', '\u696D\u52D9\u4EBA\u54E1', overallName);
+  else stage.innerHTML='<div class="empty">\u5DF2\u5230\u6700\u7D30\u5C64\u7D1A</div>';
 }
 
 function renderLevel(stage, rows, col, levelKey, labelText, overallName) {
@@ -955,8 +904,7 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
     if(e.target.closest('#si-'+ttId)||e.target.closest('#dbtn-'+ttId)) return;
     /* 整體卡片：永遠開 dialog，不 drill down */
     if(isOverall){ openDialog(name,levelKey,rows); return; }
-    /* 通路視角 type 層 & 組織視角 staff 層 → 開 dialog */
-    if(levelKey==='staff' || levelKey==='type') openDialog(name,levelKey,rows);
+    if(levelKey==='staff') openDialog(name,levelKey,rows);
     else drillDown(levelKey,name);
   });
   return card;
