@@ -2,22 +2,24 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>業務王同步中心</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
       --primary: #5a8a6a;
-      --bg: #f5f5f5;
+      --primary-deep: #3f6b4e;
+      --bg: #f2f4f2;
       --card: #ffffff;
-      --border: #e0e0e0;
-      --text-main: #222;
-      --text-secondary: #888;
+      --border: #e2e7e2;
+      --text-main: #232925;
+      --text-secondary: #7d8980;
+      --mono: 'SFMono-Regular', Consolas, 'Courier New', monospace;
     }
 
     html, body {
-      height: 100dvh;
+      height: 100vh;
       font-family: 'Microsoft JhengHei', 'PingFang TC', sans-serif;
       background: var(--bg);
       color: var(--text-main);
@@ -31,67 +33,145 @@
       flex-shrink: 0;
       background: var(--card);
       border-bottom: 1px solid var(--border);
-      padding: 10px 14px;
+      padding: 14px 32px;
       display: flex;
       align-items: center;
-      gap: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+      gap: 14px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
     }
-    .wa-header-title { font-size: 16px; font-weight: 700; flex: 1; }
+    .brand-mark {
+      width: 36px; height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, var(--primary), var(--primary-deep));
+      color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 16px;
+      flex-shrink: 0;
+      box-shadow: 0 2px 6px rgba(63,107,78,0.3);
+    }
+    .header-title-block { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .wa-header-title { font-size: 17px; font-weight: 700; }
+    .header-subtitle { font-size: 12.5px; color: var(--text-secondary); }
+
     .wa-btn-sm {
       background: none;
       border: 1.5px solid var(--primary);
       color: var(--primary);
       border-radius: 7px;
-      padding: 5px 10px;
-      font-size: 12px;
+      padding: 7px 14px;
+      font-size: 13px;
       font-weight: 600;
       cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.15s;
     }
+    .wa-btn-sm:hover { background: rgba(90,138,106,0.08); }
     .wa-btn-sm:active { opacity: 0.7; }
 
-    /* ── 任務捲動區 ── */
-    .wa-scroll {
+    /* ── 整體版面：主內容 + 右側紀錄欄 ── */
+    .app-shell {
       flex: 1;
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      padding: 10px 10px 6px;
       display: flex;
-      flex-direction: column;
-      gap: 8px;
+      overflow: hidden;
       min-height: 0;
     }
 
-    /* ── 任務卡片 ── */
-    .task-card {
+    .main-col {
+      flex: 1;
+      overflow-y: auto;
+      padding: 30px 36px 56px;
+      min-width: 0;
+    }
+    .content-inner { max-width: 1480px; margin: 0 auto; }
+
+    /* ── 訪頻專用 分組框 ── */
+    .freq-group {
+      position: relative;
+      border: 1.5px solid var(--primary);
+      border-radius: 16px;
+      padding: 30px 22px 20px;
+      margin-bottom: 32px;
+      background: linear-gradient(180deg, rgba(90,138,106,0.06), rgba(90,138,106,0.01));
+    }
+    .freq-group-label {
+      position: absolute;
+      top: -14px; left: 22px;
+      background: var(--primary);
+      color: #fff;
+      padding: 5px 14px;
+      font-size: 12.5px; font-weight: 700;
+      border-radius: 999px;
+      letter-spacing: 0.5px;
+      box-shadow: 0 2px 6px rgba(63,107,78,0.3);
+    }
+    .freq-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+    }
+    .freq-card {
       background: var(--card);
-      border-radius: 10px;
       border: 1px solid var(--border);
-      padding: 10px 12px;
+      border-radius: 12px;
+      padding: 14px 16px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 10px;
+      transition: box-shadow 0.15s, transform 0.15s;
     }
-    .task-row-top { display: flex; align-items: center; gap: 8px; }
-    .task-info { flex: 1; min-width: 0; }
-    .task-name {
-      font-size: 14px; font-weight: 700;
+    .freq-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.06); transform: translateY(-1px); }
+    .freq-card-name { font-size: 14.5px; font-weight: 700; }
+    .freq-card-meta { font-size: 11.5px; color: var(--text-secondary); font-family: var(--mono); margin-top: 2px; }
+    .freq-card-btns { display: flex; gap: 8px; }
+    .freq-card-btns .btn-sync { flex: 1; }
+
+    /* ── 其他任務 區塊 ── */
+    .section-eyebrow {
+      font-size: 12.5px; font-weight: 700;
+      color: var(--text-secondary);
+      letter-spacing: 0.5px;
+      margin: 0 0 14px 4px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .section-eyebrow::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    .task-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+      gap: 16px;
+    }
+    .task-card2 {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      transition: box-shadow 0.15s, transform 0.15s;
+    }
+    .task-card2:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.06); transform: translateY(-1px); }
+    .task-card2-name {
+      font-size: 14.5px; font-weight: 700;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    .task-date { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
-    .task-updated { font-size: 10px; color: var(--text-secondary); margin-top: 1px; opacity: 0.7; }
-    .task-btns { display: flex; gap: 6px; flex-shrink: 0; }
+    .task-card2-date { font-size: 11.5px; color: var(--text-secondary); font-family: var(--mono); margin-top: 4px; }
+    .task-card2-updated { font-size: 10.5px; color: var(--text-secondary); margin-top: 2px; opacity: 0.8; }
+    .task-card2-btns { display: flex; gap: 8px; }
+    .task-card2-btns .btn-sync { flex: 1; }
 
+    /* ── 按鈕共用樣式 ── */
     .btn-sync {
-      padding: 8px 14px;
+      padding: 9px 14px;
       background: var(--primary);
       color: white; border: none;
       border-radius: 8px; font-size: 13px; font-weight: 700;
       cursor: pointer; white-space: nowrap;
-      min-height: 44px;
-      transition: transform 0.1s, opacity 0.2s;
+      min-height: 40px;
+      transition: transform 0.1s, opacity 0.2s, background 0.15s;
     }
-    .btn-sync:active  { transform: scale(0.96); }
+    .btn-sync:hover { background: var(--primary-deep); }
+    .btn-sync:active { transform: scale(0.97); }
     .btn-sync:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
     .btn-sync.running  { background: #FBBC04; color: #333; }
     .btn-sync.done-ok  { background: #34A853; }
@@ -104,109 +184,70 @@
       border-radius: 8px; font-size: 15px;
       cursor: pointer; text-decoration: none;
       display: flex; align-items: center; justify-content: center;
-      min-height: 44px; min-width: 44px;
+      min-height: 40px; min-width: 40px;
+      flex-shrink: 0;
     }
+    .btn-sheet:hover { background: rgba(90,138,106,0.08); }
     .btn-sheet:active { opacity: 0.7; }
-
-    /* ── 看板按鈕（橘色調，與試算表按鈕做區分）── */
-    .btn-board {
-      color: #e07b00;
-      border-color: #e07b00;
-    }
+    .btn-board { color: #e07b00; border-color: #e07b00; }
+    .btn-board:hover { background: rgba(224,123,0,0.08); }
 
     /* ── 進度條 ── */
     .task-progress { display: none; flex-direction: column; gap: 4px; }
     .task-progress.show { display: flex; }
-    .progress-bar-wrap {
-      background: var(--border); border-radius: 99px; height: 5px; overflow: hidden;
-    }
-    .progress-bar {
-      height: 100%; background: var(--primary);
-      border-radius: 99px; width: 0%; transition: width 0.4s ease;
-    }
+    .progress-bar-wrap { background: var(--border); border-radius: 99px; height: 5px; overflow: hidden; }
+    .progress-bar { height: 100%; background: var(--primary); border-radius: 99px; width: 0%; transition: width 0.4s ease; }
     .progress-bar.pulse { animation: waPulse 1.2s ease-in-out infinite; }
     @keyframes waPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
     .progress-info { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-secondary); }
-    .progress-timer { font-weight: 700; color: var(--text-main); font-family: monospace; }
+    .progress-timer { font-weight: 700; color: var(--text-main); font-family: var(--mono); }
 
-    /* ── Log 抽屜 ── */
-    .wa-log {
+    /* ── 右側執行紀錄欄 ── */
+    .log-sidebar {
+      width: 340px;
       flex-shrink: 0;
       background: var(--card);
-      border-top: 1px solid var(--border);
+      border-left: 1px solid var(--border);
       display: flex;
       flex-direction: column;
-      transition: height 0.3s ease;
-      height: 44px;
-      overflow: hidden;
+      height: 100%;
+      min-height: 0;
     }
-    .wa-log.open {
-      height: 38vh;
-    }
-    .wa-log-header {
-      padding: 0 12px;
-      height: 44px;
-      min-height: 44px;
-      font-size: 13px;
-      font-weight: 700;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      cursor: pointer;
-      flex-shrink: 0;
-      user-select: none;
-    }
-    .wa-log-header:active { opacity: 0.7; }
-    .wa-log-left { display: flex; align-items: center; gap: 7px; }
-    .wa-log-arrow {
-      font-size: 11px;
-      color: var(--text-secondary);
-      transition: transform 0.3s ease;
-    }
-    .wa-log.open .wa-log-arrow { transform: rotate(180deg); }
-
-    /* 未讀紅點 */
-    .wa-log-dot {
-      width: 7px; height: 7px;
-      background: #EA4335;
-      border-radius: 50%;
-      display: none;
+    .log-sidebar-header {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 14px; font-weight: 700;
       flex-shrink: 0;
     }
-    .wa-log-dot.show { display: block; }
-
     .wa-log-clear {
       background: none; border: none;
       color: var(--text-secondary); font-size: 12px;
       cursor: pointer; padding: 4px 8px;
-      display: none;
     }
-    .wa-log.open .wa-log-clear { display: block; }
-
-    .wa-log-content {
-      overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
-      padding: 6px 8px;
-      flex: 1;
+    .wa-log-clear:hover { color: var(--text-main); }
+    .log-sidebar-content {
+      flex: 1; overflow-y: auto;
+      padding: 12px 14px;
       min-height: 0;
     }
     .log-item {
-      padding: 6px 10px; border-radius: 7px; font-size: 12px;
-      margin-bottom: 5px; border-left: 3px solid var(--border);
+      padding: 8px 11px; border-radius: 7px; font-size: 12.5px;
+      margin-bottom: 7px; border-left: 3px solid var(--border);
       background: var(--bg); line-height: 1.6;
     }
     .log-item.success { border-left-color: #34A853; }
     .log-item.error   { border-left-color: #EA4335; }
     .log-item.running { border-left-color: #FBBC04; }
-    .log-time    { font-size: 10px; color: var(--text-secondary); font-family: monospace; margin-right: 3px; }
+    .log-time    { font-size: 10.5px; color: var(--text-secondary); font-family: var(--mono); margin-right: 3px; }
     .log-elapsed { font-size: 11px; font-weight: 700; color: var(--text-secondary); margin-left: 5px; }
-    .log-empty   { padding: 14px; text-align: center; color: var(--text-secondary); font-size: 13px; }
+    .log-empty   { padding: 24px 10px; text-align: center; color: var(--text-secondary); font-size: 13px; }
 
     /* ── 載入/空狀態 ── */
     .loading-wrap, .empty-state {
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
-      padding: 50px 20px; gap: 12px; color: var(--text-secondary);
+      padding: 80px 20px; gap: 12px; color: var(--text-secondary);
     }
     .spinner {
       width: 34px; height: 34px;
@@ -214,37 +255,45 @@
       border-radius: 50%; animation: spin 0.8s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── 較窄螢幕回退（仍以桌機為主要設計目標）── */
+    @media (max-width: 1000px) {
+      .app-shell { flex-direction: column; }
+      .log-sidebar { width: 100%; height: 260px; border-left: none; border-top: 1px solid var(--border); }
+      .main-col { padding: 18px 16px 24px; }
+    }
   </style>
 </head>
 <body>
 
   <div class="wa-header">
-    <span style="font-size:20px">💾</span>
-    <span class="wa-header-title">業務王同步中心</span>
+    <div class="brand-mark">業</div>
+    <div class="header-title-block">
+      <div class="wa-header-title">業務王同步中心</div>
+      <div class="header-subtitle" id="header-subtitle">正在載入任務...</div>
+    </div>
     <button class="wa-btn-sm" onclick="loadTasks()">🔄 重新載入</button>
   </div>
 
-  <div class="wa-scroll" id="app">
-    <div class="loading-wrap">
-      <div class="spinner"></div>
-      <div>正在載入任務...</div>
-    </div>
-  </div>
+  <div class="app-shell">
+    <main class="main-col">
+      <div class="content-inner" id="content-inner">
+        <div class="loading-wrap">
+          <div class="spinner"></div>
+          <div>正在載入任務...</div>
+        </div>
+      </div>
+    </main>
 
-  <div class="wa-log" id="wa-log">
-    <div class="wa-log-header" onclick="toggleLog()">
-      <div class="wa-log-left">
+    <aside class="log-sidebar">
+      <div class="log-sidebar-header">
         <span>📋 執行紀錄</span>
-        <div class="wa-log-dot" id="log-dot"></div>
+        <button class="wa-log-clear" onclick="clearLog()">清除</button>
       </div>
-      <div style="display:flex;align-items:center;gap:8px">
-        <button class="wa-log-clear" onclick="event.stopPropagation();clearLog()">清除</button>
-        <span class="wa-log-arrow">▲</span>
+      <div class="log-sidebar-content" id="log-content">
+        <div class="log-empty">尚無紀錄</div>
       </div>
-    </div>
-    <div class="wa-log-content" id="log-content">
-      <div class="log-empty">尚無紀錄</div>
-    </div>
+    </aside>
   </div>
 
   <script>
@@ -258,15 +307,10 @@
       '獎勵達成型': 'award_board.html'
     };
 
-    let tasks = [];
+    // 最開始幾項任務歸入「訪頻專用」分組框
+    const FREQ_GROUP_COUNT = 6;
 
-    function toggleLog() {
-      const log = document.getElementById('wa-log');
-      log.classList.toggle('open');
-      if (log.classList.contains('open')) {
-        document.getElementById('log-dot').classList.remove('show');
-      }
-    }
+    let tasks = [];
 
     function nowTime() {
       return [new Date().getHours(), new Date().getMinutes(), new Date().getSeconds()]
@@ -281,21 +325,17 @@
       div.className = 'log-item ' + cssClass;
       div.innerHTML = html;
       c.insertBefore(div, c.firstChild);
-      const log = document.getElementById('wa-log');
-      if (!log.classList.contains('open')) {
-        document.getElementById('log-dot').classList.add('show');
-      }
       return div;
     }
 
     function clearLog() {
       const c = document.getElementById('log-content');
       if (c) c.innerHTML = '<div class="log-empty">尚無紀錄</div>';
-      document.getElementById('log-dot').classList.remove('show');
     }
 
     async function loadTasks() {
-      document.getElementById('app').innerHTML = `
+      document.getElementById('header-subtitle').textContent = '正在載入任務...';
+      document.getElementById('content-inner').innerHTML = `
         <div class="loading-wrap"><div class="spinner"></div><div>正在載入任務...</div></div>`;
       try {
         const res = await fetch(GAS_URL + '?action=getTasks');
@@ -304,52 +344,100 @@
         tasks = json.data.filter(t => t.targetId && t.targetId.trim() !== '');
         render(tasks);
       } catch(e) {
-        document.getElementById('app').innerHTML = `
+        document.getElementById('header-subtitle').textContent = '載入失敗';
+        document.getElementById('content-inner').innerHTML = `
           <div class="empty-state"><div style="font-size:38px">⚠️</div><div>載入失敗：${e.message}</div></div>`;
       }
     }
 
+    function boardButtonHtml(task) {
+      const boardFile = (task.dataType === '問卷' && task.boardType) ? BOARD_FILE[task.boardType] : null;
+      if (!boardFile) return '';
+      return `<a class="btn-sheet btn-board"
+               href="${BOARD_BASE}${boardFile}?sheetId=${encodeURIComponent(task.targetId)}"
+               target="_blank"
+               title="${task.boardType}">📈</a>`;
+    }
+
+    function progressHtml(i) {
+      return `
+        <div class="task-progress" id="progress-${i}">
+          <div class="progress-bar-wrap">
+            <div class="progress-bar pulse" id="bar-${i}"></div>
+          </div>
+          <div class="progress-info">
+            <span id="progress-msg-${i}">準備中...</span>
+            <span class="progress-timer" id="progress-time-${i}">0.0 秒</span>
+          </div>
+        </div>`;
+    }
+
+    function freqCard(task, i) {
+      return `
+        <div class="freq-card">
+          <div>
+            <div class="freq-card-name">${task.name}</div>
+            ${task.updatedAt ? `<div class="freq-card-meta">🕐 ${task.updatedAt}</div>` : ''}
+          </div>
+          <div class="freq-card-btns">
+            ${boardButtonHtml(task)}
+            <button class="btn-sync" id="btn-sync-${i}" onclick="startSync(${i})">🔄 同步</button>
+          </div>
+          ${progressHtml(i)}
+        </div>`;
+    }
+
+    function taskCard(task, i) {
+      return `
+        <div class="task-card2">
+          <div>
+            <div class="task-card2-name">${task.name}</div>
+            ${task.dateText ? `<div class="task-card2-date">${task.dateText}</div>` : ''}
+            ${task.updatedAt ? `<div class="task-card2-updated">🕐 ${task.updatedAt}</div>` : ''}
+          </div>
+          <div class="task-card2-btns">
+            ${boardButtonHtml(task)}
+            <button class="btn-sync" id="btn-sync-${i}" onclick="startSync(${i})">🔄 同步</button>
+          </div>
+          ${progressHtml(i)}
+        </div>`;
+    }
+
     function render(data) {
+      const container = document.getElementById('content-inner');
+      const subtitleEl = document.getElementById('header-subtitle');
+
       if (!data || data.length === 0) {
-        document.getElementById('app').innerHTML = `
+        subtitleEl.textContent = '尚無任務';
+        container.innerHTML = `
           <div class="empty-state"><div style="font-size:38px">📋</div><div>沒有可同步的任務</div></div>`;
         return;
       }
-      document.getElementById('app').innerHTML = data.map((task, i) => {
-        // 看板按鈕：僅問卷且有對應 boardType 才顯示
-        const boardFile = (task.dataType === '問卷' && task.boardType)
-          ? BOARD_FILE[task.boardType] : null;
-        const boardBtn = boardFile
-          ? `<a class="btn-sheet btn-board"
-               href="${BOARD_BASE}${boardFile}?sheetId=${encodeURIComponent(task.targetId)}"
-               target="_blank"
-               title="${task.boardType}">📈</a>`
-          : '';
 
-        return `
-        <div class="task-card">
-          <div class="task-row-top">
-            <div class="task-info">
-              <div class="task-name">${task.name}</div>
-              ${task.dateText ? `<div class="task-date">${task.dateText}</div>` : ''}
-              ${task.updatedAt ? `<div class="task-updated">🕐 ${task.updatedAt}</div>` : ''}
+      const freqTasks = data.slice(0, FREQ_GROUP_COUNT);
+      const restTasks = data.slice(FREQ_GROUP_COUNT);
+      subtitleEl.textContent = `共 ${data.length} 項任務 ・ 訪頻 ${freqTasks.length} 項`;
+
+      let html = '';
+      if (freqTasks.length) {
+        html += `
+          <section class="freq-group">
+            <div class="freq-group-label">📅 訪頻專用</div>
+            <div class="freq-grid">
+              ${freqTasks.map((t, idx) => freqCard(t, idx)).join('')}
             </div>
-            <div class="task-btns">
-              ${boardBtn}
-              <button class="btn-sync" id="btn-sync-${i}" onclick="startSync(${i})">🔄 同步</button>
+          </section>`;
+      }
+      if (restTasks.length) {
+        html += `
+          <section class="task-section">
+            <div class="section-eyebrow">其他任務</div>
+            <div class="task-grid">
+              ${restTasks.map((t, idx) => taskCard(t, idx + freqTasks.length)).join('')}
             </div>
-          </div>
-          <div class="task-progress" id="progress-${i}">
-            <div class="progress-bar-wrap">
-              <div class="progress-bar pulse" id="bar-${i}"></div>
-            </div>
-            <div class="progress-info">
-              <span id="progress-msg-${i}">準備中...</span>
-              <span class="progress-timer" id="progress-time-${i}">0.0 秒</span>
-            </div>
-          </div>
-        </div>`;
-      }).join('');
+          </section>`;
+      }
+      container.innerHTML = html;
     }
 
     async function startSync(i) {
