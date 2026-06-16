@@ -265,6 +265,9 @@
     .d-cur { color:var(--blue); }
     .d-tgt { color:var(--purple); }
 
+    /* ══ 彙整表 MODAL ══ */
+    #summary-modal { opacity:0; transition:opacity .2s; }
+
     /* ══ 品評排行 MODAL ══ */
     #rank-modal {
       position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:500;
@@ -362,6 +365,7 @@
     .empty-msg { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:60px 20px; color:var(--sub); font-size:13px; font-weight:600; width:100%; }
     .empty-msg .ei { font-size:32px; }
   </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -419,6 +423,9 @@
     <button class="sort-btn" data-sort="cur" onclick="setSort('cur')">當期CTN</button>
     <button class="sort-btn" data-sort="tgt" onclick="setSort('tgt')">目標CTN</button>
   </div>
+  <div style="display:flex;align-items:center;gap:6px;margin-left:6px;" id="gb-extra-btns">
+    <button class="tb-btn" id="btn-summary" onclick="openSummaryTable()" style="display:none;background:rgba(74,122,85,.12);border-color:rgba(74,122,85,.35);color:#2d5a38;font-weight:800;">📊 彙整表</button>
+  </div>
   <div id="gb-count"></div>
 </div>
 
@@ -450,6 +457,23 @@
       </div>
     </div>
     <div class="dlg-body" id="dlg-body"></div>
+  </div>
+</div>
+
+<!-- 彙整表 Modal -->
+<div id="summary-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:600;display:none;align-items:flex-start;justify-content:center;padding:20px 12px;overflow-y:auto;" onclick="if(event.target===this)closeSummaryTable()">
+  <div style="background:#fff;border-radius:14px;width:100%;max-width:1400px;min-height:200px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 80px rgba(0,0,0,.35);margin:auto;">
+    <div style="padding:13px 18px;border-bottom:1px solid rgba(0,0,0,.09);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:rgba(248,250,248,1);">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:14px;font-weight:900;color:var(--text);" id="summary-title">📊 彙整表</span>
+        <span style="font-size:11px;color:var(--sub);" id="summary-subtitle"></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="dlg-action-btn" onclick="exportSummaryXLSX()">📥 下載 XLSX</button>
+        <button class="dlg-close" onclick="closeSummaryTable()">✕</button>
+      </div>
+    </div>
+    <div style="flex:1;overflow:auto;" id="summary-body"></div>
   </div>
 </div>
 
@@ -584,6 +608,9 @@ function setViewMode(mode){
   viewMode=mode;
   document.getElementById('vc-person').classList.toggle('on', mode==='person');
   document.getElementById('vc-org').classList.toggle('on', mode==='org');
+  var summaryBtn=document.getElementById('btn-summary');
+  if(summaryBtn) summaryBtn.style.display=(mode==='org'?'':'none');
+  if(mode==='person') closeSummaryTable();
   _updateSortBtnLabels();
   render(); updateGbar(); updateRank();
 }
@@ -1555,7 +1582,7 @@ function closeDetailDialog(){
   setTimeout(function(){dlg.style.display='none';},220);
 }
 document.addEventListener('keydown',function(e){
-  if(e.key==='Escape'){ closeDetailDialog(); closeRank(); }
+  if(e.key==='Escape'){ closeDetailDialog(); closeRank(); closeSummaryTable(); }
 });
 
 /* \u2550\u2550 \u8907\u88FD\u5171\u7528\u5DE5\u5177 \u2550\u2550 */
@@ -1888,29 +1915,222 @@ function updateGbar(){
 
 /* \u2550\u2550 XLSX \u2550\u2550 */
 function downloadXLSX(){
-  if(!window.XLSX){alert('XLSX \u5957\u4EF6\u5C1A\u672A\u8F09\u5165');return;}
+  if(!window.XLSX){ alert('XLSX 套件載入中，請稍後再試'); return; }
+  if(viewMode==='org'){ _exportOrgXLSX(); } else { _exportPersonXLSX(); }
+}
+
+function _exportPersonXLSX(){
   var pMap=getPersonList();
-  var rows=[['\u4EBA\u54E1','\u71DF\u696D\u8655','\u71DF\u696D\u6240','\u5B63\u5EA6','\u6708\u4EFD','\u7576\u671FCTN','\u76EE\u6A19CTN','\u54C1\u8A55CTN','\u6709\u6548\u6708\u4EFD\u6578']];
+  var months=QUARTERS[curQ]||[];
+  var header=['人員','營業處','營業所','季度'];
+  months.forEach(function(m){ header.push(MNAMES[m]+'當期',MNAMES[m]+'目標',MNAMES[m]+'品評'); });
+  header.push('季當期','季目標','季品評','有效月份');
+  var rows=[header];
   Object.keys(pMap).forEach(function(staff){
     var info=pMap[staff];
-    var allStaffRows=allRows.filter(function(r){
-      if(fArea&&gv(r,'area')!==fArea) return false;
-      if(fOffice&&gv(r,'office')!==fOffice) return false;
-      return gv(r,'staff')===staff;
-    });
-    var qd=calcPersonQuarter(allStaffRows,curQ);
-    qd.months.forEach(function(m){
+    var qd=calcPersonQuarter(info.rows,curQ);
+    if(!qd.evalMonths.length) return;
+    var row=[staff,info.area,info.office,curQ];
+    months.forEach(function(m){
       var d=qd.monthData[m];
-      rows.push([staff,info.area,info.office,curQ,MNAMES[m],d.hasData?d.cur:'',d.hasData?d.tgt:'',d.hasData?d.eval:'',qd.validMonths.length]);
+      row.push(d.hasData?d.cur:'', d.hasData?fmt1(d.tgt):'', d.hasData?fmt1(d.eval):'');
     });
+    row.push(qd.totalCur, fmt1(qd.totalTgt||0), fmt1(qd.totalEvalRaw||0), qd.evalMonths.length);
+    rows.push(row);
   });
   var wb=XLSX.utils.book_new();
   var ws=XLSX.utils.aoa_to_sheet(rows);
-  XLSX.utils.book_append_sheet(wb,ws,curQ||'\u54C1\u8A55\u7BB1\u6578');
-  XLSX.writeFile(wb,'\u5168\u806F18\u5929_'+(curQ||'')+'.xlsx');
+  _xlsxAutoWidth(ws,rows);
+  XLSX.utils.book_append_sheet(wb,ws,(curQ||'')+'人員視角');
+  XLSX.writeFile(wb,'全聯18天_'+(curQ||'')+'_人員.xlsx');
 }
 
-/* \u2550\u2550 \u5DE5\u5177 \u2550\u2550 */
+function _exportOrgXLSX(){
+  var storeMap=getStoreList();
+  var months=QUARTERS[curQ]||[];
+  var header=['店碼','店名','營業處','營業所'];
+  months.forEach(function(m){ header.push(MNAMES[m]+'當期',MNAMES[m]+'去年',MNAMES[m]+'增減'); });
+  header.push('季當期','季去年','季增減');
+  var rows=[header];
+  Object.keys(storeMap).forEach(function(k){
+    var s=storeMap[k];
+    var qd=calcStoreQuarter(s.rows,curQ);
+    if(!qd.evalMonths.length) return;
+    var row=[s.code,s.name,s.area,s.office];
+    months.forEach(function(m){
+      var d=qd.monthData[m];
+      row.push(d.hasData?d.cur:'', d.hasData?d.last:'', d.hasData?d.delta:'');
+    });
+    row.push(qd.totalCur, qd.totalLast, qd.totalDelta);
+    rows.push(row);
+  });
+  var wb=XLSX.utils.book_new();
+  var ws1=XLSX.utils.aoa_to_sheet(rows);
+  _xlsxAutoWidth(ws1,rows);
+  XLSX.utils.book_append_sheet(wb,ws1,(curQ||'')+'業績');
+  if(Object.keys(invData).length){
+    var ih=['店碼','店名','上存','進貨','退貨','銷貨','庫存','本月平均PSD','資料時間'];
+    var irows=[ih];
+    var seen={};
+    Object.keys(storeMap).forEach(function(k){
+      var s=storeMap[k];
+      var d=_invLookup(s.code);
+      if(!d||seen[s.code]) return;
+      seen[s.code]=1;
+      irows.push([s.code,s.name,d.upper,d.in,d.ret,d.sale,d.stock,d.psd,invDate]);
+    });
+    var ws2=XLSX.utils.aoa_to_sheet(irows);
+    _xlsxAutoWidth(ws2,irows);
+    XLSX.utils.book_append_sheet(wb,ws2,'進銷存');
+  }
+  XLSX.writeFile(wb,'全聯18天_'+(curQ||'')+'_組織.xlsx');
+}
+
+function _xlsxAutoWidth(ws,rows){
+  if(!rows.length) return;
+  var cols=rows[0].map(function(_,i){
+    var max=rows.reduce(function(m,r){ return Math.max(m,String(r[i]||'').length); },0);
+    return {wch:Math.min(Math.max(max+2,8),30)};
+  });
+  ws['!cols']=cols;
+}
+
+/* ══ 彙整表 ══ */
+function openSummaryTable(){
+  var modal=document.getElementById('summary-modal');
+  var storeMap=getStoreList();
+  var storeKeys=Object.keys(storeMap);
+  if(!storeKeys.length){ alert('目前篩選範圍無資料'); return; }
+  var months=QUARTERS[curQ]||[];
+  var areaLabel=fOffice?fOffice:(fArea?fArea:'全體');
+  document.getElementById('summary-title').textContent='📊 彙整表 — '+areaLabel;
+  document.getElementById('summary-subtitle').textContent=curQ+' 組織視角　共 '+storeKeys.length+' 家店'+(invDate?' ｜ 進銷存：'+invDate:'');
+
+  var hasInv=Object.keys(invData).length>0;
+  var thS='padding:7px 10px;font-size:11px;font-weight:800;color:#444;background:#f0f4f0;border-bottom:2px solid #ccd8cc;border-right:1px solid #dde8dd;white-space:nowrap;text-align:right;position:sticky;top:0;z-index:2;';
+  var thSL=thS+'text-align:left;';
+  var thSM=thS+'background:#e4eee4;';
+  var thST=thS+'background:#d8ead8;';
+  var thSI=thS+'background:#e4eef8;';
+
+  var thead='<thead><tr>';
+  thead+='<th colspan="4" style="'+thSL+'">店家資訊</th>';
+  months.forEach(function(m){ thead+='<th colspan="3" style="'+thSM+'border-left:2px solid #b8ccb8;">'+MNAMES[m]+'</th>'; });
+  thead+='<th colspan="3" style="'+thST+'border-left:2px solid #a0c0a0;">季合計</th>';
+  if(hasInv) thead+='<th colspan="6" style="'+thSI+'border-left:2px solid #a0c0e0;">進銷存（'+(invDate||'—')+'）</th>';
+  thead+='</tr><tr>';
+  ['店碼','店名','營業處','營業所'].forEach(function(t){ thead+='<th style="'+thSL+'top:34px;">'+t+'</th>'; });
+  months.forEach(function(m,mi){
+    ['當期','去年','增減'].forEach(function(t,i){ thead+='<th style="'+thS+'top:34px;'+(i===0?'border-left:2px solid #b8ccb8;background:#e4eee4;':'background:#f0f4f0;')+'">'+t+'</th>'; });
+  });
+  ['當期','去年','增減'].forEach(function(t,i){ thead+='<th style="'+thST+'top:34px;'+(i===0?'border-left:2px solid #a0c0a0;':'')+'">'+t+'</th>'; });
+  if(hasInv) ['上存','進貨','退貨','銷貨','庫存','PSD'].forEach(function(t,i){ thead+='<th style="'+thSI+'top:34px;'+(i===0?'border-left:2px solid #a0c0e0;':'')+'">'+t+'</th>'; });
+  thead+='</tr></thead>';
+
+  var cards=storeKeys.map(function(k){ var s=storeMap[k]; return{s:s,qd:calcStoreQuarter(s.rows,curQ)}; })
+    .filter(function(c){return c.qd.evalMonths.length>0;});
+  cards.sort(function(a,b){
+    var av=curSort==='cur'?a.qd.totalCur:curSort==='tgt'?a.qd.totalLast:a.qd.totalDelta;
+    var bv=curSort==='cur'?b.qd.totalCur:curSort==='tgt'?b.qd.totalLast:b.qd.totalDelta;
+    return bv-av;
+  });
+
+  var tdS='padding:6px 10px;font-size:12px;border-bottom:1px solid #eee;border-right:1px solid #f0f0f0;text-align:right;white-space:nowrap;';
+  var tdSL=tdS+'text-align:left;';
+  function dCl(v){ return v>0?'color:#22a84c;font-weight:800;':v<0?'color:#d93025;font-weight:800;':'color:#aaa;'; }
+  function dsign(v){ return (v>0?'+':'')+v; }
+
+  var groups={};
+  cards.forEach(function(c){
+    var gk=fOffice?'__flat__':(fArea?c.s.office:c.s.area);
+    if(!groups[gk]) groups[gk]=[];
+    groups[gk].push(c);
+  });
+  var gKeys=Object.keys(groups);
+  if(!fOffice&&!fArea) gKeys=sortAreas(gKeys); else gKeys.sort();
+
+  var totalCols=4+months.length*3+3+(hasInv?6:0);
+  var tbody='<tbody>';
+  gKeys.forEach(function(gk){
+    var gc=groups[gk];
+    if(gk!=='__flat__'){
+      tbody+='<tr><td colspan="'+totalCols+'" style="padding:7px 12px;font-size:11px;font-weight:900;color:#3a6a45;background:#edf5ed;border-top:2px solid #c0d8c0;border-bottom:1px solid #cce0cc;">'+(fArea?'📍 ':'🏢 ')+gk+'　<span style="font-weight:500;color:#888;">'+gc.length+' 家</span></td></tr>';
+    }
+    gc.forEach(function(c){
+      var s=c.s, qd=c.qd;
+      var row='<tr>';
+      row+='<td style="'+tdSL+'color:#777;font-size:11px;">'+s.code+'</td>';
+      row+='<td style="'+tdSL+'font-weight:700;">'+s.name+'</td>';
+      row+='<td style="'+tdSL+'color:#888;font-size:11px;">'+s.area+'</td>';
+      row+='<td style="'+tdSL+'color:#888;font-size:11px;">'+s.office+'</td>';
+      months.forEach(function(m,mi){
+        var d=qd.monthData[m];
+        var bl=mi===0?'border-left:2px solid #ddeedd;':'';
+        if(!d.hasData){ row+='<td style="'+tdS+bl+'color:#ddd;">—</td><td style="'+tdS+'color:#ddd;">—</td><td style="'+tdS+'color:#ddd;">—</td>'; }
+        else {
+          row+='<td style="'+tdS+bl+'color:#1a73e8;">'+d.cur+'</td>';
+          row+='<td style="'+tdS+'color:#7c3aed;">'+d.last+'</td>';
+          row+='<td style="'+tdS+dCl(d.delta)+'">'+dsign(d.delta)+'</td>';
+        }
+      });
+      row+='<td style="'+tdS+'border-left:2px solid #b0ccb0;background:#f4faf4;color:#1a73e8;font-weight:800;">'+qd.totalCur+'</td>';
+      row+='<td style="'+tdS+'background:#f4faf4;color:#7c3aed;font-weight:800;">'+qd.totalLast+'</td>';
+      row+='<td style="'+tdS+'background:#f4faf4;'+dCl(qd.totalDelta)+'">'+dsign(qd.totalDelta)+'</td>';
+      if(hasInv){
+        var inv=_invLookup(s.code);
+        if(inv){
+          row+='<td style="'+tdS+'border-left:2px solid #b0c8e0;background:#f5f8fd;color:#666;">'+inv.upper+'</td>';
+          row+='<td style="'+tdS+'background:#f5f8fd;color:#1a73e8;">'+inv.in+'</td>';
+          row+='<td style="'+tdS+'background:#f5f8fd;color:#888;">'+inv.ret+'</td>';
+          row+='<td style="'+tdS+'background:#f5f8fd;color:#22a84c;font-weight:700;">'+inv.sale+'</td>';
+          row+='<td style="'+tdS+'background:#f5f8fd;'+(inv.stock<=0?'color:#d93025;font-weight:700;':'')+'">'+inv.stock+'</td>';
+          row+='<td style="'+tdS+'background:#f5f8fd;font-weight:800;'+(inv.psd>=2?'color:#22a84c;':inv.psd<1?'color:#d93025;':'')+'">'+inv.psd.toFixed(1)+'</td>';
+        } else {
+          row+='<td colspan="6" style="'+tdS+'border-left:2px solid #b0c8e0;background:#f5f8fd;color:#ccc;text-align:center;font-size:11px;">無進銷存資料</td>';
+        }
+      }
+      row+='</tr>';
+      tbody+=row;
+    });
+    if(gk!=='__flat__'&&gc.length>1){
+      var sC=gc.reduce(function(s,c){return s+c.qd.totalCur;},0);
+      var sL=gc.reduce(function(s,c){return s+c.qd.totalLast;},0);
+      var sD=sC-sL;
+      tbody+='<tr style="background:#edf5ed;font-weight:900;border-top:1.5px solid #c0d8c0;">';
+      tbody+='<td colspan="4" style="'+tdSL+'color:#3a6a45;font-size:11px;">小計 '+gc.length+' 家</td>';
+      months.forEach(function(m,mi){
+        var mc=gc.reduce(function(s,c){return s+(c.qd.monthData[m].hasData?c.qd.monthData[m].cur:0);},0);
+        var ml=gc.reduce(function(s,c){return s+(c.qd.monthData[m].hasData?c.qd.monthData[m].last:0);},0);
+        var md=mc-ml;
+        var bl=mi===0?'border-left:2px solid #cce0cc;':'';
+        tbody+='<td style="'+tdS+bl+'color:#1a73e8;">'+mc+'</td><td style="'+tdS+'color:#7c3aed;">'+ml+'</td><td style="'+tdS+dCl(md)+'">'+dsign(md)+'</td>';
+      });
+      tbody+='<td style="'+tdS+'border-left:2px solid #a0c0a0;color:#1a73e8;">'+sC+'</td>';
+      tbody+='<td style="'+tdS+'color:#7c3aed;">'+sL+'</td>';
+      tbody+='<td style="'+tdS+dCl(sD)+'">'+dsign(sD)+'</td>';
+      if(hasInv) tbody+='<td colspan="6" style="'+tdS+'border-left:2px solid #b0c8e0;background:#f5f8fd;"></td>';
+      tbody+='</tr>';
+    }
+  });
+  tbody+='</tbody>';
+
+  document.getElementById('summary-body').innerHTML=
+    '<table style="border-collapse:collapse;font-size:13px;min-width:100%;">'+thead+tbody+'</table>';
+  modal.style.display='flex';
+  requestAnimationFrame(function(){ modal.style.opacity='1'; });
+}
+
+function closeSummaryTable(){
+  var m=document.getElementById('summary-modal');
+  m.style.opacity='0';
+  setTimeout(function(){ m.style.display='none'; },200);
+}
+
+function exportSummaryXLSX(){
+  if(!window.XLSX){ alert('XLSX 套件載入中，請稍後再試'); return; }
+  _exportOrgXLSX();
+}
+
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
 /* \u2550\u2550 Loading \u2550\u2550 */
