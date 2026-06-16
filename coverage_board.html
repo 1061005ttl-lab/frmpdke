@@ -165,10 +165,15 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   border-color:var(--primary);
   background:var(--primary-bg);
 }
-.card-overall .card-top { color:var(--primary); font-weight:700; }
-.card-overall .card-name { color:var(--primary); }
-.card-top-overall { font-size:12px; color:var(--primary); font-weight:700; margin-bottom:14px; display:flex; align-items:baseline; gap:6px; }
-.card-name-inline { font-size:18px; font-weight:800; color:var(--primary); }
+.card-overall .card-top { color:var(--primary); }
+.card-top-inline {
+  font-size:11px; color:var(--sub); font-weight:500;
+  display:flex; align-items:baseline; gap:5px;
+  margin-bottom:14px; flex-wrap:wrap;
+}
+.card-overall .card-top-inline { color:var(--primary); font-weight:700; }
+.card-name-inline { font-size:18px; font-weight:800; color:var(--text); line-height:1.1; }
+.card-overall .card-name-inline, .card-name-overall { color:var(--primary); }
 .card-top { font-size:12px; color:var(--sub); margin-bottom:6px; }
 .card-name { font-size:18px; font-weight:700; margin-bottom:16px; }
 .cov-row { display:flex; align-items:baseline; gap:4px; }
@@ -314,17 +319,22 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .lamp-chip {
   display:inline-flex; align-items:center; gap:5px;
   padding:4px 10px; border-radius:20px; font-size:12px; font-weight:700;
-  border:1px solid rgba(0,0,0,.12); background:#f5f5f5; color:#999;
+  border:1px solid rgba(0,0,0,.12); background:#f0f0f0; color:#bbb;
   cursor:pointer; transition:all .18s; font-family:inherit; white-space:nowrap;
   user-select:none;
 }
 .lamp-chip .lamp-dot {
   width:8px; height:8px; border-radius:50%; background:#ccc; flex-shrink:0; transition:background .18s;
 }
-.lamp-chip.on { background:var(--green-bg); color:var(--green); border-color:var(--green-bd); }
-.lamp-chip.on .lamp-dot { background:var(--green); }
+/* 已有（綠） */
+.lamp-chip.good.on { background:var(--green-bg); color:var(--green); border-color:var(--green-bd); }
+.lamp-chip.good.on .lamp-dot { background:var(--green); }
+/* 未有（紅） */
 .lamp-chip.warn.on { background:var(--red-bg); color:var(--red); border-color:rgba(163,45,45,.25); }
 .lamp-chip.warn.on .lamp-dot { background:var(--red); }
+/* 未填寫（灰） */
+.lamp-chip.neutral.on { background:#f0f0f0; color:#666; border-color:rgba(0,0,0,.2); }
+.lamp-chip.neutral.on .lamp-dot { background:#888; }
 /* ── stat-pct 百分比小字 ── */
 .stat-pct { font-size:11px; font-weight:600; color:#aaa; margin-top:3px; line-height:1; }
 .stat-item.good .stat-pct { color:var(--green); opacity:.7; }
@@ -406,50 +416,36 @@ var _dialogRows  = [];
 var _dialogLevel = 'staff';
 
 /* ── 燈號 chips 狀態 ── */
-/* chips: { [key]: true/false }  key = BUCKET_B or BUCKET_C 欄位名稱 */
-var chips = {};
-/* 初始全開 */
+/* 3 題燈： disp(已有) / no(未有，如果有 BUCKET_C) / unfill(未填寫) */
+var chips = { disp: true, no: true, unfill: true };
+
 function initChips() {
-  chips = {};
-  BUCKET_B.forEach(function(t){ chips[t] = true; });
-  BUCKET_C.forEach(function(t){ chips[t] = true; });
-  chips['__other__'] = true; /* 其他狀態（未填任何 BUCKET）的店家 */
+  chips = { disp: true, no: true, unfill: true };
   renderLampBar();
 }
+
 function renderLampBar() {
   var bar = document.getElementById('lamp-bar');
   if (!bar) return;
-  var hasLamps = BUCKET_B.length > 0 || BUCKET_C.length > 0;
-  if (!hasLamps) { bar.style.display = 'none'; return; }
   bar.style.display = 'flex';
   bar.innerHTML = '';
-  BUCKET_B.forEach(function(t) {
+
+  function makeChip(key, label, cls) {
     var btn = document.createElement('button');
-    btn.className = 'lamp-chip' + (chips[t] ? ' on' : '');
-    btn.innerHTML = '<span class="lamp-dot"></span>' + t;
-    btn.dataset.key = t;
-    btn.addEventListener('click', function() { toggleLamp(t); });
+    btn.className = 'lamp-chip ' + cls + (chips[key] ? ' on' : '');
+    btn.innerHTML = '<span class="lamp-dot"></span>' + label;
+    btn.dataset.key = key;
+    btn.addEventListener('click', function() { toggleLamp(key); });
     bar.appendChild(btn);
-  });
-  BUCKET_C.forEach(function(t) {
-    var btn = document.createElement('button');
-    btn.className = 'lamp-chip warn' + (chips[t] ? ' on' : '');
-    btn.innerHTML = '<span class="lamp-dot"></span>' + t;
-    btn.dataset.key = t;
-    btn.addEventListener('click', function() { toggleLamp(t); });
-    bar.appendChild(btn);
-  });
-  /* 其他燈（未填任何狀態的店） */
-  var btnOther = document.createElement('button');
-  btnOther.className = 'lamp-chip' + (chips['__other__'] ? ' on' : '');
-  btnOther.innerHTML = '<span class="lamp-dot"></span>其他';
-  btnOther.dataset.key = '__other__';
-  btnOther.addEventListener('click', function() { toggleLamp('__other__'); });
-  bar.appendChild(btnOther);
+  }
+
+  makeChip('disp',   LABEL_B,    'good');
+  if (BUCKET_C.length) makeChip('no', LABEL_C, 'warn');
+  makeChip('unfill', '未填寫', 'neutral');
 }
+
 function toggleLamp(key) {
   chips[key] = !chips[key];
-  /* 更新按鈕樣式 */
   var bar = document.getElementById('lamp-bar');
   if (bar) {
     bar.querySelectorAll('.lamp-chip').forEach(function(btn) {
@@ -627,27 +623,14 @@ function fetchSyncTime() {
 
 /* ── 計算 ── */
 
-/* 判斷一列屬於哪個狀態組（用於燈號筛選）
-   回傳 'B:欄位名'  如果屬於 BUCKET_B
-   回傳 'C:欄位名'  如果屬於 BUCKET_C
-   回傳 'unfill'       如果是未填寫
-   回傳 'other'        其他（如未進貨等無 BUCKET 的店）
-*/
-function rowStatus(r) {
-  if (isOne(r[COL_UNFILL])) return 'unfill';
-  for (var i=0; i<BUCKET_B.length; i++) { if (isOne(r[BUCKET_B[i]])) return 'B:'+BUCKET_B[i]; }
-  for (var j=0; j<BUCKET_C.length; j++) { if (isOne(r[BUCKET_C[j]])) return 'C:'+BUCKET_C[j]; }
-  return 'other';
-}
-
 /* 燈狀態筛選：燈關掉的店家排除 */
 function applyChips(rows) {
   return rows.filter(function(r) {
-    var st = rowStatus(r);
-    if (st === 'unfill') return true; /* 未填寫永遠納入 */
-    if (st === 'other') return chips['__other__'] !== false;
-    var key = st.slice(2); /* 去掉 'B:' 或 'C:' */
-    return chips[key] !== false; /* 燈打開才納入 */
+    if (isOne(r[COL_UNFILL])) return chips['unfill'] !== false;
+    if (isDispRow(r))         return chips['disp']   !== false;
+    if (isNoRow(r))           return chips['no']     !== false;
+    /* 其他（未進貨且未填寫）→ 不設專屬燈，永遠納入 */
+    return true;
   });
 }
 
@@ -739,9 +722,8 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
   var topLabel=isOverall?('\u6574\u9AD4\u6982\u6CC1'):labelText;
   var T = stat.total;
   function fp(n){ return T>0 ? Math.round(n/T*100)+'%' : '—'; }
-  var topHtml = isOverall
-    ? '<div class="card-top card-top-overall">'+topLabel+' <span class="card-name-inline">'+esc(name)+'</span></div>'
-    : '<div class="card-top">'+topLabel+'</div><div class="card-name">'+esc(name)+'</div>';
+  /* 全部卡片標題都是一行：組別小字 + 名稱大字 */
+  var topHtml = '<div class="card-top card-top-inline">'+esc(topLabel)+' <span class="card-name-inline'+(isOverall?' card-name-overall':'')+'">'+esc(name)+'</span></div>';
   card.innerHTML=
     topHtml+
     '<div class="stat-row">'+
