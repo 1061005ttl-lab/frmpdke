@@ -299,6 +299,18 @@
         line-height: 1.5;
       }
 
+      #data-sync-bar {
+        font-size: 10px;
+        color: var(--sub);
+        white-space: nowrap;
+        flex-shrink: 0;
+        background: rgba(139, 166, 144, .1);
+        padding: 3px 9px;
+        border-radius: 6px;
+        line-height: 1.5;
+        border: 1px solid rgba(139, 166, 144, .2);
+      }
+
       /* ══ GLOBAL BAR ══ */
       #gbar {
         flex-shrink: 0;
@@ -3603,7 +3615,8 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 3.5.8 (2026-06-16)</div>
+      <div id="ver-ts">Ver. 3.6.0 (2026-06-16)</div>
+      <div id="data-sync-bar"></div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
     </div>
@@ -3646,7 +3659,7 @@
     </div>
     <div id="gbar">
       <div class="gb-path" id="gb-path"></div>
-      <div class="gb-right"><span class="gb-sync" id="gb-sync"></span><button class="gb-btn" id="copy-btn" onclick="copyList()">📋 複製</button><button class="gb-btn" id="shot-btn" onclick="takeScreenshot()">📸 截圖</button><button class="gb-btn" id="csv-btn" onclick="downloadCSV()">📥 XLSX</button></div>
+      <div class="gb-right"><span class="gb-sync" id="gb-sync"></span><button class="gb-btn" id="copy-btn" onclick="copyList()">📋 複製清單</button><button class="gb-btn" id="shot-btn" onclick="takeScreenshot()">📸 截圖</button><button class="gb-btn" id="csv-btn" onclick="downloadCSV()">📥 XLSX</button></div>
     </div>
     <div id="content-wrap">
       <div id="stage"></div>
@@ -5848,6 +5861,14 @@
           s2.textContent = '\uD83D\uDD50 ' + _dataTime;
           sync.appendChild(s2);
         }
+        /* 同步更新 toolbar 的資料時間列 */
+        var bar = document.getElementById('data-sync-bar');
+        if (bar) {
+          var parts = [];
+          if (_syncTime) parts.push(_syncTime);
+          if (_dataTime) parts.push('\uD83D\uDD50 ' + _dataTime);
+          bar.textContent = parts.join('\u3000');
+        }
       }
 
       function updateGlobalBar() {
@@ -6118,6 +6139,10 @@
         var rows = filterByDrillStack(visible());
         if (!rows.length) return;
         lines.push('\uD83D\uDCCB ' + surveyName + (breadcrumb ? ' \uFF5C ' + breadcrumb : ''));
+        /* 資料時間：從 gb-sync 直接讀取 */
+        var syncEl = document.getElementById('gb-sync');
+        var timeInfo = syncEl ? syncEl.textContent.trim().replace(/\s+/g, ' ') : '';
+        if (timeInfo) lines.push('\uD83D\uDD52 ' + timeInfo);
         var ts = stat(rows);
         lines.push(curStatuses.map(function(st) { return st.label + ' ' + (ts[st.key] || 0); }).join('\u3000'));
         lines.push('');
@@ -6146,7 +6171,7 @@
         });
         var text = lines.join('\n').trim();
         if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function() {
-          flash('copy-btn', '\u2705 \u5DF2\u8907\u88FD', '\uD83D\uDCCB \u8907\u88FD');
+          flash('copy-btn', '\u2705 \u5DF2\u8907\u88FD', '\uD83D\uDCCB \u8907\u88FD\u6E05\u55AE');
         }).catch(function() { fbCopy(text); });
         else fbCopy(text);
       }
@@ -6157,7 +6182,7 @@
         ta.style.cssText = 'position:fixed;opacity:0';
         document.body.appendChild(ta);
         ta.select();
-        try { document.execCommand('copy'); flash('copy-btn', '\u2705 \u5DF2\u8907\u88FD', '\uD83D\uDCCB \u8907\u88FD'); } catch (e) {}
+        try { document.execCommand('copy'); flash('copy-btn', '\u2705 \u5DF2\u8907\u88FD', '\uD83D\uDCCB \u8907\u88FD\u6E05\u55AE'); } catch (e) {}
         document.body.removeChild(ta);
       }
 
