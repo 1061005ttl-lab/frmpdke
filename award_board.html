@@ -121,12 +121,12 @@
     #gb-count { font-size:10px; color:var(--sub); }
 
     /* ══ CONTENT ══ */
-    #content-wrap { flex:1; min-height:0; display:flex; overflow:hidden; position:relative; }
+    #content-wrap { flex:1; min-height:0; display:flex; overflow:hidden; }
 
     /* ══ MAIN SCROLL ══ */
     #main-area {
       flex:1; min-width:0; overflow-y:auto; overflow-x:auto;
-      padding:18px 20px; padding-right:52px;
+      padding:18px 20px;
       display:flex; flex-wrap:wrap; gap:14px; align-content:start;
     }
     #main-area::-webkit-scrollbar { width:4px; }
@@ -242,8 +242,9 @@
     .detail-scroll::-webkit-scrollbar-thumb { background:rgba(0,0,0,.1); border-radius:3px; }
     .detail-tbl { width:max-content; min-width:100%; border-collapse:collapse; font-size:15px; }
     .detail-tbl th {
+      position:sticky; top:0; z-index:2;
       padding:9px 14px; text-align:right; font-weight:800; font-size:12px; color:var(--sub);
-      border-bottom:1px solid rgba(0,0,0,.08); background:rgba(0,0,0,.02); white-space:nowrap;
+      border-bottom:1px solid rgba(0,0,0,.08); background:rgba(248,250,248,.98); white-space:nowrap;
     }
     .detail-tbl th:first-child, .detail-tbl th:nth-child(2) { text-align:left; }
     .detail-tbl td { padding:8px 14px; text-align:right; border-bottom:1px solid rgba(0,0,0,.04); white-space:nowrap; transition:background .1s; }
@@ -262,30 +263,29 @@
     .d-cur { color:var(--blue); }
     .d-tgt { color:var(--purple); }
 
-    /* ══ RANK DRAWER ══ */
-    #rank-drawer {
-      position:absolute; top:0; right:0; bottom:0; width:220px;
-      background:var(--glass); backdrop-filter:blur(18px);
-      border-left:1px solid rgba(0,0,0,.1);
-      display:flex; flex-direction:column;
-      transition:width .3s cubic-bezier(.34,1.05,.64,1), box-shadow .3s;
-      overflow:hidden; z-index:50; box-shadow:-3px 0 16px rgba(0,0,0,.08);
+    /* ══ 品評排行 MODAL ══ */
+    #rank-modal {
+      position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:500;
+      display:flex; align-items:center; justify-content:center;
+      opacity:0; transition:opacity .2s; pointer-events:none;
     }
-    #rank-drawer.collapsed { width:28px; box-shadow:none; }
-    #rank-drawer.collapsed .rd-content { opacity:0; pointer-events:none; }
-    .rd-toggle {
-      width:100%; flex-shrink:0; display:flex; align-items:center;
-      cursor:pointer; border-bottom:1px solid rgba(0,0,0,.07); padding:9px 12px;
+    #rank-modal.open { opacity:1; pointer-events:auto; }
+    .rank-modal-box {
+      background:#fff; border-radius:14px; width:340px; max-height:82vh;
+      display:flex; flex-direction:column; overflow:hidden;
+      box-shadow:0 20px 80px rgba(0,0,0,.35);
+      transform:translateY(14px); transition:transform .22s;
     }
-    #rank-drawer.collapsed .rd-toggle {
-      writing-mode:vertical-rl; justify-content:center; height:100%;
-      border-bottom:none; padding:16px 0; font-size:9px; font-weight:700; color:var(--sub); letter-spacing:1px;
+    #rank-modal.open .rank-modal-box { transform:translateY(0); }
+    .rank-modal-header {
+      padding:13px 16px; border-bottom:1px solid rgba(0,0,0,.09);
+      display:flex; align-items:center; justify-content:space-between;
+      font-size:13px; font-weight:900; color:var(--text); flex-shrink:0;
+      background:rgba(248,250,248,1);
     }
-    .rd-toggle-title { font-size:11px; font-weight:800; color:var(--text); flex:1; }
-    .rd-toggle-icon { font-size:11px; color:var(--sub); }
-    .rd-content { flex:1; overflow-y:auto; opacity:1; transition:opacity .2s; }
-    .rd-content::-webkit-scrollbar { width:3px; }
-    .rd-content::-webkit-scrollbar-thumb { background:rgba(0,0,0,.1); border-radius:3px; }
+    .rank-modal-body { flex:1; overflow-y:auto; }
+    .rank-modal-body::-webkit-scrollbar { width:3px; }
+    .rank-modal-body::-webkit-scrollbar-thumb { background:rgba(0,0,0,.1); border-radius:3px; }
     .rd-section { padding:8px 10px 4px; }
     .rd-sec-title { font-size:9px; font-weight:900; letter-spacing:.8px; color:#aaa; margin-bottom:6px; display:flex; align-items:center; gap:5px; }
     .rd-sec-title::after { content:''; flex:1; height:1px; background:rgba(0,0,0,.07); }
@@ -363,8 +363,9 @@
   <button class="view-chip" id="vc-org" onclick="setViewMode('org')">🏢 組織視角</button>
   <div class="sep"></div>
   <button id="manual-toggle" onclick="toggleManual()">📋 說明書</button>
+  <button class="tb-btn" onclick="toggleRank()" id="rank-btn" style="background:rgba(255,215,0,.15);border-color:rgba(200,160,0,.3);color:#7a5500;">🏆 品評排行</button>
   <div id="tb-right">
-    <div id="ver-ts">Ver. 1.4.0 (2026-06-16)</div>
+    <div id="ver-ts">Ver. 1.5.0 (2026-06-16)</div>
     <button class="tb-btn" onclick="downloadXLSX()">📥 XLSX</button>
   </div>
 </div>
@@ -379,8 +380,8 @@
     <p><b>【組織視角】</b>以店家為單位統計。不論哪位業務負責，同一家店的數據在同月合併計算，避免跨月人員異動導致數據被切割。層級：<b>全體 → 營業處 → 營業所</b>。店家所屬單位依該季最後一筆記錄為準。適合管理層分析通路覆蓋與區域績效。</p>
     <hr>
     <p><b>【篩選與排序】</b>點擊上方營業處 / 營業所名稱可逐層篩選。排序按鈕可切換依 品評CTN / 總家數 / 當期CTN / 目標CTN 排列。</p>
-    <p><b>【店家明細】</b>點擊卡片內「📋 店家明細」可查看各店每月細節，最後一欄顯示該店整季品評CTN加總（<b>單店品評</b>）。支援複製為 LINE 格式、Excel 格式或截圖下載。</p>
-    <p><b>【品評排行】</b>右側收合欄顯示本季品評CTN前20名排行（人員視角）。</p>
+    <p><b>【店家明細】</b>點擊卡片內「📋 店家明細」可查看各店每月細節，最後一欄顯示該店整季品評CTN加總（<b>單店品評</b>）；表頭固定不隨捲動消失。組織視角下另附 <b>📦 全聯進銷存</b> 區塊，顯示上存、進貨、退貨、銷貨、庫存及本月平均PSD（資料來自同試算表「全聯進銷存資料」分頁，以店號後6碼比對，含資料日期）。</p>
+    <p><b>【品評排行】</b>點擊 topbar「🏆 品評排行」按鈕可開啟排行榜（人員視角前20名），不佔用主畫面空間，可隨時關閉。</p>
   </div>
 </div>
 
@@ -405,12 +406,16 @@
 
 <div id="content-wrap">
   <div id="main-area"></div>
-  <div id="rank-drawer" class="collapsed">
-    <div class="rd-toggle" onclick="toggleRank()" id="rd-toggle">
-      <span class="rd-toggle-title">🏆 品評排行</span>
-      <span class="rd-toggle-icon">▶</span>
+</div>
+
+<!-- 品評排行 Modal -->
+<div id="rank-modal" style="display:none" onclick="if(event.target===this)closeRank()">
+  <div class="rank-modal-box">
+    <div class="rank-modal-header">
+      <span>🏆 品評排行</span>
+      <button class="dlg-close" onclick="closeRank()">✕</button>
     </div>
-    <div class="rd-content" id="rd-content"></div>
+    <div class="rank-modal-body" id="rd-content"></div>
   </div>
 </div>
 
@@ -431,7 +436,96 @@
 </div>
 
 <script>
-/* \u2550\u2550 \u8A2D\u5B9A \u2550\u2550 */
+/*
+================================================================================
+  全聯18天推廣進度看板 — 程式說明書（供後續開發者 / AI 閱讀）
+  Ver. 1.5.0  最後更新：2026-06-16
+================================================================================
+
+【專案目的】
+  追蹤全聯超市「18天推廣活動」中各業務員及店家的箱數（CTN）達成情況。
+  核心指標：品評CTN = 當期CTN - 目標CTN
+  目標CTN = 去年同期CTN（last）+ 增量箱數（inc）
+
+【資料來源 — Google Sheets】
+  同一個 Spreadsheet（SHEET_ID）包含兩個分頁：
+  1. 「店家清單」（SHEET_NAME）— 主要業績資料，每列為一家店在某月某業務的記錄
+     欄位對應（中文欄名 → JS變數 CI[]）：
+       年份 → CI.year, 月份 → CI.month, 季度 → CI.quarter
+       營業處名稱 → CI.area, 營業所/課 → CI.office, 主要訪員 → CI.staff
+       店家代碼 → CI.code, 店家名稱 → CI.store
+       當期CTN → CI.cur, 去年CTN → CI.last, 增量箱數 → CI.inc
+       身分別 → CI.role, 排除原因 → CI.exclude
+  2. 「全聯進銷存資料」（INV_SHEET）— 庫存資料，每列為一家店的進銷存快照
+     欄位（固定索引，不用欄名對應）：
+       [0]全號  [1]店號（後6碼）  [2]店名  [3]開單所
+       [4]上存  [5]進貨  [6]退貨  [7]銷貨  [8]庫存  [9]本月平均PSD
+       K1（資料日期）從 INV_DATE_CELL 讀取（如 20260615）
+
+  資料讀取方式：gviz/tq API（免登入公開讀取），headers=0 跳過標題列自行解析。
+  進銷存資料 join key：店家清單的 CI.code 後6碼 = 進銷存分頁的 [1]店號（6碼）
+
+【兩種視角】
+  人員視角 (viewMode='person')：
+    - 以業務員（staff）為單位統計，用 getPersonList() 建立 map。
+    - 同一家店不同月份由不同業務負責 → 各自算各自的。
+    - 有效月份需「CI.role 非空」（代表正式角色），≥2個月才顯示品評。
+    - 人員歸屬：取該季內最後一個月的 area/office（避免調動影響）。
+    - 卡片：人員名稱 + 月份明細（家數 / 當期 / 目標 / 品評）。
+    - 品評排行榜：人員視角專用，顯示前20名。
+
+  組織視角 (viewMode='org')：
+    - 以店家（code || store）為單位，用 getStoreList() 建立 map。
+    - 同一家店同一月份不論幾個業務，CTN 全部合併加總。
+    - 店家所屬單位：取該季內最後一筆記錄的 area/office。
+    - 篩選層級：全體（依 area 分組）→ 選 area（依 office 分組）→ 選 office（直接列店）。
+    - 卡片：店名 + 月份明細（當期 / 目標 / 品評）。
+    - 店家明細 dialog（openOrgDetailDialog）：
+      · 基本業績明細（各月各業務貢獻）
+      · 若 invData[storeKey] 存在：額外顯示進銷存區塊
+        欄位：上存 / 進貨 / 退貨 / 銷貨 / 庫存 / 本月平均PSD
+        資料時間：invDate（從 K1 讀取）
+
+【導覽列（Navbar）】
+  buildNavbar()：建立 area 按鈕列（固定順序 AREA_ORDER）。
+  setArea(a)：設定 fArea，清除 fOffice，重建 office chips。
+  setOffice(o)：設定 fOffice，re-render。
+  兩種視角共用同一組 navbar 篩選邏輯。
+
+【計算核心】
+  calcPersonQuarter(rows, q)：
+    - 過濾 exclude，按月加總 cur/tgt（last+inc），統計 storeMap（去重家數）。
+    - 回傳 monthData, validMonths（hasRole月）, evalMonths（hasData月）, storeRows。
+  calcStoreQuarter(storeRows, q)：
+    - 組織視角版本，無家數統計，無 role 判斷。
+    - 回傳 monthData, evalMonths, totalCur/Tgt/Eval。
+
+【Dialog 店家明細】
+  buildDetailTable(qd, q)：人員視角，列出人員負責的各店各月數據 + 最後一欄「單店品評」。
+  buildDetailTableOrg(si)：組織視角，列出該店各月各業務的貢獻，含整季合計。
+  若 invData 有資料，附加進銷存區塊（buildInvBlock(si.key)）。
+  copyLine() / copyExcel()：複製 dialog 當前內容為 LINE 文字 / Excel 格式。
+  takeScreenshot()：用 html2canvas 截圖下載。
+
+【排行榜】
+  updateRank(pMap)：人員視角計算品評，顯示前20名於 #rd-content。
+  toggleRank() / closeRank()：開關 #rank-modal。
+
+【進銷存資料載入】
+  loadInvData()：在主資料載入完成後非同步呼叫。
+  讀取 INV_SHEET 分頁，建立 invData = { '後6碼' : {上存,進貨,...,psd} }。
+  另讀 INV_DATE_CELL 取得資料日期 invDate。
+  若失敗不影響主看板運作（靜默失敗）。
+
+【其他】
+  toFrac(v)：數值轉 Unicode 分數顯示（¹⁄₃, ²⁄₃）。
+  fracToText(v) / _fracText(v)：轉純文字分數（用於 LINE 複製）。
+  esc(s)：HTML 逸出。
+  fmt1(v)：無條件捨去到小數1位。
+  QUARTERS = { Q1:[1,2,3], Q2:[4,5,6], Q3:[7,8,9], Q4:[10,11,12] }
+  AREA_ORDER：北部/桃園/台中/嘉義/台南/高雄/花蓮（固定排序）
+================================================================================
+*/
 /* \u2500\u2500 \u8A2D\u5B9A\uFF08\u5F9E\u7BA1\u7406\u5206\u9801\u8B80\u53D6\uFF09\u2500\u2500 */
 var MGMT_ID    = '1PR9OR7BIGyTpcH8QSMRXkPhQTr4h3m0UK3gET29f19s';
 var MGMT_SHEET = '\u5C08\u6848\u7BA1\u7406';
@@ -441,6 +535,11 @@ var SYNC_SHEET = '\u8F14\u52A9';
 var SYNC_CELL  = 'B1';
 var PROJ_NAME  = '\u734E\u52F5\u9054\u6210\u770B\u677F';
 var QUARTERS   = { Q1:[1,2,3], Q2:[4,5,6], Q3:[7,8,9], Q4:[10,11,12] };
+/* 進銷存分頁設定 */
+var INV_SHEET     = '全聯進銷存資料';
+var INV_DATE_CELL = 'K1';
+var invData = {};   /* key: 6碼店號, value: {上存,進貨,退貨,銷貨,庫存,psd} */
+var invDate = '';   /* K1 資料日期字串 */
 
 /* \u2550\u2550 \u56FA\u5B9A\u71DF\u696D\u8655\u6392\u5E8F \u2550\u2550 */
 var AREA_ORDER = ['\u5317\u90E8','\u6843\u5712','\u81FA\u4E2D','\u5609\u7FA9','\u81FA\u5357','\u9AD8\u96C4','\u82B1\u84EE'];
@@ -595,6 +694,7 @@ function loadData(){
     render();
     updateGbar();
     updateRank();
+    loadInvData(); /* 非同步載入進銷存資料，失敗不影響主看板 */
   }).catch(function(err){
     hideLoading();
     document.getElementById('main-area').innerHTML='<div class="empty-msg"><div class="ei">\u26A0\uFE0F</div><div>\u8F09\u5165\u5931\u6557\uFF1A'+err+'</div></div>';
@@ -1081,8 +1181,85 @@ function openOrgDetailDialog(e, btn){
   requestAnimationFrame(function(){dlg.classList.add('open');});
 }
 
+/* ══ 進銷存資料載入 ══ */
+function loadInvData(){
+  var url='https://docs.google.com/spreadsheets/d/'+SHEET_ID+
+    '/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(INV_SHEET)+'&headers=0';
+  /* 同時讀日期欄 K1 */
+  var dateUrl='https://docs.google.com/spreadsheets/d/'+SHEET_ID+
+    '/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(INV_SHEET)+'&range='+INV_DATE_CELL;
+
+  Promise.all([
+    fetch(url).then(function(r){return r.text();}),
+    fetch(dateUrl).then(function(r){return r.text();}).catch(function(){return '';})
+  ]).then(function(res){
+    /* 解析資料日期 */
+    try{
+      var ds=res[1], s=ds.indexOf('{'), e=ds.lastIndexOf('}');
+      if(s>=0){
+        var dj=JSON.parse(ds.slice(s,e+1));
+        var dc=dj.table&&dj.table.rows&&dj.table.rows[0]&&dj.table.rows[0].c&&dj.table.rows[0].c[0];
+        if(dc) invDate=String(dc.f||dc.v||'').trim();
+      }
+    }catch(e2){}
+
+    /* 解析進銷存列表（跳過第1列標題） */
+    var txt=res[0], si=txt.indexOf('{'), ei=txt.lastIndexOf('}');
+    if(si<0) return;
+    var json=JSON.parse(txt.slice(si,ei+1));
+    var rows=(json.table&&json.table.rows)||[];
+    rows.slice(1).forEach(function(row){
+      var c=row.c||[];
+      function cv(i){ var x=c[i]; return x?(x.f!=null?String(x.f):String(x.v||'')).trim():''; }
+      function cn(i){ var v=parseFloat(cv(i)); return isNaN(v)?0:v; }
+      var storeKey=cv(1).replace(/^0+/,'').padStart(6,'0'); /* 確保6碼 */
+      if(!storeKey) return;
+      invData[storeKey]={
+        storeNo:cv(1), storeName:cv(2), office:cv(3),
+        upper:cn(4), in:cn(5), ret:cn(6), sale:cn(7), stock:cn(8), psd:cn(9)
+      };
+    });
+  }).catch(function(err){ console.warn('進銷存資料載入失敗:', err); });
+}
+
+/* ══ 進銷存區塊 HTML ══ */
+function buildInvBlock(storeKey){
+  /* storeKey = award_board 的 store code 後6碼 */
+  var key6=(storeKey||'').replace(/^[^0-9]*/,''); /* 取後6碼 */
+  /* 嘗試直接用後6碼匹配 */
+  if(key6.length>6) key6=key6.slice(-6);
+  key6=key6.padStart(6,'0');
+  var d=invData[key6];
+  if(!d) return '';
+
+  var dateStr=invDate?('<span style="color:var(--sub);font-size:10px;font-weight:600;margin-left:8px;">資料日期：'+esc(invDate)+'</span>'):'';
+  var psdCls=d.psd>=2?'d-pos':d.psd>=1?'':'d-neg';
+
+  return '<div style="padding:12px 20px 14px;border-top:2px solid rgba(0,0,0,.07);margin-top:4px;">'+
+    '<div style="font-size:11px;font-weight:900;color:var(--sub);letter-spacing:.5px;margin-bottom:10px;">📦 全聯進銷存'+dateStr+'</div>'+
+    '<table style="border-collapse:collapse;font-size:13px;width:100%;max-width:560px;">'+
+      '<thead><tr>'+
+        '<th style="text-align:right;padding:5px 14px;font-size:11px;font-weight:800;color:var(--sub);border-bottom:1px solid rgba(0,0,0,.08);background:rgba(0,0,0,.02);">上存</th>'+
+        '<th style="text-align:right;padding:5px 14px;font-size:11px;font-weight:800;color:var(--sub);border-bottom:1px solid rgba(0,0,0,.08);background:rgba(0,0,0,.02);">進貨</th>'+
+        '<th style="text-align:right;padding:5px 14px;font-size:11px;font-weight:800;color:var(--sub);border-bottom:1px solid rgba(0,0,0,.08);background:rgba(0,0,0,.02);">退貨</th>'+
+        '<th style="text-align:right;padding:5px 14px;font-size:11px;font-weight:800;color:var(--sub);border-bottom:1px solid rgba(0,0,0,.08);background:rgba(0,0,0,.02);">銷貨</th>'+
+        '<th style="text-align:right;padding:5px 14px;font-size:11px;font-weight:800;color:var(--sub);border-bottom:1px solid rgba(0,0,0,.08);background:rgba(0,0,0,.02);">庫存</th>'+
+        '<th style="text-align:right;padding:5px 14px;font-size:11px;font-weight:800;color:var(--sub);border-bottom:1px solid rgba(0,0,0,.08);background:rgba(0,0,0,.02);">本月平均PSD</th>'+
+      '</tr></thead>'+
+      '<tbody><tr>'+
+        '<td style="text-align:right;padding:8px 14px;color:var(--sub);">'+d.upper+'</td>'+
+        '<td style="text-align:right;padding:8px 14px;color:var(--blue);">'+d.in+'</td>'+
+        '<td style="text-align:right;padding:8px 14px;color:var(--sub);">'+d.ret+'</td>'+
+        '<td style="text-align:right;padding:8px 14px;color:var(--green);font-weight:700;">'+d.sale+'</td>'+
+        '<td style="text-align:right;padding:8px 14px;font-weight:700;">'+(d.stock<=0?'<span style="color:var(--red);">'+d.stock+'</span>':d.stock)+'</td>'+
+        '<td style="text-align:right;padding:8px 14px;font-weight:800;" class="'+psdCls+'">'+d.psd.toFixed(1)+'</td>'+
+      '</tr></tbody>'+
+    '</table>'+
+  '</div>';
+}
+
 function buildDetailTableOrg(si){
-  /* 組織視角的店家明細：按月列出各業務貢獻，最後一欄單店品評 */
+  /* 組織視角的店家明細：按月列出各業務貢獻 + 整季合計 + 進銷存區塊 */
   var months=QUARTERS[curQ]||[];
   var storeMap={};
 
@@ -1104,27 +1281,31 @@ function buildDetailTableOrg(si){
   });
 
   var rows=Object.values(storeMap).sort(function(a,b){return a.month-b.month||(a.staff>b.staff?1:-1);});
-  if(!rows.length) return '<div style="padding:10px 13px;font-size:10px;color:var(--sub);">無明細資料</div>';
 
-  var thCols='<th>月份</th><th>業務員</th>';
-  months.forEach(function(){});
-  thCols+='<th>當期CTN</th><th>目標CTN</th><th>品評CTN</th>';
+  var tableHtml='<div style="padding:10px 13px;font-size:10px;color:var(--sub);">無業績明細資料</div>';
+  if(rows.length){
+    var totalEval=0;
+    rows.forEach(function(r){totalEval+=r.eval;});
+    totalEval=Math.round(totalEval*3)/3;
+    var evalCls=totalEval>0?'d-pos':totalEval<0?'d-neg':'d-nil';
 
-  /* 單店品評彙總 */
-  var totalEval=0;
-  rows.forEach(function(r){totalEval+=r.eval;});
-  totalEval=Math.round(totalEval*3)/3;
-  var evalCls=totalEval>0?'d-pos':totalEval<0?'d-neg':'d-nil';
+    var thCols='<th style="text-align:left;">月份</th><th style="text-align:left;">業務員</th><th>當期CTN</th><th>目標CTN</th><th>品評CTN</th>';
+    var tbodyHtml='';
+    rows.forEach(function(r){
+      var ev=r.eval, ecls=ev>0?'d-pos':ev<0?'d-neg':'d-nil';
+      tbodyHtml+='<tr><td>'+MNAMES[r.month]+'</td><td>'+esc(r.staff)+'</td><td class="d-cur">'+r.cur+'</td><td class="d-tgt">'+toFrac(r.tgt)+'</td><td class="'+ecls+'">'+toFracEval(r.eval)+'</td></tr>';
+    });
+    tbodyHtml+='<tr style="font-weight:900;background:rgba(0,0,0,.02);border-top:1.5px solid rgba(0,0,0,.08);"><td colspan="2">整季合計</td><td class="d-cur">'+rows.reduce(function(s,r){return s+r.cur;},0)+'</td><td class="d-tgt">'+toFrac(Math.round(rows.reduce(function(s,r){return s+r.tgt;},0)*3)/3)+'</td><td class="'+evalCls+'">'+toFracEval(totalEval)+'</td></tr>';
+    tableHtml='<div class="detail-scroll"><table class="detail-tbl"><thead><tr>'+thCols+'</tr></thead><tbody>'+tbodyHtml+'</tbody></table></div>';
+  }
 
-  var tbodyHtml='';
-  rows.forEach(function(r){
-    var ev=r.eval, ecls=ev>0?'d-pos':ev<0?'d-neg':'d-nil';
-    tbodyHtml+='<tr><td>'+MNAMES[r.month]+'</td><td>'+esc(r.staff)+'</td><td class="d-cur">'+r.cur+'</td><td class="d-tgt">'+toFrac(r.tgt)+'</td><td class="'+ecls+'">'+toFracEval(r.eval)+'</td></tr>';
-  });
+  /* join 進銷存資料：取 code 後6碼 */
+  var codeKey=(si.code||'').replace(/\D/g,'');
+  if(codeKey.length>6) codeKey=codeKey.slice(-6);
+  codeKey=codeKey.padStart(6,'0');
+  var invBlock=buildInvBlock(codeKey);
 
-  tbodyHtml+='<tr style="font-weight:900;background:rgba(0,0,0,.02);border-top:1.5px solid rgba(0,0,0,.08);"><td colspan="2">整季合計</td><td class="d-cur">'+rows.reduce(function(s,r){return s+r.cur;},0)+'</td><td class="d-tgt">'+toFrac(Math.round(rows.reduce(function(s,r){return s+r.tgt;},0)*3)/3)+'</td><td class="'+evalCls+'">'+toFracEval(totalEval)+'</td></tr>';
-
-  return '<div class="detail-scroll"><table class="detail-tbl"><thead><tr>'+thCols+'</tr></thead><tbody>'+tbodyHtml+'</tbody></table></div>';
+  return tableHtml+invBlock;
 }
 
 function makeCard(c){
@@ -1251,7 +1432,9 @@ function closeDetailDialog(){
   dlg.classList.remove('open');
   setTimeout(function(){dlg.style.display='none';},220);
 }
-document.addEventListener('keydown',function(e){if(e.key==='Escape')closeDetailDialog();});
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){ closeDetailDialog(); closeRank(); }
+});
 
 /* \u2550\u2550 \u8907\u88FD\u5171\u7528\u5DE5\u5177 \u2550\u2550 */
 function _flashBtn(btn, label){
@@ -1549,11 +1732,16 @@ function updateRank(pMap){
 
 /* \u2550\u2550 Rank toggle \u2550\u2550 */
 function toggleRank(){
-  _rankOpen=!_rankOpen;
-  var dr=document.getElementById('rank-drawer');
-  var icon=document.querySelector('.rd-toggle-icon');
-  dr.classList.toggle('collapsed',!_rankOpen);
-  if(icon) icon.textContent=_rankOpen?'\u25C0':'\u25B6';
+  var m=document.getElementById('rank-modal');
+  if(m.classList.contains('open')){ closeRank(); } else {
+    m.style.display='flex';
+    requestAnimationFrame(function(){m.classList.add('open');});
+  }
+}
+function closeRank(){
+  var m=document.getElementById('rank-modal');
+  m.classList.remove('open');
+  setTimeout(function(){m.style.display='none';},220);
 }
 
 /* \u2550\u2550 GBAR \u2550\u2550 */
