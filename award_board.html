@@ -566,7 +566,22 @@ function setViewMode(mode){
   viewMode=mode;
   document.getElementById('vc-person').classList.toggle('on', mode==='person');
   document.getElementById('vc-org').classList.toggle('on', mode==='org');
+  _updateSortBtnLabels();
   render(); updateGbar(); updateRank();
+}
+
+function _updateSortBtnLabels(){
+  var isOrg=(viewMode==='org');
+  var btns=document.querySelectorAll('.sort-btn');
+  btns.forEach(function(b){
+    var s=b.dataset.sort;
+    if(s==='eval')   b.textContent=isOrg?'增減CTN':'品評CTN';
+    if(s==='stores') b.textContent=isOrg?'（N/A）':'總家數';
+    if(s==='tgt')    b.textContent=isOrg?'去年同期':'目標CTN';
+    /* stores 在組織視角下 disable */
+    b.disabled=(isOrg&&s==='stores');
+    b.style.opacity=(isOrg&&s==='stores')?'.35':'';
+  });
 }
 
 /* \u2550\u2550 \u6B04\u4F4D\u7D22\u5F15 \u2550\u2550 */
@@ -1006,36 +1021,32 @@ function getStoreList(){
 }
 
 function calcStoreQuarter(storeRows, q){
-  /* 同 calcPersonQuarter 但以整家店（不拘業務員）加總 */
+  /* 組織視角：以店為本，只算當期CTN / 去年同期CTN / 增減CTN */
   var months=QUARTERS[q]||[];
   var monthData={};
-  months.forEach(function(m){monthData[m]={cur:0,tgt:0,eval:0,hasData:false};});
+  months.forEach(function(m){monthData[m]={cur:0,last:0,hasData:false};});
 
   storeRows.forEach(function(r){
     if(gv(r,'exclude').trim()) return;
     var m=parseInt(gv(r,'month'),10);
     if(!months.includes(m)) return;
-    var cur=gn(r,'cur'), last=gn(r,'last'), inc=gn(r,'inc');
-    var tgt=last+inc;
-    monthData[m].cur+=cur;
-    monthData[m].tgt+=tgt;
+    monthData[m].cur+=gn(r,'cur');
+    monthData[m].last+=gn(r,'last');
     monthData[m].hasData=true;
   });
 
   months.forEach(function(m){
     var d=monthData[m];
-    d.tgt=Math.round(d.tgt*3)/3;
-    d.eval=Math.round((d.cur-d.tgt)*3)/3;
+    d.delta=d.cur-d.last; /* 增減 = 當期 - 去年 */
   });
 
   var evalMonths=months.filter(function(m){return monthData[m].hasData;});
   var totalCur=evalMonths.reduce(function(s,m){return s+monthData[m].cur;},0);
-  var totalTgt=Math.round(evalMonths.reduce(function(s,m){return s+monthData[m].tgt;},0)*3)/3;
-  var totalEvalRaw=evalMonths.length>0?Math.round(evalMonths.reduce(function(s,m){return s+monthData[m].eval;},0)*3)/3:null;
-  var totalEval=totalEvalRaw;
+  var totalLast=evalMonths.reduce(function(s,m){return s+monthData[m].last;},0);
+  var totalDelta=totalCur-totalLast;
 
   return {months:months,monthData:monthData,evalMonths:evalMonths,
-    totalCur:totalCur,totalTgt:totalTgt,totalEval:totalEval,totalEvalRaw:totalEvalRaw};
+    totalCur:totalCur,totalLast:totalLast,totalDelta:totalDelta};
 }
 
 function renderOrg(){
@@ -1066,8 +1077,8 @@ function renderOrg(){
   function getOrgSortVal(c){
     var qd=c.qd;
     if(curSort==='cur') return qd.totalCur;
-    if(curSort==='tgt') return qd.totalTgt;
-    return qd.totalEvalRaw;
+    if(curSort==='tgt') return qd.totalLast;
+    return qd.totalDelta;
   }
   storeCards.sort(function(a,b){
     var av=getOrgSortVal(a), bv=getOrgSortVal(b);
@@ -1113,28 +1124,30 @@ function renderOrg(){
   }
 
   var countEl=document.getElementById('gb-count');
-  countEl.innerHTML='顯示 <b>'+storeCards.length+'</b> 家店';
+  var totDelta=storeCards.reduce(function(s,c){return s+c.qd.totalDelta;},0);
+  var dSign=totDelta>0?'+':'';
+  countEl.innerHTML='顯示 <b>'+storeCards.length+'</b> 家店&emsp;增減合計 <b style="color:'+(totDelta>=0?'var(--green)':'var(--red)')+'">'+dSign+totDelta+'</b> 箱';
 }
 
 function makeOrgCard(c){
   var q=curQ||'', qd=c.qd;
-  var te=qd.totalEval, ter=qd.totalEvalRaw;
+  var delta=qd.totalDelta;
 
   var bigNum, teCls;
-  if(ter===null){ bigNum='—'; teCls='nil'; }
-  else if(ter>0){ bigNum='+'+Math.ceil(fmt1(ter)); teCls='pos'; }
-  else if(ter<0){ bigNum=String(Math.floor(fmt1(ter))); teCls='neg'; }
+  if(qd.evalMonths.length===0){ bigNum='—'; teCls='nil'; }
+  else if(delta>0){ bigNum='+'+delta; teCls='pos'; }
+  else if(delta<0){ bigNum=String(delta); teCls='neg'; }
   else { bigNum='0'; teCls='nil'; }
 
   var rowsHtml=qd.months.map(function(m){
     var d=qd.monthData[m];
     if(!d.hasData) return '<tr><td>'+MNAMES[m]+'</td><td class="ctn-cur">—</td><td class="ctn-tgt">—</td><td class="ctn-eval nil">—</td></tr>';
-    var ev=d.eval, ecls=ev>0?'pos':ev<0?'neg':'nil';
-    return '<tr><td>'+MNAMES[m]+'</td><td class="ctn-cur">'+d.cur+'</td><td class="ctn-tgt">'+toFrac(d.tgt)+'</td><td class="ctn-eval '+ecls+'">'+toFracEval(d.eval)+'</td></tr>';
+    var dv=d.delta, dcls=dv>0?'pos':dv<0?'neg':'nil';
+    return '<tr><td>'+MNAMES[m]+'</td><td class="ctn-cur">'+d.cur+'</td><td class="ctn-tgt">'+d.last+'</td><td class="ctn-eval '+dcls+'">'+(dv>0?'+':'')+dv+'</td></tr>';
   }).join('');
 
-  var teDisplayCls=te===null?'nil':(te>0?'pos':te<0?'neg':'nil');
-  var totalRow='<tr class="total-row"><td>合計</td><td class="ctn-cur">'+qd.totalCur+'</td><td class="ctn-tgt">'+toFrac(qd.totalTgt)+'</td><td class="ctn-eval '+teDisplayCls+'">'+toFracEval(te)+'</td></tr>';
+  var totDcls=delta>0?'pos':delta<0?'neg':'nil';
+  var totalRow='<tr class="total-row"><td>合計</td><td class="ctn-cur">'+qd.totalCur+'</td><td class="ctn-tgt">'+qd.totalLast+'</td><td class="ctn-eval '+totDcls+'">'+(delta>0?'+':'')+delta+'</td></tr>';
 
   var el=document.createElement('div');
   el.className='person-card';
@@ -1144,12 +1157,12 @@ function makeOrgCard(c){
         '<span class="pc-name">'+esc(c.name)+'</span>' +
         '<span class="pc-unit">'+esc(c.area)+'·'+esc(c.office)+'</span>' +
         '<span class="pc-title-spacer"></span>' +
-        '<span class="pc-q-label">'+q+' 品評CTN</span>' +
+        '<span class="pc-q-label">'+q+' 增減CTN</span>' +
         '<span class="pc-total-num '+teCls+'">'+bigNum+'</span>' +
       '</div>' +
     '</div>' +
     '<table class="pc-table">' +
-      '<thead><tr><th>月份</th><th>當期CTN</th><th>目標CTN</th><th>品評CTN</th></tr></thead>' +
+      '<thead><tr><th>月份</th><th>當期CTN</th><th>去年同期</th><th>增減CTN</th></tr></thead>' +
       '<tbody>'+rowsHtml+totalRow+'</tbody>' +
     '</table>' +
     '<div class="pc-detail-btn-row"><button class="pc-open-detail-btn" onclick="openOrgDetailDialog(event,this)">📋 店家明細</button></div>';
@@ -1185,7 +1198,6 @@ function openOrgDetailDialog(e, btn){
 function loadInvData(){
   var url='https://docs.google.com/spreadsheets/d/'+SHEET_ID+
     '/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(INV_SHEET)+'&headers=0';
-  /* 同時讀日期欄 K1 */
   var dateUrl='https://docs.google.com/spreadsheets/d/'+SHEET_ID+
     '/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(INV_SHEET)+'&range='+INV_DATE_CELL;
 
@@ -1193,7 +1205,7 @@ function loadInvData(){
     fetch(url).then(function(r){return r.text();}),
     fetch(dateUrl).then(function(r){return r.text();}).catch(function(){return '';})
   ]).then(function(res){
-    /* 解析資料日期 */
+    /* 解析資料日期（K1）*/
     try{
       var ds=res[1], s=ds.indexOf('{'), e=ds.lastIndexOf('}');
       if(s>=0){
@@ -1203,48 +1215,75 @@ function loadInvData(){
       }
     }catch(e2){}
 
-    /* 解析進銷存列表（跳過第1列標題） */
+    /* 解析進銷存列表（headers=0，第0列為標題，slice(1)跳過） */
     var txt=res[0], si=txt.indexOf('{'), ei=txt.lastIndexOf('}');
     if(si<0) return;
     var json=JSON.parse(txt.slice(si,ei+1));
     var rows=(json.table&&json.table.rows)||[];
     rows.slice(1).forEach(function(row){
       var c=row.c||[];
-      function cv(i){ var x=c[i]; return x?(x.f!=null?String(x.f):String(x.v||'')).trim():''; }
+      /* 取格式化字串（cv）或原始值（cn）*/
+      function cv(i){ var x=c[i]; if(!x) return ''; return (x.f!=null?String(x.f):String(x.v||'')).trim(); }
       function cn(i){ var v=parseFloat(cv(i)); return isNaN(v)?0:v; }
-      var storeKey=cv(1).replace(/^0+/,'').padStart(6,'0'); /* 確保6碼 */
-      if(!storeKey) return;
-      invData[storeKey]={
-        storeNo:cv(1), storeName:cv(2), office:cv(3),
+
+      /* A欄 = 全號（如 012200），B欄 = 店號（數字，可能遺失前導0）*/
+      var fullNo=cv(0);  /* A欄：完整全號，直接用字串 */
+      /* B欄：gviz 回傳數字時前導0會丟失，改用原始 v 值補零 */
+      var rawB=(c[1]&&c[1].v!=null)?String(c[1].v):'';
+      var storeNo6=rawB.padStart(6,'0');  /* 補回6碼 */
+
+      var rec={
+        fullNo:fullNo, storeNo:storeNo6, storeName:cv(2), office:cv(3),
         upper:cn(4), in:cn(5), ret:cn(6), sale:cn(7), stock:cn(8), psd:cn(9)
       };
+      /* 同時以 全號 和 6碼店號 為 key，都存進去 */
+      if(fullNo)    invData[fullNo]   =rec;
+      if(storeNo6)  invData[storeNo6] =rec;
     });
   }).catch(function(err){ console.warn('進銷存資料載入失敗:', err); });
 }
 
 /* ══ 進銷存區塊 HTML ══ */
-function buildInvBlock(storeKey){
-  /* storeKey = award_board 的 store code 後6碼 */
-  var key6=(storeKey||'').replace(/^[^0-9]*/,''); /* 取後6碼 */
-  /* 嘗試直接用後6碼匹配 */
-  if(key6.length>6) key6=key6.slice(-6);
-  key6=key6.padStart(6,'0');
-  var d=invData[key6];
+function _invLookup(code){
+  /* 嘗試以多種格式找到進銷存記錄
+     storeCode 格式範例：PX-10-188700（全號含前綴）或純數字 012200 或 188700（6碼）
+     invData 的 key：A欄全號（如 012200）或 B欄6碼（如 188700）
+  */
+  if(!code) return null;
+  /* 直接查 */
+  if(invData[code]) return invData[code];
+  /* 只取數字部分 */
+  var nums=code.replace(/\D/g,'');
+  if(invData[nums]) return invData[nums];
+  /* 後6碼 */
+  var tail6=nums.slice(-6).padStart(6,'0');
+  if(invData[tail6]) return invData[tail6];
+  /* 全號補6碼 */
+  var pad6=nums.padStart(6,'0');
+  if(invData[pad6]) return invData[pad6];
+  return null;
+}
+
+function buildInvBlock(code){
+  var d=_invLookup(code);
   if(!d) return '';
 
-  var dateStr=invDate?('<span style="color:var(--sub);font-size:10px;font-weight:600;margin-left:8px;">資料日期：'+esc(invDate)+'</span>'):'';
+  var dateStr=invDate
+    ?('<span style="color:var(--sub);font-size:10px;font-weight:600;margin-left:8px;">資料時間：'+esc(invDate)+'</span>')
+    :'<span style="color:var(--red);font-size:10px;margin-left:8px;">（無資料日期）</span>';
   var psdCls=d.psd>=2?'d-pos':d.psd>=1?'':'d-neg';
+  var thStyle='text-align:right;padding:5px 14px;font-size:11px;font-weight:800;color:var(--sub);border-bottom:1px solid rgba(0,0,0,.08);background:rgba(0,0,0,.02);position:sticky;top:0;';
 
   return '<div style="padding:12px 20px 14px;border-top:2px solid rgba(0,0,0,.07);margin-top:4px;">'+
     '<div style="font-size:11px;font-weight:900;color:var(--sub);letter-spacing:.5px;margin-bottom:10px;">📦 全聯進銷存'+dateStr+'</div>'+
-    '<table style="border-collapse:collapse;font-size:13px;width:100%;max-width:560px;">'+
+    '<table style="border-collapse:collapse;font-size:13px;width:100%;max-width:620px;">'+
       '<thead><tr>'+
-        '<th style="text-align:right;padding:5px 14px;font-size:11px;font-weight:800;color:var(--sub);border-bottom:1px solid rgba(0,0,0,.08);background:rgba(0,0,0,.02);">上存</th>'+
-        '<th style="text-align:right;padding:5px 14px;font-size:11px;font-weight:800;color:var(--sub);border-bottom:1px solid rgba(0,0,0,.08);background:rgba(0,0,0,.02);">進貨</th>'+
-        '<th style="text-align:right;padding:5px 14px;font-size:11px;font-weight:800;color:var(--sub);border-bottom:1px solid rgba(0,0,0,.08);background:rgba(0,0,0,.02);">退貨</th>'+
-        '<th style="text-align:right;padding:5px 14px;font-size:11px;font-weight:800;color:var(--sub);border-bottom:1px solid rgba(0,0,0,.08);background:rgba(0,0,0,.02);">銷貨</th>'+
-        '<th style="text-align:right;padding:5px 14px;font-size:11px;font-weight:800;color:var(--sub);border-bottom:1px solid rgba(0,0,0,.08);background:rgba(0,0,0,.02);">庫存</th>'+
-        '<th style="text-align:right;padding:5px 14px;font-size:11px;font-weight:800;color:var(--sub);border-bottom:1px solid rgba(0,0,0,.08);background:rgba(0,0,0,.02);">本月平均PSD</th>'+
+        '<th style="'+thStyle+'">上存</th>'+
+        '<th style="'+thStyle+'">進貨</th>'+
+        '<th style="'+thStyle+'">退貨</th>'+
+        '<th style="'+thStyle+'">銷貨</th>'+
+        '<th style="'+thStyle+'">庫存</th>'+
+        '<th style="'+thStyle+'">本月平均PSD</th>'+
       '</tr></thead>'+
       '<tbody><tr>'+
         '<td style="text-align:right;padding:8px 14px;color:var(--sub);">'+d.upper+'</td>'+
@@ -1259,52 +1298,50 @@ function buildInvBlock(storeKey){
 }
 
 function buildDetailTableOrg(si){
-  /* 組織視角的店家明細：按月列出各業務貢獻 + 整季合計 + 進銷存區塊 */
+  /* 組織視角店家明細：各月各業務的當期CTN / 去年同期CTN / 增減CTN + 進銷存 */
   var months=QUARTERS[curQ]||[];
-  var storeMap={};
+  var rowMap={};
 
   si.rows.forEach(function(r){
     if(gv(r,'exclude').trim()) return;
     var m=parseInt(gv(r,'month'),10);
     if(!months.includes(m)) return;
     var staff=gv(r,'staff')||'（未知）';
-    var cur=gn(r,'cur'), last=gn(r,'last'), inc=gn(r,'inc');
-    var tgt=last+inc;
     var k=m+'-'+staff;
-    if(!storeMap[k]) storeMap[k]={month:m,staff:staff,cur:0,tgt:0};
-    storeMap[k].cur+=cur; storeMap[k].tgt+=tgt;
+    if(!rowMap[k]) rowMap[k]={month:m,staff:staff,cur:0,last:0};
+    rowMap[k].cur+=gn(r,'cur');
+    rowMap[k].last+=gn(r,'last');
   });
+  Object.values(rowMap).forEach(function(s){ s.delta=s.cur-s.last; });
 
-  Object.values(storeMap).forEach(function(s){
-    s.tgt=Math.round(s.tgt*3)/3;
-    s.eval=Math.round((s.cur-s.tgt)*3)/3;
-  });
-
-  var rows=Object.values(storeMap).sort(function(a,b){return a.month-b.month||(a.staff>b.staff?1:-1);});
+  var rows=Object.values(rowMap).sort(function(a,b){return a.month-b.month||(a.staff>b.staff?1:-1);});
 
   var tableHtml='<div style="padding:10px 13px;font-size:10px;color:var(--sub);">無業績明細資料</div>';
   if(rows.length){
-    var totalEval=0;
-    rows.forEach(function(r){totalEval+=r.eval;});
-    totalEval=Math.round(totalEval*3)/3;
-    var evalCls=totalEval>0?'d-pos':totalEval<0?'d-neg':'d-nil';
+    var totCur=rows.reduce(function(s,r){return s+r.cur;},0);
+    var totLast=rows.reduce(function(s,r){return s+r.last;},0);
+    var totDelta=totCur-totLast;
+    var dCls=totDelta>0?'d-pos':totDelta<0?'d-neg':'d-nil';
 
-    var thCols='<th style="text-align:left;">月份</th><th style="text-align:left;">業務員</th><th>當期CTN</th><th>目標CTN</th><th>品評CTN</th>';
+    var thCols='<th style="text-align:left;">月份</th><th style="text-align:left;">業務員</th><th>當期CTN</th><th>去年同期</th><th>增減CTN</th>';
     var tbodyHtml='';
     rows.forEach(function(r){
-      var ev=r.eval, ecls=ev>0?'d-pos':ev<0?'d-neg':'d-nil';
-      tbodyHtml+='<tr><td>'+MNAMES[r.month]+'</td><td>'+esc(r.staff)+'</td><td class="d-cur">'+r.cur+'</td><td class="d-tgt">'+toFrac(r.tgt)+'</td><td class="'+ecls+'">'+toFracEval(r.eval)+'</td></tr>';
+      var dv=r.delta, dcls=dv>0?'d-pos':dv<0?'d-neg':'d-nil';
+      tbodyHtml+='<tr><td>'+MNAMES[r.month]+'</td><td>'+esc(r.staff)+'</td>'+
+        '<td class="d-cur">'+r.cur+'</td>'+
+        '<td class="d-tgt">'+r.last+'</td>'+
+        '<td class="'+dcls+'">'+(dv>0?'+':'')+dv+'</td></tr>';
     });
-    tbodyHtml+='<tr style="font-weight:900;background:rgba(0,0,0,.02);border-top:1.5px solid rgba(0,0,0,.08);"><td colspan="2">整季合計</td><td class="d-cur">'+rows.reduce(function(s,r){return s+r.cur;},0)+'</td><td class="d-tgt">'+toFrac(Math.round(rows.reduce(function(s,r){return s+r.tgt;},0)*3)/3)+'</td><td class="'+evalCls+'">'+toFracEval(totalEval)+'</td></tr>';
+    tbodyHtml+='<tr style="font-weight:900;background:rgba(0,0,0,.02);border-top:1.5px solid rgba(0,0,0,.08);">'+
+      '<td colspan="2">整季合計</td>'+
+      '<td class="d-cur">'+totCur+'</td>'+
+      '<td class="d-tgt">'+totLast+'</td>'+
+      '<td class="'+dCls+'">'+(totDelta>0?'+':'')+totDelta+'</td></tr>';
     tableHtml='<div class="detail-scroll"><table class="detail-tbl"><thead><tr>'+thCols+'</tr></thead><tbody>'+tbodyHtml+'</tbody></table></div>';
   }
 
-  /* join 進銷存資料：取 code 後6碼 */
-  var codeKey=(si.code||'').replace(/\D/g,'');
-  if(codeKey.length>6) codeKey=codeKey.slice(-6);
-  codeKey=codeKey.padStart(6,'0');
-  var invBlock=buildInvBlock(codeKey);
-
+  /* 進銷存 join：用 si.code（完整 code）直接查，_invLookup 會自動嘗試多種格式 */
+  var invBlock=buildInvBlock(si.code||si.name);
   return tableHtml+invBlock;
 }
 
@@ -1375,7 +1412,7 @@ function buildDetailTable(qd,q){
   var months=qd.months;
   var thCols='<th>店碼</th><th>店名</th>';
   months.forEach(function(m){ thCols+='<th>'+MNAMES[m]+'<br>當期</th><th>'+MNAMES[m]+'<br>目標</th><th>'+MNAMES[m]+'<br>品評</th>'; });
-  thCols+='<th>單店<br>品評</th>';  /* 新增最後一欄 */
+  thCols+='<th>單店<br>品評</th>';
 
   var storeIndex={};
   qd.storeRows.forEach(function(s){
@@ -1402,7 +1439,24 @@ function buildDetailTable(qd,q){
     tbodyHtml+='<tr>'+rowHtml+'</tr>';
   });
 
-  return '<div class="detail-scroll"><table class="detail-tbl"><thead><tr>'+thCols+'</tr></thead><tbody>'+tbodyHtml+'</tbody></table></div>';
+  var tableHtml='<div class="detail-scroll"><table class="detail-tbl"><thead><tr>'+thCols+'</tr></thead><tbody>'+tbodyHtml+'</tbody></table></div>';
+
+  /* 進銷存區塊：每家店各顯示一次（只要有資料） */
+  var invHtmlArr=[];
+  Object.values(storeIndex).forEach(function(s){
+    var block=buildInvBlock(s.code);
+    if(block){
+      invHtmlArr.push(
+        '<div style="padding:6px 20px 2px;font-size:11px;font-weight:900;color:var(--text);">'+esc(s.name)+
+        (s.code?'<span style="color:var(--sub);font-weight:400;margin-left:6px;">'+esc(s.code)+'</span>':'')+'</div>'+block
+      );
+    }
+  });
+  if(invHtmlArr.length){
+    tableHtml+='<div style="border-top:2px dashed rgba(0,0,0,.06);margin-top:8px;padding-top:4px;">'+invHtmlArr.join('')+'</div>';
+  }
+
+  return tableHtml;
 }
 
 /* \u2550\u2550 Dialog \u5E97\u5BB6\u660E\u7D30 \u2550\u2550 */
