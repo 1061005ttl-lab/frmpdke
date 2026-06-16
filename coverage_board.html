@@ -336,6 +336,16 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .detail-tbl tbody tr:hover td { background:rgba(55,138,221,.06); }
 .d-yes { color:var(--green); font-weight:700; }
 .d-no  { color:#ccc; }
+.d-unfill {
+  font-size:11px; font-weight:700; color:#E65100;
+  background:#FFF3E0; padding:2px 7px; border-radius:6px;
+}
+.d-no-label {
+  font-size:11px; font-weight:700; color:var(--red);
+  background:var(--red-bg); padding:2px 7px; border-radius:6px;
+}
+.row-unfill td { background:rgba(255,243,224,.45); color:#aaa; }
+.row-unfill .td-name { color:#bbb; }
 
 .detail-tbl th.th-left { text-align:left; }
 .detail-tbl td.td-org  { text-align:left; color:var(--sub); font-size:12px; }
@@ -964,59 +974,109 @@ function buildQuicknav() {
 }
 
 /* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 \u5E97\u5BB6\u660E\u7D30 Dialog \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */
-function sortedValidRows(rows){
-  var valid=rows.filter(function(r){ return !isOne(r[COL_UNFILL]); });
-  valid.sort(function(a,b){
-    var da=isDispRow(a)?0:1, db=isDispRow(b)?0:1;
-    if(da!==db) return da-db;
-    var oa=String(a[COL_OFFICE]||''), ob=String(b[COL_OFFICE]||'');
-    if(oa!==ob) return oa>ob?1:-1;
-    var sa=String(a[COL_STAFF]||''), sb=String(b[COL_STAFF]||'');
-    if(sa!==sb) return sa>sb?1:-1;
-    var na=String(a[COL_NAME]||''), nb=String(b[COL_NAME]||'');
+
+/* \u4f9d chips \u72c0\u614b\u51b3\u5b9a dialog \u8981\u986f\u793a\u54ea\u4e9b\u5217\uff0c\u4e26\u5e36\u6392\u5e8f\uff1a
+   1\ufe0f\u20e3 \u5df2\u6709\uff08disp\uff09  2\ufe0f\u20e3 \u672a\u6709\uff08no\uff09  3\ufe0f\u20e3 \u5176\u4ed6\u5c1a\u672a\u786e\u8a8d  4\ufe0f\u20e3 \u672a\u586b\u5beb */
+function dialogRows(rows) {
+  var result = [];
+  rows.forEach(function(r) {
+    var isUnfill = isOne(r[COL_UNFILL]);
+    if (isUnfill) {
+      if (chips['unfill'] !== false) result.push({ r:r, grp:3 }); /* \u672a\u586b\u5beb */
+    } else if (isDispRow(r)) {
+      if (chips['disp']   !== false) result.push({ r:r, grp:0 }); /* \u5df2\u6709 */
+    } else if (isNoRow(r)) {
+      if (chips['no']     !== false) result.push({ r:r, grp:1 }); /* \u672a\u6709 */
+    } else {
+      result.push({ r:r, grp:2 }); /* \u5176\u4ed6\uff08\u672a\u9032\u8ca8\u4e14\u5df2\u77e5\uff09\u2014\u6c38\u9060\u986f\u793a */
+    }
+  });
+  result.sort(function(a, b) {
+    if (a.grp !== b.grp) return a.grp - b.grp;
+    var oa=String(a.r[COL_OFFICE]||''), ob=String(b.r[COL_OFFICE]||'');
+    if (oa!==ob) return oa>ob?1:-1;
+    var sa=String(a.r[COL_STAFF]||''), sb=String(b.r[COL_STAFF]||'');
+    if (sa!==sb) return sa>sb?1:-1;
+    var na=String(a.r[COL_NAME]||''), nb=String(b.r[COL_NAME]||'');
     return na>nb?1:na<nb?-1:0;
   });
-  return valid;
+  return result;
+}
+
+/* \u5f9e dialogRows \u53d6\u51fa\u7d14 row \u7269\u4ef6\uff08\u7d66 copyLine/copyExcel \u7528\uff09 */
+function sortedValidRows(rows) {
+  return dialogRows(rows)
+    .filter(function(d){ return d.grp !== 3; }) /* copyLine/Excel \u4e0d\u5305\u542b\u672a\u586b\u5beb */
+    .map(function(d){ return d.r; });
 }
 
 function buildStoreTable(rows, levelKey){
-  var valid=sortedValidRows(rows);
+  var items = dialogRows(rows);
   var extraCols=levelKey==='area'?[COL_OFFICE,COL_STAFF]:levelKey==='office'?[COL_STAFF]:[];
   var colLabels={}; colLabels[COL_OFFICE]='\u71DF\u696D\u6240/\u8AB2'; colLabels[COL_STAFF]='\u4E3B\u8981\u8A2A\u54E1';
   var html='<div class="detail-scroll"><table class="detail-tbl"><thead><tr>';
   extraCols.forEach(function(c){ html+='<th class="th-left">'+(colLabels[c]||c)+'</th>'; });
-  html+='<th class="th-left">\u5E97\u78BC</th><th class="th-left">\u5E97\u540D</th><th>'+LABEL_B+'</th>';
+  html+='<th class="th-left">\u5E97\u78BC</th><th class="th-left">\u5E97\u540D</th>';
+  html+='<th>\u72C0\u614B</th>'; /* \u7D71\u4E00\u72C0\u614B\u6B04 */
   if(BUCKET_B.length>1) BUCKET_B.forEach(function(t){ html+='<th>'+t+'</th>'; });
   if(BUCKET_C.length)   BUCKET_C.forEach(function(t){ html+='<th>'+t+'</th>'; });
   html+='</tr></thead><tbody>';
-  valid.forEach(function(r){
-    html+='<tr>';
-    extraCols.forEach(function(c){ html+='<td class="td-org">'+esc(String(r[c]||'\u2014'))+'</td>'; });
-    var disp=isDispRow(r);
-    html+='<td class="td-code">'+esc(String(r[COL_CODE]||'\u2014'))+'</td>'+
-          '<td class="td-name">'+esc(String(r[COL_NAME]||'\u2014'))+'</td>'+
-          '<td>'+(disp?'<span class="d-yes">\u2705</span>':'<span class="d-no">\u2014</span>')+'</td>';
-    if(BUCKET_B.length>1) BUCKET_B.forEach(function(t){ html+='<td>'+(isOne(r[t])?'<span class="d-yes">\u2705</span>':'<span class="d-no">\u2014</span>')+'</td>'; });
-    if(BUCKET_C.length)   BUCKET_C.forEach(function(t){ html+='<td>'+(isOne(r[t])?'<span class="d-yes">\u2705</span>':'<span class="d-no">\u2014</span>')+'</td>'; });
-    html+='</tr>';
+
+  items.forEach(function(d){
+    var r = d.r, grp = d.grp;
+    var isUnfill = (grp === 3);
+    var trClass  = isUnfill ? ' class="row-unfill"' : '';
+    html += '<tr' + trClass + '>';
+    extraCols.forEach(function(c){
+      html += '<td class="td-org">' + esc(String(r[c]||'\u2014')) + '</td>';
+    });
+    html += '<td class="td-code">' + esc(String(r[COL_CODE]||'\u2014')) + '</td>';
+    html += '<td class="td-name">' + esc(String(r[COL_NAME]||'\u2014')) + '</td>';
+
+    /* \u72c0\u614b\u6b04 */
+    if (isUnfill) {
+      html += '<td><span class="d-unfill">\u672A\u586B\u5BEB</span></td>';
+      if(BUCKET_B.length>1) BUCKET_B.forEach(function(){ html+='<td><span class="d-no">\u2014</span></td>'; });
+      if(BUCKET_C.length)   BUCKET_C.forEach(function(){ html+='<td><span class="d-no">\u2014</span></td>'; });
+    } else {
+      var disp = isDispRow(r);
+      if (grp === 0)      html += '<td><span class="d-yes">\u2705</span></td>';
+      else if (grp === 1) html += '<td><span class="d-no-label">' + LABEL_C + '</span></td>';
+      else                html += '<td><span class="d-no">\u2014</span></td>';
+      if(BUCKET_B.length>1) BUCKET_B.forEach(function(t){ html+='<td>'+(isOne(r[t])?'<span class="d-yes">\u2705</span>':'<span class="d-no">\u2014</span>')+'</td>'; });
+      if(BUCKET_C.length)   BUCKET_C.forEach(function(t){ html+='<td>'+(isOne(r[t])?'<span class="d-yes">\u2705</span>':'<span class="d-no">\u2014</span>')+'</td>'; });
+    }
+    html += '</tr>';
   });
-  html+='</tbody></table></div>';
+
+  html += '</tbody></table></div>';
   return html;
 }
 
 function openDialog(displayName, levelKey, rows){
   _dialogTitle=displayName; _dialogRows=rows; _dialogLevel=levelKey;
-  var valid=rows.filter(function(r){ return !isOne(r[COL_UNFILL]); });
-  var hasDisp=valid.filter(function(r){ return isDispRow(r); }).length;
-  var hasNo=valid.filter(function(r){ return isNoRow(r); }).length;
-  var titleExtra=LABEL_B+' '+hasDisp+' \u5BB6'+(BUCKET_C.length?' \u3000'+LABEL_C+' '+hasNo+' \u5BB6':'');
-  document.getElementById('dlg-title').textContent=
-    '\u3010'+displayName+'\u3011\u5E97\u5BB6\u660E\u7D30\u3000\u6709\u6548 '+valid.length+' \u5BB6\u3000'+titleExtra;
+  /* \u4f9d chips \u7b97\u5404\u72c0\u614b\u5bb6\u6578 */
+  var items    = dialogRows(rows);
+  var unfillCnt= items.filter(function(d){ return d.grp===3; }).length;
+  var dispCnt  = items.filter(function(d){ return d.grp===0; }).length;
+  var noCnt    = items.filter(function(d){ return d.grp===1; }).length;
+  var total    = items.length;
+  var titleParts = ['\u3010'+displayName+'\u3011\u5E97\u5BB6\u660E\u7D30'];
+  titleParts.push('\u5171 '+total+' \u5BB6');
+  if(chips['unfill']!==false && unfillCnt) titleParts.push('\u672A\u586B\u5BEB '+unfillCnt);
+  titleParts.push(LABEL_B+' '+dispCnt);
+  if(BUCKET_C.length && chips['no']!==false) titleParts.push(LABEL_C+' '+noCnt);
+  document.getElementById('dlg-title').textContent = titleParts.join('\u3000');
   document.getElementById('dlg-body').innerHTML=buildStoreTable(rows,levelKey);
   ['btn-copy-line','btn-copy-excel','btn-screenshot'].forEach(function(id){
     var b=document.getElementById(id); if(!b) return;
     b.classList.remove('done','loading');
-    b.textContent=id==='btn-copy-line'?'\uD83D\uDCAC \u8907\u88FD LINE':id==='btn-copy-excel'?'\uD83D\uDCCA \u8907\u88FD Excel':'\uD83D\uDCF8 \u622A\u5716';
+    var inner = id==='btn-copy-line'
+      ? '<span class="btn-icon">\uD83D\uDCAC</span><span class="btn-txt"> \u8907\u88FD LINE</span>'
+      : id==='btn-copy-excel'
+      ? '<span class="btn-icon">\uD83D\uDCCA</span><span class="btn-txt"> \u8907\u88FD Excel</span>'
+      : '<span class="btn-icon">\uD83D\uDCF8</span><span class="btn-txt"> \u622A\u5716</span>';
+    b.innerHTML = inner;
   });
   var dlg=document.getElementById('detail-dialog');
   dlg.style.display='flex';
