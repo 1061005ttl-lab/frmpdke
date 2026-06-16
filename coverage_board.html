@@ -264,19 +264,24 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .dlg-action-btn:hover { border-color:var(--primary); color:var(--primary); }
 .dlg-action-btn.done { border-color:var(--green); color:var(--green); background:var(--green-bg); }
 .dlg-action-btn.loading { opacity:.6; pointer-events:none; }
-.dlg-body { overflow:auto; flex:1; min-height:0; padding:4px 0; }
-.dlg-body::-webkit-scrollbar { width:4px; }
-.dlg-body::-webkit-scrollbar-thumb { background:rgba(0,0,0,.1); border-radius:4px; }
+.dlg-body { overflow:auto; flex:1; min-height:0; padding:4px 0; scrollbar-width:thin; scrollbar-color:rgba(0,0,0,.25) transparent; }
+.dlg-body::-webkit-scrollbar { width:8px; }
+.dlg-body::-webkit-scrollbar-track { background:rgba(0,0,0,.04); border-radius:4px; }
+.dlg-body::-webkit-scrollbar-thumb { background:rgba(0,0,0,.25); border-radius:4px; }
+.dlg-body::-webkit-scrollbar-thumb:hover { background:rgba(0,0,0,.4); }
 
 /* ── 店家明細表格 ── */
-.detail-scroll { overflow-x:auto; }
-.detail-scroll::-webkit-scrollbar { height:3px; }
-.detail-scroll::-webkit-scrollbar-thumb { background:rgba(0,0,0,.1); border-radius:3px; }
+.detail-scroll { overflow-x:auto; scrollbar-width:thin; scrollbar-color:rgba(0,0,0,.25) transparent; }
+.detail-scroll::-webkit-scrollbar { height:7px; }
+.detail-scroll::-webkit-scrollbar-track { background:rgba(0,0,0,.04); }
+.detail-scroll::-webkit-scrollbar-thumb { background:rgba(0,0,0,.25); border-radius:4px; }
+.detail-scroll::-webkit-scrollbar-thumb:hover { background:rgba(0,0,0,.4); }
 .detail-tbl { width:100%; border-collapse:collapse; font-size:14px; }
 .detail-tbl th {
   padding:9px 14px; text-align:center; font-weight:800; font-size:12px; color:var(--sub);
-  border-bottom:1px solid rgba(0,0,0,.08); background:rgba(0,0,0,.02); white-space:nowrap;
+  border-bottom:none; background:#f8f9fa; white-space:nowrap;
   position:sticky; top:0; z-index:2;
+  box-shadow:0 2px 0 rgba(0,0,0,.08);
 }
 .detail-tbl th:first-child { text-align:left; }
 .detail-tbl th:nth-child(2) { text-align:left; }
@@ -332,9 +337,18 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 /* 未有（紅） */
 .lamp-chip.warn.on { background:var(--red-bg); color:var(--red); border-color:rgba(163,45,45,.25); }
 .lamp-chip.warn.on .lamp-dot { background:var(--red); }
-/* 未填寫（灰） */
-.lamp-chip.neutral.on { background:#f0f0f0; color:#666; border-color:rgba(0,0,0,.2); }
-.lamp-chip.neutral.on .lamp-dot { background:#888; }
+/* 未填寫（橘） */
+.lamp-chip.neutral.on { background:#FFF3E0; color:#E65100; border-color:rgba(230,81,0,.3); }
+.lamp-chip.neutral.on .lamp-dot { background:#E65100; }
+/* 子欄位燈（BUCKET_B 細項） */
+.lamp-chip.sub {
+  font-size:11px; padding:3px 8px; border-radius:14px;
+  border-style:dashed;
+}
+.lamp-sep {
+  display:inline-block; width:1px; height:18px;
+  background:rgba(0,0,0,.15); margin:0 2px; align-self:center; flex-shrink:0;
+}
 /* ── stat-pct 百分比小字 ── */
 .stat-pct { font-size:11px; font-weight:600; color:#aaa; margin-top:3px; line-height:1; }
 .stat-item.good .stat-pct { color:var(--green); opacity:.7; }
@@ -419,8 +433,13 @@ var _dialogLevel = 'staff';
 /* 3 題燈： disp(已有) / no(未有，如果有 BUCKET_C) / unfill(未填寫) */
 var chips = { disp: true, no: true, unfill: true };
 
+/* bucketChips: 控制 BUCKET_B 各欄位子燈（只影響 hasDisp 細項，不影響 total） */
+var bucketChips = {};
+
 function initChips() {
   chips = { disp: true, no: true, unfill: true };
+  bucketChips = {};
+  BUCKET_B.forEach(function(t){ bucketChips[t] = true; });
   renderLampBar();
 }
 
@@ -430,18 +449,38 @@ function renderLampBar() {
   bar.style.display = 'flex';
   bar.innerHTML = '';
 
-  function makeChip(key, label, cls) {
+  function makeChip(key, label, cls, isBucket) {
     var btn = document.createElement('button');
-    btn.className = 'lamp-chip ' + cls + (chips[key] ? ' on' : '');
+    var on = isBucket ? (bucketChips[key] !== false) : chips[key];
+    btn.className = 'lamp-chip ' + cls + (on ? ' on' : '') + (isBucket ? ' sub' : '');
     btn.innerHTML = '<span class="lamp-dot"></span>' + label;
     btn.dataset.key = key;
-    btn.addEventListener('click', function() { toggleLamp(key); });
+    btn.dataset.bucket = isBucket ? '1' : '';
+    btn.addEventListener('click', function() {
+      if (isBucket) toggleBucketLamp(key);
+      else toggleLamp(key);
+    });
+    if (isBucket && !chips['disp']) btn.style.display = 'none';
     bar.appendChild(btn);
   }
 
-  makeChip('disp',   LABEL_B,    'good');
-  if (BUCKET_C.length) makeChip('no', LABEL_C, 'warn');
-  makeChip('unfill', '未填寫', 'neutral');
+  makeChip('disp', LABEL_B, 'good', false);
+  /* 子欄位燈：只在 BUCKET_B > 1 時顯示，加分隔 */
+  if (BUCKET_B.length > 1) {
+    var sep = document.createElement('span');
+    sep.className = 'lamp-sep';
+    sep.id = 'lamp-sep-b';
+    if (!chips['disp']) sep.style.display = 'none';
+    bar.appendChild(sep);
+    BUCKET_B.forEach(function(t) { makeChip(t, t, 'good', true); });
+    var sep2 = document.createElement('span');
+    sep2.className = 'lamp-sep';
+    sep2.id = 'lamp-sep-b2';
+    if (!chips['disp']) sep2.style.display = 'none';
+    bar.appendChild(sep2);
+  }
+  if (BUCKET_C.length) makeChip('no', LABEL_C, 'warn', false);
+  makeChip('unfill', '\u672a\u586b\u5beb', 'neutral', false);
 }
 
 function toggleLamp(key) {
@@ -449,7 +488,31 @@ function toggleLamp(key) {
   var bar = document.getElementById('lamp-bar');
   if (bar) {
     bar.querySelectorAll('.lamp-chip').forEach(function(btn) {
-      if (btn.dataset.key === key) btn.classList.toggle('on', chips[key]);
+      if (btn.dataset.key === key && !btn.dataset.bucket) {
+        btn.classList.toggle('on', chips[key]);
+      }
+      /* disp 群組燈關掉時，隱藏子燈 */
+      if (key === 'disp' && btn.classList.contains('sub')) {
+        btn.style.display = chips['disp'] ? '' : 'none';
+      }
+    });
+  }
+  /* 同步分隔線顯隱 */
+  if (key === 'disp') {
+    ['lamp-sep-b','lamp-sep-b2'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.style.display = chips['disp'] ? '' : 'none';
+    });
+  }
+  render();
+}
+
+function toggleBucketLamp(key) {
+  bucketChips[key] = !bucketChips[key];
+  var bar = document.getElementById('lamp-bar');
+  if (bar) {
+    bar.querySelectorAll('.lamp-chip.sub').forEach(function(btn) {
+      if (btn.dataset.key === key) btn.classList.toggle('on', bucketChips[key]);
     });
   }
   render();
@@ -635,7 +698,8 @@ function applyChips(rows) {
 }
 
 function isDispRow(r){
-  return BUCKET_B.some(function(t){ return isOne(r[t]); });
+  /* bucketChips 打開的欄位，任一為 1 → 已有 */
+  return BUCKET_B.some(function(t){ return bucketChips[t] !== false && isOne(r[t]); });
 }
 function isNoRow(r){
   return BUCKET_C.some(function(t){ return isOne(r[t]); });
