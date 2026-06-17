@@ -238,6 +238,16 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .stat-item.warn .stat-val { color:var(--red); }
 .stat-item.good .stat-val { color:var(--green); }
 
+/* 燈關閉時，對應 stat-item 反灰透明化 */
+.stat-item.dim {
+  background:#f0f0f0 !important;
+  opacity:.45;
+  filter:grayscale(.6);
+}
+.stat-item.dim .stat-label,
+.stat-item.dim .stat-val,
+.stat-item.dim .stat-pct { color:#999 !important; }
+
 /* ── 明細按鈕 ── */
 .card-detail-btn-row { padding-top:12px; margin-top:12px; border-top:1px solid var(--border); }
 .card-detail-btn {
@@ -952,13 +962,13 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
     topHtml+
     '<div class="stat-row">'+
       '<div class="stat-item"><div class="stat-label">\u7E3D\u5BB6\u6578</div><div class="stat-val">'+stat.total+'</div><div class="stat-pct hidden">&nbsp;</div></div>'+
-      '<div class="stat-item warn"><div class="stat-label">\u672A\u586B\u5BEB</div><div class="stat-val">'+stat.unfilled+'</div><div class="stat-pct">'+fp(stat.unfilled)+'</div></div>'+
-      '<div class="stat-item good" id="si-'+ttId+'" style="position:relative">'+
+      '<div class="stat-item warn'+(chips['unfill']===false?' dim':'')+'"><div class="stat-label">\u672A\u586B\u5BEB</div><div class="stat-val">'+stat.unfilled+'</div><div class="stat-pct">'+fp(stat.unfilled)+'</div></div>'+
+      '<div class="stat-item good'+(chips['disp']===false?' dim':'')+'" id="si-'+ttId+'" style="position:relative">'+
         '<div class="stat-label">'+LABEL_B+'</div><div class="stat-val">'+stat.hasDisp+'</div>'+
         '<div class="stat-pct">'+fp(stat.hasDisp)+'</div>'+
         (BUCKET_B.length>1?'<div class="tooltip" id="'+ttId+'">'+buildTooltipHTML(stat)+'</div>':'')+
       '</div>'+
-      (BUCKET_C.length?'<div class="stat-item warn"><div class="stat-label">'+LABEL_C+'</div><div class="stat-val">'+stat.hasNo+'</div><div class="stat-pct">'+fp(stat.hasNo)+'</div></div>':'')+
+      (BUCKET_C.length?'<div class="stat-item warn'+(chips['no']===false?' dim':'')+'"><div class="stat-label">'+LABEL_C+'</div><div class="stat-val">'+stat.hasNo+'</div><div class="stat-pct">'+fp(stat.hasNo)+'</div></div>':'')+
     '</div>'+
     '<div class="card-detail-btn-row"><button class="card-detail-btn" id="dbtn-'+ttId+'">\uD83D\uDCCB \u5E97\u5BB6\u660E\u7D30</button></div>';
 
@@ -975,9 +985,10 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
     if(e.target.closest('#si-'+ttId)||e.target.closest('#dbtn-'+ttId)) return;
     /* 整體卡片：開 dialog */
     if(isOverall){ openDialog(name,levelKey,rows); return; }
-    /* 最末層：開 dialog */
-    var isLeaf = (levelKey==='staff') || (levelKey==='ch-office') ||
-                 (viewMode==='channel' && levelKey==='type' && drillStack.length===1);
+    /* 最末層：開 dialog；其餘層級都往下鑽
+       組織視角 leaf = staff
+       通路視角 leaf = ch-office（type → ch-area → ch-office → dialog） */
+    var isLeaf = (levelKey==='staff') || (levelKey==='ch-office');
     if(isLeaf) openDialog(name,levelKey,rows);
     else drillDown(levelKey,name);
   });
