@@ -252,7 +252,13 @@
     .detail-tbl td { padding:8px 14px; text-align:right; border-bottom:1px solid rgba(0,0,0,.04); white-space:nowrap; transition:background .1s; }
     .detail-tbl td:first-child, .detail-tbl td:nth-child(2) { text-align:left; color:var(--text); max-width:180px; overflow:hidden; text-overflow:ellipsis; }
     .detail-tbl tr:last-child td { border-bottom:none; }
-    .detail-tbl tbody tr:hover td { background:rgba(139,166,144,.15); }
+    .detail-tbl tbody tr:hover td { background:rgba(139,166,144,.18) !important; }
+    /* 月份分組：每3欄（當期/目標/品評）一組，左側有明顯邊界線 */
+    .detail-tbl td.m-sep, .detail-tbl th.m-sep { border-left:2px solid rgba(139,166,144,.35); }
+    .detail-tbl td.m-bg1, .detail-tbl th.m-bg1 { background:rgba(240,248,242,.6); }
+    .detail-tbl td.m-bg2, .detail-tbl th.m-bg2 { background:rgba(244,248,255,.6); }
+    /* 彙整表 hover */
+    #summary-body tr.sum-data-row:hover td { background:rgba(139,166,144,.15) !important; cursor:default; }
     .foreign-month td { background:rgba(255,200,50,.13); }
     .foreign-month td:first-child { font-weight:700; }
     .foreign-tag { font-size:9px; color:#c07000; margin-left:2px; vertical-align:super; cursor:default; }
@@ -395,15 +401,17 @@
 <!-- 說明書（在 topbar 之後折疊展開）-->
 <div id="manual-bar">
   <div id="manual-inner">
-    <h3>📋 全聯18天推廣進度看板 — 使用說明</h3>
-    <p><b>【資料說明】</b>本看板追蹤全聯18天推廣活動各業務人員及通路店家的當期CTN（箱數）達成情況，品評CTN = 當期CTN 減 目標CTN，目標 = 去年同期CTN + 增量箱數。</p>
+    <h3>📋 全聯18天推廣進度看板 — 功能說明（Ver. 1.7.0）</h3>
+    <p><b>【本看板用途】</b>追蹤全聯18天推廣活動各業務及通路店家的箱數（CTN）達成情況，支援<b>人員視角</b>與<b>組織視角</b>兩種模式，並整合全聯進銷存資料，適合業務個人自我管理、主管開會討論與區域績效分析。</p>
     <hr>
-    <p><b>【人員視角】</b>以業務員為單位統計。同一家店在不同月份由不同業務負責，該月業績歸屬各自業務。適合業務自我管理與個人績效追蹤。有效月份需 ≥ 2 個月（含角色記錄）方計算品評。</p>
-    <p><b>【組織視角】</b>以店家為單位統計。不論哪位業務負責，同一家店的數據在同月合併計算，避免跨月人員異動導致數據被切割。層級：<b>全體 → 營業處 → 營業所</b>。店家所屬單位依該季最後一筆記錄為準。適合管理層分析通路覆蓋與區域績效。</p>
+    <p><b>【人員視角】</b>以業務員為統計單位。同一家店不同月份若由不同業務負責，業績各自歸屬。核心指標：<b>品評CTN = 當期CTN − 目標CTN</b>（目標 = 去年同期 + 增量）。需有效月份 ≥ 2 個月才顯示品評。店家明細含每月分組色帶與Hover高光，最後一欄顯示<b>單店品評小計</b>。</p>
+    <p><b>【組織視角】</b>以店家為統計單位。同一家店同月不論幾位業務，CTN全部合併。指標簡化為<b>當期CTN / 去年同期 / 增減CTN</b>，無品評計算。卡片底部直接顯示進銷存快照。<b>📊 彙整表</b>可開啟全篩選範圍的大表（含分組、小計、總計、進銷存），適合會議討論使用，並可下載 XLSX。</p>
     <hr>
-    <p><b>【篩選與排序】</b>點擊上方營業處 / 營業所名稱可逐層篩選。排序按鈕可切換依 品評CTN / 總家數 / 當期CTN / 目標CTN 排列。</p>
-    <p><b>【店家明細】</b>點擊卡片內「📋 店家明細」可查看各店每月細節，最後一欄顯示該店整季品評CTN加總（<b>單店品評</b>）；表頭固定不隨捲動消失。組織視角下另附 <b>📦 全聯進銷存</b> 區塊，顯示上存、進貨、退貨、銷貨、庫存及本月平均PSD（資料來自同試算表「全聯進銷存資料」分頁，以店號後6碼比對，含資料日期）。</p>
-    <p><b>【品評排行】</b>點擊 topbar「🏆 品評排行」按鈕可開啟排行榜（人員視角前20名），不佔用主畫面空間，可隨時關閉。</p>
+    <p><b>【導覽篩選】</b>上方 navbar 點擊營業處 → 顯示所級篩選；點擊營業所 → 只顯示該所。排序按鈕（品評CTN / 總家數 / 當期CTN / 目標CTN）在兩種視角各自對應不同欄位。</p>
+    <p><b>【進銷存整合】</b>資料來自同一試算表「全聯進銷存資料」分頁，以店號後6碼比對，非同步載入，失敗不影響主看板。K1 欄位為資料時間（顯示於進銷存區塊標題）。</p>
+    <p><b>【其他工具】</b>🏆 品評排行（人員視角前20名彈窗）｜📥 XLSX（人員視角：人員月別明細；組織視角：店家業績＋進銷存兩個分頁）｜💬 LINE 複製 ｜ 📊 Excel 複製 ｜ 📸 截圖（含進銷存區塊）。</p>
+    <hr>
+    <p style="font-size:10px;color:#a07800;"><b>【給下一位接手的 AI】</b>本檔為單一 HTML 檔案，資料來源為 Google Sheets gviz API（免登入）。主資料分頁：SHEET_NAME（店家清單）；進銷存分頁：INV_SHEET。兩種視角共用 navbar 篩選（fArea/fOffice），人員視角用 getPersonList()+calcPersonQuarter()，組織視角用 getStoreList()+calcStoreQuarter()。詳細欄位對應與函式說明見 &lt;script&gt; 區塊頂部的長注釋。</p>
   </div>
 </div>
 
@@ -1178,10 +1186,10 @@ function renderOrg(){
 function buildInvCardBlock(code){
   var d=_invLookup(code);
   if(!d) return '';
-  var dateStr=invDate?'<span style="color:var(--sub);font-size:9px;margin-left:5px;">'+esc(invDate)+'</span>':'';
+  var dateStr=invDate?'<span style="color:var(--sub);font-size:9px;margin-left:5px;">'+esc(invDate)+'</span>':'<span style="color:var(--red);font-size:9px;margin-left:5px;">（無資料時間）</span>';
   var psdCls=d.psd>=2?'ctn-eval pos':d.psd>=1?'':'ctn-eval neg';
   return '<div class="org-inv-block">'+
-    '<div class="org-inv-title">📦 進銷存'+dateStr+'</div>'+
+    '<div class="org-inv-title">📦 進銷存資料時間'+dateStr+'</div>'+
     '<table class="org-inv-tbl">'+
       '<thead><tr>'+
         '<th>上存</th><th>進貨</th><th>退貨</th><th>銷貨</th><th>庫存</th><th>PSD</th>'+
@@ -1352,13 +1360,13 @@ function buildInvBlock(code){
   if(!d) return '';
 
   var dateStr=invDate
-    ?('<span style="color:var(--sub);font-size:10px;font-weight:600;margin-left:8px;">資料時間：'+esc(invDate)+'</span>')
-    :'<span style="color:var(--red);font-size:10px;margin-left:8px;">（無資料日期）</span>';
+    ?('<span style="color:var(--sub);font-size:10px;font-weight:600;margin-left:8px;">'+esc(invDate)+'</span>')
+    :'<span style="color:var(--red);font-size:10px;margin-left:8px;">（無資料時間）</span>';
   var psdCls=d.psd>=2?'d-pos':d.psd>=1?'':'d-neg';
   var thStyle='text-align:right;padding:5px 14px;font-size:11px;font-weight:800;color:var(--sub);border-bottom:1px solid rgba(0,0,0,.08);background:rgba(0,0,0,.02);position:sticky;top:0;';
 
   return '<div style="padding:12px 20px 14px;border-top:2px solid rgba(0,0,0,.07);margin-top:4px;">'+
-    '<div style="font-size:11px;font-weight:900;color:var(--sub);letter-spacing:.5px;margin-bottom:10px;">📦 全聯進銷存'+dateStr+'</div>'+
+    '<div style="font-size:11px;font-weight:900;color:var(--sub);letter-spacing:.5px;margin-bottom:10px;">📦 進銷存資料時間'+dateStr+'</div>'+
     '<table style="border-collapse:collapse;font-size:13px;width:100%;max-width:620px;">'+
       '<thead><tr>'+
         '<th style="'+thStyle+'">上存</th>'+
@@ -1494,7 +1502,6 @@ function buildDetailTable(qd,q){
   if(!qd.storeRows.length) return '<div style="padding:10px 13px;font-size:10px;color:var(--sub);">無明細資料</div>';
   var months=qd.months;
 
-  /* 先建 storeIndex */
   var storeIndex={};
   qd.storeRows.forEach(function(s){
     var k=s.code||s.name;
@@ -1502,50 +1509,61 @@ function buildDetailTable(qd,q){
     storeIndex[k].byMonth[s.month]=s;
   });
 
-  /* 判斷是否有任何進銷存資料，決定要不要加進銷存欄 */
   var hasInv=Object.values(storeIndex).some(function(s){ return !!_invLookup(s.code); });
   var invDateHdr=hasInv&&invDate
     ?'<span style="font-size:9px;font-weight:400;color:var(--sub);margin-left:4px;">('+esc(invDate)+')</span>'
     :'';
 
-  /* 表頭 */
-  var thCols='<th>店碼</th><th>店名</th>';
-  months.forEach(function(m){ thCols+='<th>'+MNAMES[m]+'<br>當期</th><th>'+MNAMES[m]+'<br>目標</th><th>'+MNAMES[m]+'<br>品評</th>'; });
-  thCols+='<th>單店<br>品評</th>';
-  if(hasInv){
-    thCols+='<th>上存</th><th>進貨</th><th>退貨</th><th>銷貨</th><th>庫存</th><th>PSD'+invDateHdr+'</th>';
+  /* 月份色帶輔助：交替綠/藍背景，第一欄加左分隔線 */
+  function mCls(mi,col){
+    var bg=mi%2===0?'m-bg1':'m-bg2';
+    return (col===0?'m-sep ':'')+bg;
   }
 
-  /* 資料列 */
+  var thCols='<th>店碼</th><th>店名</th>';
+  months.forEach(function(m,mi){
+    thCols+='<th class="'+mCls(mi,0)+'">'+MNAMES[m]+'<br>當期</th>';
+    thCols+='<th class="'+mCls(mi,1)+'">'+MNAMES[m]+'<br>目標</th>';
+    thCols+='<th class="'+mCls(mi,2)+'">'+MNAMES[m]+'<br>品評</th>';
+  });
+  thCols+='<th class="m-sep">單店<br>品評</th>';
+  if(hasInv){
+    thCols+='<th class="m-sep m-bg1">上存</th><th class="m-bg1">進貨</th><th class="m-bg1">退貨</th><th class="m-bg1">銷貨</th><th class="m-bg1">庫存</th><th class="m-bg1">PSD'+invDateHdr+'</th>';
+  }
+
   var tbodyHtml='';
   Object.values(storeIndex).forEach(function(s){
     var rowHtml='<td>'+esc(s.code)+'</td><td>'+esc(s.name)+'</td>';
     var storeEvalSum=0, hasAnyData=false;
-    months.forEach(function(m){
+    months.forEach(function(m,mi){
       var md=s.byMonth[m];
-      if(!md){rowHtml+='<td class="d-nil">—</td><td class="d-nil">—</td><td class="d-nil">—</td>';return;}
+      if(!md){
+        rowHtml+='<td class="'+mCls(mi,0)+' d-nil">—</td><td class="'+mCls(mi,1)+' d-nil">—</td><td class="'+mCls(mi,2)+' d-nil">—</td>';
+        return;
+      }
       hasAnyData=true;
-      var ev=md.eval,ecls=ev>0?'d-pos':ev<0?'d-neg':'d-nil';
-      rowHtml+='<td class="d-cur">'+md.cur+'</td><td class="d-tgt">'+toFrac(md.tgt)+'</td><td class="'+ecls+'">'+toFracEval(md.eval)+'</td>';
+      var ev=md.eval, ecls=ev>0?'d-pos':ev<0?'d-neg':'d-nil';
+      rowHtml+='<td class="'+mCls(mi,0)+' d-cur">'+md.cur+'</td>';
+      rowHtml+='<td class="'+mCls(mi,1)+' d-tgt">'+toFrac(md.tgt)+'</td>';
+      rowHtml+='<td class="'+mCls(mi,2)+' '+ecls+'">'+toFracEval(md.eval)+'</td>';
       storeEvalSum+=md.eval;
     });
     storeEvalSum=Math.round(storeEvalSum*3)/3;
     var sumCls=storeEvalSum>0?'d-pos':storeEvalSum<0?'d-neg':'d-nil';
-    rowHtml+=hasAnyData?'<td class="'+sumCls+'" style="font-weight:900;">'+toFracEval(storeEvalSum)+'</td>':'<td class="d-nil">—</td>';
-
+    rowHtml+=hasAnyData?'<td class="m-sep '+sumCls+'" style="font-weight:900;">'+toFracEval(storeEvalSum)+'</td>':'<td class="m-sep d-nil">—</td>';
     if(hasInv){
       var inv=_invLookup(s.code);
       if(inv){
         var pCls=inv.psd>=2?'d-pos':inv.psd>=1?'':'d-neg';
         rowHtml+=
-          '<td style="color:var(--sub)">'+inv.upper+'</td>'+
-          '<td style="color:var(--blue)">'+inv.in+'</td>'+
-          '<td style="color:var(--sub)">'+inv.ret+'</td>'+
-          '<td style="color:var(--green);font-weight:700">'+inv.sale+'</td>'+
-          '<td style="font-weight:700;color:'+(inv.stock<=0?'var(--red)':'inherit')+'">'+inv.stock+'</td>'+
-          '<td class="'+pCls+'" style="font-weight:800">'+inv.psd.toFixed(1)+'</td>';
+          '<td class="m-sep m-bg1" style="color:var(--sub)">'+inv.upper+'</td>'+
+          '<td class="m-bg1" style="color:var(--blue)">'+inv.in+'</td>'+
+          '<td class="m-bg1" style="color:var(--sub)">'+inv.ret+'</td>'+
+          '<td class="m-bg1" style="color:var(--green);font-weight:700">'+inv.sale+'</td>'+
+          '<td class="m-bg1" style="font-weight:700;color:'+(inv.stock<=0?'var(--red)':'inherit')+'">'+inv.stock+'</td>'+
+          '<td class="m-bg1 '+pCls+'" style="font-weight:800">'+inv.psd.toFixed(1)+'</td>';
       } else {
-        rowHtml+='<td class="d-nil">—</td><td class="d-nil">—</td><td class="d-nil">—</td><td class="d-nil">—</td><td class="d-nil">—</td><td class="d-nil">—</td>';
+        rowHtml+='<td class="m-sep m-bg1 d-nil">—</td><td class="m-bg1 d-nil">—</td><td class="m-bg1 d-nil">—</td><td class="m-bg1 d-nil">—</td><td class="m-bg1 d-nil">—</td><td class="m-bg1 d-nil">—</td>';
       }
     }
     tbodyHtml+='<tr>'+rowHtml+'</tr>';
@@ -1554,7 +1572,6 @@ function buildDetailTable(qd,q){
   return '<div class="detail-scroll"><table class="detail-tbl"><thead><tr>'+thCols+'</tr></thead><tbody>'+tbodyHtml+'</tbody></table></div>';
 }
 
-/* \u2550\u2550 Dialog \u5E97\u5BB6\u660E\u7D30 \u2550\u2550 */
 function openDetailDialog(e,btn){
   e.stopPropagation();
   var card=btn.closest('.person-card');
@@ -2004,7 +2021,7 @@ function openSummaryTable(){
   var months=QUARTERS[curQ]||[];
   var areaLabel=fOffice?fOffice:(fArea?fArea:'全體');
   document.getElementById('summary-title').textContent='📊 彙整表 — '+areaLabel;
-  document.getElementById('summary-subtitle').textContent=curQ+' 組織視角　共 '+storeKeys.length+' 家店'+(invDate?' ｜ 進銷存：'+invDate:'');
+  document.getElementById('summary-subtitle').textContent=curQ+' 組織視角　共 '+storeKeys.length+' 家店'+(invDate?' ｜ 進銷存資料時間：'+invDate:'');
 
   var hasInv=Object.keys(invData).length>0;
   var thS='padding:7px 10px;font-size:11px;font-weight:800;color:#444;background:#f0f4f0;border-bottom:2px solid #ccd8cc;border-right:1px solid #dde8dd;white-space:nowrap;text-align:right;position:sticky;top:0;z-index:2;';
@@ -2017,7 +2034,7 @@ function openSummaryTable(){
   thead+='<th colspan="4" style="'+thSL+'">店家資訊</th>';
   months.forEach(function(m){ thead+='<th colspan="3" style="'+thSM+'border-left:2px solid #b8ccb8;">'+MNAMES[m]+'</th>'; });
   thead+='<th colspan="3" style="'+thST+'border-left:2px solid #a0c0a0;">季合計</th>';
-  if(hasInv) thead+='<th colspan="6" style="'+thSI+'border-left:2px solid #a0c0e0;">進銷存（'+(invDate||'—')+'）</th>';
+  if(hasInv) thead+='<th colspan="6" style="'+thSI+'border-left:2px solid #a0c0e0;">📦 進銷存資料時間 '+(invDate||'—')+'</th>';
   thead+='</tr><tr>';
   ['店碼','店名','營業處','營業所'].forEach(function(t){ thead+='<th style="'+thSL+'top:34px;">'+t+'</th>'; });
   months.forEach(function(m,mi){
@@ -2040,6 +2057,30 @@ function openSummaryTable(){
   function dCl(v){ return v>0?'color:#22a84c;font-weight:800;':v<0?'color:#d93025;font-weight:800;':'color:#aaa;'; }
   function dsign(v){ return (v>0?'+':'')+v; }
 
+  /* 輔助：產生小計/總計列 */
+  function makeTotalRow(label, labelStyle, rowStyle, gc, borderColor, bgColor){
+    var sC=gc.reduce(function(s,c){return s+c.qd.totalCur;},0);
+    var sL=gc.reduce(function(s,c){return s+c.qd.totalLast;},0);
+    var sD=sC-sL;
+    var r='<tr style="'+rowStyle+'">';
+    r+='<td colspan="4" style="'+tdSL+labelStyle+'">'+label+'</td>';
+    months.forEach(function(m,mi){
+      var mc=gc.reduce(function(s,c){return s+(c.qd.monthData[m].hasData?c.qd.monthData[m].cur:0);},0);
+      var ml=gc.reduce(function(s,c){return s+(c.qd.monthData[m].hasData?c.qd.monthData[m].last:0);},0);
+      var md=mc-ml;
+      var bl=mi===0?'border-left:2px solid '+borderColor+';':'';
+      r+='<td style="'+tdS+bl+'color:#1a73e8;background:'+bgColor+';">'+mc+'</td>';
+      r+='<td style="'+tdS+'color:#7c3aed;background:'+bgColor+';">'+ml+'</td>';
+      r+='<td style="'+tdS+dCl(md)+'background:'+bgColor+';">'+dsign(md)+'</td>';
+    });
+    r+='<td style="'+tdS+'border-left:2px solid '+borderColor+';color:#1a73e8;font-weight:900;background:'+bgColor+';">'+sC+'</td>';
+    r+='<td style="'+tdS+'color:#7c3aed;font-weight:900;background:'+bgColor+';">'+sL+'</td>';
+    r+='<td style="'+tdS+dCl(sD)+'font-weight:900;background:'+bgColor+';">'+dsign(sD)+'</td>';
+    if(hasInv) r+='<td colspan="6" style="'+tdS+'border-left:2px solid #b0c8e0;background:#f0f5fb;"></td>';
+    r+='</tr>';
+    return r;
+  }
+
   var groups={};
   cards.forEach(function(c){
     var gk=fOffice?'__flat__':(fArea?c.s.office:c.s.area);
@@ -2058,7 +2099,7 @@ function openSummaryTable(){
     }
     gc.forEach(function(c){
       var s=c.s, qd=c.qd;
-      var row='<tr>';
+      var row='<tr class="sum-data-row">';
       row+='<td style="'+tdSL+'color:#777;font-size:11px;">'+s.code+'</td>';
       row+='<td style="'+tdSL+'font-weight:700;">'+s.name+'</td>';
       row+='<td style="'+tdSL+'color:#888;font-size:11px;">'+s.area+'</td>';
@@ -2092,26 +2133,20 @@ function openSummaryTable(){
       row+='</tr>';
       tbody+=row;
     });
-    if(gk!=='__flat__'&&gc.length>1){
-      var sC=gc.reduce(function(s,c){return s+c.qd.totalCur;},0);
-      var sL=gc.reduce(function(s,c){return s+c.qd.totalLast;},0);
-      var sD=sC-sL;
-      tbody+='<tr style="background:#edf5ed;font-weight:900;border-top:1.5px solid #c0d8c0;">';
-      tbody+='<td colspan="4" style="'+tdSL+'color:#3a6a45;font-size:11px;">小計 '+gc.length+' 家</td>';
-      months.forEach(function(m,mi){
-        var mc=gc.reduce(function(s,c){return s+(c.qd.monthData[m].hasData?c.qd.monthData[m].cur:0);},0);
-        var ml=gc.reduce(function(s,c){return s+(c.qd.monthData[m].hasData?c.qd.monthData[m].last:0);},0);
-        var md=mc-ml;
-        var bl=mi===0?'border-left:2px solid #cce0cc;':'';
-        tbody+='<td style="'+tdS+bl+'color:#1a73e8;">'+mc+'</td><td style="'+tdS+'color:#7c3aed;">'+ml+'</td><td style="'+tdS+dCl(md)+'">'+dsign(md)+'</td>';
-      });
-      tbody+='<td style="'+tdS+'border-left:2px solid #a0c0a0;color:#1a73e8;">'+sC+'</td>';
-      tbody+='<td style="'+tdS+'color:#7c3aed;">'+sL+'</td>';
-      tbody+='<td style="'+tdS+dCl(sD)+'">'+dsign(sD)+'</td>';
-      if(hasInv) tbody+='<td colspan="6" style="'+tdS+'border-left:2px solid #b0c8e0;background:#f5f8fd;"></td>';
-      tbody+='</tr>';
+    /* 小計：任何分組模式（含單所 __flat__）只要超過1家就顯示 */
+    if(gc.length>1){
+      tbody+=makeTotalRow('小計　'+gc.length+' 家','color:#3a6a45;font-size:11px;',
+        'background:#edf5ed;font-weight:900;border-top:1.5px solid #c0d8c0;',
+        gc,'#c0d8c0','#edf5ed');
     }
   });
+  /* 總計列：永遠顯示 */
+  tbody+=makeTotalRow(
+    '🔢 總計　'+cards.length+' 家店',
+    'color:#1a3a22;font-size:12px;letter-spacing:.3px;',
+    'background:#c2dfc2;font-weight:900;border-top:3px solid #5a9a5a;',
+    cards,'#5a9a5a','#d2ecd2'
+  );
   tbody+='</tbody>';
 
   document.getElementById('summary-body').innerHTML=
