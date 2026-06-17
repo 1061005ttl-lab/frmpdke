@@ -1,3 +1,56 @@
+<!--
+====================================================================
+業務王同步中心 - 桌面版同步控制台 (sync0616_desktop.html)
+====================================================================
+
+【這份檔案在做什麼】
+這是一個純前端的單頁 HTML 工具，用來手動觸發「業務王」後台資料同步到
+Google試算表/看板的動作。所有資料與動作都透過一個 Google Apps Script
+(GAS) Web App 完成，本頁面只負責顯示任務清單、發送同步請求、顯示進度
+與執行紀錄，本身不存任何資料、也不做任何資料運算。
+
+【後端串接】
+- GAS_URL：唯一的後端入口（GAS Web App 的 exec 網址）。
+  - GET  ?action=getTasks            → 取得任務清單。回傳 json.data 為
+    陣列，每個任務物件可能含 name / targetId / dateText / updatedAt /
+    dataType / boardType / _originalIndex 等欄位。
+  - POST { action:'syncTask', index } → 觸發後端對該任務執行同步動作，
+    index 對應任務的 _originalIndex（後端原始順序），不是畫面顯示順序。
+- 載入後會先過濾掉 targetId 為空的任務，留下的存在全域陣列 tasks[]，
+  此陣列的索引順序＝畫面顯示順序＝按鈕/進度條等 DOM id 使用的索引 i。
+
+【畫面結構（桌面版重點）】
+- 上方 Header：標題 + 動態副標（顯示任務總數與訪頻分組數量）+ 重新載入
+  按鈕。
+- 主內容區（.main-col，置中、左右留白，適合寬螢幕）：
+  - 「訪頻專用」分組框（.freq-group）：固定把 tasks[] 陣列「最前面
+    FREQ_GROUP_COUNT 筆」（目前 = 6，常數定義在 <script> 內）框起來，
+    標籤為「📅 訪頻專用」。此分組純粹依「資料順序」決定，不是依名稱
+    判斷，若後端回傳的順序改變，框起來的項目也會跟著變動。
+  - 其他任務（.task-grid）：陣列中第 FREQ_GROUP_COUNT 筆之後的任務，
+    以多欄網格排列，卡片含起訖日期(dateText)與更新時間(updatedAt)。
+  - 看板按鈕（📈 橘色）：僅當 task.dataType === '問卷' 且 task.boardType
+    存在於 BOARD_FILE 對照表時才會顯示，連到 BOARD_BASE 對應的外部看板
+    頁面（達成率型 / 覆蓋率型 / 獎勵達成型）。
+- 右側「執行紀錄」側欄（.log-sidebar，id="log-sidebar"）：
+  - 預設為「收合」狀態（窄條，僅顯示直立標籤圖示與未讀紅點），點擊側欄
+    即可展開/收合（toggleLog()），與舊版手機介面「預設收合」的行為
+    一致，避免長期佔用桌面版的水平空間。
+  - 每次同步開始/成功/失敗都會呼叫 addLog() 在此處插入一筆紀錄；側欄
+    收合時新紀錄會在收合條上顯示紅點提示，展開後紅點自動消失。
+
+【維護注意事項】
+- i（任務索引）是全域陣列 tasks 的 index，所有相關 DOM id 都用這個 i
+  拼接（btn-sync-i / progress-i / bar-i / progress-msg-i /
+  progress-time-i），調整卡片版型時務必保留這些 id 規則，否則
+  startSync() / resetCard() 會抓不到對應元素。
+- 若要調整「訪頻專用」涵蓋的筆數，改 FREQ_GROUP_COUNT 常數即可，不需要
+  更動 render() 內部邏輯。
+- 這是「桌面版」介面；可能還有對應的「手機版」（單欄列表、底部收合式
+  執行紀錄抽屜）版本，兩者為各自獨立的檔案，修改其中一個不會影響另一個，
+  如需同步調整請另外處理手機版檔案。
+====================================================================
+-->
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -202,9 +255,9 @@
     .progress-info { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-secondary); }
     .progress-timer { font-weight: 700; color: var(--text-main); font-family: var(--mono); }
 
-    /* ── 右側執行紀錄欄 ── */
+    /* ── 右側執行紀錄欄（預設收合，點擊展開／收合）── */
     .log-sidebar {
-      width: 340px;
+      width: 48px;
       flex-shrink: 0;
       background: var(--card);
       border-left: 1px solid var(--border);
@@ -212,25 +265,82 @@
       flex-direction: column;
       height: 100%;
       min-height: 0;
+      overflow: hidden;
+      transition: width 0.25s ease;
     }
+    .log-sidebar.open { width: 340px; }
+
     .log-sidebar-header {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 10px;
+      padding: 18px 0 14px;
+      height: 100%;
+      cursor: pointer;
+      user-select: none;
+      position: relative;
+      flex-shrink: 0;
+      transition: background 0.15s;
+    }
+    .log-sidebar-header:hover { background: rgba(90,138,106,0.05); }
+    .log-sidebar.open .log-sidebar-header {
+      flex-direction: row;
+      align-items: center;
+      justify-content: flex-start;
+      height: auto;
       padding: 16px 18px;
       border-bottom: 1px solid var(--border);
-      display: flex; justify-content: space-between; align-items: center;
-      font-size: 14px; font-weight: 700;
-      flex-shrink: 0;
     }
+
+    .log-icon { font-size: 17px; flex-shrink: 0; }
+    .log-title-text {
+      font-size: 13px; font-weight: 700;
+      writing-mode: vertical-rl;
+      text-orientation: upright;
+      letter-spacing: 2px;
+    }
+    .log-sidebar.open .log-title-text {
+      writing-mode: horizontal-tb;
+      letter-spacing: 0;
+      flex: 1;
+    }
+
+    .log-dot {
+      width: 8px; height: 8px;
+      background: #EA4335;
+      border-radius: 50%;
+      display: none;
+      position: absolute;
+      top: 14px; right: 14px;
+    }
+    .log-dot.show { display: block; }
+    .log-sidebar.open .log-dot { position: static; top: auto; right: auto; }
+
     .wa-log-clear {
       background: none; border: none;
       color: var(--text-secondary); font-size: 12px;
       cursor: pointer; padding: 4px 8px;
+      display: none;
     }
+    .log-sidebar.open .wa-log-clear { display: block; }
     .wa-log-clear:hover { color: var(--text-main); }
+
+    .log-arrow {
+      font-size: 11px;
+      color: var(--text-secondary);
+      transition: transform 0.25s ease;
+    }
+    .log-sidebar.open .log-arrow { transform: rotate(180deg); }
+
     .log-sidebar-content {
+      display: none;
       flex: 1; overflow-y: auto;
       padding: 12px 14px;
       min-height: 0;
     }
+    .log-sidebar.open .log-sidebar-content { display: block; }
     .log-item {
       padding: 8px 11px; border-radius: 7px; font-size: 12.5px;
       margin-bottom: 7px; border-left: 3px solid var(--border);
@@ -259,7 +369,25 @@
     /* ── 較窄螢幕回退（仍以桌機為主要設計目標）── */
     @media (max-width: 1000px) {
       .app-shell { flex-direction: column; }
-      .log-sidebar { width: 100%; height: 260px; border-left: none; border-top: 1px solid var(--border); }
+      .log-sidebar {
+        width: 100%; height: 48px;
+        border-left: none; border-top: 1px solid var(--border);
+        transition: height 0.25s ease;
+      }
+      .log-sidebar.open { width: 100%; height: 260px; }
+      .log-sidebar-header {
+        flex-direction: row !important;
+        height: 48px !important;
+        padding: 0 16px !important;
+        border-bottom: none !important;
+      }
+      .log-sidebar.open .log-sidebar-header {
+        height: auto !important;
+        padding: 14px 16px !important;
+        border-bottom: 1px solid var(--border) !important;
+      }
+      .log-title-text { writing-mode: horizontal-tb !important; letter-spacing: 0 !important; flex: 1; }
+      .log-dot { position: static !important; }
       .main-col { padding: 18px 16px 24px; }
     }
   </style>
@@ -285,10 +413,13 @@
       </div>
     </main>
 
-    <aside class="log-sidebar">
-      <div class="log-sidebar-header">
-        <span>📋 執行紀錄</span>
-        <button class="wa-log-clear" onclick="clearLog()">清除</button>
+    <aside class="log-sidebar" id="log-sidebar">
+      <div class="log-sidebar-header" onclick="toggleLog()">
+        <span class="log-icon">📋</span>
+        <span class="log-title-text">執行紀錄</span>
+        <div class="log-dot" id="log-dot"></div>
+        <button class="wa-log-clear" onclick="event.stopPropagation(); clearLog()">清除</button>
+        <span class="log-arrow">▸</span>
       </div>
       <div class="log-sidebar-content" id="log-content">
         <div class="log-empty">尚無紀錄</div>
@@ -317,6 +448,14 @@
         .map(n => String(n).padStart(2,'0')).join(':');
     }
 
+    function toggleLog() {
+      const sidebar = document.getElementById('log-sidebar');
+      sidebar.classList.toggle('open');
+      if (sidebar.classList.contains('open')) {
+        document.getElementById('log-dot').classList.remove('show');
+      }
+    }
+
     function addLog(html, cssClass = '') {
       const c = document.getElementById('log-content');
       if (!c) return null;
@@ -325,12 +464,17 @@
       div.className = 'log-item ' + cssClass;
       div.innerHTML = html;
       c.insertBefore(div, c.firstChild);
+      const sidebar = document.getElementById('log-sidebar');
+      if (sidebar && !sidebar.classList.contains('open')) {
+        document.getElementById('log-dot').classList.add('show');
+      }
       return div;
     }
 
     function clearLog() {
       const c = document.getElementById('log-content');
       if (c) c.innerHTML = '<div class="log-empty">尚無紀錄</div>';
+      document.getElementById('log-dot')?.classList.remove('show');
     }
 
     async function loadTasks() {
