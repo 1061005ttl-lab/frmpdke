@@ -653,7 +653,6 @@ function toggleBucketLamp(key) {
 }
 
 /* \u2500\u2500 \u5DE5\u5177 \u2500\u2500 */
-function pct(a,b){ return b===0?0:Math.round(a/b*100); }
 function showLoading(){ document.getElementById('loading').classList.add('show'); }
 function hideLoading(){ document.getElementById('loading').classList.remove('show'); }
 function isOne(v){ return Number(v)===1||v===true||v==='true'||v==='1'; }
@@ -861,16 +860,6 @@ function calcGroup(rows) {
 }
 
 /* \u2500\u2500 \u7BE9\u9078 \u2500\u2500 */
-function filterRows(level, key) {
-  if(level==='area')    return allRows.filter(function(r){ return String(r[COL_AREA])===key; });
-  if(level==='office')  return allRows.filter(function(r){ return String(r[COL_OFFICE])===key; });
-  if(level==='staff')   return allRows.filter(function(r){ return String(r[COL_STAFF])===key; });
-  if(level==='channel')  return allRows.filter(function(r){ return String(r[COL_CHANNEL])===key; });
-  if(level==='type')     return allRows.filter(function(r){ return String(r[COL_TYPE])===key; });
-  if(level==='ch-area')  return allRows.filter(function(r){ return String(r[COL_AREA])===key; });
-  if(level==='ch-office')return allRows.filter(function(r){ return String(r[COL_OFFICE])===key; });
-  return allRows;
-}
 function getCurrentRows() {
   if(!drillStack.length) return allRows;
   /* 逐層累積過濾：每一層都在上一層的結果裡再篩 */
@@ -1033,87 +1022,69 @@ function jumpToChOffice(chName, typeName, areaName, officeName) {
 
 function qEsc(s){ return s.replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
 
+/* 產生一組 quicknav 按鈕列（導航元件通用）
+   label: 組標題, keys: 按鈕文字列表, activeKey: 當前選定值, onclickFn: 產生 onclick 屬性的函式 */
+function qnGroupHtml(label, keys, activeKey, onclickFn) {
+  if (!keys.length) return '';
+  var html = '<div class="qn-group"><span class="qn-label">' + esc(label) + '</span>';
+  keys.forEach(function(k) {
+    html += '<button class="qn-btn' + (activeKey===k?' active':'') + '" onclick="' + onclickFn(k) + '">' + esc(k) + '</button>';
+  });
+  html += '</div>';
+  return html;
+}
+
 function buildQuicknav() {
   var nav = document.getElementById('quicknav');
   if (!nav) return;
   var depth = drillStack.length;
-  var html  = '';
-
-  html += '<div class="qn-group">';
-  html += '<button class="qn-btn home' + (depth===0?' active':'') + '" onclick="drillTo(-1)">全覽</button>';
-  html += '</div>';
+  var html  = '<div class="qn-group"><button class="qn-btn home' + (depth===0?' active':'') + '" onclick="drillTo(-1)">全覽</button></div>';
 
   if (viewMode === 'org') {
     var areaGroups = getNextGroups(allRows, COL_AREA);
-    var areaKeys   = Object.keys(areaGroups);
     var curArea    = depth >= 1 ? drillStack[0].key : null;
     var curOffice  = depth >= 2 ? drillStack[1].key : null;
-    if (areaKeys.length) {
-      html += '<div class="qn-group"><span class="qn-label">營業處</span>';
-      areaKeys.forEach(function(a) {
-        html += '<button class="qn-btn' + (curArea===a?' active':'') + '" onclick="jumpToArea(\'' + qEsc(a) + '\')">' + esc(a) + '</button>';
-      });
-      html += '</div>';
-    }
+
+    html += qnGroupHtml('營業處', Object.keys(areaGroups), curArea, function(a) {
+      return "jumpToArea('" + qEsc(a) + "')";
+    });
+
     if (curArea && areaGroups[curArea]) {
       var officeGroups = getNextGroups(areaGroups[curArea], COL_OFFICE);
-      var officeKeys   = Object.keys(officeGroups);
-      if (officeKeys.length) {
-        html += '<div class="qn-group"><span class="qn-label">' + esc(curArea) + '</span>';
-        officeKeys.forEach(function(o) {
-          html += '<button class="qn-btn' + (curOffice===o?' active':'') + '" onclick="jumpToOffice(\'' + qEsc(curArea) + '\',\'' + qEsc(o) + '\')">' + esc(o) + '</button>';
-        });
-        html += '</div>';
-      }
+      html += qnGroupHtml(curArea, Object.keys(officeGroups), curOffice, function(o) {
+        return "jumpToOffice('" + qEsc(curArea) + "','" + qEsc(o) + "')";
+      });
     }
   } else {
     var chGroups  = getNextGroups(allRows, COL_CHANNEL);
-    var chKeys    = Object.keys(chGroups);
     var curCh     = depth >= 1 ? drillStack[0].key : null;
     var curType   = depth >= 2 ? drillStack[1].key : null;
     var curChArea = depth >= 3 ? drillStack[2].key : null;
     var curChOff  = depth >= 4 ? drillStack[3].key : null;
-    if (chKeys.length) {
-      html += '<div class="qn-group"><span class="qn-label">\u901a\u8def\u5225</span>';
-      chKeys.forEach(function(c) {
-        html += '<button class="qn-btn' + (curCh===c?' active':'') + '" onclick="jumpToChannel(\'' + qEsc(c) + '\')">' + esc(c) + '</button>';
-      });
-      html += '</div>';
-    }
+
+    html += qnGroupHtml('通路別', Object.keys(chGroups), curCh, function(c) {
+      return "jumpToChannel('" + qEsc(c) + "')";
+    });
+
     if (curCh && chGroups[curCh]) {
       var typeGroups = getNextGroups(chGroups[curCh], COL_TYPE);
-      var typeKeys   = Object.keys(typeGroups);
-      if (typeKeys.length) {
-        html += '<div class="qn-group"><span class="qn-label">' + esc(curCh) + '</span>';
-        typeKeys.forEach(function(t) {
-          html += '<button class="qn-btn' + (curType===t?' active':'') + '" onclick="jumpToType(\'' + qEsc(curCh) + '\',\'' + qEsc(t) + '\')">' + esc(t) + '</button>';
-        });
-        html += '</div>';
-      }
+      html += qnGroupHtml(curCh, Object.keys(typeGroups), curType, function(t) {
+        return "jumpToType('" + qEsc(curCh) + "','" + qEsc(t) + "')";
+      });
     }
     if (curCh && curType) {
       var chRows2     = allRows.filter(function(r){ return String(r[COL_CHANNEL])===curCh && String(r[COL_TYPE])===curType; });
       var areaGroups2 = getNextGroups(chRows2, COL_AREA);
-      var areaKeys2   = Object.keys(areaGroups2);
-      if (areaKeys2.length) {
-        html += '<div class="qn-group"><span class="qn-label">' + esc(curType) + '</span>';
-        areaKeys2.forEach(function(a) {
-          html += '<button class="qn-btn' + (curChArea===a?' active':'') + '" onclick="jumpToChArea(\'' + qEsc(curCh) + '\',\'' + qEsc(curType) + '\',\'' + qEsc(a) + '\')">' + esc(a) + '</button>';
-        });
-        html += '</div>';
-      }
+      html += qnGroupHtml(curType, Object.keys(areaGroups2), curChArea, function(a) {
+        return "jumpToChArea('" + qEsc(curCh) + "','" + qEsc(curType) + "','" + qEsc(a) + "')";
+      });
     }
     if (curCh && curType && curChArea) {
       var chRows3    = allRows.filter(function(r){ return String(r[COL_CHANNEL])===curCh && String(r[COL_TYPE])===curType && String(r[COL_AREA])===curChArea; });
       var offGroups2 = getNextGroups(chRows3, COL_OFFICE);
-      var offKeys2   = Object.keys(offGroups2);
-      if (offKeys2.length) {
-        html += '<div class="qn-group"><span class="qn-label">' + esc(curChArea) + '</span>';
-        offKeys2.forEach(function(o) {
-          html += '<button class="qn-btn' + (curChOff===o?' active':'') + '" onclick="jumpToChOffice(\'' + qEsc(curCh) + '\',\'' + qEsc(curType) + '\',\'' + qEsc(curChArea) + '\',\'' + qEsc(o) + '\')">' + esc(o) + '</button>';
-        });
-        html += '</div>';
-      }
+      html += qnGroupHtml(curChArea, Object.keys(offGroups2), curChOff, function(o) {
+        return "jumpToChOffice('" + qEsc(curCh) + "','" + qEsc(curType) + "','" + qEsc(curChArea) + "','" + qEsc(o) + "')";
+      });
     }
   }
 
@@ -1158,10 +1129,28 @@ function sortedValidRows(rows) {
     .map(function(d){ return d.r; });
 }
 
+/* \u5404\u5c64\u7d1a\u5bf9\u61c9\u7684\u9644\u52a0\u6b04\u4f4d\uff08\u7d44\u7e54/\u901a\u8def\u8996\u89d2\u901a\u7528\uff09 */
+var COL_LABELS = {};
+COL_LABELS[COL_OFFICE] = '\u71DF\u696D\u6240/\u8AB2';
+COL_LABELS[COL_STAFF]  = '\u4E3B\u8981\u8A2A\u54E1';
+COL_LABELS[COL_AREA]   = '\u71DF\u696D\u8655';
+COL_LABELS[COL_TYPE]   = '\u5E97\u5BB6\u578B\u614B';
+
+function getExtraCols(levelKey) {
+  switch (levelKey) {
+    case 'area':      return [COL_OFFICE, COL_STAFF];
+    case 'office':    return [COL_STAFF];
+    case 'ch-area':   return [COL_OFFICE];
+    case 'ch-office': return [];
+    case 'type':      return [COL_AREA];
+    default:          return [];
+  }
+}
+
 function buildStoreTable(rows, levelKey){
   var items = dialogRows(rows);
-  var extraCols=levelKey==='area'?[COL_OFFICE,COL_STAFF]:levelKey==='office'?[COL_STAFF]:[];
-  var colLabels={}; colLabels[COL_OFFICE]='\u71DF\u696D\u6240/\u8AB2'; colLabels[COL_STAFF]='\u4E3B\u8981\u8A2A\u54E1';
+  var extraCols = getExtraCols(levelKey);
+  var colLabels = COL_LABELS;
   var html='<div class="detail-scroll"><table class="detail-tbl"><thead><tr>';
   extraCols.forEach(function(c){ html+='<th class="th-left">'+(colLabels[c]||c)+'</th>'; });
   html+='<th class="th-left">\u5E97\u78BC</th><th class="th-left">\u5E97\u540D</th>';
@@ -1187,7 +1176,6 @@ function buildStoreTable(rows, levelKey){
       if(BUCKET_B.length>1) BUCKET_B.forEach(function(){ html+='<td><span class="d-no">\u2014</span></td>'; });
       if(BUCKET_C.length)   BUCKET_C.forEach(function(){ html+='<td><span class="d-no">\u2014</span></td>'; });
     } else {
-      var disp = isDispRow(r);
       if (grp === 0)      html += '<td><span class="d-yes">\u2705</span></td>';
       else if (grp === 1) html += '<td><span class="d-no-label">' + LABEL_C + '</span></td>';
       else                html += '<td><span class="d-no">\u2014</span></td>';
@@ -1267,9 +1255,11 @@ function copyLine(){
   var hasNo=valid.filter(function(r){ return isNoRow(r); }).length;
   var summary='\u6709\u6548 '+valid.length+' \u5BB6\u3000'+LABEL_B+' '+hasDisp+' \u5BB6'+(BUCKET_C.length?' \u3000'+LABEL_C+' '+hasNo+' \u5BB6':'');
   var lines=['\u3010'+_dialogTitle+'\u3011\u5E97\u5BB6\u660E\u7D30',summary,'\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500'];
+  /* \u4ee5\u7b2c\u4e00\u500b\u9644\u52a0\u6b04\u70ba\u5206\u7d44\u4f9d\u636e\uff08\u7d44\u7e54/\u901a\u8def\u8996\u89d2\u901a\u7528\uff09 */
+  var groupCol = getExtraCols(lv)[0] || null;
   var curGroup=null;
   valid.forEach(function(r){
-    var groupKey=lv==='area'?String(r[COL_OFFICE]||''):lv==='office'?String(r[COL_STAFF]||''):null;
+    var groupKey = groupCol ? String(r[groupCol]||'') : null;
     if(groupKey!==null&&groupKey!==curGroup){ curGroup=groupKey; if(groupKey) lines.push('\n\u258C '+groupKey); }
     var code=String(r[COL_CODE]||''), name=String(r[COL_NAME]||'\u2014'), disp=isDispRow(r), noDisp=isNoRow(r);
     var activeTypes=BUCKET_B.filter(function(t){ return isOne(r[t]); });
@@ -1289,16 +1279,14 @@ function copyExcel(){
   if(!_dialogRows.length){ _flashBtn(btn,'\u26A0\uFE0F \u7121\u8CC7\u6599'); return; }
   var valid=sortedValidRows(_dialogRows), lv=_dialogLevel, lines=[];
   lines.push(document.getElementById('dlg-title').textContent.trim()); lines.push('');
-  var headers=[];
-  if(lv==='area')   headers=['\u71DF\u696D\u6240/\u8AB2','\u4E3B\u8981\u8A2A\u54E1'];
-  if(lv==='office') headers=['\u4E3B\u8981\u8A2A\u54E1'];
+  var extraCols = getExtraCols(lv);
+  var headers = extraCols.map(function(c){ return COL_LABELS[c] || c; });
   var dynCols=[LABEL_B].concat(BUCKET_B.length>1?BUCKET_B:[]).concat(BUCKET_C);
   headers=headers.concat(['\u5E97\u78BC','\u5E97\u540D']).concat(dynCols);
   lines.push(headers.join('\t'));
   valid.forEach(function(r){
     var row=[];
-    if(lv==='area'){ row.push(String(r[COL_OFFICE]||'')); row.push(String(r[COL_STAFF]||'')); }
-    if(lv==='office') row.push(String(r[COL_STAFF]||''));
+    extraCols.forEach(function(c){ row.push(String(r[c]||'')); });
     row.push(String(r[COL_CODE]||'')); row.push(String(r[COL_NAME]||''));
     row.push(isDispRow(r)?1:0);
     if(BUCKET_B.length>1) BUCKET_B.forEach(function(t){ row.push(isOne(r[t])?1:0); });
