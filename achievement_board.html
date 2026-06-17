@@ -3406,7 +3406,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 3.7.6 (2026-06-17)</div>
+      <div id="ver-ts">Ver. 3.7.7 (2026-06-17)</div>
       <div id="data-sync-bar"></div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
@@ -5376,6 +5376,8 @@
               tbodyRowsSC = '<tr><td class="bc-cv-lbl">\u4E0D\u5206\u985E</td><td class="bc-cv-cnt">' + s.t + '</td>' + buildCvsTdRow('total', t, false, false, s, s) + '</tr>';
             }
 
+            var staffKey = k;
+            var staffRows = sr;
             card.innerHTML =
               '<table class="bc-cv-tbl">' +
                 '<thead class="bc-cv-thead"><tr>' +
@@ -5386,12 +5388,11 @@
                 '<tbody class="bc-cv-tbody">' + tbodyRowsSC + '</tbody>' +
               '</table>';
 
-            /* CVS卡：直接在整張卡和所有子元素都加click */
-            (function(staffKey, staffRows) {
-              card.addEventListener('click', function(e) {
-                openStaffDialog(staffKey, staffRows);
-              });
-            })(k, sr);
+            card._staffKey = staffKey;
+            card._staffRows = staffRows;
+            card.addEventListener('click', function() {
+              openStaffDialog(this._staffKey, this._staffRows);
+            });
 
           } else {
             /* \u2500\u2500 \u5176\u4ED6\u5C08\u6848\uFF1A\u539F\u6709 staff-card \u683C\u5F0F \u2500\u2500 */
@@ -6153,6 +6154,7 @@
           sumParts.push('<span class="dlg-sum-item ' + cls + '">' + esc(st.label) + ' ' + pct(num, t) + '%(' + num + ')</span>');
         });
         if (hasBoth) {
+          var nc = sbc.nonCvs, cv = sbc.cvs;
           /* 非CVS/CVS 細節：手機隱藏 */
           sumParts.push('<span class="dlg-sum-sep dlg-sum-detail">|</span>');
           sumParts.push('<span class="dlg-sum-item total dlg-sum-detail">非CVS ' + nc.t + '</span>');
