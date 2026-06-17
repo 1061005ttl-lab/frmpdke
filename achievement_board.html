@@ -2346,24 +2346,70 @@
         flex: 1;
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
-        padding: 16px;
+        padding: 0;
         display: flex;
         flex-direction: column;
         gap: 0;
+        min-height: 0;
       }
-      #staff-dlg-body .dlg-whole-card {
-        display: none !important;
+      /* 摘要列 */
+      #staff-dlg-summary {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 9px 16px;
+        background: #fff;
+        border-bottom: 1px solid rgba(0,0,0,.06);
+        flex-shrink: 0;
+        flex-wrap: wrap;
+        font-size: 12px;
+        font-weight: 700;
       }
+      .dlg-sum-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 800;
+        white-space: nowrap;
+      }
+      .dlg-sum-item.total {
+        background: rgba(0,0,0,.06);
+        color: #444;
+      }
+      .dlg-sum-item.met {
+        background: rgba(34,168,76,.1);
+        color: var(--green);
+      }
+      .dlg-sum-item.unmet {
+        background: rgba(217,48,37,.1);
+        color: var(--red);
+      }
+      .dlg-sum-sep {
+        color: #ccc;
+        font-weight: 400;
+        font-size: 14px;
+        flex-shrink: 0;
+      }
+      /* dialog 內 store-panel：不限高，讓 body 滾 */
       #staff-dlg-body .store-panel {
-        border-radius: var(--r);
-        overflow: hidden;
+        border-radius: 0;
+        overflow: visible;
+        flex: 1;
       }
-      #staff-dlg-body .sp-toggle-bar {
-        display: none;
+      #staff-dlg-body .store-panel #store-list-wrap {
+        overflow: visible !important;
+        max-height: none !important;
+        height: auto !important;
       }
-      #staff-dlg-body .sp-body {
+      #staff-dlg-body .store-panel #store-list-body {
         max-height: none !important;
         overflow: visible !important;
+      }
+      #staff-dlg-body .sp-toggle-bar {
+        display: none !important;
       }
 
       /* 手機：底部全版 sheet */
@@ -2374,7 +2420,7 @@
           right: 0;
           bottom: 0;
           width: 100%;
-          height: 92vh;
+          height: 85vh;
           border-radius: 20px 20px 0 0;
           transform: translateY(100%);
           opacity: 1;
@@ -3260,7 +3306,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 3.7.1 (2026-06-17)</div>
+      <div id="ver-ts">Ver. 3.7.2 (2026-06-17)</div>
       <div id="data-sync-bar"></div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
@@ -3327,6 +3373,7 @@
           <button class="dlg-close-btn" onclick="closeStaffDialog()">✕</button>
         </div>
       </div>
+      <div id="staff-dlg-summary"></div>
       <div id="staff-dlg-body"></div>
     </div>
     <script>
@@ -5967,25 +6014,70 @@
         document.getElementById('staff-dlg-title').textContent =
           '👤 ' + trimName(staffName) + (breadcrumb ? '　' + breadcrumb : '');
 
+        /* 摘要列 */
+        var s = stat(rows);
+        var t = statBase(s) || 1;
+        var sbc = statByChannel(rows);
+        var hasBoth = sbc && sbc.cvs.t > 0;
+        var sumEl = document.getElementById('staff-dlg-summary');
+        if (!sumEl) {
+          sumEl = document.createElement('div');
+          sumEl.id = 'staff-dlg-summary';
+          document.getElementById('staff-dlg').insertBefore(
+            sumEl, document.getElementById('staff-dlg-body')
+          );
+        }
+        var sumParts = [];
+        /* 不分類 */
+        sumParts.push('<span class="dlg-sum-item total">全部 ' + s.t + '</span>');
+        curStatuses.forEach(function(st) {
+          var num = s[st.key] || 0;
+          var cls = (st.key === 'l') ? 'met' : (st.key === 'u' || st.key === 'r') ? 'unmet' : 'total';
+          sumParts.push('<span class="dlg-sum-item ' + cls + '">' + esc(st.label) + ' ' + pct(num, t) + '%(' + num + ')</span>');
+        });
+        if (hasBoth) {
+          var nc = sbc.nonCvs, cv = sbc.cvs;
+          sumParts.push('<span class="dlg-sum-sep">|</span>');
+          sumParts.push('<span class="dlg-sum-item total">非CVS ' + nc.t + '</span>');
+          curStatuses.forEach(function(st) {
+            var num = (st.key === 'l') ? nc.l : (st.key === 'u' || st.key === 'r') ? nc.u : 0;
+            var cls = (st.key === 'l') ? 'met' : (st.key === 'u' || st.key === 'r') ? 'unmet' : 'total';
+            sumParts.push('<span class="dlg-sum-item ' + cls + '">' + esc(st.label) + ' ' + pct(num, nc.t || 1) + '%(' + num + ')</span>');
+          });
+          sumParts.push('<span class="dlg-sum-sep">|</span>');
+          sumParts.push('<span class="dlg-sum-item total">CVS ' + cv.t + '</span>');
+          curStatuses.forEach(function(st) {
+            var num = (st.key === 'l') ? cv.l : (st.key === 'u' || st.key === 'r') ? cv.u : 0;
+            var cls = (st.key === 'l') ? 'met' : (st.key === 'u' || st.key === 'r') ? 'unmet' : 'total';
+            sumParts.push('<span class="dlg-sum-item ' + cls + '">' + esc(st.label) + ' ' + pct(num, cv.t || 1) + '%(' + num + ')</span>');
+          });
+        }
+        sumEl.innerHTML = sumParts.join('');
+
         /* 渲染內容 */
         var body = document.getElementById('staff-dlg-body');
         body.innerHTML = '';
         var fakeMain = document.createElement('div');
-        /* 暫時壓入 drillStack[2] 讓 buildStoreCards 能讀到 staffName */
         var prevStack = drillStack.slice();
         if (drillStack.length < 3) drillStack.push({ level: 'staff', key: staffName });
         else drillStack[2] = { level: 'staff', key: staffName };
         buildStoreCards(fakeMain, rows);
         drillStack = prevStack;
-        /* 移出內容：跳過第一個元素（頭卡），只取店家清單 */
-        var children = Array.from(fakeMain.children);
-        children.slice(1).forEach(function(child) {
+
+        /* 跳過頭卡（第一個元素），只取店家清單 */
+        Array.from(fakeMain.children).slice(1).forEach(function(child) {
           body.appendChild(child);
         });
 
-        /* 展開清單（隱藏 toggle bar，直接顯示） */
+        /* 解除 store-list-wrap 的高度限制，讓 dialog body 自己滾 */
+        var wrap = body.querySelector('#store-list-wrap');
+        if (wrap) {
+          wrap.style.cssText = 'overflow:visible;max-height:none;height:auto;';
+        }
         var spBody = body.querySelector('#store-list-body');
-        if (spBody) spBody.style.maxHeight = 'none';
+        if (spBody) {
+          spBody.style.cssText = 'max-height:none;overflow:visible;';
+        }
 
         /* 開啟 */
         document.getElementById('staff-dlg-overlay').classList.add('open');
