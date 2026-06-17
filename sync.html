@@ -132,8 +132,16 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
       box-shadow: 0 2px 6px rgba(63,107,78,0.3);
     }
     .header-title-block { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .wa-header-title,
+    .header-subtitle {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
     .wa-header-title { font-size: 17px; font-weight: 700; }
     .header-subtitle { font-size: 12.5px; color: var(--text-secondary); }
+
+    .wa-header-actions { display: flex; gap: 10px; flex-shrink: 0; }
 
     .wa-btn-sm {
       background: none;
@@ -437,6 +445,24 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
       .log-dot { position: static !important; }
       .main-col { padding: 18px 16px 24px; }
     }
+
+    /* ── 手機寬度：header 改為兩排，避免標題與按鈕擠在一起 ── */
+    @media (max-width: 640px) {
+      .wa-header {
+        flex-wrap: wrap;
+        row-gap: 10px;
+        padding: 12px 16px;
+      }
+      .header-title-block { flex: 1 1 auto; min-width: 0; }
+      .wa-header-actions {
+        flex: 1 1 100%;
+        order: 3;
+      }
+      .wa-header-actions .wa-btn-sm {
+        flex: 1;
+        justify-content: center;
+      }
+    }
   </style>
 </head>
 <body>
@@ -447,8 +473,10 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
       <div class="wa-header-title">業務王同步中心</div>
       <div class="header-subtitle" id="header-subtitle">正在載入任務...</div>
     </div>
-    <a class="wa-btn-sm" href="https://1061005ttl-lab.github.io/frmpdke/" target="_blank" rel="noopener noreferrer" title="開啟看板中心（新分頁）">📊 看板中心</a>
-    <button class="wa-btn-sm" onclick="loadTasks()">🔄 重新載入</button>
+    <div class="wa-header-actions">
+      <a class="wa-btn-sm" href="https://1061005ttl-lab.github.io/frmpdke/" target="_blank" rel="noopener noreferrer" title="開啟看板中心（新分頁）">📊 看板中心</a>
+      <button class="wa-btn-sm" onclick="loadTasks()">🔄 重新載入</button>
+    </div>
   </div>
 
   <div class="app-shell">
