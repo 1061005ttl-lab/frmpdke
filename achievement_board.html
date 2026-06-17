@@ -2269,32 +2269,34 @@
         display: flex;
         flex-direction: column;
         overflow: hidden;
-        /* 桌機：右側大視窗 */
-        top: 48px;
-        right: 0;
-        bottom: 0;
-        width: min(720px, 92vw);
-        border-radius: 16px 0 0 0;
-        box-shadow: -8px 0 40px rgba(0,0,0,.18);
-        transform: translateX(100%);
-        transition: transform .28s cubic-bezier(.32,.72,0,1);
+        /* 桌機：置中大視窗 */
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) scale(.96);
+        width: min(1100px, 94vw);
+        height: min(88vh, 900px);
+        border-radius: 18px;
+        box-shadow: 0 24px 80px rgba(0,0,0,.28), 0 4px 16px rgba(0,0,0,.12);
+        opacity: 0;
+        transition: transform .26s cubic-bezier(.32,.72,0,1), opacity .22s ease;
       }
       #staff-dlg.open {
-        transform: translateX(0);
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
       }
 
       #staff-dlg-bar {
         display: flex;
         align-items: center;
         gap: 8px;
-        padding: 10px 14px;
+        padding: 12px 16px;
         background: #fff;
         border-bottom: 1px solid rgba(0,0,0,.07);
         flex-shrink: 0;
-        flex-wrap: wrap;
+        border-radius: 18px 18px 0 0;
       }
       #staff-dlg-title {
-        font-size: 14px;
+        font-size: 15px;
         font-weight: 800;
         color: var(--text);
         flex: 1;
@@ -2312,7 +2314,7 @@
       .dlg-btn {
         font-size: 12px;
         font-weight: 700;
-        padding: 5px 11px;
+        padding: 6px 13px;
         border-radius: 8px;
         border: 1px solid rgba(0,0,0,.12);
         background: #fff;
@@ -2344,14 +2346,13 @@
         flex: 1;
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
-        padding: 12px;
+        padding: 16px;
         display: flex;
         flex-direction: column;
-        gap: 12px;
+        gap: 0;
       }
-      /* dialog 內的 store-panel 無須 grid-column span */
-      #staff-dlg-body .big-card.whole {
-        grid-column: unset !important;
+      #staff-dlg-body .dlg-whole-card {
+        display: none !important;
       }
       #staff-dlg-body .store-panel {
         border-radius: var(--r);
@@ -2369,17 +2370,19 @@
       @media (max-width: 768px) {
         #staff-dlg {
           top: auto;
-          right: 0;
           left: 0;
+          right: 0;
           bottom: 0;
           width: 100%;
           height: 92vh;
           border-radius: 20px 20px 0 0;
           transform: translateY(100%);
+          opacity: 1;
           transition: transform .28s cubic-bezier(.32,.72,0,1);
         }
         #staff-dlg.open {
           transform: translateY(0);
+          opacity: 1;
         }
       }
 
@@ -3257,7 +3260,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 3.7.0 (2026-06-17)</div>
+      <div id="ver-ts">Ver. 3.7.1 (2026-06-17)</div>
       <div id="data-sync-bar"></div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
@@ -5974,8 +5977,9 @@
         else drillStack[2] = { level: 'staff', key: staffName };
         buildStoreCards(fakeMain, rows);
         drillStack = prevStack;
-        /* 移出 header（整體卡）和 store-panel 分別 append */
-        Array.from(fakeMain.children).forEach(function(child) {
+        /* 移出內容：跳過第一個元素（頭卡），只取店家清單 */
+        var children = Array.from(fakeMain.children);
+        children.slice(1).forEach(function(child) {
           body.appendChild(child);
         });
 
