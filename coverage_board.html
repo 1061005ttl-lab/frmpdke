@@ -920,13 +920,32 @@ function render() {
   }
 }
 
+/* \u71df\u696d\u8655\u56fa\u5b9a\u6392\u5e8f\u6e05\u55ae\uff08\u53ea\u5957\u7528\u65bc\u300c\u71df\u696d\u8655\u300d\u9019\u4e00\u5c64\uff09 */
+var AREA_ORDER = ['\u5317\u90E8','\u6843\u5712','\u81FA\u4E2D','\u5609\u7FA9','\u81FA\u5357','\u9AD8\u96C4','\u82B1\u84EE'];
+
+/* \u71df\u696d\u8655\u6392\u5e8f\uff1a\u4f9d AREA_ORDER \u6392\uff0c\u6e05\u55ae\u5916\u7684\u6392\u6700\u5f8c\u9762\uff08\u4ecd\u4f9d hasDisp \u964d\u5e8f\uff09
+   groups: { key: rows[] }\uff0c\u7528\u4e8e\u8a08\u7b97\u6e05\u55ae\u5916\u540d\u7a31\u7684 hasDisp */
+function sortAreaKeys(keys, groups) {
+  return keys.slice().sort(function(a,b){
+    var ia = AREA_ORDER.indexOf(a), ib = AREA_ORDER.indexOf(b);
+    if (ia===-1 && ib===-1) return calcGroup(applyChips(groups[b])).hasDisp - calcGroup(applyChips(groups[a])).hasDisp;
+    if (ia===-1) return 1;
+    if (ib===-1) return -1;
+    return ia - ib;
+  });
+}
+
 function renderLevel(stage, rows, col, levelKey, labelText, overallName) {
   var groups=getNextGroups(rows,col), keys=Object.keys(groups);
   if(!keys.length){ stage.innerHTML='<div class="empty">\u7121\u8CC7\u6599</div>'; return; }
-  /* 排序：依 hasDisp 降序（已有數量最多的排前面） */
-  keys.sort(function(a,b){
-    return calcGroup(applyChips(groups[b])).hasDisp - calcGroup(applyChips(groups[a])).hasDisp;
-  });
+  if (levelKey === 'area') {
+    keys = sortAreaKeys(keys, groups);
+  } else {
+    /* \u5176\u4ed6\u5c64\u7d1a\uff1a\u4f9d hasDisp \u964d\u5e8f\uff08\u5df2\u6709\u6578\u91cf\u6700\u591a\u7684\u6392\u524d\u9762\uff09 */
+    keys.sort(function(a,b){
+      return calcGroup(applyChips(groups[b])).hasDisp - calcGroup(applyChips(groups[a])).hasDisp;
+    });
+  }
   var div=document.createElement('div');
   div.innerHTML='<div class="level-label">'+labelText+'</div>';
   var grid=document.createElement('div'); grid.className='grid';
@@ -1045,7 +1064,7 @@ function buildQuicknav() {
     var curArea    = depth >= 1 ? drillStack[0].key : null;
     var curOffice  = depth >= 2 ? drillStack[1].key : null;
 
-    html += qnGroupHtml('營業處', Object.keys(areaGroups), curArea, function(a) {
+    html += qnGroupHtml('營業處', sortAreaKeys(Object.keys(areaGroups), areaGroups), curArea, function(a) {
       return "jumpToArea('" + qEsc(a) + "')";
     });
 
