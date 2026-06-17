@@ -3406,7 +3406,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 3.7.5 (2026-06-17)</div>
+      <div id="ver-ts">Ver. 3.7.6 (2026-06-17)</div>
       <div id="data-sync-bar"></div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
@@ -5386,6 +5386,13 @@
                 '<tbody class="bc-cv-tbody">' + tbodyRowsSC + '</tbody>' +
               '</table>';
 
+            /* CVS卡：直接在整張卡和所有子元素都加click */
+            (function(staffKey, staffRows) {
+              card.addEventListener('click', function(e) {
+                openStaffDialog(staffKey, staffRows);
+              });
+            })(k, sr);
+
           } else {
             /* \u2500\u2500 \u5176\u4ED6\u5C08\u6848\uFF1A\u539F\u6709 staff-card \u683C\u5F0F \u2500\u2500 */
             card.className = 'staff-card' + (isSel ? ' sel' : '');
@@ -5427,7 +5434,11 @@
               scInlineStats +
               dualCardHtml;
           }
-          card.addEventListener('click', function() { openStaffDialog(k, sr); });
+          if (!isCvsProject) {
+            (function(staffKey, staffRows) {
+              card.addEventListener('click', function() { openStaffDialog(staffKey, staffRows); });
+            })(k, sr);
+          }
           c.appendChild(card);
         });
       }
