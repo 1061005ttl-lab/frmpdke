@@ -924,10 +924,14 @@ function render() {
 function renderLevel(stage, rows, col, levelKey, labelText, overallName) {
   var groups=getNextGroups(rows,col), keys=Object.keys(groups);
   if(!keys.length){ stage.innerHTML='<div class="empty">\u7121\u8CC7\u6599</div>'; return; }
+  /* 排序：依 hasDisp 降序（已有數量最多的排前面） */
+  keys.sort(function(a,b){
+    return calcGroup(applyChips(groups[b])).hasDisp - calcGroup(applyChips(groups[a])).hasDisp;
+  });
   var div=document.createElement('div');
   div.innerHTML='<div class="level-label">'+labelText+'</div>';
   var grid=document.createElement('div'); grid.className='grid';
-  /* 插入整體卡片（不 drill，點即開 dialog 顯示該層全部店） */
+  /* 整體卡片固定最前，點即開 dialog */
   var overallCard=buildCard(overallName, labelText, calcGroup(rows), levelKey, rows, true);
   grid.appendChild(overallCard);
   keys.forEach(function(k){ grid.appendChild(buildCard(k,labelText,calcGroup(groups[k]),levelKey,groups[k],false)); });
@@ -969,10 +973,12 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
   });
   card.addEventListener('click',function(e){
     if(e.target.closest('#si-'+ttId)||e.target.closest('#dbtn-'+ttId)) return;
-    /* 整體卡片：永遠開 dialog，不 drill down */
+    /* 整體卡片：開 dialog */
     if(isOverall){ openDialog(name,levelKey,rows); return; }
-    /* 通路視角 type 層 & 組織視角 staff 層 → 開 dialog */
-    if(levelKey==='staff' || levelKey==='type' || levelKey==='ch-office') openDialog(name,levelKey,rows);
+    /* 最末層：開 dialog */
+    var isLeaf = (levelKey==='staff') || (levelKey==='ch-office') ||
+                 (viewMode==='channel' && levelKey==='type' && drillStack.length===1);
+    if(isLeaf) openDialog(name,levelKey,rows);
     else drillDown(levelKey,name);
   });
   return card;
@@ -1186,13 +1192,16 @@ function buildStoreTable(rows, levelKey){
 
 function openDialog(displayName, levelKey, rows){
   _dialogTitle=displayName; _dialogRows=rows; _dialogLevel=levelKey;
-  /* \u4f9d chips \u7b97\u5404\u72c0\u614b\u5bb6\u6578 */
+  /* 依 chips 算各狀態家數 */
   var items    = dialogRows(rows);
   var unfillCnt= items.filter(function(d){ return d.grp===3; }).length;
   var dispCnt  = items.filter(function(d){ return d.grp===0; }).length;
   var noCnt    = items.filter(function(d){ return d.grp===1; }).length;
   var total    = items.length;
-  var titleParts = ['\u3010'+displayName+'\u3011\u5E97\u5BB6\u660E\u7D30'];
+  /* 組合脈絡前綴（drillStack 路徑 + 目前名稱） */
+  var ctx = drillStack.map(function(d){ return d.key; });
+  ctx.push(displayName);
+  var titleParts = ['\u3010' + ctx.join(' \u203A ') + '\u3011\u5E97\u5BB6\u660E\u7D30'];
   titleParts.push('\u5171 '+total+' \u5BB6');
   if(chips['unfill']!==false && unfillCnt) titleParts.push('\u672A\u586B\u5BEB '+unfillCnt);
   titleParts.push(LABEL_B+' '+dispCnt);
