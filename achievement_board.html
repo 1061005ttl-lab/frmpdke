@@ -1986,16 +1986,25 @@
         text-overflow: ellipsis;
       }
       .store-tbl th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
         padding: 7px 10px;
         font-size: 11px;
         font-weight: 700;
         letter-spacing: .3px;
         text-align: left;
         color: var(--sub);
-        background: rgba(0, 0, 0, .025);
-        border-bottom: 1px solid rgba(0, 0, 0, .07);
+        background: #f0ece3;
+        border-bottom: 1px solid rgba(0, 0, 0, .1);
         overflow: hidden;
         white-space: nowrap;
+      }
+
+      /* dialog 內的 th 確保背景不透明 */
+      #staff-dlg-body .store-tbl th {
+        background: #fff;
+        top: 0;
       }
 
       .store-tbl td {
@@ -2018,6 +2027,58 @@
 
       .store-tbl tr:hover td {
         background: rgba(139, 166, 144, .08) !important;
+      }
+
+      /* ── 狀態篩選 tabs ── */
+      #staff-dlg-filter {
+        display: flex;
+        gap: 6px;
+        padding: 8px 14px;
+        background: #faf9f6;
+        border-bottom: 1px solid rgba(0,0,0,.06);
+        flex-shrink: 0;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .dlg-filter-lbl {
+        font-size: 11px;
+        font-weight: 700;
+        color: #999;
+        margin-right: 2px;
+        white-space: nowrap;
+      }
+      .dlg-filter-btn {
+        font-size: 12px;
+        font-weight: 800;
+        padding: 4px 12px;
+        border-radius: 20px;
+        border: 1.5px solid rgba(0,0,0,.12);
+        background: #fff;
+        color: #666;
+        cursor: pointer;
+        white-space: nowrap;
+        transition: all .12s;
+      }
+      .dlg-filter-btn:hover { background: #f0f0f0; }
+      .dlg-filter-btn.active-all {
+        background: #444;
+        border-color: #444;
+        color: #fff;
+      }
+      .dlg-filter-btn.active-met {
+        background: var(--green);
+        border-color: var(--green);
+        color: #fff;
+      }
+      .dlg-filter-btn.active-unmet {
+        background: var(--red);
+        border-color: var(--red);
+        color: #fff;
+      }
+
+      /* 篩選隱藏的 row */
+      .store-tbl tr.dlg-hidden {
+        display: none;
       }
 
       /* 拜訪次數 badge */
@@ -2345,6 +2406,7 @@
       #staff-dlg-body {
         flex: 1;
         overflow-y: auto;
+        overflow-x: hidden;
         -webkit-overflow-scrolling: touch;
         padding: 0;
         display: flex;
@@ -2352,12 +2414,16 @@
         gap: 0;
         min-height: 0;
       }
+      #staff-dlg-body::-webkit-scrollbar { width: 5px; }
+      #staff-dlg-body::-webkit-scrollbar-track { background: transparent; }
+      #staff-dlg-body::-webkit-scrollbar-thumb { background: rgba(0,0,0,.15); border-radius: 3px; }
+
       /* 摘要列 */
       #staff-dlg-summary {
         display: flex;
         align-items: center;
-        gap: 6px;
-        padding: 9px 16px;
+        gap: 5px;
+        padding: 8px 14px;
         background: #fff;
         border-bottom: 1px solid rgba(0,0,0,.06);
         flex-shrink: 0;
@@ -2368,36 +2434,24 @@
       .dlg-sum-item {
         display: inline-flex;
         align-items: center;
-        gap: 4px;
-        padding: 3px 10px;
+        gap: 3px;
+        padding: 3px 9px;
         border-radius: 20px;
         font-size: 12px;
         font-weight: 800;
         white-space: nowrap;
       }
-      .dlg-sum-item.total {
-        background: rgba(0,0,0,.06);
-        color: #444;
-      }
-      .dlg-sum-item.met {
-        background: rgba(34,168,76,.1);
-        color: var(--green);
-      }
-      .dlg-sum-item.unmet {
-        background: rgba(217,48,37,.1);
-        color: var(--red);
-      }
-      .dlg-sum-sep {
-        color: #ccc;
-        font-weight: 400;
-        font-size: 14px;
-        flex-shrink: 0;
-      }
-      /* dialog 內 store-panel：不限高，讓 body 滾 */
+      .dlg-sum-item.total { background: rgba(0,0,0,.06); color: #444; }
+      .dlg-sum-item.met   { background: rgba(34,168,76,.1); color: var(--green); }
+      .dlg-sum-item.unmet { background: rgba(217,48,37,.1); color: var(--red); }
+      .dlg-sum-sep { color: #ddd; font-weight: 400; font-size: 16px; flex-shrink: 0; }
+
+      /* dialog 內 store-panel */
       #staff-dlg-body .store-panel {
         border-radius: 0;
         overflow: visible;
         flex: 1;
+        background: #fff;
       }
       #staff-dlg-body .store-panel #store-list-wrap {
         overflow: visible !important;
@@ -2408,20 +2462,19 @@
         max-height: none !important;
         overflow: visible !important;
       }
-      #staff-dlg-body .sp-toggle-bar {
-        display: none !important;
-      }
+      #staff-dlg-body .sp-toggle-bar { display: none !important; }
 
-      /* 手機：底部全版 sheet */
+      /* 手機：全螢幕貼頂 */
       @media (max-width: 768px) {
         #staff-dlg {
-          top: auto;
+          top: 0;
           left: 0;
           right: 0;
           bottom: 0;
           width: 100%;
-          height: 85vh;
-          border-radius: 20px 20px 0 0;
+          height: 100%;
+          max-height: 100vh;
+          border-radius: 0;
           transform: translateY(100%);
           opacity: 1;
           transition: transform .28s cubic-bezier(.32,.72,0,1);
@@ -2429,6 +2482,27 @@
         #staff-dlg.open {
           transform: translateY(0);
           opacity: 1;
+        }
+        /* 手機摘要：緊湊單行 */
+        #staff-dlg-summary {
+          padding: 6px 12px;
+          gap: 4px;
+        }
+        .dlg-sum-item {
+          font-size: 11px;
+          padding: 2px 7px;
+        }
+        /* 手機隱藏非CVS/CVS細節，只顯示總覽 */
+        .dlg-sum-detail { display: none; }
+        #staff-dlg-bar {
+          padding: 10px 12px;
+        }
+        #staff-dlg-title {
+          font-size: 13px;
+        }
+        .dlg-btn {
+          font-size: 11px;
+          padding: 5px 9px;
         }
       }
 
@@ -3306,7 +3380,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 3.7.2 (2026-06-17)</div>
+      <div id="ver-ts">Ver. 3.7.3 (2026-06-17)</div>
       <div id="data-sync-bar"></div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
@@ -3374,6 +3448,12 @@
         </div>
       </div>
       <div id="staff-dlg-summary"></div>
+      <div id="staff-dlg-filter">
+        <span class="dlg-filter-lbl">篩選</span>
+        <button class="dlg-filter-btn active-all" id="dlg-f-all"  onclick="dlgFilter('all')">全部</button>
+        <button class="dlg-filter-btn" id="dlg-f-met"   onclick="dlgFilter('met')">✅ 達成</button>
+        <button class="dlg-filter-btn" id="dlg-f-unmet" onclick="dlgFilter('unmet')">🔴 未達</button>
+      </div>
       <div id="staff-dlg-body"></div>
     </div>
     <script>
@@ -6028,7 +6108,7 @@
           );
         }
         var sumParts = [];
-        /* 不分類 */
+        /* 不分類總覽 */
         sumParts.push('<span class="dlg-sum-item total">全部 ' + s.t + '</span>');
         curStatuses.forEach(function(st) {
           var num = s[st.key] || 0;
@@ -6036,23 +6116,26 @@
           sumParts.push('<span class="dlg-sum-item ' + cls + '">' + esc(st.label) + ' ' + pct(num, t) + '%(' + num + ')</span>');
         });
         if (hasBoth) {
-          var nc = sbc.nonCvs, cv = sbc.cvs;
-          sumParts.push('<span class="dlg-sum-sep">|</span>');
-          sumParts.push('<span class="dlg-sum-item total">非CVS ' + nc.t + '</span>');
+          /* 非CVS/CVS 細節：手機隱藏 */
+          sumParts.push('<span class="dlg-sum-sep dlg-sum-detail">|</span>');
+          sumParts.push('<span class="dlg-sum-item total dlg-sum-detail">非CVS ' + nc.t + '</span>');
           curStatuses.forEach(function(st) {
             var num = (st.key === 'l') ? nc.l : (st.key === 'u' || st.key === 'r') ? nc.u : 0;
             var cls = (st.key === 'l') ? 'met' : (st.key === 'u' || st.key === 'r') ? 'unmet' : 'total';
-            sumParts.push('<span class="dlg-sum-item ' + cls + '">' + esc(st.label) + ' ' + pct(num, nc.t || 1) + '%(' + num + ')</span>');
+            sumParts.push('<span class="dlg-sum-item ' + cls + ' dlg-sum-detail">' + esc(st.label) + ' ' + pct(num, nc.t || 1) + '%(' + num + ')</span>');
           });
-          sumParts.push('<span class="dlg-sum-sep">|</span>');
-          sumParts.push('<span class="dlg-sum-item total">CVS ' + cv.t + '</span>');
+          sumParts.push('<span class="dlg-sum-sep dlg-sum-detail">|</span>');
+          sumParts.push('<span class="dlg-sum-item total dlg-sum-detail">CVS ' + cv.t + '</span>');
           curStatuses.forEach(function(st) {
             var num = (st.key === 'l') ? cv.l : (st.key === 'u' || st.key === 'r') ? cv.u : 0;
             var cls = (st.key === 'l') ? 'met' : (st.key === 'u' || st.key === 'r') ? 'unmet' : 'total';
-            sumParts.push('<span class="dlg-sum-item ' + cls + '">' + esc(st.label) + ' ' + pct(num, cv.t || 1) + '%(' + num + ')</span>');
+            sumParts.push('<span class="dlg-sum-item ' + cls + ' dlg-sum-detail">' + esc(st.label) + ' ' + pct(num, cv.t || 1) + '%(' + num + ')</span>');
           });
         }
         sumEl.innerHTML = sumParts.join('');
+
+        /* 重置篩選為全部 */
+        dlgFilter('all');
 
         /* 渲染內容 */
         var body = document.getElementById('staff-dlg-body');
@@ -6087,6 +6170,34 @@
           requestAnimationFrame(function() { dlg.classList.add('open'); });
         });
         document.body.style.overflow = 'hidden';
+      }
+
+      function dlgFilter(mode) {
+        /* 更新按鈕樣式 */
+        ['all','met','unmet'].forEach(function(m) {
+          var btn = document.getElementById('dlg-f-' + m);
+          if (!btn) return;
+          btn.className = 'dlg-filter-btn' + (m === mode ? ' active-' + m : '');
+        });
+        /* 篩選表格列 */
+        var rows = document.querySelectorAll('#staff-dlg-body .store-tbl tbody tr');
+        var lastKey = curStatuses[curStatuses.length - 1].key; /* 未達 key */
+        var metKey  = 'l';
+        rows.forEach(function(tr) {
+          if (mode === 'all') {
+            tr.classList.remove('dlg-hidden');
+            return;
+          }
+          /* 判斷這列是達成或未達 */
+          var td = tr.querySelector('.col-status');
+          if (!td) return;
+          var cls = td.className;
+          /* td-st-g = 達成，td-st-r = 未達（依 STATUS_CLS_MAP） */
+          var isMet = cls.indexOf('td-st-g') >= 0;
+          if (mode === 'met'   && !isMet) tr.classList.add('dlg-hidden');
+          else if (mode === 'unmet' && isMet) tr.classList.add('dlg-hidden');
+          else tr.classList.remove('dlg-hidden');
+        });
       }
 
       function closeStaffDialog() {
