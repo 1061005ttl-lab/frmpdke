@@ -427,7 +427,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   background:rgba(0,0,0,.15); margin:0 2px; align-self:center; flex-shrink:0;
 }
 /* ── stat-pct 百分比小字 ── */
-.stat-pct { font-size:11px; font-weight:600; color:#aaa; margin-top:3px; line-height:1; }
+.stat-pct { font-size:14px; font-weight:700; color:#aaa; margin-top:4px; line-height:1; }
 .stat-item.good .stat-pct { color:var(--green); opacity:.7; }
 .stat-item.warn .stat-pct { color:var(--red); opacity:.7; }
 .stat-pct.hidden { visibility:hidden; }
@@ -457,7 +457,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   .stat-item { padding:9px 6px; border-radius:9px; }
   .stat-val { font-size:24px !important; }
   .stat-label { font-size:10px; }
-  .stat-pct { font-size:11px; }
+  .stat-pct { font-size:13px; }
   .card-detail-btn { font-size:11px; padding:4px 10px; }
 
   .dlg-box { width:100vw; height:100dvh; border-radius:0; }
@@ -480,8 +480,8 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   <span class="toolbar-title" id="tb-title">覆蓋率看板</span>
   <select class="proj-sel" id="proj-sel" style="display:none" onchange="switchProject(this.value)"></select>
   <div class="view-toggle" id="view-toggle">
-    <button class="vt-btn active" id="vt-org"     onclick="setViewMode('org')">\U0001f3e2 組織</button>
-    <button class="vt-btn"        id="vt-channel" onclick="setViewMode('channel')">\U0001f3ea 通路</button>
+    <button class="vt-btn active" id="vt-org"     onclick="setViewMode('org')">🏢 組織</button>
+    <button class="vt-btn"        id="vt-channel" onclick="setViewMode('channel')">🏪 通路</button>
   </div>
   <span class="sync-note" id="tb-sync"></span>
   <div class="lamp-bar" id="lamp-bar" style="display:none"></div>
@@ -855,14 +855,26 @@ function filterRows(level, key) {
   if(level==='area')    return allRows.filter(function(r){ return String(r[COL_AREA])===key; });
   if(level==='office')  return allRows.filter(function(r){ return String(r[COL_OFFICE])===key; });
   if(level==='staff')   return allRows.filter(function(r){ return String(r[COL_STAFF])===key; });
-  if(level==='channel') return allRows.filter(function(r){ return String(r[COL_CHANNEL])===key; });
-  if(level==='type')    return allRows.filter(function(r){ return String(r[COL_TYPE])===key; });
+  if(level==='channel')  return allRows.filter(function(r){ return String(r[COL_CHANNEL])===key; });
+  if(level==='type')     return allRows.filter(function(r){ return String(r[COL_TYPE])===key; });
+  if(level==='ch-area')  return allRows.filter(function(r){ return String(r[COL_AREA])===key; });
+  if(level==='ch-office')return allRows.filter(function(r){ return String(r[COL_OFFICE])===key; });
   return allRows;
 }
 function getCurrentRows() {
   if(!drillStack.length) return allRows;
-  var last=drillStack[drillStack.length-1];
-  return filterRows(last.level, last.key);
+  /* 逐層累積過濾：每一層都在上一層的結果裡再篩 */
+  var rows = allRows;
+  drillStack.forEach(function(d){
+    var col;
+    if(d.level==='area'||d.level==='ch-area')    col=COL_AREA;
+    else if(d.level==='office'||d.level==='ch-office') col=COL_OFFICE;
+    else if(d.level==='staff')   col=COL_STAFF;
+    else if(d.level==='channel') col=COL_CHANNEL;
+    else if(d.level==='type')    col=COL_TYPE;
+    if(col) rows=rows.filter(function(r){ return String(r[col])===d.key; });
+  });
+  return rows;
 }
 function getNextGroups(rows, col) {
   var map={};
@@ -894,9 +906,11 @@ function render() {
   var overallName = depth===0 ? '\u5168\u53F0' : drillStack[drillStack.length-1].key;
 
   if (viewMode === 'channel') {
-    /* 通路視角：通路別 → 店家型態 → dialog */
+    /* 通路視角：通路別 → 店家型態 → 營業處 → 營業所/課 → dialog */
     if      (depth===0) renderLevel(stage,rows,COL_CHANNEL,'channel','\u901A\u8DEF\u5225', overallName);
     else if (depth===1) renderLevel(stage,rows,COL_TYPE,   'type',   '\u5E97\u5BB6\u578B\u614B', overallName);
+    else if (depth===2) renderLevel(stage,rows,COL_AREA,   'ch-area','\u71DF\u696D\u8655', overallName);
+    else if (depth===3) renderLevel(stage,rows,COL_OFFICE, 'ch-office','\u71DF\u696D\u6240/\u8AB2', overallName);
     else stage.innerHTML='<div class="empty">\u5DF2\u5230\u6700\u7D30\u5C64\u7D1A</div>';
   } else {
     /* 組織視角 */
@@ -958,7 +972,7 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
     /* 整體卡片：永遠開 dialog，不 drill down */
     if(isOverall){ openDialog(name,levelKey,rows); return; }
     /* 通路視角 type 層 & 組織視角 staff 層 → 開 dialog */
-    if(levelKey==='staff' || levelKey==='type') openDialog(name,levelKey,rows);
+    if(levelKey==='staff' || levelKey==='type' || levelKey==='ch-office') openDialog(name,levelKey,rows);
     else drillDown(levelKey,name);
   });
   return card;
@@ -989,6 +1003,14 @@ function jumpToChannel(chName) {
 }
 function jumpToType(chName, typeName) {
   drillStack = [{ level:'channel', key:chName }, { level:'type', key:typeName }];
+  render();
+}
+function jumpToChArea(chName, typeName, areaName) {
+  drillStack = [{ level:'channel', key:chName }, { level:'type', key:typeName }, { level:'ch-area', key:areaName }];
+  render();
+}
+function jumpToChOffice(chName, typeName, areaName, officeName) {
+  drillStack = [{ level:'channel', key:chName }, { level:'type', key:typeName }, { level:'ch-area', key:areaName }, { level:'ch-office', key:officeName }];
   render();
 }
 
@@ -1028,12 +1050,14 @@ function buildQuicknav() {
       }
     }
   } else {
-    var chGroups = getNextGroups(allRows, COL_CHANNEL);
-    var chKeys   = Object.keys(chGroups);
-    var curCh    = depth >= 1 ? drillStack[0].key : null;
-    var curType  = depth >= 2 ? drillStack[1].key : null;
+    var chGroups  = getNextGroups(allRows, COL_CHANNEL);
+    var chKeys    = Object.keys(chGroups);
+    var curCh     = depth >= 1 ? drillStack[0].key : null;
+    var curType   = depth >= 2 ? drillStack[1].key : null;
+    var curChArea = depth >= 3 ? drillStack[2].key : null;
+    var curChOff  = depth >= 4 ? drillStack[3].key : null;
     if (chKeys.length) {
-      html += '<div class="qn-group"><span class="qn-label">通路別</span>';
+      html += '<div class="qn-group"><span class="qn-label">\u901a\u8def\u5225</span>';
       chKeys.forEach(function(c) {
         html += '<button class="qn-btn' + (curCh===c?' active':'') + '" onclick="jumpToChannel(\'' + qEsc(c) + '\')">' + esc(c) + '</button>';
       });
@@ -1046,6 +1070,30 @@ function buildQuicknav() {
         html += '<div class="qn-group"><span class="qn-label">' + esc(curCh) + '</span>';
         typeKeys.forEach(function(t) {
           html += '<button class="qn-btn' + (curType===t?' active':'') + '" onclick="jumpToType(\'' + qEsc(curCh) + '\',\'' + qEsc(t) + '\')">' + esc(t) + '</button>';
+        });
+        html += '</div>';
+      }
+    }
+    if (curCh && curType) {
+      var chRows2     = allRows.filter(function(r){ return String(r[COL_CHANNEL])===curCh && String(r[COL_TYPE])===curType; });
+      var areaGroups2 = getNextGroups(chRows2, COL_AREA);
+      var areaKeys2   = Object.keys(areaGroups2);
+      if (areaKeys2.length) {
+        html += '<div class="qn-group"><span class="qn-label">' + esc(curType) + '</span>';
+        areaKeys2.forEach(function(a) {
+          html += '<button class="qn-btn' + (curChArea===a?' active':'') + '" onclick="jumpToChArea(\'' + qEsc(curCh) + '\',\'' + qEsc(curType) + '\',\'' + qEsc(a) + '\')">' + esc(a) + '</button>';
+        });
+        html += '</div>';
+      }
+    }
+    if (curCh && curType && curChArea) {
+      var chRows3    = allRows.filter(function(r){ return String(r[COL_CHANNEL])===curCh && String(r[COL_TYPE])===curType && String(r[COL_AREA])===curChArea; });
+      var offGroups2 = getNextGroups(chRows3, COL_OFFICE);
+      var offKeys2   = Object.keys(offGroups2);
+      if (offKeys2.length) {
+        html += '<div class="qn-group"><span class="qn-label">' + esc(curChArea) + '</span>';
+        offKeys2.forEach(function(o) {
+          html += '<button class="qn-btn' + (curChOff===o?' active':'') + '" onclick="jumpToChOffice(\'' + qEsc(curCh) + '\',\'' + qEsc(curType) + '\',\'' + qEsc(curChArea) + '\',\'' + qEsc(o) + '\')">' + esc(o) + '</button>';
         });
         html += '</div>';
       }
@@ -1254,13 +1302,17 @@ function takeScreenshot(){
     if(tblSrc){
       var tblClone=tblSrc.cloneNode(true);
       tblClone.style.cssText='border-collapse:collapse;font-size:13px;width:max-content;min-width:100%;';
-      tblClone.querySelectorAll('th').forEach(function(el){ el.style.cssText='padding:7px 12px;text-align:center;font-size:11px;font-weight:800;color:#888;background:#f8f8f8;border-bottom:1px solid #e0e0e0;white-space:nowrap;'; });
+      /* 截圖不用 sticky，明確移除，確保標頭在最上方 */
+      tblClone.querySelectorAll('th').forEach(function(el){
+        el.style.cssText='padding:7px 12px;text-align:center;font-size:11px;font-weight:800;color:#888;background:#f8f8f8;border-bottom:2px solid #e0e0e0;white-space:nowrap;position:static;box-shadow:none;top:auto;z-index:auto;';
+      });
       tblClone.querySelectorAll('th.th-left').forEach(function(el){ el.style.textAlign='left'; });
       tblClone.querySelectorAll('td').forEach(function(el){ el.style.cssText='padding:7px 12px;text-align:center;border-bottom:1px solid #f0f0f0;white-space:nowrap;'; });
       tblClone.querySelectorAll('td.td-org,td.td-code').forEach(function(el){ el.style.textAlign='left'; el.style.color='#888'; });
       tblClone.querySelectorAll('td.td-name').forEach(function(el){ el.style.textAlign='left'; });
       tblClone.querySelectorAll('.d-yes').forEach(function(el){ el.style.color='#3B6D11'; el.style.fontWeight='700'; });
       tblClone.querySelectorAll('.d-no').forEach(function(el){ el.style.color='#ccc'; });
+      tblClone.querySelectorAll('.d-unfill').forEach(function(el){ el.style.cssText='font-size:11px;font-weight:700;color:#E65100;background:#FFF3E0;padding:2px 7px;border-radius:6px;'; });
       wrapper.appendChild(tblClone);
     }
     var ts=document.createElement('div');
