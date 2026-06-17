@@ -1,3 +1,60 @@
+<!--
+================================================================================
+  全聯18天推廣進度看板 (award_board.html)
+  版本：Ver. 1.8.0 ｜ 最後更新：2026-06-17
+================================================================================
+
+【給下一位接手的 AI — 必讀事項】
+
+▌專案定位
+  追蹤全聯超市「18天推廣活動」的箱數（CTN）達成情況。
+  單一自含式 HTML 檔案，無後端、無框架，直接部署於 GitHub Pages。
+
+▌資料來源（Google Sheets，免登入公開 gviz API）
+  同一個 Spreadsheet（SHEET_ID 在 <script> 開頭）包含兩個分頁：
+  1. 「店家清單」(SHEET_NAME)：主要業績資料
+     每列 = 一家店 × 一個月 × 一位業務員的記錄
+     關鍵欄位：year/month/quarter/area(營業處)/office(營業所)/staff(業務員)
+               code(店碼)/store(店名)/cur(當期CTN)/last(去年CTN)/inc(增量)/exclude(排除旗標)
+  2. 「全聯進銷存資料」(INV_SHEET)：每列=一家店的庫存快照（無歷史）
+     A欄=全號, B欄=店號(6碼,注意前導零), 4~9欄=上存/進貨/退貨/銷貨/庫存/PSD
+     K1 儲存格 = 資料時間（如 20260615）
+  Join key：award_board 的 store code 後6碼 = 進銷存分頁 B欄 店號（補零至6碼）
+
+▌兩種視角
+  人員視角 (viewMode='person')：以業務員為單位，品評CTN = 當期 - 目標（去年+增量）
+  組織視角 (viewMode='org')：以店家為單位，增減CTN = 當期 - 去年（無品評計算）
+
+▌核心函式（依功能分類）
+  資料載入：loadData() → gviz fetch → initCI() → allRows[]
+           loadInvData() → invData{} + invDate
+  人員視角：getPersonList() → calcPersonQuarter() → makeCard() → openDetailDialog()
+  組織視角：getStoreList()  → calcStoreQuarter()  → makeOrgCard() → openOrgDetailDialog()
+  彙整表：  openSummaryTable() / closeSummaryTable() / exportSummaryXLSX() / takeSummaryScreenshot()
+  排名：    updateRank() / toggleRank() / closeRank()
+  匯出：    downloadXLSX() → _exportPersonXLSX() / _exportOrgXLSX()
+           XLSX 檔名格式：全聯18天_{Q}_{視角}_{單位}_{YYYYMMdd_HHmm}.xlsx
+
+▌全域狀態變數
+  allRows=[]          主資料列陣列（gviz row 物件）
+  CI={}               欄位索引對應（中文欄名 → 數字索引）
+  invData={}          進銷存 key→value（key=6碼店號或全號，兩者都存）
+  invDate=''          K1 資料時間字串
+  curQ=''             目前選擇的季度 (Q1~Q4)
+  fArea=''            目前篩選的營業處
+  fOffice=''          目前篩選的營業所
+  viewMode='person'   'person' | 'org'
+  curSort='eval'      排序欄位
+
+▌注意事項
+  · 進銷存非同步載入，loadInvData() 完成後呼叫 refreshOrgCards() 補刷卡片
+  · 高光條件：inv.sale≠0 且 inv.stock=0 → 卡片加 .card-alert + 橘色橫幅
+  · 庫存排序為升序（庫存少的排前），其他排序為降序
+  · 截圖用 html2canvas CDN，動態載入，失敗時改為下載 PNG
+  · QUARTERS = {Q1:[1,2,3], Q2:[4,5,6], Q3:[7,8,9], Q4:[10,11,12]}
+  · AREA_ORDER 控制營業處顯示順序（定義在 sortAreas()）
+================================================================================
+-->
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -271,6 +328,22 @@
     .d-cur { color:var(--blue); }
     .d-tgt { color:var(--purple); }
 
+    /* ══ 高光卡片：銷貨中+庫存歸零 ══ */
+    .card-alert {
+      border:2px solid rgba(220,120,0,.55) !important;
+      box-shadow:0 0 0 3px rgba(255,160,0,.15), 0 4px 16px rgba(180,90,0,.18) !important;
+    }
+    .card-alert-banner {
+      background:linear-gradient(90deg,rgba(255,160,0,.18),rgba(255,200,80,.10));
+      border-bottom:1px solid rgba(220,140,0,.25);
+      padding:4px 13px;
+      font-size:10px; font-weight:800; color:#a05000; letter-spacing:.3px;
+    }
+    .ctn-staff {
+      font-size:10px; color:var(--sub); text-align:left !important;
+      max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    }
+
     /* ══ 彙整表 MODAL ══ */
     #summary-modal { opacity:0; transition:opacity .2s; }
 
@@ -393,7 +466,7 @@
   <button id="manual-toggle" onclick="toggleManual()">📋 說明書</button>
   <button class="tb-btn" onclick="toggleRank()" id="rank-btn" style="background:rgba(255,215,0,.15);border-color:rgba(200,160,0,.3);color:#7a5500;">🏆 品評排行</button>
   <div id="tb-right">
-    <div id="ver-ts">Ver. 1.6.0 (2026-06-16)</div>
+    <div id="ver-ts">Ver. 1.8.0 (2026-06-17 15:00)</div>
     <button class="tb-btn" onclick="downloadXLSX()">📥 XLSX</button>
   </div>
 </div>
@@ -401,17 +474,15 @@
 <!-- 說明書（在 topbar 之後折疊展開）-->
 <div id="manual-bar">
   <div id="manual-inner">
-    <h3>📋 全聯18天推廣進度看板 — 功能說明（Ver. 1.7.0）</h3>
-    <p><b>【本看板用途】</b>追蹤全聯18天推廣活動各業務及通路店家的箱數（CTN）達成情況，支援<b>人員視角</b>與<b>組織視角</b>兩種模式，並整合全聯進銷存資料，適合業務個人自我管理、主管開會討論與區域績效分析。</p>
+    <h3>📋 全聯18天推廣進度看板 — 怎麼看這個畫面？（Ver. 1.8.0）</h3>
+    <p><b>【這個看板在追蹤什麼？】</b>追蹤全聯各門市在「18天推廣活動」期間，實際進貨箱數與去年同期相比，是增加還是減少。數字越大（正值）代表今年賣得比去年好；負值代表不如去年。</p>
     <hr>
-    <p><b>【人員視角】</b>以業務員為統計單位。同一家店不同月份若由不同業務負責，業績各自歸屬。核心指標：<b>品評CTN = 當期CTN − 目標CTN</b>（目標 = 去年同期 + 增量）。需有效月份 ≥ 2 個月才顯示品評。店家明細含每月分組色帶與Hover高光，最後一欄顯示<b>單店品評小計</b>。</p>
-    <p><b>【組織視角】</b>以店家為統計單位。同一家店同月不論幾位業務，CTN全部合併。指標簡化為<b>當期CTN / 去年同期 / 增減CTN</b>，無品評計算。卡片底部直接顯示進銷存快照。<b>📊 彙整表</b>可開啟全篩選範圍的大表（含分組、小計、總計、進銷存），適合會議討論使用，並可下載 XLSX。</p>
+    <p><b>【人員視角 — 誰負責哪些店？賣了多少？】</b>每張卡片代表一位業務員。卡片右上角的大數字（<b>品評CTN</b>）= 今年實際進貨 − 應達標準，綠色正數代表超標，紅色負數代表未達標。點「店家明細」可查看他每一家店、每個月的達成細節。</p>
+    <p><b>【組織視角 — 這個區域整體賣得怎樣？】</b>每張卡片代表一家門市。右上角大數字（<b>增減CTN</b>）= 今年進貨量 − 去年進貨量。卡片下方顯示這家店的即時庫存狀況，幫助判斷是否需要追貨。訪員欄顯示當月負責的業務員姓名。<br>⚠️ <b>橘色邊框</b>：正在銷貨但庫存已歸零，需要特別關注補貨。</p>
     <hr>
-    <p><b>【導覽篩選】</b>上方 navbar 點擊營業處 → 顯示所級篩選；點擊營業所 → 只顯示該所。排序按鈕（品評CTN / 總家數 / 當期CTN / 目標CTN）在兩種視角各自對應不同欄位。</p>
-    <p><b>【進銷存整合】</b>資料來自同一試算表「全聯進銷存資料」分頁，以店號後6碼比對，非同步載入，失敗不影響主看板。K1 欄位為資料時間（顯示於進銷存區塊標題）。</p>
-    <p><b>【其他工具】</b>🏆 品評排行（人員視角前20名彈窗）｜📥 XLSX（人員視角：人員月別明細；組織視角：店家業績＋進銷存兩個分頁）｜💬 LINE 複製 ｜ 📊 Excel 複製 ｜ 📸 截圖（含進銷存區塊）。</p>
-    <hr>
-    <p style="font-size:10px;color:#a07800;"><b>【給下一位接手的 AI】</b>本檔為單一 HTML 檔案，資料來源為 Google Sheets gviz API（免登入）。主資料分頁：SHEET_NAME（店家清單）；進銷存分頁：INV_SHEET。兩種視角共用 navbar 篩選（fArea/fOffice），人員視角用 getPersonList()+calcPersonQuarter()，組織視角用 getStoreList()+calcStoreQuarter()。詳細欄位對應與函式說明見 &lt;script&gt; 區塊頂部的長注釋。</p>
+    <p><b>【上方篩選器怎麼用？】</b>點擊「北部」「桃園」等按鈕只看特定區域；點進去後可再選特定營業所；點「全部」回到整體。排序按鈕可依品評CTN、當期箱數、去年同期、庫存（組織視角）重新排列，庫存排序讓庫存最少的門市排最前面，方便快速找到需要補貨的店。</p>
+    <p><b>【📊 彙整表是什麼？】</b>切到組織視角，點「📊 彙整表」開啟一張整合大表，把所有門市的業績與庫存集中呈現，適合開會逐店討論。可下載成 Excel 或截圖分享。</p>
+    <p><b>【進銷存欄位怎麼看？】</b>上存＝月初庫存、進貨＝本月進貨量、退貨＝退回量、銷貨＝實際售出量、庫存＝現有剩餘、PSD＝每日平均銷速（越高代表賣越快）。資料時間顯示在區塊標題旁，確認是否為最新資料。</p>
   </div>
 </div>
 
@@ -430,6 +501,7 @@
     <button class="sort-btn" data-sort="stores" onclick="setSort('stores')">總家數</button>
     <button class="sort-btn" data-sort="cur" onclick="setSort('cur')">當期CTN</button>
     <button class="sort-btn" data-sort="tgt" onclick="setSort('tgt')">目標CTN</button>
+    <button class="sort-btn" data-sort="stock" onclick="setSort('stock')" id="sort-stock-btn" style="display:none;">📦 庫存</button>
   </div>
   <div style="display:flex;align-items:center;gap:6px;margin-left:6px;" id="gb-extra-btns">
     <button class="tb-btn" id="btn-summary" onclick="openSummaryTable()" style="display:none;background:rgba(74,122,85,.12);border-color:rgba(74,122,85,.35);color:#2d5a38;font-weight:800;">📊 彙整表</button>
@@ -477,7 +549,8 @@
         <span style="font-size:11px;color:var(--sub);" id="summary-subtitle"></span>
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
-        <button class="dlg-action-btn" onclick="exportSummaryXLSX()">📥 下載 XLSX</button>
+        <button class="dlg-action-btn" onclick="exportSummaryXLSX()" id="btn-summary-xlsx">📥 下載 XLSX</button>
+        <button class="dlg-action-btn" onclick="takeSummaryScreenshot()" id="btn-summary-shot">📸 截圖</button>
         <button class="dlg-close" onclick="closeSummaryTable()">✕</button>
       </div>
     </div>
@@ -489,7 +562,7 @@
 /*
 ================================================================================
   全聯18天推廣進度看板 — 程式說明書（供後續開發者 / AI 閱讀）
-  Ver. 1.5.0  最後更新：2026-06-16
+  Ver. 1.8.0  最後更新：2026-06-17
 ================================================================================
 
 【專案目的】
@@ -630,10 +703,9 @@ function _updateSortBtnLabels(){
     var s=b.dataset.sort;
     if(s==='eval')   b.textContent=isOrg?'增減CTN':'品評CTN';
     if(s==='tgt')    b.textContent=isOrg?'去年同期':'目標CTN';
-    if(s==='stores'){
-      b.style.display=isOrg?'none':'';  /* 組織視角隱藏「總家數」按鈕 */
-    }
+    if(s==='stores'){ b.style.display=isOrg?'none':''; }
     if(s==='cur') b.textContent='當期CTN';
+    if(s==='stock')  b.style.display=isOrg?'':'none'; /* 庫存排序只在組織視角 */
   });
 }
 
@@ -1077,7 +1149,7 @@ function calcStoreQuarter(storeRows, q){
   /* 組織視角：以店為本，只算當期CTN / 去年同期CTN / 增減CTN */
   var months=QUARTERS[q]||[];
   var monthData={};
-  months.forEach(function(m){monthData[m]={cur:0,last:0,hasData:false};});
+  months.forEach(function(m){monthData[m]={cur:0,last:0,hasData:false,staffSet:{}};});
 
   storeRows.forEach(function(r){
     if(gv(r,'exclude').trim()) return;
@@ -1086,11 +1158,14 @@ function calcStoreQuarter(storeRows, q){
     monthData[m].cur+=gn(r,'cur');
     monthData[m].last+=gn(r,'last');
     monthData[m].hasData=true;
+    var staff=gv(r,'staff');
+    if(staff) monthData[m].staffSet[staff]=1;
   });
 
   months.forEach(function(m){
     var d=monthData[m];
-    d.delta=d.cur-d.last; /* 增減 = 當期 - 去年 */
+    d.delta=d.cur-d.last;
+    d.staffNames=Object.keys(d.staffSet).join('／');
   });
 
   var evalMonths=months.filter(function(m){return monthData[m].hasData;});
@@ -1131,13 +1206,19 @@ function renderOrg(){
     var qd=c.qd;
     if(curSort==='cur') return qd.totalCur;
     if(curSort==='tgt') return qd.totalLast;
+    if(curSort==='stock'){
+      /* 庫存排序：有進銷存資料的優先，依庫存升序（庫存少的排前面），無資料排最後 */
+      var inv=_invLookup(c.code);
+      return inv?inv.stock:999999;
+    }
     return qd.totalDelta;
   }
   storeCards.sort(function(a,b){
     var av=getOrgSortVal(a), bv=getOrgSortVal(b);
     if(av===null&&bv===null) return 0;
     if(av===null) return 1; if(bv===null) return -1;
-    return bv-av;
+    /* 庫存排序：升序（庫存少的排前面）；其他：降序 */
+    return curSort==='stock'?av-bv:bv-av;
   });
 
   /* 依篩選狀態決定分組方式 */
@@ -1216,23 +1297,31 @@ function makeOrgCard(c){
   else if(delta<0){ bigNum=String(delta); teCls='neg'; }
   else { bigNum='0'; teCls='nil'; }
 
+  /* 高光判斷：銷貨 ≠ 0 且 庫存 = 0 */
+  var inv=_invLookup(c.code);
+  var isAlert=inv&&inv.sale!==0&&inv.stock===0;
+
   var rowsHtml=qd.months.map(function(m){
     var d=qd.monthData[m];
-    if(!d.hasData) return '<tr><td>'+MNAMES[m]+'</td><td class="ctn-cur">—</td><td class="ctn-tgt">—</td><td class="ctn-eval nil">—</td></tr>';
+    var staffCell='<td class="ctn-staff">'+esc(d.staffNames||'—')+'</td>';
+    if(!d.hasData) return '<tr><td>'+MNAMES[m]+'</td>'+staffCell+'<td class="ctn-cur">—</td><td class="ctn-tgt">—</td><td class="ctn-eval nil">—</td></tr>';
     var dv=d.delta, dcls=dv>0?'pos':dv<0?'neg':'nil';
-    return '<tr><td>'+MNAMES[m]+'</td><td class="ctn-cur">'+d.cur+'</td><td class="ctn-tgt">'+d.last+'</td><td class="ctn-eval '+dcls+'">'+(dv>0?'+':'')+dv+'</td></tr>';
+    return '<tr><td>'+MNAMES[m]+'</td>'+staffCell+'<td class="ctn-cur">'+d.cur+'</td><td class="ctn-tgt">'+d.last+'</td><td class="ctn-eval '+dcls+'">'+(dv>0?'+':'')+dv+'</td></tr>';
   }).join('');
 
   var totDcls=delta>0?'pos':delta<0?'neg':'nil';
-  var totalRow='<tr class="total-row"><td>合計</td><td class="ctn-cur">'+qd.totalCur+'</td><td class="ctn-tgt">'+qd.totalLast+'</td><td class="ctn-eval '+totDcls+'">'+(delta>0?'+':'')+delta+'</td></tr>';
+  var totalRow='<tr class="total-row"><td>合計</td><td class="ctn-staff"></td><td class="ctn-cur">'+qd.totalCur+'</td><td class="ctn-tgt">'+qd.totalLast+'</td><td class="ctn-eval '+totDcls+'">'+(delta>0?'+':'')+delta+'</td></tr>';
 
-  var invHtml=buildInvCardBlock(c.code);
+  var invHtml=isAlert
+    ?buildInvCardBlock(c.code) /* 已有資料，直接用 */
+    :(inv?buildInvCardBlock(c.code):(c.code?'<div class="org-inv-pending"></div>':''));
 
   var el=document.createElement('div');
-  el.className='person-card';
-  el.dataset.storekey=c.code||c.name; /* 供後續 refresh 用 */
+  el.className='person-card'+(isAlert?' card-alert':'');
+  el.dataset.storekey=c.code||c.name;
   el.innerHTML=
     '<div class="pc-header">' +
+      (isAlert?'<div class="card-alert-banner">⚠️ 銷貨中、庫存歸零</div>':'')+
       '<div class="pc-title-row">' +
         '<span class="pc-name">'+esc(c.name)+'</span>' +
         '<span class="pc-unit">'+esc(c.area)+'·'+esc(c.office)+'</span>' +
@@ -1242,10 +1331,10 @@ function makeOrgCard(c){
       '</div>' +
     '</div>' +
     '<table class="pc-table">' +
-      '<thead><tr><th>月份</th><th>當期CTN</th><th>去年同期</th><th>增減CTN</th></tr></thead>' +
+      '<thead><tr><th>月份</th><th>訪員</th><th>當期CTN</th><th>去年同期</th><th>增減CTN</th></tr></thead>' +
       '<tbody>'+rowsHtml+totalRow+'</tbody>' +
     '</table>' +
-    (invHtml||'<div class="org-inv-pending"></div>'); /* placeholder 供後補 */
+    (invHtml||'<div class="org-inv-pending"></div>');
 
   el._qData=qd;
   el._storeInfo=c;
@@ -1330,6 +1419,19 @@ function refreshOrgCards(){
     if(placeholder){
       var html=buildInvCardBlock(code);
       if(html){ placeholder.outerHTML=html; }
+    }
+    /* 補刷高光：銷貨≠0 且 庫存=0 */
+    var inv=_invLookup(code);
+    var isAlert=inv&&inv.sale!==0&&inv.stock===0;
+    el.classList.toggle('card-alert',!!isAlert);
+    var existingBanner=el.querySelector('.card-alert-banner');
+    if(isAlert&&!existingBanner){
+      var banner=document.createElement('div');
+      banner.className='card-alert-banner';
+      banner.textContent='⚠️ 銷貨中、庫存歸零';
+      el.querySelector('.pc-header').prepend(banner);
+    } else if(!isAlert&&existingBanner){
+      existingBanner.remove();
     }
   });
 }
@@ -1569,7 +1671,45 @@ function buildDetailTable(qd,q){
     tbodyHtml+='<tr>'+rowHtml+'</tr>';
   });
 
-  return '<div class="detail-scroll"><table class="detail-tbl"><thead><tr>'+thCols+'</tr></thead><tbody>'+tbodyHtml+'</tbody></table></div>';
+  /* 各月總計列 */
+  var totalRowHtml='<tr style="font-weight:900;background:rgba(0,0,0,.03);border-top:2px solid rgba(0,0,0,.1);">';
+  totalRowHtml+='<td colspan="2" style="text-align:left;padding:7px 14px;color:var(--sub);font-size:11px;">合計</td>';
+  months.forEach(function(m,mi){
+    var totCur=0, totTgt=0, totEval=0, hasAny=false;
+    Object.values(storeIndex).forEach(function(s){
+      var md=s.byMonth[m];
+      if(!md) return;
+      hasAny=true;
+      totCur+=md.cur;
+      totTgt+=md.tgt;
+      totEval+=md.eval;
+    });
+    totTgt=Math.round(totTgt*3)/3;
+    totEval=Math.round(totEval*3)/3;
+    var bl=mi===0?'m-sep ':'';
+    if(!hasAny){
+      totalRowHtml+='<td class="'+bl+mCls(mi,0)+' d-nil">—</td><td class="'+mCls(mi,1)+' d-nil">—</td><td class="'+mCls(mi,2)+' d-nil">—</td>';
+    } else {
+      var ecls=totEval>0?'d-pos':totEval<0?'d-neg':'d-nil';
+      totalRowHtml+='<td class="'+bl+mCls(mi,0)+' d-cur">'+totCur+'</td>';
+      totalRowHtml+='<td class="'+mCls(mi,1)+' d-tgt">'+toFrac(totTgt)+'</td>';
+      totalRowHtml+='<td class="'+mCls(mi,2)+' '+ecls+'">'+toFracEval(totEval)+'</td>';
+    }
+  });
+  /* 單店品評總計 */
+  var grandEval=0;
+  Object.values(storeIndex).forEach(function(s){
+    var sum=0;
+    months.forEach(function(m){ var md=s.byMonth[m]; if(md) sum+=md.eval; });
+    grandEval+=Math.round(sum*3)/3;
+  });
+  grandEval=Math.round(grandEval*3)/3;
+  var gCls=grandEval>0?'d-pos':grandEval<0?'d-neg':'d-nil';
+  totalRowHtml+='<td class="m-sep '+gCls+'" style="font-weight:900;">'+toFracEval(grandEval)+'</td>';
+  if(hasInv) totalRowHtml+='<td class="m-sep m-bg1 d-nil" colspan="6" style="font-size:10px;text-align:center;color:var(--sub);font-weight:400;">進銷存不加總</td>';
+  totalRowHtml+='</tr>';
+
+  return '<div class="detail-scroll"><table class="detail-tbl"><thead><tr>'+thCols+'</tr></thead><tbody>'+tbodyHtml+totalRowHtml+'</tbody></table></div>';
 }
 
 function openDetailDialog(e,btn){
@@ -1931,6 +2071,16 @@ function updateGbar(){
 }
 
 /* \u2550\u2550 XLSX \u2550\u2550 */
+function _nowStr(){
+  var d=new Date();
+  var pad=function(n){return n<10?'0'+n:String(n);};
+  return d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+'_'+pad(d.getHours())+pad(d.getMinutes());
+}
+
+function _unitLabel(){
+  return fOffice||(fArea?fArea+'_全所'):'全體';
+}
+
 function downloadXLSX(){
   if(!window.XLSX){ alert('XLSX 套件載入中，請稍後再試'); return; }
   if(viewMode==='org'){ _exportOrgXLSX(); } else { _exportPersonXLSX(); }
@@ -1959,7 +2109,7 @@ function _exportPersonXLSX(){
   var ws=XLSX.utils.aoa_to_sheet(rows);
   _xlsxAutoWidth(ws,rows);
   XLSX.utils.book_append_sheet(wb,ws,(curQ||'')+'人員視角');
-  XLSX.writeFile(wb,'全聯18天_'+(curQ||'')+'_人員.xlsx');
+  XLSX.writeFile(wb,'全聯18天_'+(curQ||'')+'_人員_'+_nowStr()+'.xlsx');
 }
 
 function _exportOrgXLSX(){
@@ -2000,7 +2150,7 @@ function _exportOrgXLSX(){
     _xlsxAutoWidth(ws2,irows);
     XLSX.utils.book_append_sheet(wb,ws2,'進銷存');
   }
-  XLSX.writeFile(wb,'全聯18天_'+(curQ||'')+'_組織.xlsx');
+  XLSX.writeFile(wb,'全聯18天_'+(curQ||'')+'_組織_'+_unitLabel()+'_'+_nowStr()+'.xlsx');
 }
 
 function _xlsxAutoWidth(ws,rows){
@@ -2163,7 +2313,79 @@ function closeSummaryTable(){
 
 function exportSummaryXLSX(){
   if(!window.XLSX){ alert('XLSX 套件載入中，請稍後再試'); return; }
+  /* 彙整表 XLSX 也用同樣命名規則 */
+  var origFn=XLSX.writeFile;
   _exportOrgXLSX();
+}
+
+function takeSummaryScreenshot(){
+  var btn=document.getElementById('btn-summary-shot');
+  btn.textContent='⏳ 截圖中...';
+
+  function doCapture(){
+    var body=document.getElementById('summary-body');
+    var titleEl=document.getElementById('summary-title');
+    var subtitleEl=document.getElementById('summary-subtitle');
+    var titleText=(titleEl?titleEl.textContent:'彙整表')+' '+(subtitleEl?subtitleEl.textContent:'');
+
+    var wrapper=document.createElement('div');
+    wrapper.style.cssText='background:#fff;padding:16px 20px;font-family:Microsoft JhengHei,Noto Sans TC,sans-serif;position:fixed;top:-9999px;left:-9999px;';
+
+    var h=document.createElement('div');
+    h.style.cssText='font-size:14px;font-weight:900;color:#1a2a1a;margin-bottom:12px;padding-bottom:10px;border-bottom:2px solid #c8dcc8;';
+    h.textContent=titleText;
+    wrapper.appendChild(h);
+
+    var bodyClone=body.cloneNode(true);
+    /* 展開所有 overflow */
+    bodyClone.style.overflow='visible';
+    bodyClone.querySelectorAll('*').forEach(function(el){
+      if(el.style) el.style.overflow='visible';
+    });
+    /* sticky → static */
+    bodyClone.querySelectorAll('th').forEach(function(el){
+      el.style.position='static';
+    });
+    wrapper.appendChild(bodyClone);
+
+    var ts=document.createElement('div');
+    ts.style.cssText='font-size:10px;color:#bbb;margin-top:10px;text-align:right;';
+    ts.textContent='全聯18天推廣進度看板　'+new Date().toLocaleString('zh-TW');
+    wrapper.appendChild(ts);
+
+    document.body.appendChild(wrapper);
+
+    html2canvas(wrapper,{
+      scale:2,backgroundColor:'#ffffff',useCORS:true,
+      width:wrapper.scrollWidth,height:wrapper.scrollHeight
+    }).then(function(canvas){
+      document.body.removeChild(wrapper);
+      var filename='彙整表_'+_unitLabel()+'_'+_nowStr()+'.png';
+      if(navigator.clipboard&&window.ClipboardItem){
+        canvas.toBlob(function(blob){
+          try{
+            navigator.clipboard.write([new ClipboardItem({'image/png':blob})]).then(function(){
+              btn.textContent='✅ 已複製！';
+              setTimeout(function(){ btn.textContent='📸 截圖'; },2000);
+            }).catch(function(){ _downloadCanvas(canvas,filename,btn); });
+          }catch(e){ _downloadCanvas(canvas,filename,btn); }
+        },'image/png');
+      } else { _downloadCanvas(canvas,filename,btn); }
+    }).catch(function(err){
+      document.body.removeChild(wrapper);
+      btn.textContent='📸 截圖';
+      alert('截圖失敗：'+err);
+    });
+  }
+
+  if(window.html2canvas){ doCapture(); }
+  else {
+    var s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    s.onload=doCapture;
+    s.onerror=function(){ btn.textContent='📸 截圖'; alert('html2canvas 載入失敗'); };
+    document.head.appendChild(s);
+  }
 }
 
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
