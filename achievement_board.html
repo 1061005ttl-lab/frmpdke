@@ -983,6 +983,53 @@
         box-shadow: 0 2px 6px rgba(245, 158, 11, .35);
       }
 
+      /* ══ 明細按鈕（卡片右上角） ══ */
+      .card-detail-btn {
+        position: absolute;
+        top: 7px;
+        right: 7px;
+        z-index: 10;
+        font-size: 10px;
+        font-weight: 800;
+        padding: 3px 8px;
+        border-radius: 6px;
+        border: 1px solid rgba(0,0,0,.13);
+        background: rgba(255,255,255,.92);
+        color: #555;
+        cursor: pointer;
+        white-space: nowrap;
+        letter-spacing: .2px;
+        backdrop-filter: blur(4px);
+        transition: background .12s, color .12s;
+        line-height: 1.5;
+        pointer-events: all !important;
+      }
+      .card-detail-btn:hover {
+        background: var(--primary-d);
+        color: #fff;
+        border-color: var(--primary-d);
+      }
+      /* mini-card 上的明細按鈕：更小 */
+      .mini-card {
+        position: relative;
+      }
+      .mini-card .card-detail-btn {
+        top: 5px;
+        right: 5px;
+        font-size: 9px;
+        padding: 2px 6px;
+      }
+      /* whole 卡的明細按鈕位置微調 */
+      .big-card.whole .card-detail-btn {
+        top: 8px;
+        right: 8px;
+      }
+      /* bc-cv-card 的明細按鈕：要在 table 之上 */
+      .big-card.bc-cv-card .card-detail-btn {
+        pointer-events: all !important;
+        z-index: 20;
+      }
+
       /* ══ 一般大卡 ══ */
       .big-card {
         background: #fff;
@@ -3406,7 +3453,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 3.7.7 (2026-06-17)</div>
+      <div id="ver-ts">Ver. 3.8.0 (2026-06-17)</div>
       <div id="data-sync-bar"></div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
@@ -5146,6 +5193,7 @@
               }).join('') +
             '</div>';
         }
+        addDetailBtn(el, name, rows);
         return el;
       }
 
@@ -5259,6 +5307,7 @@
         }
 
         if (onClick) el.addEventListener('click', onClick);
+        addDetailBtn(el, name, rows);
         return el;
       }
 
@@ -5275,6 +5324,7 @@
             return '<span class="mc-s ' + st.cls + '">' + esc(st.emoji) + p + '%</span>';
           }).join('') + '</div>';
         el.addEventListener('click', onClick);
+        addDetailBtn(el, name, rows);
         return el;
       }
 
@@ -5440,6 +5490,7 @@
               card.addEventListener('click', function() { openStaffDialog(staffKey, staffRows); });
             })(k, sr);
           }
+          addDetailBtn(card, '👤 ' + trimName(k), sr);
           c.appendChild(card);
         });
       }
@@ -6119,18 +6170,16 @@
         setTimeout(function() { b.textContent = off; }, 2000);
       }
 
-      /* ══ 人員 Dialog ══ */
+      /* ══ 通用明細 Dialog ══ */
       var _dlgRows = [];
       var _dlgStaffName = '';
 
-      function openStaffDialog(staffName, rows) {
+      function openRowsDialog(title, rows) {
         _dlgRows = rows;
-        _dlgStaffName = staffName;
+        _dlgStaffName = title;
 
         /* 標題 */
-        var breadcrumb = drillStack.map(function(d) { return d.key; }).join(' › ');
-        document.getElementById('staff-dlg-title').textContent =
-          '👤 ' + trimName(staffName) + (breadcrumb ? '　' + breadcrumb : '');
+        document.getElementById('staff-dlg-title').textContent = title;
 
         /* 摘要列 */
         var s = stat(rows);
@@ -6138,15 +6187,7 @@
         var sbc = statByChannel(rows);
         var hasBoth = sbc && sbc.cvs.t > 0;
         var sumEl = document.getElementById('staff-dlg-summary');
-        if (!sumEl) {
-          sumEl = document.createElement('div');
-          sumEl.id = 'staff-dlg-summary';
-          document.getElementById('staff-dlg').insertBefore(
-            sumEl, document.getElementById('staff-dlg-body')
-          );
-        }
         var sumParts = [];
-        /* 不分類總覽 */
         sumParts.push('<span class="dlg-sum-item total">全部 ' + s.t + '</span>');
         curStatuses.forEach(function(st) {
           var num = s[st.key] || 0;
@@ -6155,7 +6196,6 @@
         });
         if (hasBoth) {
           var nc = sbc.nonCvs, cv = sbc.cvs;
-          /* 非CVS/CVS 細節：手機隱藏 */
           sumParts.push('<span class="dlg-sum-sep dlg-sum-detail">|</span>');
           sumParts.push('<span class="dlg-sum-item total dlg-sum-detail">非CVS ' + nc.t + '</span>');
           curStatuses.forEach(function(st) {
@@ -6173,31 +6213,39 @@
         }
         sumEl.innerHTML = sumParts.join('');
 
-        /* 重置篩選為全部 */
+        /* 重置篩選 */
         dlgFilter('all');
 
-        /* 渲染內容 */
+        /* 渲染店家明細 */
         var body = document.getElementById('staff-dlg-body');
         body.innerHTML = '';
         var fakeMain = document.createElement('div');
+        /* 暫存 drillStack，讓 buildStoreCards 能正確產出 */
         var prevStack = drillStack.slice();
-        if (drillStack.length < 3) drillStack.push({ level: 'staff', key: staffName });
-        else drillStack[2] = { level: 'staff', key: staffName };
+        /* 確保 drillStack 至少有 staff 層，buildStoreCards 才能運作 */
+        var tempStaff = { level: 'staff', key: title };
+        if (drillStack.length === 0) {
+          drillStack = [{ level: 'area', key: '' }, { level: 'office', key: '' }, tempStaff];
+        } else if (drillStack.length === 1) {
+          drillStack = [drillStack[0], { level: 'office', key: '' }, tempStaff];
+        } else if (drillStack.length === 2) {
+          drillStack = [drillStack[0], drillStack[1], tempStaff];
+        } else {
+          drillStack[2] = tempStaff;
+        }
         buildStoreCards(fakeMain, rows);
         drillStack = prevStack;
 
-        /* 跳過頭卡（第一個元素），只取店家清單 */
+        /* 跳過頭卡，只顯示店家清單 */
         Array.from(fakeMain.children).slice(1).forEach(function(child) {
           body.appendChild(child);
         });
 
-        /* 解除所有高度限制，讓 dialog body 統一滾動 */
+        /* 解除高度限制 */
         body.querySelectorAll('#store-list-wrap, #store-list-body, .sp-body').forEach(function(el) {
           el.style.cssText = 'overflow:visible!important;max-height:none!important;height:auto!important;';
         });
-        body.querySelectorAll('.sp-toggle-bar').forEach(function(el) {
-          el.style.display = 'none';
-        });
+        body.querySelectorAll('.sp-toggle-bar').forEach(function(el) { el.style.display = 'none'; });
 
         /* 開啟 */
         document.getElementById('staff-dlg-overlay').classList.add('open');
@@ -6207,6 +6255,24 @@
           requestAnimationFrame(function() { dlg.classList.add('open'); });
         });
         document.body.style.overflow = 'hidden';
+      }
+
+      /* 保留舊名稱相容性 */
+      function openStaffDialog(staffName, rows) {
+        openRowsDialog('👤 ' + trimName(staffName), rows);
+      }
+
+      /* 通用：在任何卡片上加右上角明細按鈕 */
+      function addDetailBtn(el, label, rows) {
+        var btn = document.createElement('button');
+        btn.className = 'card-detail-btn';
+        btn.textContent = '明細';
+        btn.title = label + ' 店家明細';
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation(); /* 不觸發卡片的鑽層 click */
+          openRowsDialog(label, rows);
+        });
+        el.appendChild(btn);
       }
 
       function dlgFilter(mode) {
