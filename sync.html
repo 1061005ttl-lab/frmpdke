@@ -26,7 +26,9 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
   - 「訪頻專用」分組框（.freq-group）：固定把 tasks[] 陣列「最前面
     FREQ_GROUP_COUNT 筆」（目前 = 6，常數定義在 <script> 內）框起來，
     標籤為「📅 訪頻專用」。此分組純粹依「資料順序」決定，不是依名稱
-    判斷，若後端回傳的順序改變，框起來的項目也會跟著變動。
+    判斷，若後端回傳的順序改變，框起來的項目也會跟著變動。標籤旁的
+    「⚡ 一鍵同步」按鈕（syncAllFreq()）會一次觸發本區所有尚未在同步中
+    的卡片，等於同時點擊那 6 顆「同步」按鈕。
   - 其他任務（.task-grid）：陣列中第 FREQ_GROUP_COUNT 筆之後的任務，
     以多欄網格排列，卡片含起訖日期(dateText)與更新時間(updatedAt)。
   - 看板按鈕（📈 橘色）：僅當 task.dataType === '問卷' 且 task.boardType
@@ -40,6 +42,10 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
     收合時新紀錄會在收合條上顯示紅點提示，展開後紅點自動消失。
 
 【維護注意事項】
+- 全站文字一律禁止使用灰色（--text-secondary 直接等同 --text-main），
+  次要資訊（時間、日期、提示文字）只能靠字級縮小或字重區分，不能靠
+  調淡顏色處理，避免使用者看不清楚資料。新增樣式時請延用既有變數，
+  不要再手動寫入灰色色碼。
 - i（任務索引）是全域陣列 tasks 的 index，所有相關 DOM id 都用這個 i
   拼接（btn-sync-i / progress-i / bar-i / progress-msg-i /
   progress-time-i），這組查詢邏輯集中寫在 getCardEls(i) 一個函式裡，
@@ -75,7 +81,7 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
       --card: #ffffff;
       --border: #e2e7e2;
       --text-main: #232925;
-      --text-secondary: #7d8980;
+      --text-secondary: var(--text-main); /* 禁止灰字：次要文字一律與主要文字同色，僅靠字級/字重區分層級 */
       --mono: 'SFMono-Regular', Consolas, 'Courier New', monospace;
       --success: #34A853;
       --danger: #EA4335;
@@ -158,9 +164,14 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
       margin-bottom: 32px;
       background: linear-gradient(180deg, rgba(90,138,106,0.06), rgba(90,138,106,0.01));
     }
-    .freq-group-label {
+    .freq-group-header {
       position: absolute;
       top: -14px; left: 22px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .freq-group-label {
       background: var(--primary);
       color: #fff;
       padding: 5px 14px;
@@ -168,7 +179,24 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
       border-radius: 999px;
       letter-spacing: 0.5px;
       box-shadow: 0 2px 6px rgba(63,107,78,0.3);
+      white-space: nowrap;
     }
+    .freq-sync-all {
+      background: var(--card);
+      color: var(--primary);
+      border: 1.5px solid var(--primary);
+      padding: 4px 13px;
+      font-size: 12.5px; font-weight: 700;
+      border-radius: 999px;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      white-space: nowrap;
+      box-shadow: 0 2px 6px rgba(63,107,78,0.15);
+      transition: background 0.15s, transform 0.1s;
+    }
+    .freq-sync-all:hover { background: var(--primary-soft); }
+    .freq-sync-all:active { transform: scale(0.95); }
+    .freq-sync-all:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
     .freq-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -444,6 +472,7 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
     const STATUS_COLOR = { success: '#34A853', danger: '#EA4335' };
 
     let tasks = [];
+    let freqCount = 0; // 目前實際渲染的「訪頻專用」卡片數量，供一鍵同步使用
 
     function nowTime() {
       return [new Date().getHours(), new Date().getMinutes(), new Date().getSeconds()]
@@ -559,13 +588,17 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
 
       const freqTasks = data.slice(0, FREQ_GROUP_COUNT);
       const restTasks = data.slice(FREQ_GROUP_COUNT);
+      freqCount = freqTasks.length;
       subtitleEl.textContent = `共 ${data.length} 項任務 ・ 訪頻 ${freqTasks.length} 項`;
 
       let html = '';
       if (freqTasks.length) {
         html += `
           <section class="freq-group">
-            <div class="freq-group-label">📅 訪頻專用</div>
+            <div class="freq-group-header">
+              <div class="freq-group-label">📅 訪頻專用</div>
+              <button class="freq-sync-all" id="freq-sync-all-btn" onclick="syncAllFreq()" title="一次觸發本區全部 ${freqTasks.length} 個同步按鈕">⚡ 一鍵同步</button>
+            </div>
             <div class="freq-grid">
               ${freqTasks.map((t, idx) => taskCardHtml(t, idx)).join('')}
             </div>
@@ -661,6 +694,22 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
       barEl.style.width      = '0%';
       barEl.style.background = '';
       barEl.classList.add('pulse');
+    }
+
+    // 「⚡ 一鍵同步」：一次觸發訪頻專用區（前 freqCount 筆）所有同步按鈕。
+    // 跳過正在同步中的卡片，避免同一張卡片被重複觸發兩次請求。
+    async function syncAllFreq() {
+      const allBtn = document.getElementById('freq-sync-all-btn');
+      const jobs = [];
+      for (let i = 0; i < freqCount; i++) {
+        const btn = document.getElementById(`btn-sync-${i}`);
+        if (btn && !btn.disabled) jobs.push(startSync(i));
+      }
+      if (!jobs.length) return;
+
+      if (allBtn) { allBtn.disabled = true; allBtn.textContent = '⏳ 同步中'; }
+      await Promise.all(jobs);
+      if (allBtn) { allBtn.disabled = false; allBtn.textContent = '⚡ 一鍵同步'; }
     }
 
     loadTasks();
