@@ -3446,7 +3446,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 3.8.1 (2026-06-17)</div>
+      <div id="ver-ts">Ver. 3.8.2 (2026-06-17)</div>
       <div id="data-sync-bar"></div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
@@ -6355,7 +6355,7 @@
         btn.textContent = '⏳ 截圖中...';
         btn.disabled = true;
         var target = document.getElementById('staff-dlg');
-        var fname = trimName(_dlgStaffName) + '_' + new Date().toLocaleDateString('zh-TW').replace(/\//g, '') + '.png';
+        var fname = _dlgStaffName.replace(/[^\w\u4e00-\u9fff]/g, '').slice(0, 20) + '_' + new Date().toLocaleDateString('zh-TW').replace(/\//g, '') + '.png';
 
         function doCapture() {
           var styleTag = document.createElement('style');
@@ -6371,16 +6371,30 @@
             }).then(function(canvas) {
               var freeze = document.getElementById('__dlg_shot_freeze');
               if (freeze) freeze.parentNode.removeChild(freeze);
-              if (navigator.clipboard && window.ClipboardItem) {
-                canvas.toBlob(function(blob) {
+
+              canvas.toBlob(function(blob) {
+                var file = new File([blob], fname, { type: 'image/png' });
+
+                /* 1. Web Share API */
+                if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                  navigator.share({ files: [file], title: _dlgStaffName })
+                    .then(function() { btn.disabled = false; flash('dlg-shot-btn', '✅ 已分享！', '📸 截圖'); })
+                    .catch(function() { btn.disabled = false; btn.textContent = '📸 截圖'; });
+                  return;
+                }
+                /* 2. Clipboard API */
+                if (navigator.clipboard && window.ClipboardItem) {
                   try {
-                    navigator.clipboard.write([new ClipboardItem({'image/png': blob})]).then(function() {
-                      btn.disabled = false;
-                      flash('dlg-shot-btn', '✅ 已複製圖片！', '📸 截圖');
-                    }).catch(function() { _dlDlgCanvas(canvas, fname); });
-                  } catch(e) { _dlDlgCanvas(canvas, fname); }
-                }, 'image/png');
-              } else { _dlDlgCanvas(canvas, fname); }
+                    navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+                      .then(function() { btn.disabled = false; flash('dlg-shot-btn', '✅ 已複製圖片！', '📸 截圖'); })
+                      .catch(function() { _dlDlgCanvas(canvas, fname); });
+                    return;
+                  } catch(e) {}
+                }
+                /* 3. 下載 */
+                _dlDlgCanvas(canvas, fname);
+              }, 'image/png');
+
             }).catch(function(err) {
               var freeze = document.getElementById('__dlg_shot_freeze');
               if (freeze) freeze.parentNode.removeChild(freeze);
@@ -6422,8 +6436,6 @@
 
         function doCapture() {
           var target = document.getElementById('content-wrap');
-
-          /* 組合檔名 */
           var titleParts = [];
           var specialEl = document.querySelector('.mm-special-label');
           if (specialEl) titleParts.push(specialEl.textContent.trim());
@@ -6431,78 +6443,64 @@
           if (pathEl && pathEl.textContent.trim()) titleParts.push(pathEl.textContent.trim());
           var fname = (titleParts[0] || '達成看板') + '_' + new Date().toLocaleDateString('zh-TW').replace(/\//g, '') + '.png';
 
-          /* 暫停所有 animation，讓元素維持最終狀態 */
           var styleTag = document.createElement('style');
           styleTag.id = '__shot_freeze';
           styleTag.textContent = '*, *::before, *::after { animation-duration: 0s !important; animation-delay: 0s !important; transition-duration: 0s !important; opacity: 1 !important; }';
           document.head.appendChild(styleTag);
 
-          /* 給瀏覽器一幀讓樣式生效再截 */
-          requestAnimationFrame(function() {
-            requestAnimationFrame(function() {
-              var W = target.scrollWidth;
-              var H = target.scrollHeight;
+          requestAnimationFrame(function() { requestAnimationFrame(function() {
+            var W = target.scrollWidth, H = target.scrollHeight;
+            html2canvas(target, {
+              scale: 2, backgroundColor: '#f0ece3', useCORS: true,
+              width: W, height: H, windowWidth: W, windowHeight: H, x: 0, y: 0
+            }).then(function(canvas) {
+              var freeze = document.getElementById('__shot_freeze');
+              if (freeze) freeze.parentNode.removeChild(freeze);
 
-              html2canvas(target, {
-                scale: 2,
-                backgroundColor: '#f0ece3',
-                useCORS: true,
-                width: W,
-                height: H,
-                scrollX: 0,
-                scrollY: 0,
-                windowWidth: W,
-                windowHeight: H,
-                x: 0,
-                y: 0
-              }).then(function(canvas) {
-                /* 恢復動畫 */
-                var freeze = document.getElementById('__shot_freeze');
-                if (freeze) freeze.parentNode.removeChild(freeze);
+              canvas.toBlob(function(blob) {
+                var file = new File([blob], fname, { type: 'image/png' });
 
-                if (navigator.clipboard && window.ClipboardItem) {
-                  canvas.toBlob(function(blob) {
-                    try {
-                      navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]).then(function() {
-                        btn.disabled = false;
-                        flash('shot-btn', '✅ 已複製圖片！', '📸 截圖');
-                      }).catch(function() { _dlCanvas(canvas, fname); });
-                    } catch(e) { _dlCanvas(canvas, fname); }
-                  }, 'image/png');
-                } else {
-                  _dlCanvas(canvas, fname);
+                /* 1. Web Share API（手機優先） */
+                if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+                  navigator.share({ files: [file], title: titleParts[0] || '達成看板' })
+                    .then(function() { btn.disabled = false; flash('shot-btn', '✅ 已分享！', '📸 截圖'); })
+                    .catch(function() { btn.disabled = false; btn.textContent = '📸 截圖'; });
+                  return;
                 }
-              }).catch(function(err) {
-                var freeze = document.getElementById('__shot_freeze');
-                if (freeze) freeze.parentNode.removeChild(freeze);
-                btn.disabled = false;
-                btn.textContent = '📸 截圖';
-                alert('截圖失敗：' + err);
-              });
+                /* 2. Clipboard API（桌機） */
+                if (navigator.clipboard && window.ClipboardItem) {
+                  try {
+                    navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+                      .then(function() { btn.disabled = false; flash('shot-btn', '✅ 已複製圖片！', '📸 截圖'); })
+                      .catch(function() { _dlCanvas(canvas, fname); });
+                    return;
+                  } catch(e) {}
+                }
+                /* 3. 下載（保底） */
+                _dlCanvas(canvas, fname);
+              }, 'image/png');
+
+            }).catch(function(err) {
+              var freeze = document.getElementById('__shot_freeze');
+              if (freeze) freeze.parentNode.removeChild(freeze);
+              btn.disabled = false; btn.textContent = '📸 截圖';
+              alert('截圖失敗：' + err);
             });
-          });
+          }); });
         }
 
         function _dlCanvas(canvas, fname) {
           var a = document.createElement('a');
-          a.download = fname;
-          a.href = canvas.toDataURL('image/png');
-          a.click();
-          btn.disabled = false;
-          flash('shot-btn', '✅ 已下載！', '📸 截圖');
+          a.download = fname; a.href = canvas.toDataURL('image/png'); a.click();
+          btn.disabled = false; flash('shot-btn', '✅ 已下載！', '📸 截圖');
         }
 
-        if (window.html2canvas) {
-          doCapture();
-        } else {
+        if (window.html2canvas) { doCapture(); }
+        else {
           var s = document.createElement('script');
           s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
           s.onload = doCapture;
-          s.onerror = function() {
-            btn.disabled = false;
-            btn.textContent = '📸 截圖';
-            alert('html2canvas 載入失敗，請確認網路連線');
-          };
+          s.onerror = function() { btn.disabled = false; btn.textContent = '📸 截圖'; alert('html2canvas 載入失敗，請確認網路連線'); };
           document.head.appendChild(s);
         }
       }
