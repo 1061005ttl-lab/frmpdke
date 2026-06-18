@@ -44,6 +44,16 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
     （{ freq:[...], query:[...], rest:[...] }），新增分組或改變篩選
     規則時，只要讓 render() 把正確的索引塞進 groupIndices 對應的欄位
     即可，不需要更動 syncAllByIndices() 本身。
+  - 「專屬群組」（訪頻專用／簽約查核，即有自己邊框+一鍵同步按鈕的
+    分組，其他任務不算）預設為「摺疊」狀態以節省畫面空間，只露出
+    標籤與一鍵同步按鈕，點擊標籤可展開/收合（toggleGroupCollapse()）。
+    一鍵同步按鈕本身不在可摺疊範圍內，摺起來時仍可直接點擊觸發整批
+    同步，不需要先展開。摺疊狀態存在全域變數 collapsedGroups（例如
+    { freq:true, query:true }），切換時只是對既有 DOM 加減 collapsed
+    這個 class，不會重新整理整頁，所以使用者展開過的分組在下次按
+    「重新載入」時會維持原狀，不會被打回預設摺疊。日後若新增其他
+    專屬群組，記得在 collapsedGroups 補一個對應 key（預設 true），
+    否則該分組會以展開狀態渲染。
   - 看板按鈕（📈 橘色）：僅當 task.dataType === '問卷' 且 task.boardType
     存在於 BOARD_FILE 對照表時才會顯示，連到 BOARD_BASE 對應的外部看板
     頁面（達成率型 / 覆蓋率型 / 獎勵達成型）。
@@ -214,7 +224,21 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
       letter-spacing: 0.5px;
       box-shadow: 0 2px 6px rgba(63,107,78,0.3);
       white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
     }
+    .group-collapse-arrow {
+      display: inline-block;
+      font-size: 10px;
+      transition: transform 0.2s ease;
+    }
+    /* 摺疊狀態：箭頭轉向、隱藏卡片網格、縮減底部留白以節省畫面空間 */
+    .freq-group.collapsed .group-collapse-arrow { transform: rotate(-90deg); }
+    .freq-group.collapsed .freq-grid { display: none; }
+    .freq-group.collapsed { padding-bottom: 16px; }
     /* 「⚡ 一鍵同步」按鈕：訪頻專用與其他任務共用同一套樣式。
        注意：所有狀態都必須是「完全不透明」的顏色，不能用半透明色或
        opacity 來做 hover/disabled 效果 —— 這顆按鈕常疊在區塊邊框上
@@ -542,6 +566,19 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
     // 每次 render() 都會重新計算覆蓋掉舊值。
     let groupIndices = { freq: [], query: [], rest: [] };
 
+    // 「專屬群組」（有自己邊框+一鍵同步按鈕的分組）預設摺疊狀態，
+    // true＝預設摺疊。日後新增同類型分組，記得在這裡補一個 key，
+    // 否則該分組會直接以展開狀態渲染。摺疊/展開只是切換 CSS class，
+    // 不會重新整理畫面，所以使用者切換過的狀態會一路保留到下次
+    // render()（例如按了「重新載入」），不會每次都被打回預設摺疊。
+    let collapsedGroups = { freq: true, query: true };
+
+    function toggleGroupCollapse(key) {
+      collapsedGroups[key] = !collapsedGroups[key];
+      const section = document.getElementById(`group-${key}`);
+      if (section) section.classList.toggle('collapsed', collapsedGroups[key]);
+    }
+
     function nowTime() {
       return [new Date().getHours(), new Date().getMinutes(), new Date().getSeconds()]
         .map(n => String(n).padStart(2,'0')).join(':');
@@ -646,14 +683,21 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
     // 統一產生一個分組區塊的 HTML（訪頻專用／簽約查核用 boxed=true 的
     // 邊框樣式，其他任務用 boxed=false 的分隔線樣式），三個分組共用這
     // 一份模板，避免標籤、一鍵同步按鈕的結構各自重複寫三次。
-    function groupSectionHtml({ boxed, label, items, btnId, syncFn, gridClass }) {
+    // boxed=true 時必須帶 groupKey，用來對應 collapsedGroups 的摺疊狀態
+    // 與渲染出的 section id（group-${groupKey}），點擊標籤可摺疊/展開，
+    // 一鍵同步按鈕不在可摺疊的範圍內，摺起來時仍可直接點擊使用。
+    function groupSectionHtml({ boxed, label, items, btnId, syncFn, gridClass, groupKey }) {
       const cardsHtml = items.map(x => taskCardHtml(x.task, x.i)).join('');
       const syncAllBtn = `<button class="sync-all-btn" id="${btnId}" onclick="${syncFn}()" title="一次觸發本區全部 ${items.length} 個同步按鈕">⚡ 一鍵同步</button>`;
       if (boxed) {
+        const collapsedClass = collapsedGroups[groupKey] ? ' collapsed' : '';
         return `
-          <section class="freq-group">
+          <section class="freq-group${collapsedClass}" id="group-${groupKey}">
             <div class="freq-group-header">
-              <div class="freq-group-label">${label}</div>
+              <div class="freq-group-label" onclick="toggleGroupCollapse('${groupKey}')">
+                <span>${label}</span>
+                <span class="group-collapse-arrow">▾</span>
+              </div>
               ${syncAllBtn}
             </div>
             <div class="${gridClass}">${cardsHtml}</div>
@@ -708,13 +752,15 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
       if (freqItems.length) {
         html += groupSectionHtml({
           boxed: true, label: '📅 訪頻專用', items: freqItems,
-          btnId: 'freq-sync-all-btn', syncFn: 'syncAllFreq', gridClass: 'freq-grid'
+          btnId: 'freq-sync-all-btn', syncFn: 'syncAllFreq', gridClass: 'freq-grid',
+          groupKey: 'freq'
         });
       }
       if (queryItems.length) {
         html += groupSectionHtml({
           boxed: true, label: '🔍 簽約查核', items: queryItems,
-          btnId: 'query-sync-all-btn', syncFn: 'syncAllQuery', gridClass: 'freq-grid'
+          btnId: 'query-sync-all-btn', syncFn: 'syncAllQuery', gridClass: 'freq-grid',
+          groupKey: 'query'
         });
       }
       if (restItems.length) {
