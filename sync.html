@@ -28,15 +28,22 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
   - 「訪頻專用」分組框（.freq-group）：固定把 tasks[] 陣列「最前面
     FREQ_GROUP_COUNT 筆」（目前 = 6，常數定義在 <script> 內）框起來，
     標籤為「📅 訪頻專用」。此分組純粹依「資料順序」決定，不是依名稱
-    判斷，若後端回傳的順序改變，框起來的項目也會跟著變動。標籤旁的
-    「⚡ 一鍵同步」按鈕（syncAllFreq()）會一次觸發本區所有尚未在同步中
-    的卡片，等於同時點擊那 6 顆「同步」按鈕。
-  - 其他任務（.task-grid）：陣列中第 FREQ_GROUP_COUNT 筆之後的任務，
-    以多欄網格排列，卡片含起訖日期(dateText)與更新時間(updatedAt)。
-    區塊標題「其他任務」旁同樣有一顆「⚡ 一鍵同步」按鈕（syncAllRest()），
-    一次觸發本區全部尚未在同步中的卡片。兩顆一鍵同步按鈕共用同一套
-    syncAllInRange(startIdx, endIdxExclusive, btnId) 邏輯，只是觸發的
-    索引範圍與按鈕 id 不同。
+    判斷，若後端回傳的順序改變，框起來的項目也會跟著變動。
+  - 「簽約查核」分組框：在 FREQ_GROUP_COUNT 筆之後的任務裡，凡是
+    task.name 第一個字元是「查」的，都會被歸進這個分組框（標籤
+    「🔍 簽約查核」），判斷邏輯集中在 isQueryTask(task) 這個函式。
+    這是「依名稱」分組，跟訪頻專用「依順序」分組是兩種不同邏輯，
+    兩者不會衝突，因為簽約查核只從「訪頻專用以外」的任務裡篩選。
+  - 其他任務（.task-grid）：扣掉前面兩個分組後剩下的任務，以多欄
+    網格排列，卡片含起訖日期(dateText)與更新時間(updatedAt)。
+  - 上面三個分組（訪頻專用／簽約查核／其他任務）的標籤旁都各有一顆
+    專屬的「⚡ 一鍵同步」按鈕，會一次觸發「本分組內」所有尚未在同步中
+    的卡片。三顆按鈕共用同一套 syncAllByIndices(indices, btnId) 邏輯，
+    差別只在傳入的卡片索引陣列與按鈕 id 不同；render() 每次重繪畫面時
+    會重新計算三個分組各自的索引陣列，存在全域變數 groupIndices 裡
+    （{ freq:[...], query:[...], rest:[...] }），新增分組或改變篩選
+    規則時，只要讓 render() 把正確的索引塞進 groupIndices 對應的欄位
+    即可，不需要更動 syncAllByIndices() 本身。
   - 看板按鈕（📈 橘色）：僅當 task.dataType === '問卷' 且 task.boardType
     存在於 BOARD_FILE 對照表時才會顯示，連到 BOARD_BASE 對應的外部看板
     頁面（達成率型 / 覆蓋率型 / 獎勵達成型）。
@@ -68,8 +75,12 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
 - 狀態色（成功/失敗/進行中）統一定義在 CSS 的 --success / --danger /
   --warning，JS 端對應的 STATUS_COLOR 常數要手動保持一致（因為部分顏色
   是直接寫進 inline style，沒有讀取 CSS 變數）。
-- 若要調整「訪頻專用」涵蓋的筆數，改 FREQ_GROUP_COUNT 常數即可，不需要
-  更動 render() 內部邏輯。
+- 若要調整「訪頻專用」涵蓋的筆數，改 FREQ_GROUP_COUNT 常數即可；若要
+  調整「簽約查核」的篩選條件（目前是「名稱第一個字＝查」），改
+  isQueryTask() 這個函式即可，兩者都不需要更動 render() 的其餘邏輯。
+  注意分組優先順序：一個任務若同時符合「在前 FREQ_GROUP_COUNT 筆內」
+  且「名稱以查開頭」，會被歸進訪頻專用（位置分組優先），不會出現在
+  簽約查核裡，因為簽約查核只從訪頻專用以外的任務裡篩選。
 - 這是「桌面版」介面；可能還有對應的「手機版」（單欄列表、底部收合式
   執行紀錄抽屜）版本，兩者為各自獨立的檔案，修改其中一個不會影響另一個，
   如需同步調整請另外處理手機版檔案。
@@ -517,11 +528,19 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
     // 最開始幾項任務歸入「訪頻專用」分組框
     const FREQ_GROUP_COUNT = 6;
 
+    // 「簽約查核」分組的判斷條件：名稱第一個字元是「查」
+    function isQueryTask(task) {
+      const name = (task && task.name) ? String(task.name).trim() : '';
+      return name.charAt(0) === '查';
+    }
+
     // 狀態色（需與 CSS :root 內的 --success / --danger 保持一致）
     const STATUS_COLOR = { success: '#34A853', danger: '#EA4335' };
 
     let tasks = [];
-    let freqCount = 0; // 目前實際渲染的「訪頻專用」卡片數量，供一鍵同步使用
+    // 三個分組目前實際渲染出的卡片索引陣列，供「⚡ 一鍵同步」使用，
+    // 每次 render() 都會重新計算覆蓋掉舊值。
+    let groupIndices = { freq: [], query: [], rest: [] };
 
     function nowTime() {
       return [new Date().getHours(), new Date().getMinutes(), new Date().getSeconds()]
@@ -624,46 +643,85 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
         </div>`;
     }
 
+    // 統一產生一個分組區塊的 HTML（訪頻專用／簽約查核用 boxed=true 的
+    // 邊框樣式，其他任務用 boxed=false 的分隔線樣式），三個分組共用這
+    // 一份模板，避免標籤、一鍵同步按鈕的結構各自重複寫三次。
+    function groupSectionHtml({ boxed, label, items, btnId, syncFn, gridClass }) {
+      const cardsHtml = items.map(x => taskCardHtml(x.task, x.i)).join('');
+      const syncAllBtn = `<button class="sync-all-btn" id="${btnId}" onclick="${syncFn}()" title="一次觸發本區全部 ${items.length} 個同步按鈕">⚡ 一鍵同步</button>`;
+      if (boxed) {
+        return `
+          <section class="freq-group">
+            <div class="freq-group-header">
+              <div class="freq-group-label">${label}</div>
+              ${syncAllBtn}
+            </div>
+            <div class="${gridClass}">${cardsHtml}</div>
+          </section>`;
+      }
+      return `
+        <section class="task-section">
+          <div class="section-eyebrow">
+            <span>${label}</span>
+            ${syncAllBtn}
+          </div>
+          <div class="${gridClass}">${cardsHtml}</div>
+        </section>`;
+    }
+
     function render(data) {
       const container = document.getElementById('content-inner');
       const subtitleEl = document.getElementById('header-subtitle');
 
       if (!data || data.length === 0) {
         subtitleEl.textContent = '尚無任務';
+        groupIndices = { freq: [], query: [], rest: [] };
         container.innerHTML = `
           <div class="empty-state"><div style="font-size:38px">📋</div><div>沒有可同步的任務</div></div>`;
         return;
       }
 
-      const freqTasks = data.slice(0, FREQ_GROUP_COUNT);
-      const restTasks = data.slice(FREQ_GROUP_COUNT);
-      freqCount = freqTasks.length;
-      subtitleEl.textContent = `共 ${data.length} 項任務 ・ 訪頻 ${freqTasks.length} 項`;
+      // 訪頻專用：固定取前 FREQ_GROUP_COUNT 筆（依資料順序，跟名稱無關）。
+      const freqItems = data
+        .slice(0, FREQ_GROUP_COUNT)
+        .map((t, idx) => ({ task: t, i: idx }));
+
+      // 訪頻專用以外的任務，先保留各自在 tasks[] 裡的原始索引 i，
+      // 再依名稱分成「簽約查核」跟「其他任務」兩批，這樣不管哪一批，
+      // 卡片按鈕用的 i 永遠對得到 tasks[i]，不需要重新編號。
+      const remainingItems = data
+        .slice(FREQ_GROUP_COUNT)
+        .map((t, idx) => ({ task: t, i: idx + FREQ_GROUP_COUNT }));
+      const queryItems = remainingItems.filter(x => isQueryTask(x.task));
+      const restItems  = remainingItems.filter(x => !isQueryTask(x.task));
+
+      groupIndices = {
+        freq:  freqItems.map(x => x.i),
+        query: queryItems.map(x => x.i),
+        rest:  restItems.map(x => x.i)
+      };
+
+      subtitleEl.textContent =
+        `共 ${data.length} 項任務 ・ 訪頻 ${freqItems.length} 項 ・ 查核 ${queryItems.length} 項`;
 
       let html = '';
-      if (freqTasks.length) {
-        html += `
-          <section class="freq-group">
-            <div class="freq-group-header">
-              <div class="freq-group-label">📅 訪頻專用</div>
-              <button class="sync-all-btn" id="freq-sync-all-btn" onclick="syncAllFreq()" title="一次觸發本區全部 ${freqTasks.length} 個同步按鈕">⚡ 一鍵同步</button>
-            </div>
-            <div class="freq-grid">
-              ${freqTasks.map((t, idx) => taskCardHtml(t, idx)).join('')}
-            </div>
-          </section>`;
+      if (freqItems.length) {
+        html += groupSectionHtml({
+          boxed: true, label: '📅 訪頻專用', items: freqItems,
+          btnId: 'freq-sync-all-btn', syncFn: 'syncAllFreq', gridClass: 'freq-grid'
+        });
       }
-      if (restTasks.length) {
-        html += `
-          <section class="task-section">
-            <div class="section-eyebrow">
-              <span>其他任務</span>
-              <button class="sync-all-btn" id="rest-sync-all-btn" onclick="syncAllRest()" title="一次觸發本區全部 ${restTasks.length} 個同步按鈕">⚡ 一鍵同步</button>
-            </div>
-            <div class="task-grid">
-              ${restTasks.map((t, idx) => taskCardHtml(t, idx + freqTasks.length)).join('')}
-            </div>
-          </section>`;
+      if (queryItems.length) {
+        html += groupSectionHtml({
+          boxed: true, label: '🔍 簽約查核', items: queryItems,
+          btnId: 'query-sync-all-btn', syncFn: 'syncAllQuery', gridClass: 'freq-grid'
+        });
+      }
+      if (restItems.length) {
+        html += groupSectionHtml({
+          boxed: false, label: '其他任務', items: restItems,
+          btnId: 'rest-sync-all-btn', syncFn: 'syncAllRest', gridClass: 'task-grid'
+        });
       }
       container.innerHTML = html;
     }
@@ -748,16 +806,17 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
       barEl.classList.add('pulse');
     }
 
-    // 「⚡ 一鍵同步」共用邏輯：觸發 [startIdx, endIdxExclusive) 範圍內、
-    // 目前尚未在同步中的卡片，並把對應的一鍵同步按鈕暫時切到「⏳ 同步中」。
-    // syncAllFreq()／syncAllRest() 都呼叫這個函式，差別只在範圍與按鈕 id。
-    async function syncAllInRange(startIdx, endIdxExclusive, btnId) {
+    // 「⚡ 一鍵同步」共用邏輯：依傳入的索引陣列，觸發其中目前尚未在
+    // 同步中的卡片，並把對應的一鍵同步按鈕暫時切到「⏳ 同步中」。
+    // syncAllFreq()／syncAllQuery()／syncAllRest() 都呼叫這個函式，
+    // 差別只在傳入哪個分組的索引陣列（來自全域 groupIndices）與按鈕 id。
+    async function syncAllByIndices(indices, btnId) {
       const allBtn = document.getElementById(btnId);
       const jobs = [];
-      for (let i = startIdx; i < endIdxExclusive; i++) {
+      indices.forEach(i => {
         const btn = document.getElementById(`btn-sync-${i}`);
         if (btn && !btn.disabled) jobs.push(startSync(i));
-      }
+      });
       if (!jobs.length) return;
 
       if (allBtn) { allBtn.disabled = true; allBtn.textContent = '⏳ 同步中'; }
@@ -765,8 +824,9 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
       if (allBtn) { allBtn.disabled = false; allBtn.textContent = '⚡ 一鍵同步'; }
     }
 
-    function syncAllFreq() { syncAllInRange(0, freqCount, 'freq-sync-all-btn'); }
-    function syncAllRest() { syncAllInRange(freqCount, tasks.length, 'rest-sync-all-btn'); }
+    function syncAllFreq()  { syncAllByIndices(groupIndices.freq,  'freq-sync-all-btn'); }
+    function syncAllQuery() { syncAllByIndices(groupIndices.query, 'query-sync-all-btn'); }
+    function syncAllRest()  { syncAllByIndices(groupIndices.rest,  'rest-sync-all-btn'); }
 
     loadTasks();
   </script>
