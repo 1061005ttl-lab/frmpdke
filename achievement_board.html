@@ -3446,7 +3446,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 3.8.4 (2026-06-17)</div>
+      <div id="ver-ts">Ver. 3.8.5 (2026-06-17)</div>
       <div id="data-sync-bar"></div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
@@ -6349,96 +6349,141 @@
         document.body.removeChild(ta);
       }
 
-      /* dialog 截圖 */
+      /* dialog 截圖：Canvas API 直接繪製，突破手機視窗限制 */
       function dlgScreenshot() {
         var btn = document.getElementById('dlg-shot-btn');
         btn.textContent = '⏳ 截圖中...';
         btn.disabled = true;
         var fname = _dlgStaffName.replace(/[^\w\u4e00-\u9fff]/g, '').slice(0, 20) + '_' + new Date().toLocaleDateString('zh-TW').replace(/\//g, '') + '.png';
 
-        function doCapture() {
-          /* 把 dialog body 暫時展開成全高，讓 html2canvas 能截到所有內容 */
-          var dlg = document.getElementById('staff-dlg');
-          var body = document.getElementById('staff-dlg-body');
-          var origDlgH = dlg.style.height;
-          var origDlgMaxH = dlg.style.maxHeight;
-          var origBodyH = body.style.height;
-          var origBodyOverflow = body.style.overflowY;
+        /* 收集可見店家列 */
+        var trs = document.querySelectorAll('#staff-dlg-body .store-tbl tbody tr:not(.dlg-hidden)');
+        var ths = document.querySelectorAll('#staff-dlg-body .store-tbl thead th');
 
-          /* 讓 body 自然展開，dialog 隨之撐高 */
-          body.style.height = 'auto';
-          body.style.overflowY = 'visible';
-          dlg.style.height = 'auto';
-          dlg.style.maxHeight = 'none';
+        var cols = [];
+        ths.forEach(function(th) {
+          var cls = th.className;
+          if (cls.indexOf('col-grade') >= 0 || cls.indexOf('col-code') >= 0 ||
+              cls.indexOf('col-target') >= 0 || cls.indexOf('col-done') >= 0) return;
+          cols.push({ label: th.textContent.trim(), cls: cls });
+        });
 
-          var styleTag = document.createElement('style');
-          styleTag.id = '__dlg_shot_freeze';
-          styleTag.textContent = '*, *::before, *::after { animation-duration: 0s !important; transition-duration: 0s !important; }';
-          document.head.appendChild(styleTag);
+        var SCALE = 2, PAD = 20, ROW_H = 40, HEAD_H = 44, TITLE_H = 56, SUM_H = 40;
+        var colW = cols.map(function(c) {
+          if (c.cls.indexOf('col-status') >= 0) return 72;
+          if (c.cls.indexOf('col-name') >= 0) return 200;
+          return 120;
+        });
+        var totalW = colW.reduce(function(a,b){return a+b;},0) + PAD * 2;
 
-          requestAnimationFrame(function() { requestAnimationFrame(function() {
-            var W = dlg.scrollWidth;
-            var H = dlg.scrollHeight;
+        var rows = [];
+        trs.forEach(function(tr) {
+          var tds = tr.querySelectorAll('td');
+          var cells = [], isMet = false;
+          tds.forEach(function(td) {
+            var cls = td.className;
+            if (cls.indexOf('col-grade') >= 0 || cls.indexOf('col-code') >= 0 ||
+                cls.indexOf('col-target') >= 0 || cls.indexOf('col-done') >= 0) return;
+            if (cls.indexOf('col-status') >= 0) {
+              isMet = cls.indexOf('td-st-g') >= 0;
+              cells.push({ text: td.textContent.trim(), isStatus: true });
+            } else {
+              cells.push({ text: td.textContent.trim(), isStatus: false });
+            }
+          });
+          rows.push({ cells: cells, isMet: isMet });
+        });
 
-            html2canvas(dlg, {
-              scale: 2, backgroundColor: '#f0ece3', useCORS: true,
-              width: W, height: H, windowWidth: W, windowHeight: H,
-              scrollX: 0, scrollY: 0, x: 0, y: 0
-            }).then(function(canvas) {
-              /* 還原 */
-              var freeze = document.getElementById('__dlg_shot_freeze');
-              if (freeze) freeze.parentNode.removeChild(freeze);
-              body.style.height = origBodyH;
-              body.style.overflowY = origBodyOverflow;
-              dlg.style.height = origDlgH;
-              dlg.style.maxHeight = origDlgMaxH;
+        var totalH = TITLE_H + SUM_H + HEAD_H + rows.length * ROW_H + PAD;
+        var cv = document.createElement('canvas');
+        cv.width = totalW * SCALE; cv.height = totalH * SCALE;
+        var ctx = cv.getContext('2d');
+        ctx.scale(SCALE, SCALE);
 
-              canvas.toBlob(function(blob) {
-                var file = new File([blob], fname, { type: 'image/png' });
+        /* 背景 */
+        ctx.fillStyle = '#f5f2ec'; ctx.fillRect(0, 0, totalW, totalH);
 
-                if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-                  navigator.share({ files: [file], title: _dlgStaffName })
-                    .then(function() { btn.disabled = false; flash('dlg-shot-btn', '✅ 已分享！', '📸 截圖'); })
-                    .catch(function() { btn.disabled = false; btn.textContent = '📸 截圖'; });
-                  return;
-                }
-                if (navigator.clipboard && window.ClipboardItem) {
-                  try {
-                    navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-                      .then(function() { btn.disabled = false; flash('dlg-shot-btn', '✅ 已複製圖片！', '📸 截圖'); })
-                      .catch(function() { _dlDlgCanvas(canvas, fname); });
-                    return;
-                  } catch(e) {}
-                }
-                _dlDlgCanvas(canvas, fname);
-              }, 'image/png');
+        /* 標題 */
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, totalW, TITLE_H);
+        ctx.fillStyle = '#3a6b42'; ctx.fillRect(0, TITLE_H-2, totalW, 2);
+        ctx.font = 'bold 16px PingFang TC,Noto Sans TC,sans-serif';
+        ctx.fillStyle = '#1a2e1d';
+        ctx.fillText(_dlgStaffName, PAD, TITLE_H/2+6);
+        var syncEl = document.getElementById('gb-sync');
+        var timeStr = syncEl ? syncEl.textContent.trim().replace(/\s+/g,' ') : '';
+        ctx.font = '10px PingFang TC,Noto Sans TC,sans-serif';
+        ctx.fillStyle = '#999'; ctx.textAlign = 'right';
+        ctx.fillText(timeStr, totalW-PAD, TITLE_H/2+6);
+        ctx.textAlign = 'left';
 
-            }).catch(function(err) {
-              var freeze = document.getElementById('__dlg_shot_freeze');
-              if (freeze) freeze.parentNode.removeChild(freeze);
-              body.style.height = origBodyH;
-              body.style.overflowY = origBodyOverflow;
-              dlg.style.height = origDlgH;
-              dlg.style.maxHeight = origDlgMaxH;
-              btn.disabled = false; btn.textContent = '📸 截圖';
-            });
-          }); });
-        }
+        /* 摘要 */
+        var sumEl = document.getElementById('staff-dlg-summary');
+        var sumText = sumEl ? sumEl.textContent.trim().replace(/\s+/g,' ') : '';
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, TITLE_H, totalW, SUM_H);
+        ctx.strokeStyle='rgba(0,0,0,.06)'; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(0,TITLE_H+SUM_H); ctx.lineTo(totalW,TITLE_H+SUM_H); ctx.stroke();
+        ctx.font = '12px PingFang TC,Noto Sans TC,sans-serif';
+        ctx.fillStyle = '#444'; ctx.fillText(sumText, PAD, TITLE_H+SUM_H/2+5);
 
-        function _dlDlgCanvas(canvas, fname) {
-          var a = document.createElement('a');
-          a.download = fname; a.href = canvas.toDataURL('image/png'); a.click();
-          btn.disabled = false; flash('dlg-shot-btn', '✅ 已下載！', '📸 截圖');
-        }
+        /* 表頭 */
+        var headY = TITLE_H+SUM_H;
+        ctx.fillStyle = '#e8e4db'; ctx.fillRect(0, headY, totalW, HEAD_H);
+        ctx.font = 'bold 11px PingFang TC,Noto Sans TC,sans-serif';
+        ctx.fillStyle = '#555';
+        var x = PAD;
+        cols.forEach(function(c,i){ ctx.fillText(c.label, x+6, headY+HEAD_H/2+4); x+=colW[i]; });
 
-        if (window.html2canvas) { doCapture(); }
-        else {
-          var s = document.createElement('script');
-          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-          s.onload = doCapture;
-          s.onerror = function() { btn.disabled = false; btn.textContent = '📸 截圖'; };
-          document.head.appendChild(s);
-        }
+        /* 資料列 */
+        var dataY = headY+HEAD_H;
+        rows.forEach(function(row, ri) {
+          var ry = dataY + ri*ROW_H;
+          ctx.fillStyle = ri%2===0 ? '#fff' : 'rgba(0,0,0,.018)';
+          ctx.fillRect(0, ry, totalW, ROW_H);
+          ctx.fillStyle = row.isMet ? '#22c55e' : '#ef4444';
+          ctx.fillRect(0, ry, 3, ROW_H);
+          ctx.strokeStyle='rgba(0,0,0,.05)'; ctx.lineWidth=1;
+          ctx.beginPath(); ctx.moveTo(0,ry+ROW_H); ctx.lineTo(totalW,ry+ROW_H); ctx.stroke();
+
+          var cx = PAD;
+          row.cells.forEach(function(cell,ci) {
+            if (cell.isStatus) {
+              ctx.fillStyle = row.isMet ? '#dcfce7' : '#fee2e2';
+              ctx.beginPath();
+              var bx=cx+4,by=ry+8,bw=colW[ci]-10,bh=ROW_H-16;
+              if(ctx.roundRect) ctx.roundRect(bx,by,bw,bh,5); else ctx.rect(bx,by,bw,bh);
+              ctx.fill();
+              ctx.font = 'bold 11px PingFang TC,Noto Sans TC,sans-serif';
+              ctx.fillStyle = row.isMet ? '#16a34a' : '#dc2626';
+              ctx.textAlign='center'; ctx.fillText(cell.text, bx+bw/2, ry+ROW_H/2+4); ctx.textAlign='left';
+            } else {
+              ctx.save(); ctx.beginPath(); ctx.rect(cx+2, ry+2, colW[ci]-8, ROW_H-4); ctx.clip();
+              ctx.font = '12px PingFang TC,Noto Sans TC,sans-serif';
+              ctx.fillStyle = '#333'; ctx.fillText(cell.text, cx+6, ry+ROW_H/2+4);
+              ctx.restore();
+            }
+            cx += colW[ci];
+          });
+        });
+
+        cv.toBlob(function(blob) {
+          var file = new File([blob], fname, {type:'image/png'});
+          if (navigator.share && navigator.canShare && navigator.canShare({files:[file]})) {
+            navigator.share({files:[file], title:_dlgStaffName})
+              .then(function(){btn.disabled=false; flash('dlg-shot-btn','✅ 已分享！','📸 截圖');})
+              .catch(function(){btn.disabled=false; btn.textContent='📸 截圖';});
+            return;
+          }
+          if (navigator.clipboard && window.ClipboardItem) {
+            try {
+              navigator.clipboard.write([new ClipboardItem({'image/png':blob})])
+                .then(function(){btn.disabled=false; flash('dlg-shot-btn','✅ 已複製！','📸 截圖');})
+                .catch(function(){_dl();});
+              return;
+            } catch(e){}
+          }
+          _dl();
+          function _dl(){var a=document.createElement('a');a.download=fname;a.href=cv.toDataURL('image/png');a.click();btn.disabled=false;flash('dlg-shot-btn','✅ 已下載！','📸 截圖');}
+        },'image/png');
       }
 
       /* dialog XLSX */
