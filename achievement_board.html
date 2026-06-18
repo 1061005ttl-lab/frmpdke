@@ -3446,7 +3446,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 3.8.3 (2026-06-17)</div>
+      <div id="ver-ts">Ver. 3.8.4 (2026-06-17)</div>
       <div id="data-sync-bar"></div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
@@ -6459,7 +6459,6 @@
         btn.disabled = true;
 
         function doCapture() {
-          var target = document.getElementById('content-wrap');
           var titleParts = [];
           var specialEl = document.querySelector('.mm-special-label');
           if (specialEl) titleParts.push(specialEl.textContent.trim());
@@ -6467,31 +6466,56 @@
           if (pathEl && pathEl.textContent.trim()) titleParts.push(pathEl.textContent.trim());
           var fname = (titleParts[0] || '達成看板') + '_' + new Date().toLocaleDateString('zh-TW').replace(/\//g, '') + '.png';
 
+          /* 展開所有 overflow 容器讓 html2canvas 截到完整內容 */
+          var els = [
+            document.getElementById('content-wrap'),
+            document.getElementById('stage'),
+            document.querySelector('.col-main'),
+            document.querySelector('.col-side')
+          ].filter(Boolean);
+
+          var saved = els.map(function(el) {
+            return { el: el, overflow: el.style.overflow, overflowY: el.style.overflowY,
+                     overflowX: el.style.overflowX, height: el.style.height, maxHeight: el.style.maxHeight };
+          });
+          els.forEach(function(el) {
+            el.style.overflow = 'visible';
+            el.style.overflowY = 'visible';
+            el.style.overflowX = 'visible';
+            el.style.height = 'auto';
+            el.style.maxHeight = 'none';
+          });
+
           var styleTag = document.createElement('style');
           styleTag.id = '__shot_freeze';
-          styleTag.textContent = '*, *::before, *::after { animation-duration: 0s !important; animation-delay: 0s !important; transition-duration: 0s !important; opacity: 1 !important; }';
+          styleTag.textContent = [
+            '*, *::before, *::after { animation-duration:0s!important; animation-delay:0s!important; transition-duration:0s!important; opacity:1!important; }',
+            '#content-wrap,#stage,.col-main,.col-side { overflow:visible!important; height:auto!important; max-height:none!important; }'
+          ].join('');
           document.head.appendChild(styleTag);
 
           requestAnimationFrame(function() { requestAnimationFrame(function() {
-            var W = target.scrollWidth, H = target.scrollHeight;
-            html2canvas(target, {
+            var wrap = document.getElementById('content-wrap');
+            var W = wrap.scrollWidth, H = wrap.scrollHeight;
+            html2canvas(wrap, {
               scale: 2, backgroundColor: '#f0ece3', useCORS: true,
-              width: W, height: H, windowWidth: W, windowHeight: H, x: 0, y: 0
+              width: W, height: H, windowWidth: W, windowHeight: H, x: 0, y: 0, scrollX: 0, scrollY: 0
             }).then(function(canvas) {
               var freeze = document.getElementById('__shot_freeze');
               if (freeze) freeze.parentNode.removeChild(freeze);
+              saved.forEach(function(s) {
+                s.el.style.overflow = s.overflow; s.el.style.overflowY = s.overflowY;
+                s.el.style.overflowX = s.overflowX; s.el.style.height = s.height; s.el.style.maxHeight = s.maxHeight;
+              });
 
               canvas.toBlob(function(blob) {
                 var file = new File([blob], fname, { type: 'image/png' });
-
-                /* 1. Web Share API（手機優先） */
                 if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
                   navigator.share({ files: [file], title: titleParts[0] || '達成看板' })
                     .then(function() { btn.disabled = false; flash('shot-btn', '✅ 已分享！', '📸 截圖'); })
                     .catch(function() { btn.disabled = false; btn.textContent = '📸 截圖'; });
                   return;
                 }
-                /* 2. Clipboard API（桌機） */
                 if (navigator.clipboard && window.ClipboardItem) {
                   try {
                     navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
@@ -6500,13 +6524,16 @@
                     return;
                   } catch(e) {}
                 }
-                /* 3. 下載（保底） */
                 _dlCanvas(canvas, fname);
               }, 'image/png');
 
             }).catch(function(err) {
               var freeze = document.getElementById('__shot_freeze');
               if (freeze) freeze.parentNode.removeChild(freeze);
+              saved.forEach(function(s) {
+                s.el.style.overflow = s.overflow; s.el.style.overflowY = s.overflowY;
+                s.el.style.overflowX = s.overflowX; s.el.style.height = s.height; s.el.style.maxHeight = s.maxHeight;
+              });
               btn.disabled = false; btn.textContent = '📸 截圖';
               alert('截圖失敗：' + err);
             });
