@@ -3446,7 +3446,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 3.8.2 (2026-06-17)</div>
+      <div id="ver-ts">Ver. 3.8.3 (2026-06-17)</div>
       <div id="data-sync-bar"></div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
@@ -6354,35 +6354,54 @@
         var btn = document.getElementById('dlg-shot-btn');
         btn.textContent = '⏳ 截圖中...';
         btn.disabled = true;
-        var target = document.getElementById('staff-dlg');
         var fname = _dlgStaffName.replace(/[^\w\u4e00-\u9fff]/g, '').slice(0, 20) + '_' + new Date().toLocaleDateString('zh-TW').replace(/\//g, '') + '.png';
 
         function doCapture() {
+          /* 把 dialog body 暫時展開成全高，讓 html2canvas 能截到所有內容 */
+          var dlg = document.getElementById('staff-dlg');
+          var body = document.getElementById('staff-dlg-body');
+          var origDlgH = dlg.style.height;
+          var origDlgMaxH = dlg.style.maxHeight;
+          var origBodyH = body.style.height;
+          var origBodyOverflow = body.style.overflowY;
+
+          /* 讓 body 自然展開，dialog 隨之撐高 */
+          body.style.height = 'auto';
+          body.style.overflowY = 'visible';
+          dlg.style.height = 'auto';
+          dlg.style.maxHeight = 'none';
+
           var styleTag = document.createElement('style');
           styleTag.id = '__dlg_shot_freeze';
           styleTag.textContent = '*, *::before, *::after { animation-duration: 0s !important; transition-duration: 0s !important; }';
           document.head.appendChild(styleTag);
+
           requestAnimationFrame(function() { requestAnimationFrame(function() {
-            html2canvas(target, {
+            var W = dlg.scrollWidth;
+            var H = dlg.scrollHeight;
+
+            html2canvas(dlg, {
               scale: 2, backgroundColor: '#f0ece3', useCORS: true,
-              width: target.scrollWidth, height: target.scrollHeight,
-              windowWidth: target.scrollWidth, windowHeight: target.scrollHeight,
-              scrollX: 0, scrollY: 0
+              width: W, height: H, windowWidth: W, windowHeight: H,
+              scrollX: 0, scrollY: 0, x: 0, y: 0
             }).then(function(canvas) {
+              /* 還原 */
               var freeze = document.getElementById('__dlg_shot_freeze');
               if (freeze) freeze.parentNode.removeChild(freeze);
+              body.style.height = origBodyH;
+              body.style.overflowY = origBodyOverflow;
+              dlg.style.height = origDlgH;
+              dlg.style.maxHeight = origDlgMaxH;
 
               canvas.toBlob(function(blob) {
                 var file = new File([blob], fname, { type: 'image/png' });
 
-                /* 1. Web Share API */
                 if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
                   navigator.share({ files: [file], title: _dlgStaffName })
                     .then(function() { btn.disabled = false; flash('dlg-shot-btn', '✅ 已分享！', '📸 截圖'); })
                     .catch(function() { btn.disabled = false; btn.textContent = '📸 截圖'; });
                   return;
                 }
-                /* 2. Clipboard API */
                 if (navigator.clipboard && window.ClipboardItem) {
                   try {
                     navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
@@ -6391,22 +6410,27 @@
                     return;
                   } catch(e) {}
                 }
-                /* 3. 下載 */
                 _dlDlgCanvas(canvas, fname);
               }, 'image/png');
 
             }).catch(function(err) {
               var freeze = document.getElementById('__dlg_shot_freeze');
               if (freeze) freeze.parentNode.removeChild(freeze);
+              body.style.height = origBodyH;
+              body.style.overflowY = origBodyOverflow;
+              dlg.style.height = origDlgH;
+              dlg.style.maxHeight = origDlgMaxH;
               btn.disabled = false; btn.textContent = '📸 截圖';
             });
           }); });
         }
+
         function _dlDlgCanvas(canvas, fname) {
           var a = document.createElement('a');
           a.download = fname; a.href = canvas.toDataURL('image/png'); a.click();
           btn.disabled = false; flash('dlg-shot-btn', '✅ 已下載！', '📸 截圖');
         }
+
         if (window.html2canvas) { doCapture(); }
         else {
           var s = document.createElement('script');
