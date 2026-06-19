@@ -2,7 +2,7 @@
 <!--
 ================================================================================
   業務王看板系統 — achievement_board.html
-  版本：Ver. 3.9.0 ｜ 最後更新：2026-06-19 00:00
+  版本：Ver. 3.9.1 ｜ 最後更新：2026-06-19 10:00
   維護者：TTL 業務王團隊
 ================================================================================
 
@@ -3471,7 +3471,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 3.9.0 (2026-06-19)</div>
+      <div id="ver-ts">Ver. 3.9.1 (2026-06-19)</div>
       <div id="data-sync-bar"></div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
@@ -6193,6 +6193,85 @@
       var _dlgRows = [];
       var _dlgStaffName = '';
 
+      /* 直接產出 store table HTML，不需建立任何 DOM 元素 */
+      function buildStoreTableHTML(rows) {
+        var lastKey = curStatuses[curStatuses.length - 1].key;
+        var orderMap = {};
+        curStatuses.forEach(function(st, i) { orderMap[st.key] = i; });
+        orderMap[lastKey] = 0;
+        curStatuses.forEach(function(st, i) { if (st.key !== lastKey) orderMap[st.key] = i + 1; });
+        var sorted = rows.slice().sort(function(a, b) {
+          var od = (orderMap[gs(a)] || 0) - (orderMap[gs(b)] || 0);
+          return od !== 0 ? od : gv(a, 'store').localeCompare(gv(b, 'store'), 'zh-TW');
+        });
+        var STATUS_CLS_MAP = { g: 'td-st-g', y: 'td-st-y', p: 'td-st-p', o: 'td-st-o', r: 'td-st-r' };
+        var statusLabelMap = {}, statusClsMap = {};
+        curStatuses.forEach(function(st) {
+          statusLabelMap[st.key] = st.label;
+          statusClsMap[st.key] = STATUS_CLS_MAP[st.cls] || 'td-st-r';
+        });
+        var cfg2 = _curCfg || {};
+        var noGrade   = !!cfg2.noGrade;
+        var noChannel = !!cfg2.noChannel;
+        var noVisits  = !!cfg2.noVisits || CI['visits'] < 0;
+        var extraCols = Array.isArray(cfg2.extraCols) ? cfg2.extraCols : [];
+        var extraColIdxs = extraCols.map(function(name) {
+          return allHeaders.findIndex(function(h) { return h === name; });
+        });
+        var html = '<table class="store-tbl"><thead><tr>' +
+          '<th class="col-status" style="width:72px">\u72C0\u614B</th>' +
+          '<th class="col-name">\u5E97\u5BB6\u540D\u7A31</th>' +
+          (noChannel ? '' : '<th class="col-ch" style="width:90px">\u901A\u8DEF\u5225</th>') +
+          '<th class="col-tp" style="width:80px">\u5E97\u5BB6\u578B\u614B</th>' +
+          (noGrade ? '' : '<th class="col-grade" style="width:50px">\u7B49\u7D1A</th>') +
+          '<th class="col-code" style="width:120px">\u5E97\u5BB6\u4EE3\u78BC</th>' +
+          (noVisits ? '' : '<th class="col-visits" style="width:46px;text-align:center">\u6A19\u6E96</th>') +
+          (noVisits ? '' : '<th class="col-visits" style="width:46px;text-align:center">\u5DF2\u8A2A</th>') +
+          extraCols.map(function(name) { return '<th class="col-visits" style="width:64px;text-align:center">' + esc(name) + '</th>'; }).join('') +
+          (_activeMontCols.length ? _activeMontCols.map(function(mc) { return '<th class="col-visits" style="width:64px;text-align:center">' + esc(mc) + '</th>'; }).join('') : '') +
+          '</tr></thead><tbody>';
+        sorted.forEach(function(r) {
+          var k = gs(r);
+          var grade = gv(r, 'grade');
+          var std = (grade !== '' && GRADE_STD[grade] !== undefined) ? GRADE_STD[grade] : '\u2014';
+          var visitsVal = CI['visits'] >= 0 ? (gv(r, 'visits') || '0') : '\u2014';
+          var stdNum = (std !== '\u2014') ? std : null;
+          var visNum = parseFloat(visitsVal);
+          var visitsCls = '';
+          if (stdNum !== null && !isNaN(visNum)) {
+            visitsCls = visNum >= stdNum ? ' style="color:#22a84c;font-weight:900"' : ' style="color:#d93025;font-weight:700"';
+          }
+          html += '<tr>' +
+            '<td class="col-status ' + (statusClsMap[k] || '') + ' td-status">' + esc(statusLabelMap[k] || k) + '</td>' +
+            '<td class="col-name td-name">' + esc(gv(r, 'store')) + '</td>' +
+            (noChannel ? '' : '<td class="col-ch td-sub">' + esc(gv(r, 'channel')) + '</td>') +
+            '<td class="col-tp td-sub">' + esc(gv(r, 'type')) + '</td>' +
+            (noGrade ? '' : '<td class="col-grade td-sub">' + esc(grade) + '</td>') +
+            '<td class="col-code td-sub">' + esc(gv(r, 'code')) + '</td>' +
+            (noVisits ? '' :
+              '<td class="col-visits td-sub" style="text-align:center">' + esc(String(std)) + '</td>' +
+              '<td class="col-visits td-sub" style="text-align:center"' + visitsCls + '>' + esc(visitsVal) + '</td>'
+            ) +
+            extraColIdxs.map(function(ci, ei) {
+              var v = (ci >= 0 && r[ci] != null) ? String(r[ci]).trim() : '';
+              var colName = extraCols[ei] || '';
+              var isStatusCol = (colName === '\u67E5\u6838\u9054\u6210' || colName === '\u5DE1\u88DC\u9054\u6210');
+              var hasUnfinished = isStatusCol && v.indexOf('\u672a') >= 0;
+              var style = 'text-align:center' + (hasUnfinished ? ';background:rgba(217,48,37,.10);color:#c62828;font-weight:700' : '');
+              return '<td class="col-visits td-sub" style="' + style + '">' + esc(v || '\u2014') + '</td>';
+            }).join('') +
+            (_activeMontCols.length ? _activeMontCols.map(function(mc) {
+              var ci = _monthColIdxMap[mc];
+              var v = (ci !== undefined && r[ci] != null) ? String(r[ci]).trim() : '';
+              var dotCls = v === '\u25CB' ? ' style="color:#22a84c;font-weight:900"' : (v ? '' : ' style="color:#bbb"');
+              return '<td class="col-visits td-sub" style="text-align:center"' + dotCls + '>' + esc(v || '\u2014') + '</td>';
+            }).join('') : '') +
+            '</tr>';
+        });
+        html += '</tbody></table>';
+        return html;
+      }
+
       function openRowsDialog(title, rows) {
         _dlgRows = rows;
         _dlgStaffName = title;
@@ -6205,7 +6284,6 @@
         var t = statBase(s) || 1;
         var sbc = statByChannel(rows);
         var hasBoth = sbc && sbc.cvs.t > 0;
-        var sumEl = document.getElementById('staff-dlg-summary');
         var sumParts = [];
         sumParts.push('<span class="dlg-sum-item total">全部 ' + s.t + '</span>');
         curStatuses.forEach(function(st) {
@@ -6230,47 +6308,20 @@
             sumParts.push('<span class="dlg-sum-item ' + cls + ' dlg-sum-detail">' + esc(st.label) + ' ' + pct(num, cv.t || 1) + '%(' + num + ')</span>');
           });
         }
-        sumEl.innerHTML = sumParts.join('');
+        document.getElementById('staff-dlg-summary').innerHTML = sumParts.join('');
+
+        /* 直接渲染 table，不建立中間 DOM */
+        var body = document.getElementById('staff-dlg-body');
+        body.innerHTML = buildStoreTableHTML(rows);
 
         /* 重置篩選 */
         dlgFilter('all');
 
-        /* 渲染店家明細 */
-        var body = document.getElementById('staff-dlg-body');
-        body.innerHTML = '';
-        var fakeMain = document.createElement('div');
-        /* 暫存 drillStack，讓 buildStoreCards 能正確產出 */
-        var prevStack = drillStack.slice();
-        /* 確保 drillStack 至少有 staff 層，buildStoreCards 才能運作 */
-        var tempStaff = { level: 'staff', key: title };
-        if (drillStack.length === 0) {
-          drillStack = [{ level: 'area', key: '' }, { level: 'office', key: '' }, tempStaff];
-        } else if (drillStack.length === 1) {
-          drillStack = [drillStack[0], { level: 'office', key: '' }, tempStaff];
-        } else if (drillStack.length === 2) {
-          drillStack = [drillStack[0], drillStack[1], tempStaff];
-        } else {
-          drillStack[2] = tempStaff;
-        }
-        buildStoreCards(fakeMain, rows);
-        drillStack = prevStack;
-
-        /* 跳過頭卡，只顯示店家清單 */
-        Array.from(fakeMain.children).slice(1).forEach(function(child) {
-          body.appendChild(child);
-        });
-
-        /* 解除高度限制 */
-        body.querySelectorAll('#store-list-wrap, #store-list-body, .sp-body').forEach(function(el) {
-          el.style.cssText = 'overflow:visible!important;max-height:none!important;height:auto!important;';
-        });
-        body.querySelectorAll('.sp-toggle-bar').forEach(function(el) { el.style.display = 'none'; });
-
         /* 開啟 */
         var overlay = document.getElementById('staff-dlg-overlay');
         var dlg = document.getElementById('staff-dlg');
-        dlg.style.display = 'flex';
         overlay.style.display = 'flex';
+        dlg.style.display = 'flex';
         requestAnimationFrame(function() {
           requestAnimationFrame(function() { overlay.classList.add('open'); });
         });
@@ -6296,13 +6347,10 @@
       }
 
       function dlgFilter(mode) {
-        /* 更新按鈕樣式 */
         ['all','met','unmet'].forEach(function(m) {
           var btn = document.getElementById('dlg-f-' + m);
-          if (!btn) return;
-          btn.className = 'dlg-filter-btn' + (m === mode ? ' active-' + m : '');
+          if (btn) btn.className = 'dlg-filter-btn' + (m === mode ? ' active-' + m : '');
         });
-        /* 篩選表格列並重算斑馬紋 */
         var trs = document.querySelectorAll('#staff-dlg-body .store-tbl tbody tr');
         var visIdx = 0;
         trs.forEach(function(tr) {
@@ -6314,7 +6362,6 @@
           }
           if (show) {
             tr.classList.remove('dlg-hidden');
-            /* 重算斑馬紋 */
             var isEven = (visIdx % 2 === 1);
             tr.querySelectorAll('td').forEach(function(td) {
               td.style.background = isEven ? 'rgba(0,0,0,.012)' : '';
@@ -6326,7 +6373,12 @@
         });
       }
 
-      function closeStaffDialog() {
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+          var overlay = document.getElementById('staff-dlg-overlay');
+          if (overlay && overlay.classList.contains('open')) closeStaffDialog();
+        }
+      });
         var overlay = document.getElementById('staff-dlg-overlay');
         overlay.classList.remove('open');
         document.body.style.overflow = '';
