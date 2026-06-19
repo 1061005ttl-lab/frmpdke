@@ -1,7 +1,19 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
+  版本：Ver. 1.0.0 ｜ 最後更新：2026-06-19
 ════════════════════════════════════════════════════════════
+
+【版本紀錄】
+  1.0.0  2026-06-19  初版正式發佈
+         - 覆蓋率型看板基礎功能
+         - 組織視角（營業處→營業所→業務人員）
+         - 通路視角（通路別→店家型態→營業處→營業所）
+         - 燈號切換：已有/未有/未填寫，子欄位燈（BUCKET_B 細項）
+         - 卡片 dim 反灰、% 顯示、hasDisp 排序、固定營業處順序
+         - 快速導航列（quicknav）、Dialog 脈絡標題
+         - 手機響應式（≤640px）、截圖標頭修正
+         - 代碼清理：移除死代碼、合併 getExtraCols、修正雙重 applyChips
 
 【這個檔案在做什麼】
   顯示「覆蓋率型」專案的店家陳列／上架覆蓋狀況。
@@ -925,10 +937,13 @@ var AREA_ORDER = ['\u5317\u90E8','\u6843\u5712','\u81FA\u4E2D','\u5609\u7FA9','\
 
 /* \u71df\u696d\u8655\u6392\u5e8f\uff1a\u4f9d AREA_ORDER \u6392\uff0c\u6e05\u55ae\u5916\u7684\u6392\u6700\u5f8c\u9762\uff08\u4ecd\u4f9d hasDisp \u964d\u5e8f\uff09
    groups: { key: rows[] }\uff0c\u7528\u4e8e\u8a08\u7b97\u6e05\u55ae\u5916\u540d\u7a31\u7684 hasDisp */
-function sortAreaKeys(keys, groups) {
+function sortAreaKeys(keys, groups, statCache) {
+  function hasDispOf(k) {
+    return statCache ? statCache[k].hasDisp : calcGroup(groups[k]).hasDisp;
+  }
   return keys.slice().sort(function(a,b){
     var ia = AREA_ORDER.indexOf(a), ib = AREA_ORDER.indexOf(b);
-    if (ia===-1 && ib===-1) return calcGroup(applyChips(groups[b])).hasDisp - calcGroup(applyChips(groups[a])).hasDisp;
+    if (ia===-1 && ib===-1) return hasDispOf(b) - hasDispOf(a);
     if (ia===-1) return 1;
     if (ib===-1) return -1;
     return ia - ib;
@@ -938,13 +953,14 @@ function sortAreaKeys(keys, groups) {
 function renderLevel(stage, rows, col, levelKey, labelText, overallName) {
   var groups=getNextGroups(rows,col), keys=Object.keys(groups);
   if(!keys.length){ stage.innerHTML='<div class="empty">\u7121\u8CC7\u6599</div>'; return; }
+  /* \u5feb\u53d6\u6bcf\u500b key \u7684 calcGroup \u7d50\u679c\uff0c\u907f\u514d\u6392\u5e8f\u8207\u5361\u7247\u6e32\u67d3\u91cd\u8907\u8a08\u7b97 */
+  var statCache = {};
+  keys.forEach(function(k){ statCache[k] = calcGroup(groups[k]); });
   if (levelKey === 'area') {
-    keys = sortAreaKeys(keys, groups);
+    keys = sortAreaKeys(keys, groups, statCache);
   } else {
     /* \u5176\u4ed6\u5c64\u7d1a\uff1a\u4f9d hasDisp \u964d\u5e8f\uff08\u5df2\u6709\u6578\u91cf\u6700\u591a\u7684\u6392\u524d\u9762\uff09 */
-    keys.sort(function(a,b){
-      return calcGroup(applyChips(groups[b])).hasDisp - calcGroup(applyChips(groups[a])).hasDisp;
-    });
+    keys.sort(function(a,b){ return statCache[b].hasDisp - statCache[a].hasDisp; });
   }
   var div=document.createElement('div');
   div.innerHTML='<div class="level-label">'+labelText+'</div>';
@@ -952,7 +968,7 @@ function renderLevel(stage, rows, col, levelKey, labelText, overallName) {
   /* 整體卡片固定最前，點即開 dialog */
   var overallCard=buildCard(overallName, labelText, calcGroup(rows), levelKey, rows, true);
   grid.appendChild(overallCard);
-  keys.forEach(function(k){ grid.appendChild(buildCard(k,labelText,calcGroup(groups[k]),levelKey,groups[k],false)); });
+  keys.forEach(function(k){ grid.appendChild(buildCard(k,labelText,statCache[k],levelKey,groups[k],false)); });
   div.appendChild(grid); stage.appendChild(div);
 }
 
@@ -1085,22 +1101,24 @@ function buildQuicknav() {
       return "jumpToChannel('" + qEsc(c) + "')";
     });
 
+    var typeGroups, areaGroups2, offGroups2;
+
     if (curCh && chGroups[curCh]) {
-      var typeGroups = getNextGroups(chGroups[curCh], COL_TYPE);
+      typeGroups = getNextGroups(chGroups[curCh], COL_TYPE);
       html += qnGroupHtml(curCh, Object.keys(typeGroups), curType, function(t) {
         return "jumpToType('" + qEsc(curCh) + "','" + qEsc(t) + "')";
       });
     }
-    if (curCh && curType) {
-      var chRows2     = allRows.filter(function(r){ return String(r[COL_CHANNEL])===curCh && String(r[COL_TYPE])===curType; });
-      var areaGroups2 = getNextGroups(chRows2, COL_AREA);
+    /* 直接從已過濾的 typeGroups[curType] 取得，不需重新掃描 allRows */
+    if (curCh && curType && typeGroups && typeGroups[curType]) {
+      areaGroups2 = getNextGroups(typeGroups[curType], COL_AREA);
       html += qnGroupHtml(curType, Object.keys(areaGroups2), curChArea, function(a) {
         return "jumpToChArea('" + qEsc(curCh) + "','" + qEsc(curType) + "','" + qEsc(a) + "')";
       });
     }
-    if (curCh && curType && curChArea) {
-      var chRows3    = allRows.filter(function(r){ return String(r[COL_CHANNEL])===curCh && String(r[COL_TYPE])===curType && String(r[COL_AREA])===curChArea; });
-      var offGroups2 = getNextGroups(chRows3, COL_OFFICE);
+    /* 同樣直接從已過濾的 areaGroups2[curChArea] 取得 */
+    if (curCh && curType && curChArea && areaGroups2 && areaGroups2[curChArea]) {
+      offGroups2 = getNextGroups(areaGroups2[curChArea], COL_OFFICE);
       html += qnGroupHtml(curChArea, Object.keys(offGroups2), curChOff, function(o) {
         return "jumpToChOffice('" + qEsc(curCh) + "','" + qEsc(curType) + "','" + qEsc(curChArea) + "','" + qEsc(o) + "')";
       });
@@ -1115,7 +1133,7 @@ function buildQuicknav() {
 
 /* \u4f9d chips \u72c0\u614b\u51b3\u5b9a dialog \u8981\u986f\u793a\u54ea\u4e9b\u5217\uff0c\u4e26\u5e36\u6392\u5e8f\uff1a
    1\ufe0f\u20e3 \u5df2\u6709\uff08disp\uff09  2\ufe0f\u20e3 \u672a\u6709\uff08no\uff09  3\ufe0f\u20e3 \u5176\u4ed6\u5c1a\u672a\u786e\u8a8d  4\ufe0f\u20e3 \u672a\u586b\u5beb */
-function dialogRows(rows) {
+function dialogRows(rows, levelKey) {
   var result = [];
   rows.forEach(function(r) {
     var isUnfill = isOne(r[COL_UNFILL]);
@@ -1129,12 +1147,15 @@ function dialogRows(rows) {
       result.push({ r:r, grp:2 }); /* \u5176\u4ed6\uff08\u672a\u9032\u8ca8\u4e14\u5df2\u77e5\uff09\u2014\u6c38\u9060\u986f\u793a */
     }
   });
+  /* \u6392\u5e8f\u6b04\u4f4d\u4f9d\u7576\u524d\u5c64\u7d1a\u52d5\u614b\u6c7a\u5b9a\uff08\u7d44\u7e54\u8996\u89d2\u7528\u71df\u696d\u6240/\u4eba\u54e1\uff0c\u901a\u8def\u8996\u89d2\u7528\u5c0d\u61c9\u6b04\uff09 */
+  var sortCols = levelKey ? getExtraCols(levelKey) : [COL_OFFICE, COL_STAFF];
   result.sort(function(a, b) {
     if (a.grp !== b.grp) return a.grp - b.grp;
-    var oa=String(a.r[COL_OFFICE]||''), ob=String(b.r[COL_OFFICE]||'');
-    if (oa!==ob) return oa>ob?1:-1;
-    var sa=String(a.r[COL_STAFF]||''), sb=String(b.r[COL_STAFF]||'');
-    if (sa!==sb) return sa>sb?1:-1;
+    for (var i = 0; i < sortCols.length; i++) {
+      var c = sortCols[i];
+      var va = String(a.r[c]||''), vb = String(b.r[c]||'');
+      if (va !== vb) return va > vb ? 1 : -1;
+    }
     var na=String(a.r[COL_NAME]||''), nb=String(b.r[COL_NAME]||'');
     return na>nb?1:na<nb?-1:0;
   });
@@ -1142,8 +1163,8 @@ function dialogRows(rows) {
 }
 
 /* \u5f9e dialogRows \u53d6\u51fa\u7d14 row \u7269\u4ef6\uff08\u7d66 copyLine/copyExcel \u7528\uff09 */
-function sortedValidRows(rows) {
-  return dialogRows(rows)
+function sortedValidRows(rows, levelKey) {
+  return dialogRows(rows, levelKey)
     .filter(function(d){ return d.grp !== 3; }) /* copyLine/Excel \u4e0d\u5305\u542b\u672a\u586b\u5beb */
     .map(function(d){ return d.r; });
 }
@@ -1167,7 +1188,7 @@ function getExtraCols(levelKey) {
 }
 
 function buildStoreTable(rows, levelKey){
-  var items = dialogRows(rows);
+  var items = dialogRows(rows, levelKey);
   var extraCols = getExtraCols(levelKey);
   var colLabels = COL_LABELS;
   var html='<div class="detail-scroll"><table class="detail-tbl"><thead><tr>';
@@ -1211,7 +1232,7 @@ function buildStoreTable(rows, levelKey){
 function openDialog(displayName, levelKey, rows){
   _dialogTitle=displayName; _dialogRows=rows; _dialogLevel=levelKey;
   /* 依 chips 算各狀態家數 */
-  var items    = dialogRows(rows);
+  var items    = dialogRows(rows, levelKey);
   var unfillCnt= items.filter(function(d){ return d.grp===3; }).length;
   var dispCnt  = items.filter(function(d){ return d.grp===0; }).length;
   var noCnt    = items.filter(function(d){ return d.grp===1; }).length;
@@ -1269,7 +1290,7 @@ function _doCopy(text,btn){
 function copyLine(){
   var btn=document.getElementById('btn-copy-line');
   if(!_dialogRows.length){ _flashBtn(btn,'\u26A0\uFE0F \u7121\u8CC7\u6599'); return; }
-  var valid=sortedValidRows(_dialogRows), lv=_dialogLevel;
+  var valid=sortedValidRows(_dialogRows, _dialogLevel), lv=_dialogLevel;
   var hasDisp=valid.filter(function(r){ return isDispRow(r); }).length;
   var hasNo=valid.filter(function(r){ return isNoRow(r); }).length;
   var summary='\u6709\u6548 '+valid.length+' \u5BB6\u3000'+LABEL_B+' '+hasDisp+' \u5BB6'+(BUCKET_C.length?' \u3000'+LABEL_C+' '+hasNo+' \u5BB6':'');
@@ -1296,7 +1317,7 @@ function copyLine(){
 function copyExcel(){
   var btn=document.getElementById('btn-copy-excel');
   if(!_dialogRows.length){ _flashBtn(btn,'\u26A0\uFE0F \u7121\u8CC7\u6599'); return; }
-  var valid=sortedValidRows(_dialogRows), lv=_dialogLevel, lines=[];
+  var valid=sortedValidRows(_dialogRows, _dialogLevel), lv=_dialogLevel, lines=[];
   lines.push(document.getElementById('dlg-title').textContent.trim()); lines.push('');
   var extraCols = getExtraCols(lv);
   var headers = extraCols.map(function(c){ return COL_LABELS[c] || c; });
