@@ -566,7 +566,10 @@
   <button id="manual-toggle" onclick="toggleManual()">📋 說明書</button>
   <button class="tb-btn" onclick="toggleRank()" id="rank-btn" style="background:rgba(255,215,0,.15);border-color:rgba(200,160,0,.3);color:#7a5500;">🏆 品評排行</button>
   <div id="tb-right">
-    <div id="ver-ts">Ver. 1.9.0 (2026-06-17 17:00)</div>
+    <div id="ver-ts">Ver. 1.9.1 (2026-06-17 18:00)</div>
+    <button class="tb-btn" onclick="mainCopyLine()" id="btn-main-line">💬 LINE</button>
+    <button class="tb-btn" onclick="mainCopyExcel()" id="btn-main-excel">📊 Excel</button>
+    <button class="tb-btn" onclick="mainScreenshot()" id="btn-main-shot">📸 截圖</button>
     <button class="tb-btn" onclick="downloadXLSX()">📥 XLSX</button>
   </div>
 </div>
@@ -2178,6 +2181,166 @@ function updateGbar(){
 }
 
 /* \u2550\u2550 XLSX \u2550\u2550 */
+/* ══ 主頁截圖 ══ */
+function mainScreenshot(){
+  var btn=document.getElementById('btn-main-shot');
+  btn.textContent='⏳';
+  function doCapture(){
+    var area=document.getElementById('main-area');
+    /* 建立包含標題的 wrapper */
+    var wrapper=document.createElement('div');
+    wrapper.style.cssText='background:var(--bg,#F0EDE6);padding:12px 14px;font-family:Microsoft JhengHei,Noto Sans TC,sans-serif;position:fixed;top:-9999px;left:-9999px;width:'+Math.max(area.scrollWidth,600)+'px;';
+
+    /* 標題列 */
+    var hdr=document.createElement('div');
+    hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid rgba(0,0,0,.1);';
+    var areaLabel=document.getElementById('summary-title')?'':(
+      (document.querySelector('#nav-area-row .nav-chip.on:not(.all)')||{textContent:''}).textContent
+    );
+    var navChipOn=document.querySelector('#nav-office-row .nav-chip.on:not(.all)') ||
+                  document.querySelector('#nav-area-row .nav-chip.on:not(.all)');
+    var scopeLabel=navChipOn?navChipOn.textContent:'全體';
+    hdr.innerHTML=
+      '<span style="font-size:14px;font-weight:900;color:#2D2D2D;">全聯18天推廣進度看板　'+
+        (curQ||'')+'　'+(viewMode==='org'?'組織視角':'人員視角')+'　'+scopeLabel+
+      '</span>'+
+      '<span style="font-size:10px;color:#999;">'+new Date().toLocaleString('zh-TW')+'</span>';
+    wrapper.appendChild(hdr);
+
+    /* clone main-area */
+    var clone=area.cloneNode(true);
+    clone.style.cssText='display:flex;flex-wrap:wrap;gap:12px;align-content:start;overflow:visible;height:auto;max-height:none;';
+    /* 展開 org-inv-pending（佔位符）移除 */
+    clone.querySelectorAll('.org-inv-pending').forEach(function(el){el.remove();});
+    wrapper.appendChild(clone);
+
+    document.body.appendChild(wrapper);
+    html2canvas(wrapper,{
+      scale:2,backgroundColor:'#F0EDE6',useCORS:true,
+      width:wrapper.scrollWidth,height:wrapper.scrollHeight
+    }).then(function(canvas){
+      document.body.removeChild(wrapper);
+      var filename='全聯18天_'+(curQ||'')+'_'+scopeLabel+'_'+_nowStr()+'.png';
+      btn.textContent='📸 截圖';
+      _downloadCanvas(canvas,filename,btn);
+    }).catch(function(err){
+      document.body.removeChild(wrapper);
+      btn.textContent='📸 截圖';
+      alert('截圖失敗：'+err);
+    });
+  }
+  if(window.html2canvas){ doCapture(); }
+  else {
+    var s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    s.onload=doCapture;
+    s.onerror=function(){ btn.textContent='📸 截圖'; alert('html2canvas 載入失敗'); };
+    document.head.appendChild(s);
+  }
+}
+
+/* ══ 主頁複製 LINE ══ */
+function mainCopyLine(){
+  var btn=document.getElementById('btn-main-line');
+  var text=_buildMainText('line');
+  if(!text){ alert('目前無資料可複製'); return; }
+  navigator.clipboard.writeText(text).then(function(){
+    _flashBtn(btn,'✅ 已複製！');
+  }).catch(function(){
+    /* fallback */
+    var ta=document.createElement('textarea');
+    ta.value=text; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+    _flashBtn(btn,'✅ 已複製！');
+  });
+}
+
+/* ══ 主頁複製 Excel ══ */
+function mainCopyExcel(){
+  var btn=document.getElementById('btn-main-excel');
+  var text=_buildMainText('excel');
+  if(!text){ alert('目前無資料可複製'); return; }
+  navigator.clipboard.writeText(text).then(function(){
+    _flashBtn(btn,'✅ 已複製！');
+  }).catch(function(){
+    var ta=document.createElement('textarea');
+    ta.value=text; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+    _flashBtn(btn,'✅ 已複製！');
+  });
+}
+
+function _buildMainText(mode){
+  var TAB='\t', NL='\n', SEP=(mode==='line'?'　':'　');
+  var months=QUARTERS[curQ]||[];
+  var lines=[];
+
+  if(viewMode==='person'){
+    /* 人員視角 */
+    var pMap=getPersonList();
+    /* 標題 */
+    var hdr=['人員','營業處','營業所'];
+    months.forEach(function(m){ hdr.push(MNAMES[m]+'當期',MNAMES[m]+'目標',MNAMES[m]+'品評'); });
+    hdr.push('季當期','季目標','季品評');
+    lines.push(hdr.join(TAB));
+
+    /* 依目前排序輸出 */
+    var cards=Object.keys(pMap).map(function(staff){
+      var info=pMap[staff];
+      var qd=calcPersonQuarter(info.rows,curQ);
+      return{staff:staff,info:info,qd:qd};
+    }).filter(function(c){return c.qd.evalMonths.length>0;});
+    cards.sort(function(a,b){
+      var av=curSort==='stores'?a.qd.totalStores:curSort==='cur'?a.qd.totalCur:curSort==='tgt'?a.qd.totalTgt:a.qd.totalEvalRaw;
+      var bv=curSort==='stores'?b.qd.totalStores:curSort==='cur'?b.qd.totalCur:curSort==='tgt'?b.qd.totalTgt:b.qd.totalEvalRaw;
+      var aLow=(a.qd.evalMonths.length<2), bLow=(b.qd.evalMonths.length<2);
+      if(aLow!==bLow) return aLow?1:-1;
+      return (bv||0)-(av||0);
+    });
+    cards.forEach(function(c){
+      var qd=c.qd;
+      var row=[c.staff,c.info.area,c.info.office];
+      months.forEach(function(m){
+        var d=qd.monthData[m];
+        row.push(d.hasData?d.cur:'', d.hasData?fmt1(d.tgt):'', d.hasData?fmt1(d.eval):'');
+      });
+      row.push(qd.totalCur, fmt1(qd.totalTgt||0), fmt1(qd.totalEvalRaw||0));
+      lines.push(row.join(TAB));
+    });
+  } else {
+    /* 組織視角 */
+    var storeMap=getStoreList();
+    var hdr=['店碼','店名','營業處','營業所'];
+    months.forEach(function(m){ hdr.push(MNAMES[m]+'當期',MNAMES[m]+'去年',MNAMES[m]+'增減'); });
+    hdr.push('季當期','季去年','季增減');
+    lines.push(hdr.join(TAB));
+
+    var cards=Object.keys(storeMap).map(function(k){
+      var s=storeMap[k];
+      var qd=calcStoreQuarter(s.rows,curQ);
+      return{s:s,qd:qd};
+    }).filter(function(c){return c.qd.evalMonths.length>0;});
+    cards.sort(function(a,b){
+      var av=curSort==='cur'?a.qd.totalCur:curSort==='tgt'?a.qd.totalLast:curSort==='stock'?(_invLookup(a.s.code)||{stock:999999}).stock:a.qd.totalDelta;
+      var bv=curSort==='cur'?b.qd.totalCur:curSort==='tgt'?b.qd.totalLast:curSort==='stock'?(_invLookup(b.s.code)||{stock:999999}).stock:b.qd.totalDelta;
+      return curSort==='stock'?av-bv:bv-av;
+    });
+    cards.forEach(function(c){
+      var s=c.s, qd=c.qd;
+      var row=[s.code,s.name,s.area,s.office];
+      months.forEach(function(m){
+        var d=qd.monthData[m];
+        row.push(d.hasData?d.cur:'', d.hasData?d.last:'', d.hasData?d.delta:'');
+      });
+      row.push(qd.totalCur,qd.totalLast,qd.totalDelta);
+      lines.push(row.join(TAB));
+    });
+  }
+  return lines.join(NL);
+}
+
 function _nowStr(){
   var d=new Date();
   var pad=function(n){return n<10?'0'+n:String(n);};
