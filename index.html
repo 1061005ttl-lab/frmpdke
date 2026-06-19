@@ -1,950 +1,587 @@
 <!--
 ================================================================================
-  業務王同步中心 - 桌面版同步控制台 (sync0616_desktop.html)
-  版本：Ver. 1.4.0 ｜ 最後更新：2026-06-19 00:00
+  業務王看板入口 (index.html)
+  版本：Ver. 1.0.0 ｜ 最後更新：2026-06-19 00:00
 ================================================================================
 
-【這份檔案在做什麼】
-這是一個純前端的單頁 HTML 工具，用來手動觸發「業務王」後台資料同步到
-Google試算表/看板的動作。所有資料與動作都透過一個 Google Apps Script
-(GAS) Web App 完成，本頁面只負責顯示任務清單、發送同步請求、顯示進度
-與執行紀錄，本身不存任何資料、也不做任何資料運算。
+【這個檔案在做什麼】
+  這是整個「業務王看板」系統的唯一入口頁。
+  它從一張 Google Sheets 管理表讀取所有子專案的設定，
+  然後把專案以卡片方式列出，讓使用者點擊後跳轉到對應的看板頁面。
 
-【後端串接】
-- GAS_URL：唯一的後端入口（GAS Web App 的 exec 網址）。
-  - GET  ?action=getTasks            → 取得任務清單。回傳 json.data 為
-    陣列，每個任務物件可能含 name / targetId / dateText / updatedAt /
-    dataType / boardType / _originalIndex 等欄位。
-  - POST { action:'syncTask', index } → 觸發後端對該任務執行同步動作，
-    index 對應任務的 _originalIndex（後端原始順序），不是畫面顯示順序。
-- 載入後會先過濾掉 targetId 為空的任務，留下的存在全域陣列 tasks[]，
-  此陣列的索引順序＝畫面顯示順序＝按鈕/進度條等 DOM id 使用的索引 i。
+【登入機制】
+  - 密碼從管理表（登入與頁面設定）的「密碼」列動態讀取。
+  - 登入狀態存在 localStorage（key: ttl_auth_v1），關閉分頁後仍保留。
+  - 登出或清除瀏覽器資料後須重新登入。
 
-【畫面結構（桌面版重點）】
-- 上方 Header：標題 + 動態副標（顯示任務總數與訪頻分組數量）+「📊 看板
-  中心」外部連結（開新分頁連到 https://1061005ttl-lab.github.io/frmpdke/
-  ，跟個別任務卡片上的 📈 看板按鈕是不同東西，這個是整體看板入口）+
-  重新載入按鈕。
-- 主內容區（.main-col，置中、左右留白，適合寬螢幕）：
-  - 「訪頻專用」分組框（.freq-group）：固定把 tasks[] 陣列「最前面
-    FREQ_GROUP_COUNT 筆」（目前 = 6，常數定義在 <script> 內）框起來，
-    標籤為「📅 訪頻專用」。此分組純粹依「資料順序」決定，不是依名稱
-    判斷，若後端回傳的順序改變，框起來的項目也會跟著變動。
-  - 「簽約查核」分組框：在 FREQ_GROUP_COUNT 筆之後的任務裡，凡是
-    task.name 第一個字元是「查」的，都會被歸進這個分組框（標籤
-    「🔍 簽約查核」），判斷邏輯集中在 isQueryTask(task) 這個函式。
-    這是「依名稱」分組，跟訪頻專用「依順序」分組是兩種不同邏輯，
-    兩者不會衝突，因為簽約查核只從「訪頻專用以外」的任務裡篩選。
-  - 其他任務（.task-grid）：扣掉前面兩個分組後剩下的任務，以多欄
-    網格排列，卡片含起訖日期(dateText)與更新時間(updatedAt)。
-  - 上面三個分組（訪頻專用／簽約查核／其他任務）的標籤旁都各有一顆
-    專屬的「⚡ 一鍵同步」按鈕，會一次觸發「本分組內」所有尚未在同步中
-    的卡片。三顆按鈕共用同一套 syncAllByIndices(indices, btnId) 邏輯，
-    差別只在傳入的卡片索引陣列與按鈕 id 不同；render() 每次重繪畫面時
-    會重新計算三個分組各自的索引陣列，存在全域變數 groupIndices 裡
-    （{ freq:[...], query:[...], rest:[...] }），新增分組或改變篩選
-    規則時，只要讓 render() 把正確的索引塞進 groupIndices 對應的欄位
-    即可，不需要更動 syncAllByIndices() 本身。
-  - 「專屬群組」（訪頻專用／簽約查核，即有自己邊框+一鍵同步按鈕的
-    分組，其他任務不算）預設為「摺疊」狀態以節省畫面空間，只露出
-    標籤與一鍵同步按鈕，點擊標籤可展開/收合（toggleGroupCollapse()）。
-    一鍵同步按鈕本身不在可摺疊範圍內，摺起來時仍可直接點擊觸發整批
-    同步，不需要先展開。摺疊狀態存在全域變數 collapsedGroups（例如
-    { freq:true, query:true }），切換時只是對既有 DOM 加減 collapsed
-    這個 class，不會重新整理整頁，所以使用者展開過的分組在下次按
-    「重新載入」時會維持原狀，不會被打回預設摺疊。日後若新增其他
-    專屬群組，記得在 collapsedGroups 補一個對應 key（預設 true），
-    否則該分組會以展開狀態渲染。
-  - 看板按鈕（📈 橘色）：僅當 task.dataType === '問卷' 且 task.boardType
-    存在於 BOARD_FILE 對照表時才會顯示，連到 BOARD_BASE 對應的外部看板
-    頁面（達成率型 / 覆蓋率型 / 獎勵達成型）。
-- 右側「執行紀錄」側欄（.log-sidebar，id="log-sidebar"）：
-  - 預設為「收合」狀態（窄條，僅顯示直立標籤圖示與未讀紅點），點擊側欄
-    即可展開/收合（toggleLog()），與舊版手機介面「預設收合」的行為
-    一致，避免長期佔用桌面版的水平空間。
-  - 每次同步開始/成功/失敗都會呼叫 addLog() 在此處插入一筆紀錄；側欄
-    收合時新紀錄會在收合條上顯示紅點提示，展開後紅點自動消失。
+【管理表結構（Google Sheets: MGMT_ID）】
 
-【維護注意事項】
-- 「⚡ 一鍵同步」按鈕（.sync-all-btn）的任何狀態（預設/hover/active/
-  disabled）都必須用完全不透明的顏色，不能用半透明色（rgba 低 alpha）
-  或 opacity 屬性做效果。因為訪頻專用的那顆會疊在分組框的邊框線上，
-  半透明會讓邊框線穿透顯示，看起來像介面壞掉。其他會疊在邊框/分隔線
-  上的元件也適用同樣原則。
-- 全站文字一律禁止使用灰色（--text-secondary 直接等同 --text-main），
-  次要資訊（時間、日期、提示文字）只能靠字級縮小或字重區分，不能靠
-  調淡顏色處理，避免使用者看不清楚資料。新增樣式時請延用既有變數，
-  不要再手動寫入灰色色碼。
-- i（任務索引）是全域陣列 tasks 的 index，所有相關 DOM id 都用這個 i
-  拼接（btn-sync-i / progress-i / bar-i / progress-msg-i /
-  progress-time-i），這組查詢邏輯集中寫在 getCardEls(i) 一個函式裡，
-  startSync() / resetCard() 都呼叫它，不要再各自用 getElementById 重查。
-- 訪頻專用與其他任務的卡片共用同一套 HTML/CSS（taskCardHtml() 與
-  .task-card / .card-name / .card-date / .card-meta / .card-btns），
-  只有外層的 .freq-grid / .task-grid 容器寬度設定不同，修改卡片外觀時
-  改這一份共用樣式即可，不需要也不應該再分別維護兩套。
-- 狀態色（成功/失敗/進行中）統一定義在 CSS 的 --success / --danger /
-  --warning，JS 端對應的 STATUS_COLOR 常數要手動保持一致（因為部分顏色
-  是直接寫進 inline style，沒有讀取 CSS 變數）。
-- 若要調整「訪頻專用」涵蓋的筆數，改 FREQ_GROUP_COUNT 常數即可；若要
-  調整「簽約查核」的篩選條件（目前是「名稱第一個字＝查」），改
-  isQueryTask() 這個函式即可，兩者都不需要更動 render() 的其餘邏輯。
-  注意分組優先順序：一個任務若同時符合「在前 FREQ_GROUP_COUNT 筆內」
-  且「名稱以查開頭」，會被歸進訪頻專用（位置分組優先），不會出現在
-  簽約查核裡，因為簽約查核只從訪頻專用以外的任務裡篩選。
-- 這是「桌面版」介面；可能還有對應的「手機版」（單欄列表、底部收合式
-  執行紀錄抽屜）版本，兩者為各自獨立的檔案，修改其中一個不會影響另一個，
-  如需同步調整請另外處理手機版檔案。
+  工作表①「登入與頁面設定」
+  ┌──────────┬──────────────────┬──────────────────────┐
+  │ A: 鍵值   │ B: 值             │ C: 備註              │
+  ├──────────┼──────────────────┼──────────────────────┤
+  │ 密碼      │ ttl（可改）       │                      │
+  │ 頁面對照  │ 獎勵達成型        │ award_board.html     │
+  └──────────┴──────────────────┴──────────────────────┘
+  → 可在此新增「看板類型名稱 → HTML 檔名」的對照關係。
+
+  工作表②「專案管理」
+  ┌──────┬──────────┬────────────────┬────────────┬────────┬──────┬──────────────┐
+  │ A    │ B        │ C              │ D          │ E      │ F    │ G            │
+  │ 啟用 │ 專案名稱  │ 試算表 ID      │ 資料工作表 │ 輔助表  │ 儲存格│ 看板類型     │
+  ├──────┼──────────┼────────────────┼────────────┼────────┼──────┼──────────────┤
+  │ ON   │ CVS春季…  │ 1aBcD…（44碼） │ 店家名冊   │ 輔助   │ B1   │ 達成率型     │
+  │ OFF  │ 舊專案    │ 1xYzW…        │ 店家名冊   │ 輔助   │ B1   │ 達成率型     │
+  └──────┴──────────┴────────────────┴────────────┴────────┴──────┴──────────────┘
+  → A 欄填 ON 為進行中（可點擊），填 OFF 為已結束（灰化、折疊顯示、不可點擊）。
+  → E/F 欄指定從哪張工作表的哪個儲存格讀取「最後同步時間」，顯示在卡片底部。
+
+【OFF 專案為何還顯示卡片】
+  OFF 只代表活動結束、資料不再更新，但歷史資料仍有檢視價值。
+  OFF 卡片灰化（視覺區隔）但仍可點擊，跳轉到對應看板查看歷史資料。
+  折疊在「已結束專案」底下，避免干擾進行中專案的操作。
+
+【看板類型與對應頁面（預設）】
+  達成率型   → achievement_board.html  （以箱數/業績達成率為主）
+  覆蓋率型   → coverage_board.html     （以店數覆蓋/陳列為主）
+  獎勵達成型 → award_board.html        （以季度獎勵達成為主）
+
+【跳轉方式】
+  點擊卡片後以 window.location.href 同分頁跳轉，
+  並在 URL 帶上 ?sheetId=xxx 讓目標頁面知道要讀哪張試算表。
+
+【卡片上的「🔄 更新」按鈕（手動觸發資料同步）】
+  - 這顆按鈕跟「業務王同步中心」(sync.html) 共用同一個後端入口
+    SYNC_GAS_URL（同一個 Google Apps Script Web App）。
+  - 只有「ON（進行中）」且「專案名稱（去掉括號內的日期後）」能在
+    SYNC_TASK_MAP 對照表裡找到對應任務名稱的卡片，才會顯示這顆按鈕。
+    OFF（已結束）的卡片一律不顯示，不受 SYNC_TASK_MAP 影響。
+  - 沒有列在 SYNC_TASK_MAP 裡的 ON 專案（例如彙總多張表的「進度表」類
+    專案），代表它的資料不是靠單一同步任務產生，沒有對應的按鈕可以
+    觸發，所以卡片上自然不會出現「🔄 更新」——這是預期行為，不是漏寫。
+  - 點擊流程：① 先呼叫 SYNC_GAS_URL?action=getTasks 取得最新任務清單，
+    用「任務名稱」在清單裡找出對應任務 ② 用該任務的 _originalIndex
+    呼叫 SYNC_GAS_URL 的 action=syncTask 觸發後端同步 ③ 成功後重新讀取
+    這張卡片自己的「同步時間」儲存格，更新卡片上顯示的時間文字。
+  - 如果某個 ON 專案明明該有更新功能卻沒顯示按鈕，先檢查
+    SYNC_TASK_MAP 裡有沒有對應的項目；如果某個按鈕點了一直失敗，
+    先確認 SYNC_TASK_MAP 右邊填的任務名稱有沒有跟 sync.html 裡顯示的
+    任務名稱「一字不差」對上（沒有比對到會直接跳過、不會誤觸發其他
+    任務的同步）。
+
+【常數位置（需要改設定時看這裡）】
+  MGMT_ID      → 管理表的 Google Sheets ID
+  LOGIN_SHEET  → 登入設定的工作表名稱
+  PROJ_SHEET   → 專案清單的工作表名稱
+  SYNC_TIMEOUT → 同步時間讀取逾時（毫秒，預設 8000）
+  SYNC_GAS_URL → 業務王同步工具的後端入口（跟 sync.html 共用）
+  SYNC_TASK_MAP→ 看板專案名稱 → 同步任務名稱 對照表，決定哪些卡片
+                 會出現「🔄 更新」按鈕
+
 ================================================================================
 -->
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>業務王同步中心</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>業務王看板入口</title>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3XTQ1DT3LQ"></script>
+<script>
+window.dataLayer=window.dataLayer||[];
+function gtag(){dataLayer.push(arguments);}
+gtag('js',new Date());gtag('config','G-3XTQ1DT3LQ');
+</script>
+<style>
+:root{
+  --primary:#8BA690;--primary-d:#6a8a70;
+  --bg:#F0EDE6;--card:#FFFFFF;
+  --red:#d93025;--text:#2D2D2D;--sub:#888;
+  --border:rgba(0,0,0,0.09);
+  --glass:rgba(255,255,255,0.78);
+  --r:12px;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;font-family:'Microsoft JhengHei','Noto Sans TC',sans-serif;}
+body{background:var(--bg);color:var(--text);min-height:100vh;}
 
-    :root {
-      --primary: #5a8a6a;
-      --primary-deep: #3f6b4e;
-      --primary-soft: rgba(90,138,106,0.08);
-      --bg: #f2f4f2;
-      --card: #ffffff;
-      --border: #e2e7e2;
-      --text-main: #232925;
-      --text-secondary: var(--text-main); /* 禁止灰字：次要文字一律與主要文字同色，僅靠字級/字重區分層級 */
-      --mono: 'SFMono-Regular', Consolas, 'Courier New', monospace;
-      --success: #34A853;
-      --danger: #EA4335;
-      --warning: #FBBC04;
-      --board: #e07b00;
-    }
+#login-screen{
+  position:fixed;inset:0;background:var(--bg);
+  display:flex;align-items:center;justify-content:center;z-index:1000;
+}
+.login-box{
+  background:#fff;border-radius:20px;padding:48px 44px 40px;
+  box-shadow:0 12px 48px rgba(0,0,0,.12);width:360px;text-align:center;
+}
+.login-logo{font-size:36px;margin-bottom:8px;}
+.login-title{font-size:20px;font-weight:900;color:var(--primary-d);letter-spacing:.5px;margin-bottom:4px;}
+.login-sub{font-size:12px;color:var(--sub);margin-bottom:32px;}
+.login-label{font-size:12px;font-weight:700;color:var(--sub);text-align:left;display:block;margin-bottom:6px;}
+.login-input{
+  width:100%;padding:11px 16px;border:1.5px solid var(--border);border-radius:10px;
+  font-size:16px;font-family:inherit;color:var(--text);background:#fafafa;outline:none;
+  transition:border-color .15s,box-shadow .15s;letter-spacing:3px;text-align:center;margin-bottom:16px;
+}
+.login-input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(139,166,144,.15);}
+.login-input.shake{animation:shake .3s ease;}
+@keyframes shake{0%,100%{transform:translateX(0);}25%{transform:translateX(-6px);}75%{transform:translateX(6px);}}
+.login-btn{
+  width:100%;padding:12px;background:var(--primary);border:none;border-radius:10px;
+  color:#fff;font-size:15px;font-weight:900;font-family:inherit;cursor:pointer;
+  transition:background .15s,transform .1s;
+}
+.login-btn:hover{background:var(--primary-d);}
+.login-btn:active{transform:scale(.98);}
+.login-btn:disabled{background:#ccc;cursor:not-allowed;}
+.login-err{font-size:12px;color:var(--red);margin-top:10px;min-height:18px;font-weight:600;}
 
-    html, body {
-      height: 100vh;
-      font-family: 'Microsoft JhengHei', 'PingFang TC', sans-serif;
-      background: var(--bg);
-      color: var(--text-main);
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
+#loading-screen{
+  position:fixed;inset:0;background:rgba(240,237,230,.9);
+  display:none;align-items:center;justify-content:center;
+  flex-direction:column;gap:16px;z-index:900;
+}
+#loading-screen.show{display:flex;}
+.spinner{
+  width:44px;height:44px;border:4px solid rgba(139,166,144,.2);
+  border-top-color:var(--primary);border-radius:50%;animation:spin .8s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loading-text{font-size:13px;color:var(--sub);font-weight:600;}
 
-    /* ── Header ── */
-    .wa-header {
-      flex-shrink: 0;
-      background: var(--card);
-      border-bottom: 1px solid var(--border);
-      padding: 14px 32px;
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-    }
-    .brand-mark {
-      width: 36px; height: 36px;
-      border-radius: 10px;
-      background: linear-gradient(135deg, var(--primary), var(--primary-deep));
-      color: #fff;
-      display: flex; align-items: center; justify-content: center;
-      font-weight: 700; font-size: 16px;
-      flex-shrink: 0;
-      box-shadow: 0 2px 6px rgba(63,107,78,0.3);
-    }
-    .header-title-block { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-    .wa-header-title,
-    .header-subtitle {
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .wa-header-title { font-size: 17px; font-weight: 700; }
-    .header-subtitle { font-size: 12.5px; color: var(--text-secondary); }
+#main-screen{display:none;flex-direction:column;min-height:100vh;}
+#topbar{
+  flex-shrink:0;background:var(--glass);backdrop-filter:blur(14px);
+  border-bottom:1px solid rgba(255,255,255,.55);padding:0 20px;
+  display:flex;align-items:center;gap:10px;min-height:48px;
+  position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.07);
+}
+#tb-title{font-size:15px;font-weight:900;color:var(--primary-d);flex:1;}
+.tb-logout{
+  font-size:12px;color:var(--sub);cursor:pointer;padding:4px 10px;
+  border:1px solid var(--border);border-radius:6px;background:#fff;
+  font-family:inherit;transition:all .14s;
+}
+.tb-logout:hover{border-color:var(--red);color:var(--red);}
 
-    .wa-header-actions { display: flex; gap: 10px; flex-shrink: 0; }
-
-    .wa-btn-sm {
-      background: none;
-      border: 1.5px solid var(--primary);
-      color: var(--primary);
-      border-radius: 7px;
-      padding: 7px 14px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      flex-shrink: 0;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      text-decoration: none;
-      transition: background 0.15s;
-    }
-    .wa-btn-sm:hover { background: var(--primary-soft); }
-    .wa-btn-sm:active { opacity: 0.7; }
-
-    /* ── 整體版面：主內容 + 右側紀錄欄 ── */
-    .app-shell {
-      flex: 1;
-      display: flex;
-      overflow: hidden;
-      min-height: 0;
-    }
-
-    .main-col {
-      flex: 1;
-      overflow-y: auto;
-      padding: 30px 36px 56px;
-      min-width: 0;
-    }
-    .content-inner { max-width: 1480px; margin: 0 auto; }
-
-    /* ── 訪頻專用 分組框 ── */
-    .freq-group {
-      position: relative;
-      border: 1.5px solid var(--primary);
-      border-radius: 16px;
-      padding: 30px 22px 20px;
-      margin-bottom: 32px;
-      background: linear-gradient(180deg, rgba(90,138,106,0.06), rgba(90,138,106,0.01));
-    }
-    .freq-group-header {
-      position: absolute;
-      top: -14px; left: 22px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .freq-group-label {
-      background: var(--primary);
-      color: #fff;
-      padding: 5px 14px;
-      font-size: 12.5px; font-weight: 700;
-      border-radius: 999px;
-      letter-spacing: 0.5px;
-      box-shadow: 0 2px 6px rgba(63,107,78,0.3);
-      white-space: nowrap;
-      cursor: pointer;
-      user-select: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .group-collapse-arrow {
-      display: inline-block;
-      font-size: 10px;
-      transition: transform 0.2s ease;
-    }
-    /* 摺疊狀態：箭頭轉向、隱藏卡片網格、縮減底部留白以節省畫面空間 */
-    .freq-group.collapsed .group-collapse-arrow { transform: rotate(-90deg); }
-    .freq-group.collapsed .freq-grid { display: none; }
-    .freq-group.collapsed { padding-bottom: 16px; }
-    /* 「⚡ 一鍵同步」按鈕：訪頻專用與其他任務共用同一套樣式。
-       注意：所有狀態都必須是「完全不透明」的顏色，不能用半透明色或
-       opacity 來做 hover/disabled 效果 —— 這顆按鈕常疊在區塊邊框上
-       （訪頻專用標籤旁），半透明會讓背後的邊框線穿透顯示出來，看起來
-       像是按鈕壞掉一樣，非常不專業。 */
-    .sync-all-btn {
-      background: var(--card);
-      color: var(--primary);
-      border: 1.5px solid var(--primary);
-      padding: 4px 13px;
-      font-size: 12.5px; font-weight: 700;
-      border-radius: 999px;
-      letter-spacing: 0.5px;
-      cursor: pointer;
-      white-space: nowrap;
-      box-shadow: 0 2px 6px rgba(63,107,78,0.15);
-      transition: background 0.15s, color 0.15s, transform 0.1s;
-    }
-    .sync-all-btn:hover { background: var(--primary); color: #fff; }
-    .sync-all-btn:active { transform: scale(0.95); }
-    .sync-all-btn:disabled { cursor: not-allowed; transform: none; border-color: var(--border); }
-    .freq-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 14px;
-    }
-
-    /* 卡片共用樣式（訪頻專用與其他任務皆共用此組類別，避免重複宣告） */
-    .task-card {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 16px 18px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      transition: box-shadow 0.15s, transform 0.15s;
-    }
-    .task-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.06); transform: translateY(-1px); }
-    .card-name {
-      font-size: 14.5px; font-weight: 700;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    /* 桌機：日期與更新時間併成一行，用 · 分隔 */
-    .card-date { font-size: 11.5px; color: var(--text-secondary); font-family: var(--mono); margin-top: 4px; }
-    .card-meta { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
-    .card-meta-inline { display: none; } /* 手機用的合併行，桌機隱藏 */
-    .card-btns { display: flex; gap: 8px; }
-    .card-btns .btn-sync { flex: 1; }
-
-    /* ── 其他任務 區塊 ── */
-    .section-eyebrow {
-      font-size: 12.5px; font-weight: 700;
-      color: var(--text-secondary);
-      letter-spacing: 0.5px;
-      margin: 0 0 14px 4px;
-      display: flex; align-items: center; gap: 8px;
-    }
-    .section-eyebrow::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-
-    .task-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
-      gap: 16px;
-    }
-
-    /* ── 按鈕共用樣式 ── */
-    .btn-sync {
-      padding: 9px 14px;
-      background: var(--primary);
-      color: white; border: none;
-      border-radius: 8px; font-size: 13px; font-weight: 700;
-      cursor: pointer; white-space: nowrap;
-      min-height: 40px;
-      transition: transform 0.1s, opacity 0.2s, background 0.15s;
-    }
-    .btn-sync:hover { background: var(--primary-deep); }
-    .btn-sync:active { transform: scale(0.97); }
-    .btn-sync:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-    .btn-sync.running  { background: var(--warning); color: #333; }
-    .btn-sync.done-ok  { background: var(--success); }
-    .btn-sync.done-err { background: var(--danger); }
-
-    .btn-sheet {
-      padding: 8px 10px;
-      background: var(--card); color: var(--primary);
-      border: 1.5px solid var(--primary);
-      border-radius: 8px; font-size: 15px;
-      cursor: pointer; text-decoration: none;
-      display: flex; align-items: center; justify-content: center;
-      min-height: 40px; min-width: 40px;
-      flex-shrink: 0;
-    }
-    .btn-sheet:hover { background: var(--primary-soft); }
-    .btn-sheet:active { opacity: 0.7; }
-    .btn-board { color: var(--board); border-color: var(--board); }
-    .btn-board:hover { background: rgba(224,123,0,0.08); }
-
-    /* ── 進度條 ── */
-    .task-progress { display: none; flex-direction: column; gap: 4px; }
-    .task-progress.show { display: flex; }
-    .progress-bar-wrap { background: var(--border); border-radius: 99px; height: 5px; overflow: hidden; }
-    .progress-bar { height: 100%; background: var(--primary); border-radius: 99px; width: 0%; transition: width 0.4s ease; }
-    .progress-bar.pulse { animation: waPulse 1.2s ease-in-out infinite; }
-    @keyframes waPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-    .progress-info { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-secondary); }
-    .progress-timer { font-weight: 700; color: var(--text-main); font-family: var(--mono); }
-
-    /* ── 右側執行紀錄欄（預設收合，點擊展開／收合）── */
-    .log-sidebar {
-      width: 48px;
-      flex-shrink: 0;
-      background: var(--card);
-      border-left: 1px solid var(--border);
-      display: flex;
-      flex-direction: column;
-      height: 100%;
-      min-height: 0;
-      overflow: hidden;
-      transition: width 0.25s ease;
-    }
-    .log-sidebar.open { width: 340px; }
-
-    .log-sidebar-header {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: flex-start;
-      gap: 10px;
-      padding: 18px 0 14px;
-      height: 100%;
-      cursor: pointer;
-      user-select: none;
-      position: relative;
-      flex-shrink: 0;
-      transition: background 0.15s;
-    }
-    .log-sidebar-header:hover { background: rgba(90,138,106,0.05); }
-    .log-sidebar.open .log-sidebar-header {
-      flex-direction: row;
-      align-items: center;
-      justify-content: flex-start;
-      height: auto;
-      padding: 16px 18px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .log-icon { font-size: 17px; flex-shrink: 0; }
-    .log-title-text {
-      font-size: 13px; font-weight: 700;
-      writing-mode: vertical-rl;
-      text-orientation: upright;
-      letter-spacing: 2px;
-    }
-    .log-sidebar.open .log-title-text {
-      writing-mode: horizontal-tb;
-      letter-spacing: 0;
-      flex: 1;
-    }
-
-    .log-dot {
-      width: 8px; height: 8px;
-      background: var(--danger);
-      border-radius: 50%;
-      display: none;
-      position: absolute;
-      top: 14px; right: 14px;
-    }
-    .log-dot.show { display: block; }
-    .log-sidebar.open .log-dot { position: static; }
-
-    .wa-log-clear {
-      background: none; border: none;
-      color: var(--text-secondary); font-size: 12px;
-      cursor: pointer; padding: 4px 8px;
-      display: none;
-    }
-    .log-sidebar.open .wa-log-clear { display: block; }
-    .wa-log-clear:hover { color: var(--text-main); }
-
-    .log-arrow {
-      font-size: 11px;
-      color: var(--text-secondary);
-      transition: transform 0.25s ease;
-    }
-    .log-sidebar.open .log-arrow { transform: rotate(180deg); }
-
-    .log-sidebar-content {
-      display: none;
-      flex: 1; overflow-y: auto;
-      padding: 12px 14px;
-      min-height: 0;
-    }
-    .log-sidebar.open .log-sidebar-content { display: block; }
-    .log-item {
-      padding: 8px 11px; border-radius: 7px; font-size: 12.5px;
-      margin-bottom: 7px; border-left: 3px solid var(--border);
-      background: var(--bg); line-height: 1.6;
-    }
-    .log-item.success { border-left-color: var(--success); }
-    .log-item.error   { border-left-color: var(--danger); }
-    .log-item.running { border-left-color: var(--warning); }
-    .log-time    { font-size: 10.5px; color: var(--text-secondary); font-family: var(--mono); margin-right: 3px; }
-    .log-elapsed { font-size: 11px; font-weight: 700; color: var(--text-secondary); margin-left: 5px; }
-    .log-empty   { padding: 24px 10px; text-align: center; color: var(--text-secondary); font-size: 13px; }
-
-    /* ── 載入/空狀態 ── */
-    .loading-wrap, .empty-state {
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      padding: 80px 20px; gap: 12px; color: var(--text-secondary);
-    }
-    .spinner {
-      width: 34px; height: 34px;
-      border: 3px solid var(--border); border-top-color: var(--primary);
-      border-radius: 50%; animation: spin 0.8s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* ── 較窄螢幕回退（仍以桌機為主要設計目標）── */
-    @media (max-width: 1000px) {
-      .app-shell { flex-direction: column; }
-      .log-sidebar {
-        width: 100%; height: 48px;
-        border-left: none; border-top: 1px solid var(--border);
-        transition: height 0.25s ease;
-      }
-      .log-sidebar.open { width: 100%; height: 260px; }
-      .log-sidebar-header {
-        flex-direction: row !important;
-        height: 48px !important;
-        padding: 0 16px !important;
-        border-bottom: none !important;
-      }
-      .log-sidebar.open .log-sidebar-header {
-        height: auto !important;
-        padding: 14px 16px !important;
-        border-bottom: 1px solid var(--border) !important;
-      }
-      .log-title-text { writing-mode: horizontal-tb !important; letter-spacing: 0 !important; flex: 1; }
-      .log-dot { position: static !important; }
-      .main-col { padding: 18px 16px 24px; }
-    }
-
-    /* ── 手機寬度：header 改為兩排，避免標題與按鈕擠在一起 ── */
-    @media (max-width: 640px) {
-      .wa-header {
-        flex-wrap: wrap;
-        row-gap: 10px;
-        padding: 12px 16px;
-      }
-      .header-title-block { flex: 1 1 auto; min-width: 0; }
-      .wa-header-actions {
-        flex: 1 1 100%;
-        order: 3;
-      }
-      .wa-header-actions .wa-btn-sm {
-        flex: 1;
-        justify-content: center;
-      }
-
-      /* ── 手機版卡片：改為緊湊條列樣式，所有資訊單行揭露 ── */
-      .task-card {
-        flex-direction: row;
-        align-items: center;
-        padding: 11px 14px;
-        gap: 10px;
-        border-radius: 10px;
-      }
-      /* 左側資訊欄：名稱 + 合併的日期/時間一行 */
-      .card-info { flex: 1; min-width: 0; overflow: hidden; }
-      .card-name  { font-size: 13.5px; }
-      /* 桌機的兩行 meta 在手機改成隱藏 */
-      .card-date, .card-meta { display: none; }
-      /* 手機專用合併行：日期範圍 ・ 🕐 更新時間，一行顯示 */
-      .card-meta-inline {
-        display: block;
-        font-size: 10.5px;
-        color: var(--text-secondary);
-        font-family: var(--mono);
-        margin-top: 3px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-      /* 右側按鈕欄：固定寬度，避免名稱被擠壓 */
-      .card-btns {
-        flex-shrink: 0;
-        flex-direction: row;
-        gap: 6px;
-      }
-      .card-btns .btn-sync {
-        flex: none;
-        width: 76px;
-        padding: 8px 0;
-        font-size: 13px;
-      }
-      .btn-sheet { min-width: 36px; min-height: 36px; font-size: 14px; }
-
-      /* 進度條移到整張卡片下方（用偽 block 撐開） */
-      .task-card { flex-wrap: wrap; }
-      .task-progress { flex: 1 1 100%; margin-top: 4px; }
-
-      /* 間距縮緊 */
-      .main-col { padding: 12px 12px 20px; }
-      .freq-group { padding: 26px 14px 14px; margin-bottom: 18px; }
-      .freq-grid  { gap: 8px; }
-      .task-grid  { gap: 8px; }
-      .task-section .section-eyebrow { margin-bottom: 10px; }
-    }
-  </style>
+#stage{padding:20px 24px 60px;flex:1;}
+.section-label{
+  font-size:11px;font-weight:700;color:var(--sub);
+  letter-spacing:.08em;margin-bottom:12px;margin-top:28px;
+}
+.section-label:first-child{margin-top:0;}
+.proj-grid{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
+  gap:12px;margin-bottom:8px;
+}
+.proj-card{
+  background:#fff;border:1px solid var(--border);border-radius:var(--r);
+  padding:20px 20px 16px;cursor:pointer;position:relative;overflow:hidden;
+  transition:transform .25s cubic-bezier(.34,1.05,.64,1),box-shadow .25s;
+}
+.proj-card:hover{transform:translateY(-3px);box-shadow:0 8px 24px rgba(0,0,0,.10);}
+.proj-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  background:var(--accent,#8BA690);border-radius:var(--r) var(--r) 0 0;
+}
+.proj-card.off{opacity:.55;}
+.badge{
+  display:inline-block;font-size:10px;font-weight:700;
+  padding:2px 8px;border-radius:5px;margin-bottom:8px;
+  background:var(--badge-bg,rgba(139,166,144,.12));
+  color:var(--badge-fg,#4a7a55);
+}
+.proj-name{font-size:16px;font-weight:900;color:var(--text);margin-bottom:8px;line-height:1.35;}
+.proj-sync{font-size:11px;color:var(--sub);margin-top:8px;padding-top:8px;border-top:1px solid var(--border);min-height:20px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.proj-update-btn{
+  flex-shrink:0;width:24px;height:24px;border-radius:50%;
+  border:1.5px solid var(--primary);background:#fff;color:var(--primary-d);
+  font-size:12px;line-height:1;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:background .15s,color .15s,transform .12s;
+}
+.proj-update-btn:hover{background:var(--primary);color:#fff;}
+.proj-update-btn:active{transform:scale(.88);}
+.proj-update-btn:disabled{cursor:not-allowed;background:#f2f2f2;border-color:var(--border);color:var(--sub);}
+.proj-arrow{
+  position:absolute;right:16px;top:50%;transform:translateY(-50%);
+  font-size:20px;color:rgba(139,166,144,.35);transition:color .15s,right .15s;
+}
+.proj-card:hover .proj-arrow{color:var(--primary);right:12px;}
+.off-toggle{
+  font-size:12px;color:var(--sub);cursor:pointer;margin-top:20px;
+  padding:6px 0;display:inline-flex;align-items:center;gap:5px;user-select:none;
+}
+.off-toggle:hover{color:var(--primary-d);}
+#off-section{display:none;margin-top:10px;}
+.empty{padding:60px 20px;text-align:center;color:var(--sub);font-size:14px;}
+</style>
 </head>
 <body>
 
-  <div class="wa-header">
-    <div class="brand-mark">業</div>
-    <div class="header-title-block">
-      <div class="wa-header-title">業務王同步中心</div>
-      <div class="header-subtitle" id="header-subtitle">正在載入任務...</div>
-    </div>
-    <div class="wa-header-actions">
-      <a class="wa-btn-sm" href="https://1061005ttl-lab.github.io/frmpdke/" target="_blank" rel="noopener noreferrer" title="開啟看板中心（新分頁）">📊 看板中心</a>
-      <button class="wa-btn-sm" onclick="loadTasks()">🔄 重新載入</button>
-    </div>
+<div id="login-screen" style="display:none">
+  <div class="login-box">
+    <div class="login-logo">&#x1F451;</div>
+    <div class="login-title">業務王看板</div>
+    <div class="login-sub">TTL 內部系統，請輸入公司標識進入</div>
+    <label class="login-label">公司英文簡稱</label>
+    <input class="login-input" id="login-input" type="password"
+      placeholder="請輸入…" onkeydown="if(event.key==='Enter')doLogin()"
+      autocomplete="off" spellcheck="false">
+    <button class="login-btn" id="login-btn" onclick="doLogin()">進入看板</button>
+    <div class="login-err" id="login-err"></div>
   </div>
+</div>
 
-  <div class="app-shell">
-    <main class="main-col">
-      <div class="content-inner" id="content-inner">
-        <div class="loading-wrap">
-          <div class="spinner"></div>
-          <div>正在載入任務...</div>
-        </div>
-      </div>
-    </main>
+<div id="loading-screen">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loading-text">初始化中…</div>
+</div>
 
-    <aside class="log-sidebar" id="log-sidebar">
-      <div class="log-sidebar-header" onclick="toggleLog()">
-        <span class="log-icon">📋</span>
-        <span class="log-title-text">執行紀錄</span>
-        <div class="log-dot" id="log-dot"></div>
-        <button class="wa-log-clear" onclick="event.stopPropagation(); clearLog()">清除</button>
-        <span class="log-arrow">▸</span>
-      </div>
-      <div class="log-sidebar-content" id="log-content">
-        <div class="log-empty">尚無紀錄</div>
-      </div>
-    </aside>
+<div id="main-screen">
+  <div id="topbar">
+    <span id="tb-title">業務王看板</span>
+    <button class="tb-logout" onclick="doLogout()">登出</button>
   </div>
+  <div id="stage"></div>
+</div>
 
-  <script>
-    const GAS_URL = 'https://script.google.com/macros/s/AKfycbwNmy6uS6NiOzMNJfVeWn7R98tub-DWHPNaj2FW5BnVneq-KbSZ82yYDuIvVLEk_dKPaA/exec';
+<script>
 
-    // ── 看板對應設定 ──
-    const BOARD_BASE = 'https://1061005ttl-lab.github.io/frmpdke/';
-    const BOARD_FILE = {
-      '達成率型':  'achievement_board.html',
-      '覆蓋率型':  'coverage_board.html',
-      '獎勵達成型': 'award_board.html'
-    };
+/* ══ 設定 ══ */
+var MGMT_ID     = '1PR9OR7BIGyTpcH8QSMRXkPhQTr4h3m0UK3gET29f19s';
+var LOGIN_SHEET = '登入與頁面設定';
+var PROJ_SHEET  = '專案管理';
+var AUTH_KEY    = 'ttl_auth_v1';
 
-    // 最開始幾項任務歸入「訪頻專用」分組框
-    const FREQ_GROUP_COUNT = 6;
+/* 同步時間 fetch 逾時（毫秒） */
+var SYNC_TIMEOUT = 8000;
 
-    // 「簽約查核」分組的判斷條件：名稱第一個字元是「查」
-    function isQueryTask(task) {
-      const name = (task && task.name) ? String(task.name).trim() : '';
-      return name.charAt(0) === '查';
-    }
+/* 業務王同步工具的後端入口，跟 sync.html 共用同一個 GAS Web App */
+var SYNC_GAS_URL = 'https://script.google.com/macros/s/AKfycbwNmy6uS6NiOzMNJfVeWn7R98tub-DWHPNaj2FW5BnVneq-KbSZ82yYDuIvVLEk_dKPaA/exec';
 
-    // 狀態色（需與 CSS :root 內的 --success / --danger 保持一致）
-    const STATUS_COLOR = { success: '#34A853', danger: '#EA4335' };
+/* 「看板專案名稱(去掉括號日期後)」→「業務王同步工具裡的任務名稱」對照表。
+   只有 ON 的專案、且名稱能在這裡找到對應項目，卡片才會顯示「🔄 更新」
+   按鈕；沒列在這裡的 ON 專案，代表它的資料是用別的方式產生（例如彙總
+   多張表的進度表），沒有單一同步任務可以觸發，所以不會出現按鈕，這是
+   正常現象。日後新增/調整對應關係，改這個物件就好，不用動其他邏輯。
+   右邊的任務名稱必須跟 sync.html 上顯示的名稱「一字不差」。 */
+var SYNC_TASK_MAP = {
+  'CVS米酒PET商化':   'CVS米酒PET商化',
+  'CVS雲泡上架':      'CVS雲泡上架調查',
+  'CVS雲泡二位陳列':  'CVS雲泡二位陳列',
+  '全聯A級':          '全聯A級巡補',
+  '量販A級巡補':      '量販A級巡補'
+};
 
-    let tasks = [];
-    // 三個分組目前實際渲染出的卡片索引陣列，供「⚡ 一鍵同步」使用，
-    // 每次 render() 都會重新計算覆蓋掉舊值。
-    let groupIndices = { freq: [], query: [], rest: [] };
+/* ══ 狀態 ══ */
+var _password = 'ttl';
+var _pageMap  = {
+  '達成率型':  'achievement_board.html',
+  '覆蓋率型':  'coverage_board.html',
+  '獎勵達成型':'award_board.html'
+};
+var _surveys = { on:[], off:[] };
 
-    // 「專屬群組」（有自己邊框+一鍵同步按鈕的分組）預設摺疊狀態，
-    // true＝預設摺疊。日後新增同類型分組，記得在這裡補一個 key，
-    // 否則該分組會直接以展開狀態渲染。摺疊/展開只是切換 CSS class，
-    // 不會重新整理畫面，所以使用者切換過的狀態會一路保留到下次
-    // render()（例如按了「重新載入」），不會每次都被打回預設摺疊。
-    let collapsedGroups = { freq: true, query: true };
+/* ══ 工具 ══ */
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-    function toggleGroupCollapse(key) {
-      collapsedGroups[key] = !collapsedGroups[key];
-      const section = document.getElementById(`group-${key}`);
-      if (section) section.classList.toggle('collapsed', collapsedGroups[key]);
-    }
+/* 去掉專案名稱尾端的括號日期，例如「CVS米酒PET商化(26.6.1-6.30)」→
+   「CVS米酒PET商化」，用來跟 SYNC_TASK_MAP 的左邊鍵值比對。 */
+function stripDateSuffix(name){
+  return String(name||'').replace(/[\(（][^\)）]*[\)）]\s*$/, '').trim();
+}
 
-    function nowTime() {
-      return [new Date().getHours(), new Date().getMinutes(), new Date().getSeconds()]
-        .map(n => String(n).padStart(2,'0')).join(':');
-    }
+function parseGvizDate(v){
+  var m = String(v).match(/Date\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)/);
+  if(!m) return String(v);
+  var d = new Date(+m[1],+m[2],+m[3],+m[4],+m[5],+m[6]);
+  return d.toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+}
 
-    function toggleLog() {
-      const sidebar = document.getElementById('log-sidebar');
-      sidebar.classList.toggle('open');
-      if (sidebar.classList.contains('open')) {
-        document.getElementById('log-dot').classList.remove('show');
-      }
-    }
+function cv(c){ return c?(c.v!==null&&c.v!==undefined?c.v:c.f||''):''; }
 
-    function addLog(html, cssClass = '') {
-      const c = document.getElementById('log-content');
-      if (!c) return null;
-      c.querySelector('.log-empty')?.remove();
-      const div = document.createElement('div');
-      div.className = 'log-item ' + cssClass;
-      div.innerHTML = html;
-      c.insertBefore(div, c.firstChild);
-      const sidebar = document.getElementById('log-sidebar');
-      if (sidebar && !sidebar.classList.contains('open')) {
-        document.getElementById('log-dot').classList.add('show');
-      }
-      return div;
-    }
+function gvizFetch(sheetId, sheetName){
+  var url = 'https://docs.google.com/spreadsheets/d/'+sheetId+
+    '/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(sheetName);
+  return fetch(url)
+    .then(function(r){ return r.text(); })
+    .then(function(txt){ return JSON.parse(txt.replace(/^[^\(]+\(/,'').replace(/\);?\s*$/,'')); });
+}
 
-    function clearLog() {
-      const c = document.getElementById('log-content');
-      if (c) c.innerHTML = '<div class="log-empty">尚無紀錄</div>';
-      document.getElementById('log-dot')?.classList.remove('show');
-    }
+/* fetch 加逾時包裝 */
+function fetchWithTimeout(url, ms){
+  return Promise.race([
+    fetch(url),
+    new Promise(function(_,rej){
+      setTimeout(function(){ rej(new Error('timeout')); }, ms);
+    })
+  ]);
+}
 
-    async function loadTasks() {
-      document.getElementById('header-subtitle').textContent = '正在載入任務...';
-      document.getElementById('content-inner').innerHTML = `
-        <div class="loading-wrap"><div class="spinner"></div><div>正在載入任務...</div></div>`;
-      try {
-        const res = await fetch(GAS_URL + '?action=getTasks');
-        const json = await res.json();
-        if (!json.ok) throw new Error(json.message || '載入失敗');
-        tasks = json.data.filter(t => t.targetId && t.targetId.trim() !== '');
-        render(tasks);
-      } catch(e) {
-        document.getElementById('header-subtitle').textContent = '載入失敗';
-        document.getElementById('content-inner').innerHTML = `
-          <div class="empty-state"><div style="font-size:38px">⚠️</div><div>載入失敗：${e.message}</div></div>`;
-      }
-    }
+/* ══ 表頭列偵測：跳過明顯是佔位文字的列 ══ */
+var HEADER_KEYWORDS = ['專案名','試算表 ID','試算表ID','sheetid','project','專案'];
+function isHeaderRow(name, sid){
+  var n = name.toLowerCase(), s = sid.toLowerCase();
+  for(var i=0;i<HEADER_KEYWORDS.length;i++){
+    if(n === HEADER_KEYWORDS[i].toLowerCase()) return true;
+  }
+  /* sid 不像真實 Google Sheets ID（長度通常 44 字元，只含英數字與 -_） */
+  if(sid.length < 20) return true;
+  return false;
+}
 
-    function boardButtonHtml(task) {
-      const boardFile = (task.dataType === '問卷' && task.boardType) ? BOARD_FILE[task.boardType] : null;
-      if (!boardFile) return '';
-      return `<a class="btn-sheet btn-board"
-               href="${BOARD_BASE}${boardFile}?sheetId=${encodeURIComponent(task.targetId)}"
-               target="_blank"
-               title="${task.boardType}">📈</a>`;
-    }
+/* ══ Auth ══ */
+function setAuth(){ localStorage.setItem(AUTH_KEY,'1'); }
+function clearAuth(){ localStorage.removeItem(AUTH_KEY); }
+function hasAuth(){ return localStorage.getItem(AUTH_KEY)==='1'; }
 
-    function progressHtml(i) {
-      return `
-        <div class="task-progress" id="progress-${i}">
-          <div class="progress-bar-wrap">
-            <div class="progress-bar pulse" id="bar-${i}"></div>
-          </div>
-          <div class="progress-info">
-            <span id="progress-msg-${i}">準備中...</span>
-            <span class="progress-timer" id="progress-time-${i}">0.0 秒</span>
-          </div>
-        </div>`;
-    }
+/* ══ Loading ══ */
+function showLoading(msg){
+  document.getElementById('loading-text').textContent = msg||'載入中…';
+  document.getElementById('loading-screen').classList.add('show');
+}
+function hideLoading(){
+  document.getElementById('loading-screen').classList.remove('show');
+}
 
-    // 集中管理卡片相關 DOM 元素的查詢，startSync()/resetCard() 共用，
-    // 避免同一組 id 拼接邏輯散落在多個地方。
-    function getCardEls(i) {
-      return {
-        btn:        document.getElementById(`btn-sync-${i}`),
-        progressEl: document.getElementById(`progress-${i}`),
-        barEl:      document.getElementById(`bar-${i}`),
-        msgEl:      document.getElementById(`progress-msg-${i}`),
-        timeEl:     document.getElementById(`progress-time-${i}`)
-      };
-    }
-
-    function taskCardHtml(task, i) {
-      // card-meta-inline：手機版用，把日期範圍與更新時間合併為一行。
-      // 為了在窄螢幕（~200px 可用寬度）完整揭露所有資訊，格式縮短為：
-      //   起訖：2026/05/20 ~ 2026/06/30  →  05/20–06/30
-      //   🕐 06/17 17:11                 →  🕐 17:11
-      // 年份與日期中的「06/17」省略，讓行長維持在可讀範圍內。
-      const metaInlineParts = [];
-      if (task.dateText) {
-        // 去掉「起訖：」與年份，將 2026/05/20 ~ 2026/06/30 縮成 05/20–06/30
-        const m = task.dateText.match(/\d{4}\/(\d{2}\/\d{2})\s*~\s*\d{4}\/(\d{2}\/\d{2})/);
-        metaInlineParts.push(m ? `${m[1]}–${m[2]}` : task.dateText.replace('起訖：',''));
-      }
-      if (task.updatedAt) {
-        // 只取時分（HH:MM），去掉日期部分
-        const t = task.updatedAt.match(/(\d{2}:\d{2})$/);
-        metaInlineParts.push(`🕐 ${t ? t[1] : task.updatedAt}`);
-      }
-      const metaInline = metaInlineParts.join(' ・ ');
-      return `
-        <div class="task-card">
-          <div class="card-info">
-            <div class="card-name">${task.name}</div>
-            ${task.dateText  ? `<div class="card-date">${task.dateText}</div>` : ''}
-            ${task.updatedAt ? `<div class="card-meta">🕐 ${task.updatedAt}</div>` : ''}
-            ${metaInline     ? `<div class="card-meta-inline">${metaInline}</div>` : ''}
-          </div>
-          <div class="card-btns">
-            ${boardButtonHtml(task)}
-            <button class="btn-sync" id="btn-sync-${i}" onclick="startSync(${i})">🔄 同步</button>
-          </div>
-          ${progressHtml(i)}
-        </div>`;
-    }
-
-    // 統一產生一個分組區塊的 HTML（訪頻專用／簽約查核用 boxed=true 的
-    // 邊框樣式，其他任務用 boxed=false 的分隔線樣式），三個分組共用這
-    // 一份模板，避免標籤、一鍵同步按鈕的結構各自重複寫三次。
-    // boxed=true 時必須帶 groupKey，用來對應 collapsedGroups 的摺疊狀態
-    // 與渲染出的 section id（group-${groupKey}），點擊標籤可摺疊/展開，
-    // 一鍵同步按鈕不在可摺疊的範圍內，摺起來時仍可直接點擊使用。
-    function groupSectionHtml({ boxed, label, items, btnId, syncFn, gridClass, groupKey }) {
-      const cardsHtml = items.map(x => taskCardHtml(x.task, x.i)).join('');
-      const syncAllBtn = `<button class="sync-all-btn" id="${btnId}" onclick="${syncFn}()" title="一次觸發本區全部 ${items.length} 個同步按鈕">⚡ 一鍵同步</button>`;
-      if (boxed) {
-        const collapsedClass = collapsedGroups[groupKey] ? ' collapsed' : '';
-        return `
-          <section class="freq-group${collapsedClass}" id="group-${groupKey}">
-            <div class="freq-group-header">
-              <div class="freq-group-label" onclick="toggleGroupCollapse('${groupKey}')">
-                <span>${label}</span>
-                <span class="group-collapse-arrow">▾</span>
-              </div>
-              ${syncAllBtn}
-            </div>
-            <div class="${gridClass}">${cardsHtml}</div>
-          </section>`;
-      }
-      return `
-        <section class="task-section">
-          <div class="section-eyebrow">
-            <span>${label}</span>
-            ${syncAllBtn}
-          </div>
-          <div class="${gridClass}">${cardsHtml}</div>
-        </section>`;
-    }
-
-    function render(data) {
-      const container = document.getElementById('content-inner');
-      const subtitleEl = document.getElementById('header-subtitle');
-
-      if (!data || data.length === 0) {
-        subtitleEl.textContent = '尚無任務';
-        groupIndices = { freq: [], query: [], rest: [] };
-        container.innerHTML = `
-          <div class="empty-state"><div style="font-size:38px">📋</div><div>沒有可同步的任務</div></div>`;
-        return;
-      }
-
-      // 訪頻專用：固定取前 FREQ_GROUP_COUNT 筆（依資料順序，跟名稱無關）。
-      const freqItems = data
-        .slice(0, FREQ_GROUP_COUNT)
-        .map((t, idx) => ({ task: t, i: idx }));
-
-      // 訪頻專用以外的任務，先保留各自在 tasks[] 裡的原始索引 i，
-      // 再依名稱分成「簽約查核」跟「其他任務」兩批，這樣不管哪一批，
-      // 卡片按鈕用的 i 永遠對得到 tasks[i]，不需要重新編號。
-      const remainingItems = data
-        .slice(FREQ_GROUP_COUNT)
-        .map((t, idx) => ({ task: t, i: idx + FREQ_GROUP_COUNT }));
-      const queryItems = remainingItems.filter(x => isQueryTask(x.task));
-      const restItems  = remainingItems.filter(x => !isQueryTask(x.task));
-
-      groupIndices = {
-        freq:  freqItems.map(x => x.i),
-        query: queryItems.map(x => x.i),
-        rest:  restItems.map(x => x.i)
-      };
-
-      subtitleEl.textContent =
-        `共 ${data.length} 項任務 ・ 訪頻 ${freqItems.length} 項 ・ 查核 ${queryItems.length} 項`;
-
-      let html = '';
-      if (freqItems.length) {
-        html += groupSectionHtml({
-          boxed: true, label: '📅 訪頻專用', items: freqItems,
-          btnId: 'freq-sync-all-btn', syncFn: 'syncAllFreq', gridClass: 'freq-grid',
-          groupKey: 'freq'
-        });
-      }
-      if (queryItems.length) {
-        html += groupSectionHtml({
-          boxed: true, label: '🔍 簽約查核', items: queryItems,
-          btnId: 'query-sync-all-btn', syncFn: 'syncAllQuery', gridClass: 'freq-grid',
-          groupKey: 'query'
-        });
-      }
-      if (restItems.length) {
-        html += groupSectionHtml({
-          boxed: false, label: '其他任務', items: restItems,
-          btnId: 'rest-sync-all-btn', syncFn: 'syncAllRest', gridClass: 'task-grid'
-        });
-      }
-      container.innerHTML = html;
-    }
-
-    async function startSync(i) {
-      const { btn, progressEl, barEl, msgEl, timeEl } = getCardEls(i);
-      if (btn.disabled) return;
-
-      const task = tasks[i];
-      const timeStr = nowTime();
-      const startTime = Date.now();
-
-      btn.disabled = true;
-      btn.className = 'btn-sync running';
-      btn.textContent = '⏳ 同步中';
-      progressEl.classList.add('show');
-
-      const logEl = addLog(
-        `<span class="log-time">${timeStr}</span> ⏳ 【${task.name}】同步中...`, 'running'
-      );
-
-      const timer = setInterval(() => {
-        const e = ((Date.now() - startTime) / 1000).toFixed(1);
-        timeEl.textContent = `${e} 秒`;
-        barEl.style.width = Math.min(85, (Date.now() - startTime) / 700) + '%';
-      }, 100);
-
-      try {
-        const res = await fetch(GAS_URL, {
-          method: 'POST',
-          body: JSON.stringify({ action: 'syncTask', index: task._originalIndex })
-        });
-        const json = await res.json();
-        clearInterval(timer);
-        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-
-        if (json.ok) {
-          barEl.classList.remove('pulse');
-          barEl.style.width = '100%';
-          barEl.style.background = STATUS_COLOR.success;
-          msgEl.textContent = '✅ 同步完成';
-          timeEl.textContent = `${elapsed} 秒`;
-          btn.className = 'btn-sync done-ok';
-          btn.textContent = '✅ 完成';
-          btn.disabled = false;
-          btn.onclick = () => resetCard(i);
-          if (logEl) {
-            logEl.className = 'log-item success';
-            logEl.innerHTML = `<span class="log-time">${timeStr}</span> ✅ 【${task.name}】同步成功 <span class="log-elapsed">${elapsed}秒</span>`;
-          }
-        } else {
-          throw new Error(json.message || '同步失敗');
-        }
-      } catch(e) {
-        clearInterval(timer);
-        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-        barEl.classList.remove('pulse');
-        barEl.style.width = '100%';
-        barEl.style.background = STATUS_COLOR.danger;
-        msgEl.textContent = '❌ 同步失敗';
-        timeEl.textContent = `${elapsed} 秒`;
-        btn.className = 'btn-sync done-err';
-        btn.textContent = '❌ 重試';
-        btn.disabled = false;
-        btn.onclick = () => { resetCard(i); startSync(i); };
-        if (logEl) {
-          logEl.className = 'log-item error';
-          logEl.innerHTML = `<span class="log-time">${timeStr}</span> ❌ 【${task.name}】失敗 <span class="log-elapsed">${elapsed}秒</span><br><small>${e.message}</small>`;
-        }
-      }
-    }
-
-    function resetCard(i) {
-      const { btn, progressEl, barEl } = getCardEls(i);
-      btn.className    = 'btn-sync';
-      btn.textContent  = '🔄 同步';
-      btn.disabled     = false;
-      btn.onclick      = () => startSync(i);
-      progressEl.classList.remove('show');
-      barEl.style.width      = '0%';
-      barEl.style.background = '';
-      barEl.classList.add('pulse');
-    }
-
-    // 「⚡ 一鍵同步」共用邏輯：依傳入的索引陣列，觸發其中目前尚未在
-    // 同步中的卡片，並把對應的一鍵同步按鈕暫時切到「⏳ 同步中」。
-    // syncAllFreq()／syncAllQuery()／syncAllRest() 都呼叫這個函式，
-    // 差別只在傳入哪個分組的索引陣列（來自全域 groupIndices）與按鈕 id。
-    async function syncAllByIndices(indices, btnId) {
-      const allBtn = document.getElementById(btnId);
-      const jobs = [];
-      indices.forEach(i => {
-        const btn = document.getElementById(`btn-sync-${i}`);
-        if (btn && !btn.disabled) jobs.push(startSync(i));
+/* ══ 讀登入設定（更新密碼和頁面對照） ══ */
+function loadLoginConfig(){
+  return gvizFetch(MGMT_ID, LOGIN_SHEET)
+    .then(function(json){
+      var rows=(json.table&&json.table.rows)||[];
+      rows.forEach(function(row){
+        var cells=row.c||[];
+        var key=String(cv(cells[0])).trim();
+        var b=String(cv(cells[1])).trim();
+        var c=String(cv(cells[2])).trim();
+        if(key==='密碼') _password=b.toLowerCase();
+        if(key==='頁面對照'&&b&&c) _pageMap[b]=c;
       });
-      if (!jobs.length) return;
+    })
+    .catch(function(){});
+}
 
-      if (allBtn) { allBtn.disabled = true; allBtn.textContent = '⏳ 同步中'; }
-      await Promise.all(jobs);
-      if (allBtn) { allBtn.disabled = false; allBtn.textContent = '⚡ 一鍵同步'; }
-    }
+/* ══ 登入 ══ */
+function doLogin(){
+  var input=document.getElementById('login-input');
+  var btn=document.getElementById('login-btn');
+  var err=document.getElementById('login-err');
+  var val=input.value.trim().toLowerCase();
+  if(!val){ err.textContent='請輸入公司英文簡稱'; shakeInput(); return; }
+  if(val!==_password){ err.textContent='符號錯誤，請再試一次'; input.value=''; shakeInput(); input.focus(); return; }
+  err.textContent='';
+  btn.disabled=true; btn.textContent='驗證中…';
+  setAuth();
+  document.getElementById('login-screen').style.display='none';
+  showLoading('載入專案清單…');
+  loadProjects();
+}
 
-    function syncAllFreq()  { syncAllByIndices(groupIndices.freq,  'freq-sync-all-btn'); }
-    function syncAllQuery() { syncAllByIndices(groupIndices.query, 'query-sync-all-btn'); }
-    function syncAllRest()  { syncAllByIndices(groupIndices.rest,  'rest-sync-all-btn'); }
+function shakeInput(){
+  var el=document.getElementById('login-input');
+  el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake');
+  setTimeout(function(){ el.classList.remove('shake'); },400);
+}
 
-    loadTasks();
-  </script>
+function doLogout(){
+  clearAuth(); location.reload();
+}
+
+/* ══ 讀專案清單 ══ */
+function loadProjects(){
+  gvizFetch(MGMT_ID, PROJ_SHEET)
+    .then(function(json){
+      var rows=(json.table&&json.table.rows)||[];
+      var onList=[],offList=[];
+      rows.forEach(function(row){
+        var cells=row.c||[];
+        var active=String(cv(cells[0])).trim().toUpperCase()==='ON';
+        var name=String(cv(cells[1])).trim();
+        var sid=String(cv(cells[2])).trim();
+        var sheet=String(cv(cells[3])).trim()||'店家名冊';
+        var sync=String(cv(cells[4])).trim()||'輔助';
+        var cell=String(cv(cells[5])).trim()||'B1';
+        var btype=String(cv(cells[6])).trim()||'達成率型';
+        /* ── 修正①：跳過空列與表頭佔位列 ── */
+        if(!name||!sid) return;
+        if(isHeaderRow(name,sid)) return;
+        var p={name:name,id:sid,sheet:sheet,syncSheet:sync,syncCell:cell,boardType:btype};
+        if(active) onList.push(p); else offList.push(p);
+      });
+      _surveys={on:onList,off:offList};
+      hideLoading();
+      renderPortal();
+      fetchAllSyncTimes(onList.concat(offList));
+    })
+    .catch(function(){
+      hideLoading();
+      document.getElementById('stage').innerHTML='<div class="empty">⚠️ 專案清單載入失敗，請重新整理頁面</div>';
+      document.getElementById('main-screen').style.display='flex';
+    });
+}
+
+/* ══ 渲染入口 ══ */
+var TYPE_STYLE={
+  '達成率型': {accent:'#8BA690',badgeBg:'rgba(139,166,144,.12)',badgeFg:'#4a7a55',icon:'📊'},
+  '覆蓋率型': {accent:'#378ADD',badgeBg:'rgba(55,138,221,.10)',badgeFg:'#1a5fa8',icon:'🗺️'},
+  '獎勵達成型':{accent:'#d4900a',badgeBg:'rgba(212,144,10,.10)',badgeFg:'#7a5000',icon:'🏆'}
+};
+
+function renderPortal(){
+  document.getElementById('main-screen').style.display='flex';
+  var stage=document.getElementById('stage');
+  stage.innerHTML='';
+  if(!_surveys.on.length&&!_surveys.off.length){
+    stage.innerHTML='<div class="empty">目前沒有專案</div>'; return;
+  }
+  if(_surveys.on.length){
+    var lbl=document.createElement('div');
+    lbl.className='section-label'; lbl.textContent='🟢  進行中專案';
+    stage.appendChild(lbl);
+    var grid=document.createElement('div'); grid.className='proj-grid';
+    _surveys.on.forEach(function(p){ grid.appendChild(buildCard(p,false)); });
+    stage.appendChild(grid);
+  }
+  if(_surveys.off.length){
+    var toggle=document.createElement('div');
+    toggle.className='off-toggle';
+    toggle.innerHTML='▶ 已結束專案（'+_surveys.off.length+'個）';
+    toggle.onclick=function(){
+      var sec=document.getElementById('off-section');
+      var open=sec.style.display==='block';
+      sec.style.display=open?'none':'block';
+      toggle.innerHTML=(open?'▶':'▼')+' 已結束專案（'+_surveys.off.length+'個）';
+    };
+    stage.appendChild(toggle);
+    var sec=document.createElement('div'); sec.id='off-section';
+    var offGrid=document.createElement('div'); offGrid.className='proj-grid';
+    _surveys.off.forEach(function(p){ offGrid.appendChild(buildCard(p,true)); });
+    sec.appendChild(offGrid); stage.appendChild(sec);
+  }
+}
+
+function buildCard(proj,isOff){
+  var sty=TYPE_STYLE[proj.boardType]||TYPE_STYLE['達成率型'];
+  var card=document.createElement('div');
+  card.className='proj-card'+(isOff?' off':'');
+  card.id='card-'+proj.id;
+  card.style.cssText='--accent:'+sty.accent+';--badge-bg:'+sty.badgeBg+';--badge-fg:'+sty.badgeFg+';';
+
+  /* 只有 ON 的專案才查表；OFF 一律沒有更新按鈕 */
+  var taskName = isOff ? null : SYNC_TASK_MAP[stripDateSuffix(proj.name)];
+  var updateBtnHtml = taskName
+    ? '<button class="proj-update-btn" type="button" title="更新「'+esc(taskName)+'」資料">🔄</button>'
+    : '';
+
+  card.innerHTML=
+    '<span class="badge">'+sty.icon+' '+esc(proj.boardType)+(isOff?' · 已結束':'')+'</span>'+
+    '<div class="proj-name">'+esc(proj.name)+'</div>'+
+    '<div class="proj-sync">'+
+      '<span id="sync-'+esc(proj.id)+'">⏳ 讀取中…</span>'+
+      updateBtnHtml+
+    '</div>'+
+    '<span class="proj-arrow">›</span>';
+
+  card.addEventListener('click',function(){ openProject(proj); });
+
+  if(taskName){
+    var btn = card.querySelector('.proj-update-btn');
+    btn.addEventListener('click', function(e){
+      e.stopPropagation(); /* 不要連帶觸發卡片本身的跳轉點擊 */
+      handleUpdateClick(btn, proj, taskName);
+    });
+  }
+  return card;
+}
+
+function openProject(proj){
+  var page=_pageMap[proj.boardType];
+  if(!page){ alert('找不到對應頁面：'+proj.boardType); return; }
+  window.location.href=page+'?sheetId='+encodeURIComponent(proj.id);
+}
+
+/* 「🔄 更新」按鈕點擊流程：
+   ① 先取得最新任務清單，用「名稱」找出對應任務（不要直接寫死 index，
+      因為後端任務清單的順序可能會變動）
+   ② 用該任務的 _originalIndex 呼叫 syncTask 觸發後端同步
+   ③ 成功後重新讀取這張卡片自己的同步時間，更新卡片上顯示的文字 */
+function handleUpdateClick(btn, proj, taskName){
+  if(btn.disabled) return;
+  btn.disabled = true;
+  btn.textContent = '⏳';
+
+  fetch(SYNC_GAS_URL + '?action=getTasks')
+    .then(function(r){ return r.json(); })
+    .then(function(json){
+      if(!json.ok) throw new Error('讀取同步任務清單失敗');
+      var match = (json.data||[]).filter(function(t){ return t.name===taskName; })[0];
+      if(!match) throw new Error('在同步工具裡找不到任務：'+taskName);
+      return fetch(SYNC_GAS_URL, {
+        method:'POST',
+        body: JSON.stringify({ action:'syncTask', index: match._originalIndex })
+      });
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(json){
+      if(!json.ok) throw new Error(json.message||'更新失敗');
+      btn.textContent = '✅';
+      setTimeout(function(){
+        fetchOneSyncTime(proj);
+        btn.textContent = '🔄';
+        btn.disabled = false;
+      }, 1200);
+    })
+    .catch(function(err){
+      btn.textContent = '❌';
+      btn.title = '更新失敗：'+(err&&err.message||err);
+      setTimeout(function(){
+        btn.textContent = '🔄';
+        btn.title = '更新「'+taskName+'」資料';
+        btn.disabled = false;
+      }, 1800);
+    });
+}
+
+/* ══ 背景拉同步時間（修正②：加逾時，off 卡片不顯示讀取中） ══ */
+function fetchOneSyncTime(proj){
+  var el=document.getElementById('sync-'+proj.id);
+  if(!proj.syncSheet||!proj.syncCell){
+    if(el) el.textContent=''; return Promise.resolve();
+  }
+  var url='https://docs.google.com/spreadsheets/d/'+proj.id+
+    '/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(proj.syncSheet)+'&range='+proj.syncCell;
+  return fetchWithTimeout(url, SYNC_TIMEOUT)
+    .then(function(r){ return r.text(); })
+    .then(function(txt){
+      var json=JSON.parse(txt.replace(/^[^\(]+\(/,'').replace(/\);?\s*$/,''));
+      var val=''; try{val=json.table.rows[0].c[0].v||'';}catch(e){}
+      if(el) el.textContent=val?'📊 同步 '+parseGvizDate(String(val)):'';
+    })
+    .catch(function(){
+      if(el) el.textContent='';
+    });
+}
+function fetchAllSyncTimes(list){
+  list.forEach(function(proj){ fetchOneSyncTime(proj); });
+}
+
+/* ══ 啟動 ══ */
+(function(){
+  if(hasAuth()){
+    document.getElementById('loading-screen').classList.add('show');
+    document.getElementById('loading-text').textContent='載入專案清單…';
+    loadLoginConfig();
+    loadProjects();
+    return;
+  }
+  document.getElementById('loading-screen').classList.add('show');
+  document.getElementById('loading-text').textContent='初始化中…';
+  loadLoginConfig().then(function(){
+    document.getElementById('loading-screen').classList.remove('show');
+    document.getElementById('login-screen').style.display='flex';
+    setTimeout(function(){ document.getElementById('login-input').focus(); },120);
+  });
+})();
+
+</script>
 </body>
 </html>
