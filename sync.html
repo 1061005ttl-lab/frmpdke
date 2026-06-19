@@ -1,7 +1,8 @@
 <!--
-====================================================================
-業務王同步中心 - 桌面版同步控制台 (sync0616_desktop.html)
-====================================================================
+================================================================================
+  業務王同步中心 - 桌面版同步控制台 (sync0616_desktop.html)
+  版本：Ver. 1.4.0 ｜ 最後更新：2026-06-19 00:00
+================================================================================
 
 【這份檔案在做什麼】
 這是一個純前端的單頁 HTML 工具，用來手動觸發「業務王」後台資料同步到
@@ -94,7 +95,7 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
 - 這是「桌面版」介面；可能還有對應的「手機版」（單欄列表、底部收合式
   執行紀錄抽屜）版本，兩者為各自獨立的檔案，修改其中一個不會影響另一個，
   如需同步調整請另外處理手機版檔案。
-====================================================================
+================================================================================
 -->
 <!DOCTYPE html>
 <html lang="zh-TW">
@@ -282,8 +283,10 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
       font-size: 14.5px; font-weight: 700;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
+    /* 桌機：日期與更新時間併成一行，用 · 分隔 */
     .card-date { font-size: 11.5px; color: var(--text-secondary); font-family: var(--mono); margin-top: 4px; }
     .card-meta { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
+    .card-meta-inline { display: none; } /* 手機用的合併行，桌機隱藏 */
     .card-btns { display: flex; gap: 8px; }
     .card-btns .btn-sync { flex: 1; }
 
@@ -497,6 +500,55 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
         flex: 1;
         justify-content: center;
       }
+
+      /* ── 手機版卡片：改為緊湊條列樣式，所有資訊單行揭露 ── */
+      .task-card {
+        flex-direction: row;
+        align-items: center;
+        padding: 11px 14px;
+        gap: 10px;
+        border-radius: 10px;
+      }
+      /* 左側資訊欄：名稱 + 合併的日期/時間一行 */
+      .card-info { flex: 1; min-width: 0; overflow: hidden; }
+      .card-name  { font-size: 13.5px; }
+      /* 桌機的兩行 meta 在手機改成隱藏 */
+      .card-date, .card-meta { display: none; }
+      /* 手機專用合併行：日期範圍 ・ 🕐 更新時間，一行顯示 */
+      .card-meta-inline {
+        display: block;
+        font-size: 10.5px;
+        color: var(--text-secondary);
+        font-family: var(--mono);
+        margin-top: 3px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      /* 右側按鈕欄：固定寬度，避免名稱被擠壓 */
+      .card-btns {
+        flex-shrink: 0;
+        flex-direction: row;
+        gap: 6px;
+      }
+      .card-btns .btn-sync {
+        flex: none;
+        width: 76px;
+        padding: 8px 0;
+        font-size: 13px;
+      }
+      .btn-sheet { min-width: 36px; min-height: 36px; font-size: 14px; }
+
+      /* 進度條移到整張卡片下方（用偽 block 撐開） */
+      .task-card { flex-wrap: wrap; }
+      .task-progress { flex: 1 1 100%; margin-top: 4px; }
+
+      /* 間距縮緊 */
+      .main-col { padding: 12px 12px 20px; }
+      .freq-group { padding: 26px 14px 14px; margin-bottom: 18px; }
+      .freq-grid  { gap: 8px; }
+      .task-grid  { gap: 8px; }
+      .task-section .section-eyebrow { margin-bottom: 10px; }
     }
   </style>
 </head>
@@ -665,12 +717,30 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
     }
 
     function taskCardHtml(task, i) {
+      // card-meta-inline：手機版用，把日期範圍與更新時間合併為一行。
+      // 為了在窄螢幕（~200px 可用寬度）完整揭露所有資訊，格式縮短為：
+      //   起訖：2026/05/20 ~ 2026/06/30  →  05/20–06/30
+      //   🕐 06/17 17:11                 →  🕐 17:11
+      // 年份與日期中的「06/17」省略，讓行長維持在可讀範圍內。
+      const metaInlineParts = [];
+      if (task.dateText) {
+        // 去掉「起訖：」與年份，將 2026/05/20 ~ 2026/06/30 縮成 05/20–06/30
+        const m = task.dateText.match(/\d{4}\/(\d{2}\/\d{2})\s*~\s*\d{4}\/(\d{2}\/\d{2})/);
+        metaInlineParts.push(m ? `${m[1]}–${m[2]}` : task.dateText.replace('起訖：',''));
+      }
+      if (task.updatedAt) {
+        // 只取時分（HH:MM），去掉日期部分
+        const t = task.updatedAt.match(/(\d{2}:\d{2})$/);
+        metaInlineParts.push(`🕐 ${t ? t[1] : task.updatedAt}`);
+      }
+      const metaInline = metaInlineParts.join(' ・ ');
       return `
         <div class="task-card">
-          <div>
+          <div class="card-info">
             <div class="card-name">${task.name}</div>
-            ${task.dateText ? `<div class="card-date">${task.dateText}</div>` : ''}
+            ${task.dateText  ? `<div class="card-date">${task.dateText}</div>` : ''}
             ${task.updatedAt ? `<div class="card-meta">🕐 ${task.updatedAt}</div>` : ''}
+            ${metaInline     ? `<div class="card-meta-inline">${metaInline}</div>` : ''}
           </div>
           <div class="card-btns">
             ${boardButtonHtml(task)}
