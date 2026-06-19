@@ -1,7 +1,7 @@
 <!--
 ================================================================================
   全聯18天推廣進度看板 (award_board.html)
-  版本：Ver. 1.8.1 ｜ 最後更新：2026-06-17
+  版本：Ver. 1.9.0 ｜ 最後更新：2026-06-17
 ================================================================================
 
 【給下一位接手的 AI — 必讀事項】
@@ -75,9 +75,13 @@
       }
       (function () {
         var BASE_W = 1440;
+        var MIN_ZOOM = 0.55;
         function applyZoom() {
+          /* 手機（觸控裝置）不縮放，走 RWD；桌面才縮放 */
+          var isMobile = ('ontouchstart' in window) || window.innerWidth < 768;
+          if(isMobile){ document.documentElement.style.zoom = ''; return; }
           var ratio = Math.min(1, window.innerWidth / BASE_W);
-          ratio = Math.max(0.55, ratio);
+          ratio = Math.max(MIN_ZOOM, ratio);
           document.documentElement.style.zoom = ratio;
         }
         applyZoom();
@@ -335,7 +339,112 @@
       max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
     }
 
-    /* ══ 彙整表 MODAL ══ */
+    /* ══════════════════════════════════════════
+       手機 RWD（≤ 767px）
+    ══════════════════════════════════════════ */
+    @media (max-width: 767px) {
+      /* Topbar：改為兩行 */
+      #topbar {
+        flex-wrap:wrap; padding:6px 8px; gap:5px; min-height:auto;
+      }
+      #topbar > *:not(#tb-right) { flex-shrink:1; }
+      #tb-right { margin-left:auto; }
+      #ver-ts { display:none; } /* 版本號手機隱藏省空間 */
+      #title { font-size:13px; }
+      .sep { display:none; }
+      .view-chip { font-size:10px; padding:3px 8px; }
+      #manual-toggle, #rank-btn { font-size:10px; padding:3px 8px; }
+
+      /* 說明書 */
+      #manual-bar { max-height:none; }
+      #manual-bar.open { max-height:600px; }
+      #manual-inner { font-size:10px; padding:8px 12px 10px; }
+
+      /* Navbar */
+      #nav-area-row, #nav-office-row { padding:5px 8px; gap:5px; }
+      .nav-chip { font-size:11px; padding:4px 10px; }
+
+      /* Gbar */
+      #gbar { padding:5px 8px; flex-wrap:wrap; gap:5px; }
+      #gbar .sort-btn { font-size:11px; padding:3px 8px; }
+      #gb-count { font-size:11px; }
+
+      /* 卡片：手機一欄滿版 */
+      #main-area {
+        padding:8px;
+        gap:8px;
+      }
+      .person-card {
+        width:100% !important;
+        min-width:0 !important;
+      }
+
+      /* 卡片內文字縮小 */
+      .pc-name { font-size:15px; }
+      .pc-unit { font-size:10px; }
+      .pc-q-label { font-size:9px; }
+      .pc-total-num { font-size:26px; }
+      .pc-table th { font-size:10px; padding:5px 7px; }
+      .pc-table td { font-size:12px; padding:5px 7px; }
+      .pc-table td:first-child { font-size:11px; }
+      .ctn-staff { font-size:9px; max-width:60px; }
+
+      /* 進銷存卡片區塊 */
+      .org-inv-tbl th, .org-inv-tbl td { font-size:11px; padding:3px 5px; }
+
+      /* Dialog：全螢幕 */
+      #detail-dialog { padding:0; align-items:flex-end; }
+      .dlg-box {
+        width:100% !important;
+        height:88vh !important;
+        border-radius:16px 16px 0 0 !important;
+        transform:translateY(20px) !important;
+      }
+      #detail-dialog.open .dlg-box { transform:translateY(0) !important; }
+      .dlg-header {
+        flex-wrap:wrap;
+        padding:10px 12px 8px;
+        gap:6px;
+      }
+      #dlg-title {
+        width:100%;
+        font-size:13px;
+        font-weight:800;
+        line-height:1.3;
+        white-space:normal !important;
+      }
+      .dlg-header > div {
+        width:100%;
+        display:flex;
+        gap:6px;
+        flex-wrap:wrap;
+      }
+      .dlg-action-btn { font-size:11px; padding:5px 10px; flex:1; text-align:center; }
+      .dlg-close { padding:5px 10px; font-size:14px; }
+      .detail-tbl { font-size:12px; }
+      .detail-tbl th { padding:6px 8px; font-size:10px; }
+      .detail-tbl td { padding:6px 8px; font-size:12px; }
+
+      /* 彙整表 Modal：全螢幕 */
+      #summary-modal { padding:0; align-items:flex-end; }
+      #summary-modal > div {
+        width:100% !important;
+        max-width:100% !important;
+        height:92vh;
+        border-radius:16px 16px 0 0;
+      }
+
+      /* 品評排行 Modal */
+      .rank-modal-box { width:95vw; }
+    }
+
+    /* iPhone SE3 特別小（≤ 390px）*/
+    @media (max-width: 390px) {
+      .pc-total-num { font-size:22px; }
+      .pc-name { font-size:14px; }
+      #topbar { padding:5px 6px; }
+      .nav-chip { font-size:10px; padding:3px 8px; }
+    }
     #summary-modal { opacity:0; transition:opacity .2s; }
 
     /* ══ 品評排行 MODAL ══ */
@@ -457,7 +566,7 @@
   <button id="manual-toggle" onclick="toggleManual()">📋 說明書</button>
   <button class="tb-btn" onclick="toggleRank()" id="rank-btn" style="background:rgba(255,215,0,.15);border-color:rgba(200,160,0,.3);color:#7a5500;">🏆 品評排行</button>
   <div id="tb-right">
-    <div id="ver-ts">Ver. 1.8.1 (2026-06-17 16:30)</div>
+    <div id="ver-ts">Ver. 1.9.0 (2026-06-17 17:00)</div>
     <button class="tb-btn" onclick="downloadXLSX()">📥 XLSX</button>
   </div>
 </div>
@@ -465,7 +574,7 @@
 <!-- 說明書（在 topbar 之後折疊展開）-->
 <div id="manual-bar">
   <div id="manual-inner">
-    <h3>📋 全聯18天推廣進度看板 — 怎麼看這個畫面？（Ver. 1.8.1）</h3>
+    <h3>📋 全聯18天推廣進度看板 — 怎麼看這個畫面？（Ver. 1.9.0）</h3>
     <p><b>【這個看板在追蹤什麼？】</b>追蹤全聯各門市在「18天推廣活動」期間，實際進貨箱數與去年同期相比，是增加還是減少。數字越大（正值）代表今年賣得比去年好；負值代表不如去年。</p>
     <hr>
     <p><b>【人員視角 — 誰負責哪些店？賣了多少？】</b>每張卡片代表一位業務員。卡片右上角的大數字（<b>品評CTN</b>）= 今年實際進貨 − 應達標準，綠色正數代表超標，紅色負數代表未達標。點「店家明細」可查看他每一家店、每個月的達成細節。</p>
@@ -553,7 +662,7 @@
 /*
 ================================================================================
   全聯18天推廣進度看板 — 程式說明書（供後續開發者 / AI 閱讀）
-  Ver. 1.8.1  最後更新：2026-06-17
+  Ver. 1.9.0  最後更新：2026-06-17
 ================================================================================
 
 【專案目的】
@@ -1922,7 +2031,8 @@ function takeScreenshot(){
       width:wrapper.scrollWidth, height:wrapper.scrollHeight
     }).then(function(canvas){
       document.body.removeChild(wrapper);
-      if(navigator.clipboard&&window.ClipboardItem){
+      /* iOS 優先走 share，桌面走 clipboard，失敗則下載 */
+      if(navigator.clipboard&&window.ClipboardItem&&!navigator.share){
         canvas.toBlob(function(blob){
           try{
             var item=new ClipboardItem({'image/png':blob});
@@ -1959,12 +2069,37 @@ function takeScreenshot(){
 }
 
 function _downloadCanvas(canvas, titleText, btn){
+  var filename=(titleText||'截圖').replace(/[\s\/\\:*?"<>|]/g,'_')+'.png';
+  /* iOS/Android：優先用 navigator.share 直接傳送 LINE/訊息 */
+  if(navigator.share && navigator.canShare){
+    canvas.toBlob(function(blob){
+      var file=new File([blob], filename, {type:'image/png'});
+      if(navigator.canShare({files:[file]})){
+        navigator.share({files:[file], title:titleText||'全聯18天推廣進度看板'})
+          .then(function(){
+            btn.classList.remove('loading');
+            _flashBtn(btn,'✅ 已分享！');
+          })
+          .catch(function(e){
+            /* 使用者取消或失敗，改下載 */
+            _triggerDownload(canvas, filename, btn);
+          });
+        return;
+      }
+      _triggerDownload(canvas, filename, btn);
+    },'image/png');
+  } else {
+    _triggerDownload(canvas, filename, btn);
+  }
+}
+
+function _triggerDownload(canvas, filename, btn){
   var link=document.createElement('a');
-  link.download=titleText.replace(/\s+/g,'_')+'.png';
+  link.download=filename;
   link.href=canvas.toDataURL('image/png');
   link.click();
   btn.classList.remove('loading');
-  _flashBtn(btn,'\u2705 \u5DF2\u4E0B\u8F09\uFF01');
+  _flashBtn(btn,'✅ 已下載！');
 }
 
 /* \u2550\u2550 \u6392\u884C\u699C \u2550\u2550 */
@@ -2333,7 +2468,8 @@ function takeSummaryScreenshot(){
     }).then(function(canvas){
       document.body.removeChild(wrapper);
       var filename='彙整表_'+_unitLabel()+'_'+_nowStr()+'.png';
-      if(navigator.clipboard&&window.ClipboardItem){
+      /* 統一用 _downloadCanvas：自動判斷 iOS share / clipboard / 下載 */
+      if(navigator.clipboard&&window.ClipboardItem&&!navigator.share){
         canvas.toBlob(function(blob){
           try{
             navigator.clipboard.write([new ClipboardItem({'image/png':blob})]).then(function(){
@@ -2342,7 +2478,9 @@ function takeSummaryScreenshot(){
             }).catch(function(){ _downloadCanvas(canvas,filename,btn); });
           }catch(e){ _downloadCanvas(canvas,filename,btn); }
         },'image/png');
-      } else { _downloadCanvas(canvas,filename,btn); }
+      } else {
+        _downloadCanvas(canvas,filename,btn);
+      }
     }).catch(function(err){
       document.body.removeChild(wrapper);
       btn.textContent='📸 截圖';
