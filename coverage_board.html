@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 1.2.2 ｜ 最後更新：2026-06-20
+  版本：Ver. 1.2.4 ｜ 最後更新：2026-06-20
 ════════════════════════════════════════════════════════════
 
 【版本紀錄】
@@ -283,19 +283,26 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 
 /* ── tooltip ── */
 .tooltip {
-  position:fixed;
+  position:absolute;
+  bottom:calc(100% + 8px);
+  left:50%;
+  transform:translateX(-50%);
   background:#fff;
   border:1px solid var(--border);
   border-radius:10px;
   padding:10px 14px;
   min-width:170px;
-  z-index:600;
+  z-index:200;
   pointer-events:none;
   opacity:0;
   transition:opacity .15s;
-  box-shadow:0 4px 16px rgba(0,0,0,.12);
+  box-shadow:0 4px 16px rgba(0,0,0,.10);
 }
 .tooltip.show { opacity:1; }
+.tooltip.flip {
+  bottom:auto;
+  top:calc(100% + 8px);
+}
 .tt-title { font-size:11px; font-weight:700; color:var(--sub); margin-bottom:7px; letter-spacing:.03em; }
 .tt-row { display:flex; justify-content:space-between; align-items:center; gap:20px; padding:4px 0; }
 .tt-label { font-size:13px; color:var(--sub); }
@@ -1006,27 +1013,19 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
   if(siEl&&ttEl){
     siEl.addEventListener('mouseenter',function(e){
       e.stopPropagation();
-      /* 先顯示以取得尺寸，再定位 */
-      ttEl.style.opacity='0';
-      ttEl.style.top='0'; ttEl.style.left='0';
-      ttEl.classList.add('show');
-      var sr=siEl.getBoundingClientRect(), tr=ttEl.getBoundingClientRect();
-      var gap=8, vw=window.innerWidth, vh=window.innerHeight;
-      /* 垂直：優先往上，空間不夠則往下 */
-      var top;
-      if(sr.top - tr.height - gap >= 0){
-        top = sr.top - tr.height - gap;
+      /* 判斷卡片是否靠近視窗頂部，是則往下彈（flip），否則往上彈（預設）*/
+      var cardRect = card.getBoundingClientRect();
+      if(cardRect.top < 160){
+        ttEl.classList.add('flip');
       } else {
-        top = sr.bottom + gap;
+        ttEl.classList.remove('flip');
       }
-      /* 水平：對齊 stat-item 中心，超出邊界時夾住 */
-      var left = sr.left + sr.width/2 - tr.width/2;
-      left = Math.max(8, Math.min(left, vw - tr.width - 8));
-      ttEl.style.top  = top  + 'px';
-      ttEl.style.left = left + 'px';
-      ttEl.style.opacity='';
+      ttEl.classList.add('show');
     });
-    siEl.addEventListener('mouseleave',function(){ ttEl.classList.remove('show'); });
+    siEl.addEventListener('mouseleave',function(){
+      ttEl.classList.remove('show');
+      ttEl.classList.remove('flip');
+    });
   }
 
   card.querySelector('#dbtn-'+ttId).addEventListener('click',function(e){
