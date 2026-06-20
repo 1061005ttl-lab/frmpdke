@@ -1,7 +1,7 @@
 <!--
 ================================================================================
   業務王同步中心 - 桌面版同步控制台 (sync0616_desktop.html)
-  版本：Ver. 1.4.0 ｜ 最後更新：2026-06-19 00:00
+  版本：Ver. 1.5.0 ｜ 最後更新：2026-06-20 00:00
 ================================================================================
 
 【這份檔案在做什麼】
@@ -593,6 +593,20 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
   <script>
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbwNmy6uS6NiOzMNJfVeWn7R98tub-DWHPNaj2FW5BnVneq-KbSZ82yYDuIvVLEk_dKPaA/exec';
 
+    // 確保同步時間一定包含日期部分（MM/DD HH:MM）。
+    // GAS 有時只回傳 HH:MM，若偵測到缺少日期則補上今天的 MM/DD。
+    // 這是前端的「保底」措施；最終正確做法是讓 GAS 一律回傳含日期的字串。
+    function ensureDate(val) {
+      if (!val) return val;
+      // 已包含「/」（如 06/17 17:11）→ 直接回傳
+      if (val.indexOf('/') >= 0) return val;
+      // 只有時間（如 17:11）→ 補今天的 MM/DD
+      const d  = new Date();
+      const mm = String(d.getMonth()+1).padStart(2,'0');
+      const dd = String(d.getDate()).padStart(2,'0');
+      return `${mm}/${dd} ${val}`;
+    }
+
     // ── 看板對應設定 ──
     const BOARD_BASE = 'https://1061005ttl-lab.github.io/frmpdke/';
     const BOARD_FILE = {
@@ -729,18 +743,25 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
         metaInlineParts.push(m ? `${m[1]}–${m[2]}` : task.dateText.replace('起訖：',''));
       }
       if (task.updatedAt) {
-        // 只取時分（HH:MM），去掉日期部分
-        const t = task.updatedAt.match(/(\d{2}:\d{2})$/);
-        metaInlineParts.push(`🕐 ${t ? t[1] : task.updatedAt}`);
+        const dated = ensureDate(task.updatedAt);
+        if (task.dateText) {
+          // 有起訖日期，空間較緊，只保留時分（HH:MM）
+          const t = dated.match(/(\d{2}:\d{2})$/);
+          metaInlineParts.push(`🕐 ${t ? t[1] : dated}`);
+        } else {
+          // 無起訖日期，空間充裕，顯示完整 MM/DD HH:MM
+          metaInlineParts.push(`🕐 ${dated}`);
+        }
       }
       const metaInline = metaInlineParts.join(' ・ ');
+      const displayUpdatedAt = ensureDate(task.updatedAt);
       return `
         <div class="task-card">
           <div class="card-info">
             <div class="card-name">${task.name}</div>
-            ${task.dateText  ? `<div class="card-date">${task.dateText}</div>` : ''}
-            ${task.updatedAt ? `<div class="card-meta">🕐 ${task.updatedAt}</div>` : ''}
-            ${metaInline     ? `<div class="card-meta-inline">${metaInline}</div>` : ''}
+            ${task.dateText      ? `<div class="card-date">${task.dateText}</div>` : ''}
+            ${displayUpdatedAt   ? `<div class="card-meta">🕐 ${displayUpdatedAt}</div>` : ''}
+            ${metaInline         ? `<div class="card-meta-inline">${metaInline}</div>` : ''}
           </div>
           <div class="card-btns">
             ${boardButtonHtml(task)}
