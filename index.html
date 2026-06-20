@@ -1,7 +1,7 @@
 <!--
 ================================================================================
   業務王看板入口 (index.html)
-  版本：Ver. 1.0.0 ｜ 最後更新：2026-06-19 00:00
+  版本：Ver. 1.1.0 ｜ 最後更新：2026-06-20 00:00
 ================================================================================
 
 【這個檔案在做什麼】
@@ -198,11 +198,18 @@ body{background:var(--bg);color:var(--text);min-height:100vh;}
   color:var(--badge-fg,#4a7a55);
 }
 .proj-name{font-size:16px;font-weight:900;color:var(--text);margin-bottom:8px;line-height:1.35;}
-.proj-sync{font-size:11px;color:var(--sub);margin-top:8px;padding-top:8px;border-top:1px solid var(--border);min-height:20px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
+/* 桌機：同步列左側文字、右側更新按鈕 */
+.proj-sync{
+  font-size:11px;color:var(--sub);margin-top:8px;padding-top:8px;
+  border-top:1px solid var(--border);min-height:20px;
+  display:flex;align-items:center;gap:6px;
+}
+.proj-sync-text{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.proj-sync-status{font-size:10px;color:var(--primary-d);font-weight:700;flex-shrink:0;}
 .proj-update-btn{
   flex-shrink:0;width:24px;height:24px;border-radius:50%;
   border:1.5px solid var(--primary);background:#fff;color:var(--primary-d);
-  font-size:12px;line-height:1;display:flex;align-items:center;justify-content:center;
+  font-size:12px;display:flex;align-items:center;justify-content:center;
   cursor:pointer;transition:background .15s,color .15s,transform .12s;
 }
 .proj-update-btn:hover{background:var(--primary);color:#fff;}
@@ -220,6 +227,43 @@ body{background:var(--bg);color:var(--text);min-height:100vh;}
 .off-toggle:hover{color:var(--primary-d);}
 #off-section{display:none;margin-top:10px;}
 .empty{padding:60px 20px;text-align:center;color:var(--sub);font-size:14px;}
+
+/* ── 手機版（≤640px）：緊湊條列，badge 省略，色條移至左側 ── */
+@media(max-width:640px){
+  #stage{padding:12px 12px 40px;}
+  .proj-grid{gap:8px;}
+  .section-label{margin-top:16px;margin-bottom:8px;}
+
+  .proj-card{
+    padding:10px 32px 10px 12px; /* 右側 32px 給 arrow */
+    border-radius:10px;
+  }
+  /* 頂部橫條改為左側直條 */
+  .proj-card::before{
+    width:3px;height:100%;
+    top:0;left:0;right:auto;
+    border-radius:var(--r) 0 0 var(--r);
+  }
+  .badge{display:none;}
+  .proj-name{font-size:14px;margin-bottom:2px;}
+  /* 手機同步列：省略上方間距、邊框線 */
+  .proj-sync{
+    margin-top:0;padding-top:0;border-top:none;
+    min-height:auto;font-size:10.5px;
+  }
+  .proj-sync-text{font-family:monospace;}
+  /* 更新按鈕：絕對定位於卡片右側中間，與 arrow 並列 */
+  .proj-update-btn{
+    position:absolute;
+    right:32px;top:50%;transform:translateY(-50%);
+    width:28px;height:28px;font-size:13px;
+  }
+  /* 有更新按鈕的卡片，arrow 再右移一點 */
+  .proj-card:has(.proj-update-btn) .proj-arrow{right:6px;}
+  .proj-card:has(.proj-update-btn):hover .proj-arrow{right:4px;}
+  .proj-arrow{font-size:14px;right:10px;}
+  .proj-card:hover .proj-arrow{right:8px;}
+}
 </style>
 </head>
 <body>
@@ -302,7 +346,12 @@ function parseGvizDate(v){
   var m = String(v).match(/Date\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)/);
   if(!m) return String(v);
   var d = new Date(+m[1],+m[2],+m[3],+m[4],+m[5],+m[6]);
-  return d.toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  /* 固定輸出 MM/DD HH:MM（24h），不要上午/下午 */
+  var mm  = String(d.getMonth()+1).padStart(2,'0');
+  var dd  = String(d.getDate()).padStart(2,'0');
+  var hh  = String(d.getHours()).padStart(2,'0');
+  var min = String(d.getMinutes()).padStart(2,'0');
+  return mm+'/'+dd+' '+hh+':'+min;
 }
 
 function cv(c){ return c?(c.v!==null&&c.v!==undefined?c.v:c.f||''):''; }
@@ -474,7 +523,6 @@ function buildCard(proj,isOff){
   card.id='card-'+proj.id;
   card.style.cssText='--accent:'+sty.accent+';--badge-bg:'+sty.badgeBg+';--badge-fg:'+sty.badgeFg+';';
 
-  /* 只有 ON 的專案才查表；OFF 一律沒有更新按鈕 */
   var taskName = isOff ? null : SYNC_TASK_MAP[stripDateSuffix(proj.name)];
   var updateBtnHtml = taskName
     ? '<button class="proj-update-btn" type="button" title="更新「'+esc(taskName)+'」資料">🔄</button>'
@@ -484,17 +532,22 @@ function buildCard(proj,isOff){
     '<span class="badge">'+sty.icon+' '+esc(proj.boardType)+(isOff?' · 已結束':'')+'</span>'+
     '<div class="proj-name">'+esc(proj.name)+'</div>'+
     '<div class="proj-sync">'+
-      '<span id="sync-'+esc(proj.id)+'">⏳ 讀取中…</span>'+
+      '<span class="proj-sync-text" id="sync-'+esc(proj.id)+'">⏳ 讀取中…</span>'+
+      '<span class="proj-sync-status" id="sync-status-'+esc(proj.id)+'"></span>'+
       updateBtnHtml+
     '</div>'+
     '<span class="proj-arrow">›</span>';
 
-  card.addEventListener('click',function(){ openProject(proj); });
+  card.addEventListener('click',function(e){
+    /* 點到更新按鈕時不要觸發卡片跳轉 */
+    if(e.target.closest&&e.target.closest('.proj-update-btn')) return;
+    openProject(proj);
+  });
 
   if(taskName){
     var btn = card.querySelector('.proj-update-btn');
     btn.addEventListener('click', function(e){
-      e.stopPropagation(); /* 不要連帶觸發卡片本身的跳轉點擊 */
+      e.stopPropagation();
       handleUpdateClick(btn, proj, taskName);
     });
   }
@@ -507,15 +560,27 @@ function openProject(proj){
   window.location.href=page+'?sheetId='+encodeURIComponent(proj.id);
 }
 
-/* 「🔄 更新」按鈕點擊流程：
-   ① 先取得最新任務清單，用「名稱」找出對應任務（不要直接寫死 index，
-      因為後端任務清單的順序可能會變動）
-   ② 用該任務的 _originalIndex 呼叫 syncTask 觸發後端同步
-   ③ 成功後重新讀取這張卡片自己的同步時間，更新卡片上顯示的文字 */
+/* 點 4+5：更新按鈕點擊流程，加入三階段視覺回饋
+   ① 按下：按鈕 ⏳，時間欄顯示「同步中…」
+   ② 完成：按鈕 ✅，時間欄顯示「✅ 完成」，1.5s 後重新讀取最新時間
+   ③ 失敗：按鈕 ❌，時間欄顯示錯誤原因，2s 後恢復 */
 function handleUpdateClick(btn, proj, taskName){
   if(btn.disabled) return;
   btn.disabled = true;
   btn.textContent = '⏳';
+
+  var statusEl = document.getElementById('sync-status-'+proj.id);
+  var textEl   = document.getElementById('sync-'+proj.id);
+  var prevText = textEl ? textEl.textContent : '';
+
+  if(statusEl) statusEl.textContent = '同步中…';
+
+  /* 計時器，讓使用者看到時間在跑 */
+  var startTs = Date.now();
+  var timerInterval = setInterval(function(){
+    var secs = ((Date.now()-startTs)/1000).toFixed(0);
+    if(statusEl) statusEl.textContent = '同步中… '+secs+'s';
+  }, 1000);
 
   fetch(SYNC_GAS_URL + '?action=getTasks')
     .then(function(r){ return r.json(); })
@@ -531,21 +596,30 @@ function handleUpdateClick(btn, proj, taskName){
     .then(function(r){ return r.json(); })
     .then(function(json){
       if(!json.ok) throw new Error(json.message||'更新失敗');
+      clearInterval(timerInterval);
+      var elapsed = ((Date.now()-startTs)/1000).toFixed(1);
       btn.textContent = '✅';
+      if(statusEl) statusEl.textContent = '✅ '+elapsed+'s';
+      /* 點 5：1.5s 後重新讀取最新同步時間並刷新顯示 */
       setTimeout(function(){
+        if(statusEl) statusEl.textContent = '';
         fetchOneSyncTime(proj);
         btn.textContent = '🔄';
         btn.disabled = false;
-      }, 1200);
+      }, 1500);
     })
     .catch(function(err){
+      clearInterval(timerInterval);
       btn.textContent = '❌';
-      btn.title = '更新失敗：'+(err&&err.message||err);
+      var msg = (err&&err.message)||'失敗';
+      if(statusEl) statusEl.textContent = '❌ '+msg.slice(0,20);
+      if(textEl) textEl.textContent = prevText; /* 恢復舊時間 */
       setTimeout(function(){
+        if(statusEl) statusEl.textContent = '';
         btn.textContent = '🔄';
         btn.title = '更新「'+taskName+'」資料';
         btn.disabled = false;
-      }, 1800);
+      }, 2500);
     });
 }
 
