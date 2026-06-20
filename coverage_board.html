@@ -1,17 +1,24 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 1.1.0 ｜ 最後更新：2026-06-19
+  版本：Ver. 1.2.0 ｜ 最後更新：2026-06-19
 ════════════════════════════════════════════════════════════
 
 【版本紀錄】
+  1.2.0  2026-06-19  代碼深度清理
+         - 移除 8 個舊版殘留 CSS class（.card-top/.card-name/.cov-*/.tag-*/.valid-note/.toolbar-sync）
+         - 移除 .detail-tbl td:first-child / td:nth-child(2) 與 .td-code/.td-name 的重複 selector
+         - 移除未使用的 BUCKET_A 變數
+         - 移除 openDialog 多餘的按鈕 innerHTML 重置
+         - 修正版本紀錄重複行、重複註解
+         - COL_LABELS 改成物件字面量
+         - card-top 多餘 class 從 div 移除，統一只用 card-top-inline
   1.1.0  2026-06-19  UI 優化 + Dialog 店家型態欄
          - 店家明細按鈕移至標題列右側，釋放卡片下方空間
          - 組織視角 dialog 表格加入「店家型態」欄（staff/office/area 層）
          - 新增 getDisplayCols（顯示欄）與 getExtraCols（匯出欄）分離，
            匯出 Excel/LINE 時同步包含店家型態
   1.0.0  2026-06-19  初版正式發佈
-         - 覆蓋率型看板基礎功能
          - 覆蓋率型看板基礎功能
          - 組織視角（營業處→營業所→業務人員）
          - 通路視角（通路別→店家型態→營業處→營業所）
@@ -108,7 +115,6 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   z-index:50;
 }
 .toolbar-title { font-size:15px; font-weight:600; flex:1; }
-.toolbar-sync { font-size:12px; color:var(--sub); }
 .back-btn {
   background:none;
   border:1px solid var(--border);
@@ -224,7 +230,6 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   border-color:var(--primary);
   background:var(--primary-bg);
 }
-.card-overall .card-top { color:var(--primary); }
 .card-top-inline {
   font-size:11px; color:var(--sub); font-weight:500;
   display:flex; align-items:center; gap:5px;
@@ -233,16 +238,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .card-overall .card-top-inline { color:var(--primary); font-weight:700; }
 .card-name-inline { font-size:18px; font-weight:800; color:var(--text); line-height:1.1; flex:1; min-width:0; }
 .card-overall .card-name-inline, .card-name-overall { color:var(--primary); }
-.card-top { font-size:12px; color:var(--sub); margin-bottom:6px; }
-.card-name { font-size:18px; font-weight:700; margin-bottom:16px; }
-.cov-row { display:flex; align-items:baseline; gap:4px; }
-.cov-num { font-size:30px; font-weight:700; color:var(--text); cursor:default; }
-.cov-unit { font-size:13px; color:var(--sub); }
-.tag-row { display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; }
-.tag { font-size:11px; padding:3px 8px; border-radius:6px; font-weight:500; }
-.tag-yes { background:var(--green-bg); color:var(--green); }
-.tag-no  { background:var(--red-bg);   color:var(--red); }
-.valid-note { font-size:11px; color:#aaa; margin-top:7px; }
+
 
 /* ── stat row ── */
 .stat-row { display:flex; gap:10px; margin-top:4px; }
@@ -359,8 +355,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   padding:8px 14px; text-align:center;
   border-bottom:1px solid rgba(0,0,0,.04); white-space:nowrap;
 }
-.detail-tbl td:first-child { text-align:left; color:var(--sub); font-size:12px; font-weight:600; }
-.detail-tbl td:nth-child(2) { text-align:left; color:var(--text); font-weight:600; }
+
 .detail-tbl tr:last-child td { border-bottom:none; }
 .detail-tbl tbody tr:hover td { background:rgba(55,138,221,.06); }
 .d-yes { color:var(--green); font-weight:700; }
@@ -554,7 +549,6 @@ var COL_CHANNEL = '\u901A\u8DEF\u5225';   /* 通路別 */
 var COL_TYPE    = '\u5E97\u5BB6\u578B\u614B'; /* 店家型態 */
 
 /* 動態桶設定（由覆蓋率型專案管理分頁載入） */
-var BUCKET_A = [];          /* 未知欄位列表（通常只有一欄：未填寫） */
 var BUCKET_B = [];          /* 已有欄位列表（堆箱/端架/冰箱 or 原貨架/冰箱） */
 var BUCKET_C = [];          /* 未有欄位列表（未進貨/未上架 or 空） */
 var LABEL_B  = '\u5DF2\u6709';   /* 已有 stat 卡標題，預設「已有」 */
@@ -723,7 +717,6 @@ function init() {
         var colsB  = parseCsv(cv(cells[5]));
         var labelC = cv(cells[6]);
         var colsC  = parseCsv(cv(cells[7]));
-        if (colsA.length) BUCKET_A = colsA;
         if (colsB.length) BUCKET_B = colsB;
         if (colsC.length) BUCKET_C = colsC;
         if (labelB) LABEL_B = labelB;
@@ -987,9 +980,8 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
   var topLabel=isOverall?('\u6574\u9AD4\u6982\u6CC1'):labelText;
   var T = stat.total;
   function fp(n){ return T>0 ? Math.round(n/T*100)+'%' : '—'; }
-  /* 全部卡片標題都是一行：組別小字 + 名稱大字 */
   /* 全部卡片標題都是一行：組別小字 + 名稱大字 + 右側明細按鈕 */
-  var topHtml = '<div class="card-top card-top-inline">'+esc(topLabel)+' <span class="card-name-inline'+(isOverall?' card-name-overall':'')+'">'+esc(name)+'</span><button class="card-detail-btn" id="dbtn-'+ttId+'">📋 明細</button></div>';
+  var topHtml = '<div class="card-top-inline">'+esc(topLabel)+' <span class="card-name-inline'+(isOverall?' card-name-overall':'')+'">'+esc(name)+'</span><button class="card-detail-btn" id="dbtn-'+ttId+'">📋 明細</button></div>';
   card.innerHTML=
     topHtml+
     '<div class="stat-row">'+
@@ -1177,11 +1169,12 @@ function sortedValidRows(rows, levelKey) {
 }
 
 /* \u5404\u5c64\u7d1a\u5bf9\u61c9\u7684\u9644\u52a0\u6b04\u4f4d\uff08\u7d44\u7e54/\u901a\u8def\u8996\u89d2\u901a\u7528\uff09 */
-var COL_LABELS = {};
-COL_LABELS[COL_OFFICE] = '\u71DF\u696D\u6240/\u8AB2';
-COL_LABELS[COL_STAFF]  = '\u4E3B\u8981\u8A2A\u54E1';
-COL_LABELS[COL_AREA]   = '\u71DF\u696D\u8655';
-COL_LABELS[COL_TYPE]   = '\u5E97\u5BB6\u578B\u614B';
+var COL_LABELS = {
+  '\u71DF\u696D\u6240/\u8AB2': '\u71DF\u696D\u6240/\u8AB2',
+  '\u57F7\u884C\u4EBA\u54E1': '\u4E3B\u8981\u8A2A\u54E1',
+  '\u71DF\u696D\u8655\u540D\u7A31': '\u71DF\u696D\u8655',
+  '\u5E97\u5BB6\u578B\u614B': '\u5E97\u5BB6\u578B\u614B'
+};
 
 function getExtraCols(levelKey) {
   /* 用於 copyLine/copyExcel 匯出，包含店家型態 */
@@ -1271,15 +1264,10 @@ function openDialog(displayName, levelKey, rows){
   if(BUCKET_C.length && chips['no']!==false) titleParts.push(LABEL_C+' '+noCnt);
   document.getElementById('dlg-title').textContent = titleParts.join('\u3000');
   document.getElementById('dlg-body').innerHTML=buildStoreTable(rows,levelKey);
+  /* 重置按鈕狀態（不重置 innerHTML，靜態 HTML 已定義） */
   ['btn-copy-line','btn-copy-excel','btn-screenshot'].forEach(function(id){
     var b=document.getElementById(id); if(!b) return;
     b.classList.remove('done','loading');
-    var inner = id==='btn-copy-line'
-      ? '<span class="btn-icon">\uD83D\uDCAC</span><span class="btn-txt"> \u8907\u88FD LINE</span>'
-      : id==='btn-copy-excel'
-      ? '<span class="btn-icon">\uD83D\uDCCA</span><span class="btn-txt"> \u8907\u88FD Excel</span>'
-      : '<span class="btn-icon">\uD83D\uDCF8</span><span class="btn-txt"> \u622A\u5716</span>';
-    b.innerHTML = inner;
   });
   var dlg=document.getElementById('detail-dialog');
   dlg.style.display='flex';
