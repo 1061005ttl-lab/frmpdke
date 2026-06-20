@@ -1,7 +1,7 @@
 <!--
 ================================================================================
   全聯18天推廣進度看板 (award_board.html)
-  版本：Ver. 1.10.2 ｜ 最後更新：2026-06-18 13:00
+  版本：Ver. 1.10.3 ｜ 最後更新：2026-06-18 15:00
 ================================================================================
 
 【給下一位接手的 AI — 必讀事項】
@@ -611,7 +611,7 @@
   <button id="manual-toggle" onclick="toggleManual()">📋 說明書</button>
   <button class="tb-btn" onclick="toggleRank()" id="rank-btn" style="background:rgba(255,215,0,.15);border-color:rgba(200,160,0,.3);color:#7a5500;">🏆 品評排行</button>
   <div id="tb-right">
-    <div id="ver-ts">Ver. 1.10.2 (2026-06-18 13:00)</div>
+    <div id="ver-ts">Ver. 1.10.3 (2026-06-18 15:00)</div>
     <button class="tb-btn" onclick="mainCopyLine()" id="btn-main-line">💬 LINE</button>
     <button class="tb-btn" onclick="mainCopyExcel()" id="btn-main-excel">📊 Excel</button>
     <button class="tb-btn" onclick="mainScreenshot()" id="btn-main-shot">📸 截圖</button>
@@ -667,13 +667,13 @@
       </button>
     </div>
   </div>
-  <div style="padding:10px 16px;font-size:9px;color:#bbb;border-top:1px solid rgba(0,0,0,.06);" id="md-version">Ver. 1.10.2</div>
+  <div style="padding:10px 16px;font-size:9px;color:#bbb;border-top:1px solid rgba(0,0,0,.06);" id="md-version">Ver. 1.10.3</div>
 </div>
 
 <!-- 說明書（在 topbar 之後折疊展開）-->
 <div id="manual-bar">
   <div id="manual-inner">
-    <h3>📋 全聯18天推廣進度看板 — 怎麼看這個畫面？（Ver. 1.10.2）</h3>
+    <h3>📋 全聯18天推廣進度看板 — 怎麼看這個畫面？（Ver. 1.10.3）</h3>
     <p><b>【這個看板在追蹤什麼？】</b>追蹤全聯各門市在「18天推廣活動」期間，實際進貨箱數與去年同期相比，是增加還是減少。數字越大（正值）代表今年賣得比去年好；負值代表不如去年。</p>
     <hr>
     <p><b>【人員視角 — 誰負責哪些店？賣了多少？】</b>每張卡片代表一位業務員。卡片右上角的大數字（<b>品評CTN</b>）= 今年實際進貨 − 應達標準，綠色正數代表超標，紅色負數代表未達標。點「店家明細」可查看他每一家店、每個月的達成細節。</p>
@@ -761,7 +761,7 @@
 /*
 ================================================================================
   全聯18天推廣進度看板 — 程式說明書（供後續開發者 / AI 閱讀）
-  Ver. 1.10.2  最後更新：2026-06-18 13:00
+  Ver. 1.10.3  最後更新：2026-06-18 15:00
 ================================================================================
 
 【專案目的】
@@ -875,6 +875,12 @@ function sortAreas(arr){
 
 /* ══ 狀態 ══ */
 var allRows=[], CI={}, curQ='', fArea='', fOffice='', _syncTime='', _rankOpen=false, _runRaf=null;
+
+/* 判斷是否為觸控裝置（手機/平板）。與 zoom 邏輯使用同一標準，
+   截圖功能只在此情況下走 navigator.share；其餘一律走 clipboard 複製。 */
+function _isMobileDevice(){
+  return ('ontouchstart' in window) || window.innerWidth < 768;
+}
 var curSort='eval';
 var viewMode='person'; /* 'person' | 'org' */
 
@@ -2159,8 +2165,8 @@ function takeScreenshot(){
       width:wrapper.scrollWidth, height:wrapper.scrollHeight
     }).then(function(canvas){
       document.body.removeChild(wrapper);
-      /* iOS 優先走 share，桌面走 clipboard，失敗則下載 */
-      if(navigator.clipboard&&window.ClipboardItem&&!navigator.share){
+      /* 桌面一律走 clipboard 直接複製；手機/平板才考慮 share */
+      if(navigator.clipboard&&window.ClipboardItem&&!_isMobileDevice()){
         canvas.toBlob(function(blob){
           try{
             var item=new ClipboardItem({'image/png':blob});
@@ -2198,8 +2204,8 @@ function takeScreenshot(){
 
 function _downloadCanvas(canvas, titleText, btn){
   var filename=(titleText||'截圖').replace(/[\s\/\\:*?"<>|]/g,'_')+'.png';
-  /* iOS/Android：優先用 navigator.share 直接傳送 LINE/訊息 */
-  if(navigator.share && navigator.canShare){
+  /* 只有手機/平板（觸控裝置）才走 navigator.share；桌面一律下載 */
+  if(_isMobileDevice() && navigator.share && navigator.canShare){
     canvas.toBlob(function(blob){
       var file=new File([blob], filename, {type:'image/png'});
       if(navigator.canShare({files:[file]})){
@@ -2756,8 +2762,8 @@ function takeSummaryScreenshot(){
     }).then(function(canvas){
       document.body.removeChild(wrapper);
       var filename='彙整表_'+_unitLabel()+'_'+_nowStr()+'.png';
-      /* 統一用 _downloadCanvas：自動判斷 iOS share / clipboard / 下載 */
-      if(navigator.clipboard&&window.ClipboardItem&&!navigator.share){
+      /* 桌面一律走 clipboard 直接複製；手機/平板才考慮 share */
+      if(navigator.clipboard&&window.ClipboardItem&&!_isMobileDevice()){
         canvas.toBlob(function(blob){
           try{
             navigator.clipboard.write([new ClipboardItem({'image/png':blob})]).then(function(){
