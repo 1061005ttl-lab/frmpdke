@@ -1,7 +1,7 @@
 <!--
 ================================================================================
   業務王同步中心 - 桌面版同步控制台 (sync0616_desktop.html)
-  版本：Ver. 1.5.0 ｜ 最後更新：2026-06-20 00:00
+  版本：Ver. 1.5.1 ｜ 最後更新：2026-06-20 10:36
 ================================================================================
 
 【這份檔案在做什麼】
@@ -517,7 +517,7 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
       /* 手機專用合併行：日期範圍 ・ 🕐 更新時間，一行顯示 */
       .card-meta-inline {
         display: block;
-        font-size: 10.5px;
+        font-size: 9.5px;
         color: var(--text-secondary);
         font-family: var(--mono);
         margin-top: 3px;
@@ -737,21 +737,17 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
       //   🕐 06/17 17:11                 →  🕐 17:11
       // 年份與日期中的「06/17」省略，讓行長維持在可讀範圍內。
       const metaInlineParts = [];
-      if (task.dateText) {
-        // 去掉「起訖：」與年份，將 2026/05/20 ~ 2026/06/30 縮成 05/20–06/30
-        const m = task.dateText.match(/\d{4}\/(\d{2}\/\d{2})\s*~\s*\d{4}\/(\d{2}\/\d{2})/);
-        metaInlineParts.push(m ? `${m[1]}–${m[2]}` : task.dateText.replace('起訖：',''));
-      }
+      // 手機版合併行：時間放前面優先顯示，日期範圍放後面
+      // 即使因看板按鈕空間被壓縮而截斷，也是截日期範圍尾端，不影響時間的可讀性
       if (task.updatedAt) {
         const dated = ensureDate(task.updatedAt);
-        if (task.dateText) {
-          // 有起訖日期，空間較緊，只保留時分（HH:MM）
-          const t = dated.match(/(\d{2}:\d{2})$/);
-          metaInlineParts.push(`🕐 ${t ? t[1] : dated}`);
-        } else {
-          // 無起訖日期，空間充裕，顯示完整 MM/DD HH:MM
-          metaInlineParts.push(`🕐 ${dated}`);
-        }
+        // 一律顯示完整 MM/DD HH:MM，不管有無起訖日期
+        metaInlineParts.push(`🕐 ${dated}`);
+      }
+      if (task.dateText) {
+        // 擷取 MM/DD–MM/DD，去掉年份與「起訖：」前綴
+        const m = task.dateText.match(/\d{4}\/(\d{2}\/\d{2})\s*~\s*\d{4}\/(\d{2}\/\d{2})/);
+        metaInlineParts.push(m ? `${m[1]}–${m[2]}` : task.dateText.replace('起訖：',''));
       }
       const metaInline = metaInlineParts.join(' ・ ');
       const displayUpdatedAt = ensureDate(task.updatedAt);
