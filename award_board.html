@@ -1,7 +1,7 @@
 <!--
 ================================================================================
   全聯18天推廣進度看板 (award_board.html)
-  版本：Ver. 1.10.1 ｜ 最後更新：2026-06-18 11:00
+  版本：Ver. 1.10.2 ｜ 最後更新：2026-06-18 13:00
 ================================================================================
 
 【給下一位接手的 AI — 必讀事項】
@@ -395,24 +395,27 @@
        手機 RWD（≤ 767px）
     ══════════════════════════════════════════ */
     @media (max-width: 767px) {
-      /* Topbar 手機版：只留返回、標題、季度（可橫向捲動），漢堡固定浮在右上角 */
+      /* Topbar 手機版：整體可橫向捲動，漢堡 sticky 黏在右側，永遠可見且不重疊 */
       #topbar {
-        flex-wrap:nowrap; padding:6px 56px 6px 8px; gap:6px;
+        flex-wrap:nowrap; padding:6px 54px 6px 8px; gap:6px;
         min-height:auto; overflow-x:auto; overflow-y:hidden;
         -webkit-overflow-scrolling:touch;
       }
       #topbar::-webkit-scrollbar { display:none; }
-      #title { font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:80px; flex-shrink:0; }
+      #topbar::after { content:''; flex-shrink:0; width:1px; } /* 確保捲動到底仍留白 */
+      #title { font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:76px; flex-shrink:0; }
       .sep { display:none; }
       #q-chips { flex-shrink:0; display:flex; gap:5px; }
       #q-chips .q-chip { flex-shrink:0; }
       /* 隱藏桌面專用元素 */
       #vc-person, #vc-org, #manual-toggle, #rank-btn,
       #tb-right { display:none !important; }
-      /* 漢堡：固定在視窗右上角，不受 topbar 內容擠壓影響 */
+      /* 漢堡：固定在視窗右上角，topbar 已預留右側空間，視覺上不會與內容重疊 */
       #hamburger-btn {
         display:flex !important;
-        position:fixed; top:8px; right:10px; z-index:110;
+        position:fixed; top:8px; right:10px; z-index:120;
+        width:34px; height:34px; font-size:16px;
+        box-shadow:0 2px 8px rgba(0,0,0,.15), -8px 0 10px -4px rgba(240,237,230,1);
       }
 
       /* 說明書 */
@@ -423,11 +426,17 @@
       #nav-area-row, #nav-office-row { padding:5px 8px; gap:5px; overflow-x:auto; flex-wrap:nowrap; }
       .nav-chip { font-size:11px; padding:4px 10px; white-space:nowrap; flex-shrink:0; }
 
-      /* Gbar */
-      #gbar { padding:5px 8px; flex-wrap:wrap; gap:5px; }
-      #gbar .sort-btn { font-size:11px; padding:3px 8px; }
-      #gb-count { font-size:11px; }
-      #btn-summary { font-size:11px; }
+      /* Gbar：同步時間與排序合併一行，省直向空間 */
+      #gbar {
+        padding:5px 8px; flex-wrap:nowrap; gap:6px;
+        overflow-x:auto; -webkit-overflow-scrolling:touch;
+      }
+      #gbar::-webkit-scrollbar { display:none; }
+      #gb-sync { font-size:9px; flex-shrink:0; white-space:nowrap; }
+      #gbar .sort-btn { font-size:10px; padding:3px 7px; flex-shrink:0; }
+      #gbar > div { flex-shrink:0; }
+      #gb-count { font-size:10px; flex-shrink:0; margin-left:auto; white-space:nowrap; }
+      #btn-summary { font-size:10px; padding:3px 7px; }
 
       /* 卡片：手機一欄滿版 */
       #main-area { padding:8px; gap:8px; }
@@ -602,7 +611,7 @@
   <button id="manual-toggle" onclick="toggleManual()">📋 說明書</button>
   <button class="tb-btn" onclick="toggleRank()" id="rank-btn" style="background:rgba(255,215,0,.15);border-color:rgba(200,160,0,.3);color:#7a5500;">🏆 品評排行</button>
   <div id="tb-right">
-    <div id="ver-ts">Ver. 1.10.1 (2026-06-18 11:00)</div>
+    <div id="ver-ts">Ver. 1.10.2 (2026-06-18 13:00)</div>
     <button class="tb-btn" onclick="mainCopyLine()" id="btn-main-line">💬 LINE</button>
     <button class="tb-btn" onclick="mainCopyExcel()" id="btn-main-excel">📊 Excel</button>
     <button class="tb-btn" onclick="mainScreenshot()" id="btn-main-shot">📸 截圖</button>
@@ -658,13 +667,13 @@
       </button>
     </div>
   </div>
-  <div style="padding:10px 16px;font-size:9px;color:#bbb;border-top:1px solid rgba(0,0,0,.06);" id="md-version">Ver. 1.10.1</div>
+  <div style="padding:10px 16px;font-size:9px;color:#bbb;border-top:1px solid rgba(0,0,0,.06);" id="md-version">Ver. 1.10.2</div>
 </div>
 
 <!-- 說明書（在 topbar 之後折疊展開）-->
 <div id="manual-bar">
   <div id="manual-inner">
-    <h3>📋 全聯18天推廣進度看板 — 怎麼看這個畫面？（Ver. 1.10.1）</h3>
+    <h3>📋 全聯18天推廣進度看板 — 怎麼看這個畫面？（Ver. 1.10.2）</h3>
     <p><b>【這個看板在追蹤什麼？】</b>追蹤全聯各門市在「18天推廣活動」期間，實際進貨箱數與去年同期相比，是增加還是減少。數字越大（正值）代表今年賣得比去年好；負值代表不如去年。</p>
     <hr>
     <p><b>【人員視角 — 誰負責哪些店？賣了多少？】</b>每張卡片代表一位業務員。卡片右上角的大數字（<b>品評CTN</b>）= 今年實際進貨 − 應達標準，綠色正數代表超標，紅色負數代表未達標。點「店家明細」可查看他每一家店、每個月的達成細節。</p>
@@ -752,7 +761,7 @@
 /*
 ================================================================================
   全聯18天推廣進度看板 — 程式說明書（供後續開發者 / AI 閱讀）
-  Ver. 1.10.1  最後更新：2026-06-18 11:00
+  Ver. 1.10.2  最後更新：2026-06-18 13:00
 ================================================================================
 
 【專案目的】
