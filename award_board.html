@@ -1,7 +1,7 @@
 <!--
 ================================================================================
   全聯18天推廣進度看板 (award_board.html)
-  版本：Ver. 1.10.3 ｜ 最後更新：2026-06-18 15:00
+  版本：Ver. 1.10.4 ｜ 最後更新：2026-06-20 16:00
 ================================================================================
 
 【給下一位接手的 AI — 必讀事項】
@@ -77,7 +77,10 @@
         var BASE_W = 1440;
         var MIN_ZOOM = 0.55;
         function applyZoom() {
-          /* 手機（觸控裝置）不縮放，走 RWD；桌面才縮放 */
+          /* 手機（觸控裝置）不縮放，走 RWD；桌面才縮放
+             註：此判斷式與下方主 script 區塊的 _isMobileDevice() 邏輯相同，
+             但因本 IIFE 在 <head> 提前執行（需趕在首次渲染前套用 zoom），
+             此時主 script 尚未載入，故無法共用函式，刻意保留各自一份。 */
           var isMobile = ('ontouchstart' in window) || window.innerWidth < 768;
           if(isMobile){ document.documentElement.style.zoom = ''; return; }
           var ratio = Math.min(1, window.innerWidth / BASE_W);
@@ -611,7 +614,7 @@
   <button id="manual-toggle" onclick="toggleManual()">📋 說明書</button>
   <button class="tb-btn" onclick="toggleRank()" id="rank-btn" style="background:rgba(255,215,0,.15);border-color:rgba(200,160,0,.3);color:#7a5500;">🏆 品評排行</button>
   <div id="tb-right">
-    <div id="ver-ts">Ver. 1.10.3 (2026-06-18 15:00)</div>
+    <div id="ver-ts">Ver. 1.10.4 (2026-06-20 16:00)</div>
     <button class="tb-btn" onclick="mainCopyLine()" id="btn-main-line">💬 LINE</button>
     <button class="tb-btn" onclick="mainCopyExcel()" id="btn-main-excel">📊 Excel</button>
     <button class="tb-btn" onclick="mainScreenshot()" id="btn-main-shot">📸 截圖</button>
@@ -667,13 +670,13 @@
       </button>
     </div>
   </div>
-  <div style="padding:10px 16px;font-size:9px;color:#bbb;border-top:1px solid rgba(0,0,0,.06);" id="md-version">Ver. 1.10.3</div>
+  <div style="padding:10px 16px;font-size:9px;color:#bbb;border-top:1px solid rgba(0,0,0,.06);" id="md-version">Ver. 1.10.4</div>
 </div>
 
 <!-- 說明書（在 topbar 之後折疊展開）-->
 <div id="manual-bar">
   <div id="manual-inner">
-    <h3>📋 全聯18天推廣進度看板 — 怎麼看這個畫面？（Ver. 1.10.3）</h3>
+    <h3>📋 全聯18天推廣進度看板 — 怎麼看這個畫面？（Ver. 1.10.4）</h3>
     <p><b>【這個看板在追蹤什麼？】</b>追蹤全聯各門市在「18天推廣活動」期間，實際進貨箱數與去年同期相比，是增加還是減少。數字越大（正值）代表今年賣得比去年好；負值代表不如去年。</p>
     <hr>
     <p><b>【人員視角 — 誰負責哪些店？賣了多少？】</b>每張卡片代表一位業務員。卡片右上角的大數字（<b>品評CTN</b>）= 今年實際進貨 − 應達標準，綠色正數代表超標，紅色負數代表未達標。點「店家明細」可查看他每一家店、每個月的達成細節。</p>
@@ -761,7 +764,7 @@
 /*
 ================================================================================
   全聯18天推廣進度看板 — 程式說明書（供後續開發者 / AI 閱讀）
-  Ver. 1.10.3  最後更新：2026-06-18 15:00
+  Ver. 1.10.4  最後更新：2026-06-20 16:00
 ================================================================================
 
 【專案目的】
@@ -2375,16 +2378,7 @@ function mainCopyLine(){
   var btn=document.getElementById('btn-main-line');
   var text=_buildMainText('line');
   if(!text){ alert('目前無資料可複製'); return; }
-  navigator.clipboard.writeText(text).then(function(){
-    _flashBtn(btn,'✅ 已複製！');
-  }).catch(function(){
-    /* fallback */
-    var ta=document.createElement('textarea');
-    ta.value=text; document.body.appendChild(ta);
-    ta.select(); document.execCommand('copy');
-    document.body.removeChild(ta);
-    _flashBtn(btn,'✅ 已複製！');
-  });
+  _doCopy(text, btn);
 }
 
 /* ══ 主頁複製 Excel ══ */
@@ -2392,32 +2386,23 @@ function mainCopyExcel(){
   var btn=document.getElementById('btn-main-excel');
   var text=_buildMainText('excel');
   if(!text){ alert('目前無資料可複製'); return; }
-  navigator.clipboard.writeText(text).then(function(){
-    _flashBtn(btn,'✅ 已複製！');
-  }).catch(function(){
-    var ta=document.createElement('textarea');
-    ta.value=text; document.body.appendChild(ta);
-    ta.select(); document.execCommand('copy');
-    document.body.removeChild(ta);
-    _flashBtn(btn,'✅ 已複製！');
-  });
+  _doCopy(text, btn);
 }
 
-function _buildMainText(mode){
-  var TAB='\t', NL='\n', SEP=(mode==='line'?'　':'　');
+/* ══ 共用：組裝目前視角的資料列（供複製文字 / XLSX 匯出共用）══
+   回傳 {header:[...], rows:[[...], ...]}，row 為純值陣列，呼叫端自行決定輸出格式 */
+function _assembleViewRows(includeExtraCols){
   var months=QUARTERS[curQ]||[];
-  var lines=[];
+  var header, rows=[];
 
   if(viewMode==='person'){
-    /* 人員視角 */
     var pMap=getPersonList();
-    /* 標題 */
-    var hdr=['人員','營業處','營業所'];
-    months.forEach(function(m){ hdr.push(MNAMES[m]+'當期',MNAMES[m]+'目標',MNAMES[m]+'品評'); });
-    hdr.push('季當期','季目標','季品評');
-    lines.push(hdr.join(TAB));
+    header=['人員','營業處','營業所'];
+    if(includeExtraCols) header.push('季度');
+    months.forEach(function(m){ header.push(MNAMES[m]+'當期',MNAMES[m]+'目標',MNAMES[m]+'品評'); });
+    header.push('季當期','季目標','季品評');
+    if(includeExtraCols) header.push('有效月份');
 
-    /* 依目前排序輸出 */
     var cards=Object.keys(pMap).map(function(staff){
       var info=pMap[staff];
       var qd=calcPersonQuarter(info.rows,curQ);
@@ -2433,32 +2418,32 @@ function _buildMainText(mode){
     cards.forEach(function(c){
       var qd=c.qd;
       var row=[c.staff,c.info.area,c.info.office];
+      if(includeExtraCols) row.push(curQ);
       months.forEach(function(m){
         var d=qd.monthData[m];
         row.push(d.hasData?d.cur:'', d.hasData?fmt1(d.tgt):'', d.hasData?fmt1(d.eval):'');
       });
       row.push(qd.totalCur, fmt1(qd.totalTgt||0), fmt1(qd.totalEvalRaw||0));
-      lines.push(row.join(TAB));
+      if(includeExtraCols) row.push(qd.evalMonths.length);
+      rows.push(row);
     });
   } else {
-    /* 組織視角 */
     var storeMap=getStoreList();
-    var hdr=['店碼','店名','營業處','營業所'];
-    months.forEach(function(m){ hdr.push(MNAMES[m]+'當期',MNAMES[m]+'去年',MNAMES[m]+'增減'); });
-    hdr.push('季當期','季去年','季增減');
-    lines.push(hdr.join(TAB));
+    header=['店碼','店名','營業處','營業所'];
+    months.forEach(function(m){ header.push(MNAMES[m]+'當期',MNAMES[m]+'去年',MNAMES[m]+'增減'); });
+    header.push('季當期','季去年','季增減');
 
-    var cards=Object.keys(storeMap).map(function(k){
+    var scards=Object.keys(storeMap).map(function(k){
       var s=storeMap[k];
       var qd=calcStoreQuarter(s.rows,curQ);
       return{s:s,qd:qd};
     }).filter(function(c){return c.qd.evalMonths.length>0;});
-    cards.sort(function(a,b){
+    scards.sort(function(a,b){
       var av=curSort==='cur'?a.qd.totalCur:curSort==='tgt'?a.qd.totalLast:curSort==='stock'?(_invLookup(a.s.code)||{stock:999999}).stock:a.qd.totalDelta;
       var bv=curSort==='cur'?b.qd.totalCur:curSort==='tgt'?b.qd.totalLast:curSort==='stock'?(_invLookup(b.s.code)||{stock:999999}).stock:b.qd.totalDelta;
       return curSort==='stock'?av-bv:bv-av;
     });
-    cards.forEach(function(c){
+    scards.forEach(function(c){
       var s=c.s, qd=c.qd;
       var row=[s.code,s.name,s.area,s.office];
       months.forEach(function(m){
@@ -2466,9 +2451,17 @@ function _buildMainText(mode){
         row.push(d.hasData?d.cur:'', d.hasData?d.last:'', d.hasData?d.delta:'');
       });
       row.push(qd.totalCur,qd.totalLast,qd.totalDelta);
-      lines.push(row.join(TAB));
+      rows.push(row);
     });
   }
+  return {header:header, rows:rows};
+}
+
+function _buildMainText(mode){
+  var TAB='\t', NL='\n';
+  var assembled=_assembleViewRows(false);
+  var lines=[assembled.header.join(TAB)];
+  assembled.rows.forEach(function(row){ lines.push(row.join(TAB)); });
   return lines.join(NL);
 }
 
@@ -2488,24 +2481,8 @@ function downloadXLSX(){
 }
 
 function _exportPersonXLSX(){
-  var pMap=getPersonList();
-  var months=QUARTERS[curQ]||[];
-  var header=['人員','營業處','營業所','季度'];
-  months.forEach(function(m){ header.push(MNAMES[m]+'當期',MNAMES[m]+'目標',MNAMES[m]+'品評'); });
-  header.push('季當期','季目標','季品評','有效月份');
-  var rows=[header];
-  Object.keys(pMap).forEach(function(staff){
-    var info=pMap[staff];
-    var qd=calcPersonQuarter(info.rows,curQ);
-    if(!qd.evalMonths.length) return;
-    var row=[staff,info.area,info.office,curQ];
-    months.forEach(function(m){
-      var d=qd.monthData[m];
-      row.push(d.hasData?d.cur:'', d.hasData?fmt1(d.tgt):'', d.hasData?fmt1(d.eval):'');
-    });
-    row.push(qd.totalCur, fmt1(qd.totalTgt||0), fmt1(qd.totalEvalRaw||0), qd.evalMonths.length);
-    rows.push(row);
-  });
+  var assembled=_assembleViewRows(true);
+  var rows=[assembled.header].concat(assembled.rows);
   var wb=XLSX.utils.book_new();
   var ws=XLSX.utils.aoa_to_sheet(rows);
   _xlsxAutoWidth(ws,rows);
@@ -2515,23 +2492,8 @@ function _exportPersonXLSX(){
 
 function _exportOrgXLSX(){
   var storeMap=getStoreList();
-  var months=QUARTERS[curQ]||[];
-  var header=['店碼','店名','營業處','營業所'];
-  months.forEach(function(m){ header.push(MNAMES[m]+'當期',MNAMES[m]+'去年',MNAMES[m]+'增減'); });
-  header.push('季當期','季去年','季增減');
-  var rows=[header];
-  Object.keys(storeMap).forEach(function(k){
-    var s=storeMap[k];
-    var qd=calcStoreQuarter(s.rows,curQ);
-    if(!qd.evalMonths.length) return;
-    var row=[s.code,s.name,s.area,s.office];
-    months.forEach(function(m){
-      var d=qd.monthData[m];
-      row.push(d.hasData?d.cur:'', d.hasData?d.last:'', d.hasData?d.delta:'');
-    });
-    row.push(qd.totalCur, qd.totalLast, qd.totalDelta);
-    rows.push(row);
-  });
+  var assembled=_assembleViewRows(false);
+  var rows=[assembled.header].concat(assembled.rows);
   var wb=XLSX.utils.book_new();
   var ws1=XLSX.utils.aoa_to_sheet(rows);
   _xlsxAutoWidth(ws1,rows);
