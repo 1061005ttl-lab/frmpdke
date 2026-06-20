@@ -1,10 +1,14 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 1.2.0 ｜ 最後更新：2026-06-19
+  版本：Ver. 1.2.1 ｜ 最後更新：2026-06-20
 ════════════════════════════════════════════════════════════
 
 【版本紀錄】
+  1.2.1  2026-06-20  Tooltip 智慧定位
+         - 改用 position:fixed + getBoundingClientRect 動態計算位置
+         - 空間夠則往上彈，不夠則往下彈
+         - 水平方向超出視窗邊界時自動夾住，避免被截切
   1.2.0  2026-06-19  代碼深度清理
          - 移除 8 個舊版殘留 CSS class（.card-top/.card-name/.cov-*/.tag-*/.valid-note/.toolbar-sync）
          - 移除 .detail-tbl td:first-child / td:nth-child(2) 與 .td-code/.td-name 的重複 selector
@@ -274,20 +278,17 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 
 /* ── tooltip ── */
 .tooltip {
-  position:absolute;
-  bottom:calc(100% + 8px);
-  left:50%;
-  transform:translateX(-50%);
+  position:fixed;
   background:#fff;
   border:1px solid var(--border);
   border-radius:10px;
   padding:10px 14px;
   min-width:170px;
-  z-index:200;
+  z-index:600;
   pointer-events:none;
   opacity:0;
   transition:opacity .15s;
-  box-shadow:0 4px 16px rgba(0,0,0,.10);
+  box-shadow:0 4px 16px rgba(0,0,0,.12);
 }
 .tooltip.show { opacity:1; }
 .tt-title { font-size:11px; font-weight:700; color:var(--sub); margin-bottom:7px; letter-spacing:.03em; }
@@ -997,7 +998,28 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
 
   var siEl=card.querySelector('#si-'+ttId), ttEl=card.querySelector('#'+ttId);
   if(siEl&&ttEl){
-    siEl.addEventListener('mouseenter',function(e){ e.stopPropagation(); ttEl.classList.add('show'); });
+    siEl.addEventListener('mouseenter',function(e){
+      e.stopPropagation();
+      /* 先顯示以取得尺寸，再定位 */
+      ttEl.style.opacity='0';
+      ttEl.style.top='0'; ttEl.style.left='0';
+      ttEl.classList.add('show');
+      var sr=siEl.getBoundingClientRect(), tr=ttEl.getBoundingClientRect();
+      var gap=8, vw=window.innerWidth, vh=window.innerHeight;
+      /* 垂直：優先往上，空間不夠則往下 */
+      var top;
+      if(sr.top - tr.height - gap >= 0){
+        top = sr.top - tr.height - gap;
+      } else {
+        top = sr.bottom + gap;
+      }
+      /* 水平：對齊 stat-item 中心，超出邊界時夾住 */
+      var left = sr.left + sr.width/2 - tr.width/2;
+      left = Math.max(8, Math.min(left, vw - tr.width - 8));
+      ttEl.style.top  = top  + 'px';
+      ttEl.style.left = left + 'px';
+      ttEl.style.opacity='';
+    });
     siEl.addEventListener('mouseleave',function(){ ttEl.classList.remove('show'); });
   }
 
