@@ -1,10 +1,15 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 1.2.1 ｜ 最後更新：2026-06-20
+  版本：Ver. 1.2.2 ｜ 最後更新：2026-06-20
 ════════════════════════════════════════════════════════════
 
 【版本紀錄】
+  1.2.2  2026-06-20  修正 Dialog 表頭滾動消失
+         - 根本原因：dlg-body(overflow:auto) + detail-scroll(overflow-x:auto) 雙層 overflow
+           打斷了 thead position:sticky 的 scroll container 定位鏈
+         - 解法：dlg-body 改 overflow:hidden，detail-scroll 改 overflow:auto + height:100%
+           單一 scroll container，thead sticky 正確固定於頂部
   1.2.1  2026-06-20  Tooltip 智慧定位
          - 改用 position:fixed + getBoundingClientRect 動態計算位置
          - 空間夠則往上彈，不夠則往下彈
@@ -331,16 +336,17 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .dlg-action-btn:hover { border-color:var(--primary); color:var(--primary); }
 .dlg-action-btn.done { border-color:var(--green); color:var(--green); background:var(--green-bg); }
 .dlg-action-btn.loading { opacity:.6; pointer-events:none; }
-.dlg-body { overflow:auto; flex:1; min-height:0; padding:0; scrollbar-width:thin; scrollbar-color:rgba(0,0,0,.25) transparent; }
-.dlg-body::-webkit-scrollbar { width:8px; }
-.dlg-body::-webkit-scrollbar-track { background:rgba(0,0,0,.04); border-radius:4px; }
-.dlg-body::-webkit-scrollbar-thumb { background:rgba(0,0,0,.25); border-radius:4px; }
-.dlg-body::-webkit-scrollbar-thumb:hover { background:rgba(0,0,0,.4); }
+.dlg-body { flex:1; min-height:0; padding:0; overflow:hidden; }
 
 /* ── 店家明細表格 ── */
-.detail-scroll { overflow-x:auto; scrollbar-width:thin; scrollbar-color:rgba(0,0,0,.25) transparent; }
-.detail-scroll::-webkit-scrollbar { height:7px; }
-.detail-scroll::-webkit-scrollbar-track { background:rgba(0,0,0,.04); }
+/* detail-scroll 同時承擔水平+垂直捲動，讓 thead sticky 能正確定位 */
+.detail-scroll {
+  overflow:auto;
+  height:100%;
+  scrollbar-width:thin; scrollbar-color:rgba(0,0,0,.25) transparent;
+}
+.detail-scroll::-webkit-scrollbar { width:8px; height:7px; }
+.detail-scroll::-webkit-scrollbar-track { background:rgba(0,0,0,.04); border-radius:4px; }
 .detail-scroll::-webkit-scrollbar-thumb { background:rgba(0,0,0,.25); border-radius:4px; }
 .detail-scroll::-webkit-scrollbar-thumb:hover { background:rgba(0,0,0,.4); }
 .detail-tbl { width:100%; border-collapse:collapse; font-size:14px; }
