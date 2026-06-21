@@ -2,7 +2,7 @@
 <!--
 ================================================================================
   業務王看板系統 — achievement_board.html
-  版本：Ver. 3.9.7 ｜ 最後更新：2026-06-21 01:00 (UTC+8)
+  版本：Ver. 3.9.8 ｜ 最後更新：2026-06-21 10:30 (UTC+8)
   維護者：TTL 業務王團隊
 ================================================================================
 
@@ -2377,76 +2377,90 @@
       }
 
       /* ══ 人員 Dialog（仿 coverage_board 架構）══ */
+      /* ══ 人員 Dialog（照 coverage_board 架構）══ */
       #staff-dlg-overlay {
         position: fixed;
         inset: 0;
         background: rgba(0,0,0,.55);
-        z-index: 400;
-        display: none;
+        z-index: 500;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transition: opacity .2s;
       }
+      #staff-dlg-overlay.open { opacity: 1; }
 
-      #staff-dlg {
+      .staff-dlg-box {
         background: #fff;
+        border-radius: 14px;
+        width: 95vw;
+        height: 92vh;
         display: flex;
         flex-direction: column;
         overflow: hidden;
         box-shadow: 0 20px 80px rgba(0,0,0,.35);
-        position: relative;
-        z-index: 401;
-        /* 初始值由 JS 依裝置設定 */
+        transform: translateY(16px);
+        transition: transform .22s;
+      }
+      #staff-dlg-overlay.open .staff-dlg-box {
+        transform: translateY(0);
       }
 
       #staff-dlg-bar {
+        padding: 14px 20px;
+        border-bottom: 1px solid rgba(0,0,0,.09);
         display: flex;
         align-items: center;
-        gap: 8px;
-        padding: 14px 20px;
-        background: rgba(248,250,248,1);
-        border-bottom: 1px solid rgba(0,0,0,.09);
-        flex-shrink: 0;
-        flex-wrap: wrap;
-      }
-      #staff-dlg-title {
+        justify-content: space-between;
         font-size: 15px;
         font-weight: 900;
         color: var(--text);
+        flex-shrink: 0;
+        background: rgba(248,250,248,1);
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      #staff-dlg-title {
         flex: 1;
         min-width: 0;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+        font-size: 15px;
+        font-weight: 900;
       }
       #staff-dlg-actions {
         display: flex;
-        gap: 6px;
         align-items: center;
+        gap: 6px;
         flex-shrink: 0;
       }
       .dlg-btn {
+        cursor: pointer;
         font-size: 13px;
-        font-weight: 700;
+        color: var(--sub);
         padding: 4px 11px;
         border-radius: 7px;
         border: 1px solid rgba(0,0,0,.12);
         background: #fff;
-        color: var(--sub);
-        cursor: pointer;
-        white-space: nowrap;
-        transition: all .14s;
         font-family: inherit;
+        font-weight: 700;
+        transition: all .14s;
+        white-space: nowrap;
       }
       .dlg-btn:hover { border-color: var(--primary-d); color: var(--primary-d); }
       .dlg-btn.done  { border-color: var(--green); color: var(--green); background: rgba(34,168,76,.07); }
       .dlg-close-btn {
+        cursor: pointer;
         font-size: 14px;
-        font-weight: 700;
+        color: var(--sub);
         padding: 4px 12px;
         border-radius: 7px;
         border: 1px solid rgba(0,0,0,.12);
         background: #fff;
-        color: var(--sub);
-        cursor: pointer;
         font-family: inherit;
+        font-weight: 700;
         transition: all .14s;
       }
       .dlg-close-btn:hover { border-color: var(--primary-d); color: var(--primary-d); }
@@ -2512,10 +2526,9 @@
       .dlg-filter-btn.active-unmet { background: var(--red); border-color: var(--red); color: #fff; }
 
       #staff-dlg-body {
-        flex: 1;
         overflow: auto;
+        flex: 1;
         min-height: 0;
-        padding: 0;
         scrollbar-width: thin;
         scrollbar-color: rgba(0,0,0,.25) transparent;
       }
@@ -2532,9 +2545,13 @@
         box-shadow: 0 2px 0 rgba(0,0,0,.08);
       }
 
-      /* 手機版文字縮小 */
       @media (max-width: 768px) {
-        #staff-dlg-bar { padding: 10px 12px; }
+        .staff-dlg-box {
+          width: 100vw;
+          height: 100dvh;
+          border-radius: 0;
+        }
+        #staff-dlg-bar { padding: 10px 12px; font-size: 13px; }
         #staff-dlg-title { font-size: 13px; }
         .dlg-btn { font-size: 11px; padding: 4px 8px; }
         #staff-dlg-summary { padding: 6px 12px; gap: 4px; }
@@ -3419,7 +3436,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 3.9.7 (2026-06-21)</div>
+      <div id="ver-ts">Ver. 3.9.8 (2026-06-21)</div>
       <div id="data-sync-bar"></div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
@@ -3476,7 +3493,7 @@
 
     <!-- 人員 Dialog -->
     <div id="staff-dlg-overlay" style="display:none" onclick="if(event.target===this)closeStaffDialog()">
-      <div id="staff-dlg" style="display:none">
+      <div class="staff-dlg-box">
         <div id="staff-dlg-bar">
           <div id="staff-dlg-title"></div>
           <div id="staff-dlg-actions">
@@ -6270,42 +6287,10 @@
         /* 重置篩選 */
         dlgFilter('all');
 
-        /* 開啟：依螢幕寬度決定手機/桌機模式 */
+        /* 開啟 - 照 coverage_board 架構 */
         var overlay = document.getElementById('staff-dlg-overlay');
-        var dlg = document.getElementById('staff-dlg');
-        var isMobile = window.innerWidth <= 768;
-        if (isMobile) {
-          overlay.style.alignItems = 'flex-end';
-          overlay.style.justifyContent = 'flex-end';
-          dlg.style.width = '100vw';
-          dlg.style.height = '100dvh';
-          dlg.style.maxHeight = '100dvh';
-          dlg.style.borderRadius = '0';
-          dlg.style.transform = 'translateY(100%)';
-          dlg.style.opacity = '1';
-          dlg.style.transition = 'transform .3s cubic-bezier(.32,.72,0,1)';
-        } else {
-          overlay.style.alignItems = 'center';
-          overlay.style.justifyContent = 'center';
-          dlg.style.width = '95vw';
-          dlg.style.height = '92vh';
-          dlg.style.maxHeight = '';
-          dlg.style.borderRadius = '14px';
-          dlg.style.transform = 'translateY(20px)';
-          dlg.style.opacity = '0';
-          dlg.style.transition = 'transform .22s, opacity .2s';
-        }
         overlay.style.display = 'flex';
-        requestAnimationFrame(function() {
-          requestAnimationFrame(function() {
-            if (isMobile) {
-              dlg.style.transform = 'translateY(0)';
-            } else {
-              dlg.style.transform = 'translateY(0)';
-              dlg.style.opacity = '1';
-            }
-          });
-        });
+        requestAnimationFrame(function() { overlay.classList.add('open'); });
         document.body.style.overflow = 'hidden';
       }
 
@@ -6363,19 +6348,9 @@
 
       function closeStaffDialog() {
         var overlay = document.getElementById('staff-dlg-overlay');
-        var dlg = document.getElementById('staff-dlg');
-        var isMobile = window.innerWidth <= 768;
-        if (isMobile) {
-          dlg.style.transform = 'translateY(100%)';
-        } else {
-          dlg.style.transform = 'translateY(20px)';
-          dlg.style.opacity = '0';
-        }
+        overlay.classList.remove('open');
         document.body.style.overflow = '';
-        setTimeout(function() {
-          overlay.style.display = 'none';
-          dlg.style.cssText = '';
-        }, 320);
+        setTimeout(function() { overlay.style.display = 'none'; }, 220);
       }
 
       /* dialog 內的複製清單 */
