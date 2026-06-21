@@ -2,7 +2,7 @@
 <!--
 ================================================================================
   業務王看板系統 — achievement_board.html
-  版本：Ver. 3.9.6 ｜ 最後更新：2026-06-20 19:30 (UTC+8)
+  版本：Ver. 3.9.7 ｜ 最後更新：2026-06-21 01:00 (UTC+8)
   維護者：TTL 業務王團隊
 ================================================================================
 
@@ -2383,34 +2383,17 @@
         background: rgba(0,0,0,.55);
         z-index: 400;
         display: none;
-        align-items: center;
-        justify-content: center;
-        opacity: 0;
-        transition: opacity .2s;
-      }
-      #staff-dlg-overlay.open {
-        display: flex;
-        opacity: 1;
       }
 
       #staff-dlg {
         background: #fff;
-        border-radius: 14px;
-        width: 95vw;
-        height: 92vh;
         display: flex;
         flex-direction: column;
         overflow: hidden;
         box-shadow: 0 20px 80px rgba(0,0,0,.35);
-        transform: translateY(20px);
-        opacity: 0;
-        transition: transform .22s, opacity .2s;
         position: relative;
         z-index: 401;
-      }
-      #staff-dlg-overlay.open #staff-dlg {
-        transform: translateY(0);
-        opacity: 1;
+        /* 初始值由 JS 依裝置設定 */
       }
 
       #staff-dlg-bar {
@@ -2549,25 +2532,8 @@
         box-shadow: 0 2px 0 rgba(0,0,0,.08);
       }
 
-      /* 手機：全版無圓角從底部滑入 */
+      /* 手機版文字縮小 */
       @media (max-width: 768px) {
-        #staff-dlg-overlay {
-          align-items: flex-end;
-          justify-content: flex-end;
-        }
-        #staff-dlg {
-          width: 100vw;
-          height: 100dvh;
-          max-height: 100dvh;
-          border-radius: 0;
-          transform: translateY(100%);
-          opacity: 1;
-          transition: transform .3s cubic-bezier(.32,.72,0,1);
-        }
-        #staff-dlg-overlay.open #staff-dlg {
-          transform: translateY(0);
-          opacity: 1;
-        }
         #staff-dlg-bar { padding: 10px 12px; }
         #staff-dlg-title { font-size: 13px; }
         .dlg-btn { font-size: 11px; padding: 4px 8px; }
@@ -3453,7 +3419,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 3.9.6 (2026-06-20)</div>
+      <div id="ver-ts">Ver. 3.9.7 (2026-06-21)</div>
       <div id="data-sync-bar"></div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
@@ -6304,11 +6270,41 @@
         /* 重置篩選 */
         dlgFilter('all');
 
-        /* 開啟 */
+        /* 開啟：依螢幕寬度決定手機/桌機模式 */
         var overlay = document.getElementById('staff-dlg-overlay');
+        var dlg = document.getElementById('staff-dlg');
+        var isMobile = window.innerWidth <= 768;
+        if (isMobile) {
+          overlay.style.alignItems = 'flex-end';
+          overlay.style.justifyContent = 'flex-end';
+          dlg.style.width = '100vw';
+          dlg.style.height = '100dvh';
+          dlg.style.maxHeight = '100dvh';
+          dlg.style.borderRadius = '0';
+          dlg.style.transform = 'translateY(100%)';
+          dlg.style.opacity = '1';
+          dlg.style.transition = 'transform .3s cubic-bezier(.32,.72,0,1)';
+        } else {
+          overlay.style.alignItems = 'center';
+          overlay.style.justifyContent = 'center';
+          dlg.style.width = '95vw';
+          dlg.style.height = '92vh';
+          dlg.style.maxHeight = '';
+          dlg.style.borderRadius = '14px';
+          dlg.style.transform = 'translateY(20px)';
+          dlg.style.opacity = '0';
+          dlg.style.transition = 'transform .22s, opacity .2s';
+        }
         overlay.style.display = 'flex';
         requestAnimationFrame(function() {
-          requestAnimationFrame(function() { overlay.classList.add('open'); });
+          requestAnimationFrame(function() {
+            if (isMobile) {
+              dlg.style.transform = 'translateY(0)';
+            } else {
+              dlg.style.transform = 'translateY(0)';
+              dlg.style.opacity = '1';
+            }
+          });
         });
         document.body.style.overflow = 'hidden';
       }
@@ -6367,11 +6363,19 @@
 
       function closeStaffDialog() {
         var overlay = document.getElementById('staff-dlg-overlay');
-        overlay.classList.remove('open');
+        var dlg = document.getElementById('staff-dlg');
+        var isMobile = window.innerWidth <= 768;
+        if (isMobile) {
+          dlg.style.transform = 'translateY(100%)';
+        } else {
+          dlg.style.transform = 'translateY(20px)';
+          dlg.style.opacity = '0';
+        }
         document.body.style.overflow = '';
         setTimeout(function() {
           overlay.style.display = 'none';
-        }, 300);
+          dlg.style.cssText = '';
+        }, 320);
       }
 
       /* dialog 內的複製清單 */
