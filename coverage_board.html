@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 2.0.0 ｜ 最後更新：2026-06-20
+  版本：Ver. 2.1.0 ｜ 最後更新：2026-06-20
 ════════════════════════════════════════════════════════════
 
 【版本紀錄】
@@ -210,6 +210,48 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   letter-spacing:.04em;
   opacity:.6;
   flex-shrink:0;
+}
+
+/* ── grade-bar 等級筛選 ── */
+.grade-bar {
+  padding:6px 16px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  background:#fff;
+  border-bottom:1px solid var(--border);
+  flex-wrap:wrap;
+}
+.grade-label {
+  font-size:11px;
+  color:var(--sub);
+  font-weight:600;
+  white-space:nowrap;
+  letter-spacing:.04em;
+  opacity:.6;
+}
+.grade-chip {
+  padding:3px 10px;
+  border-radius:16px;
+  font-size:12px;
+  font-weight:600;
+  cursor:pointer;
+  border:1px solid transparent;
+  background:var(--bg);
+  color:var(--sub);
+  font-family:inherit;
+  white-space:nowrap;
+  transition:all .15s;
+}
+.grade-chip.active {
+  background:var(--primary);
+  color:#fff;
+  border-color:var(--primary);
+}
+.grade-chip:not(.active):hover { background:var(--primary-bg); color:var(--primary); }
+.grade-all {
+  font-size:11px;
+  padding:3px 9px;
 }
 
 /* ── stage ── */
@@ -533,6 +575,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 </div>
 
 <div class="quicknav" id="quicknav"></div>
+<div class="grade-bar" id="grade-bar" style="display:none"></div>
 <div class="stage" id="stage"></div>
 
 <!-- 全螢幕 Dialog 店家明細 -->
@@ -565,6 +608,10 @@ var COL_STAFF   = '\u57F7\u884C\u4EBA\u54E1';
 var COL_UNFILL  = '\u672A\u586B\u5BEB';
 var COL_CODE    = '\u5E97\u5BB6\u4EE3\u78BC';
 var COL_NAME    = '\u5E97\u5BB6\u540D\u7A31';
+/* 店家等級欄位（店家名冊 H 欄） */
+var COL_GRADE = '店家等級';
+var selectedGrades = null; /* null = 全選，Set = 已選等級 */
+
 /* 通路視角欄位 */
 var COL_CHANNEL = '\u901A\u8DEF\u5225';   /* 通路別 */
 var COL_TYPE    = '\u5E97\u5BB6\u578B\u614B'; /* 店家型態 */
@@ -693,29 +740,23 @@ function init() {
         if (!sid || sid.length < 20) return; /* 跳過表頭列 */
         if (sid !== SHEET_ID) return;
         /* 欄位配置：
-           A=專案名 B=專案ID C=未知群組標題 D=未知欄位（COL_UNFILL）
-           E=B-1標題 F=B-1欄位  I=B-2標題 J=B-2欄位  K=B-3標題 L=B-3欄位 ...（每兩欄一個B群）
-           G=C-1標題 H=C-1欄位  M=C-2標題 N=C-2欄位 ...（每兩欄一個C群） */
+           A=專案名 B=專案ID C=未知群組標題 D=未知欄位
+           E=B1標題 F=B1欄位 G=C1標題 H=C1欄位
+           I=B2標題 J=B2欄位 K=C2標題 L=C2欄位
+           M=B3標題 N=B3欄位 O=C3標題 P=C3欄位 ...（每4欄一組 B+C）*/
         var colsA = parseCsv(cv(cells[3]));
         if (colsA.length) COL_UNFILL = colsA[0];
 
-        /* 讀 B 群：E/F 起，每兩欄一個群組，到 G 欄前停止；之後跳到 I 欄繼續 */
         BUCKETS_B = [];
-        /* B-1: cells[4]=E, cells[5]=F */
-        var lb1 = cv(cells[4]), cb1 = parseCsv(cv(cells[5]));
-        if (cb1.length) BUCKETS_B.push({ label: lb1 || '\u5DF2\u6709', cols: cb1 });
-        /* B-2 起：cells[8]=I, cells[9]=J, cells[10]=K, cells[11]=L ... */
-        for (var bi = 8; bi < cells.length - 1; bi += 2) {
-          var lbx = cv(cells[bi]), cbx = parseCsv(cv(cells[bi+1]));
-          /* 遇到空欄停止（避免讀到其他設定） */
-          if (!lbx && !cbx.length) break;
-          if (cbx.length) BUCKETS_B.push({ label: lbx, cols: cbx });
-        }
-
-        /* 讀 C 群：G/H 起，cells[6]=G, cells[7]=H */
         BUCKETS_C = [];
-        var lc1 = cv(cells[6]), cc1 = parseCsv(cv(cells[7]));
-        if (cc1.length) BUCKETS_C.push({ label: lc1 || '\u672A\u6709', cols: cc1 });
+        /* 從 E(index 4) 起，每 4 欄讀一對 B+C 群組 */
+        for (var gi = 4; gi < cells.length - 1; gi += 4) {
+          var lb = cv(cells[gi]),   cb = parseCsv(cv(cells[gi+1] || {}));
+          var lc = cv(cells[gi+2] || {}), cc = parseCsv(cv(cells[gi+3] || {}));
+          if (!lb && !cb.length && !lc && !cc.length) break; /* 空白即停 */
+          if (cb.length) BUCKETS_B.push({ label: lb || '\u5DF2\u6709', cols: cb });
+          if (cc.length) BUCKETS_C.push({ label: lc || '\u672A\u6709', cols: cc });
+        }
       });
     })
     .catch(function(){})
@@ -798,6 +839,7 @@ function fetchSheet() {
         });
         return obj;
       });
+      buildGradeBar();
       render();
     })
     .catch(function(err){
@@ -914,6 +956,45 @@ function getNextGroups(rows, col) {
   return map;
 }
 
+/* \u2500\u2500 \u5e97\u5bb6\u7b49\u7d1a\u7b5b\u9078 \u2500\u2500 */
+function buildGradeBar() {
+  var bar = document.getElementById('grade-bar');
+  if (!bar) return;
+  var gradeSet = {};
+  allRows.forEach(function(r){
+    var g = String(r[COL_GRADE]||'').trim();
+    if (g) gradeSet[g] = true;
+  });
+  var grades = Object.keys(gradeSet).sort();
+  if (!grades.length) { bar.style.display='none'; return; }
+  bar.style.display = 'flex';
+  bar.innerHTML = '<span class="grade-label">\u5e97\u5bb6\u7b49\u7d1a</span>';
+  var allBtn = document.createElement('button');
+  allBtn.className = 'grade-chip grade-all' + (selectedGrades===null?' active':'');
+  allBtn.textContent = '\u5168\u9078';
+  allBtn.onclick = function(){ selectedGrades=null; buildGradeBar(); render(); };
+  bar.appendChild(allBtn);
+  grades.forEach(function(g){
+    var btn = document.createElement('button');
+    btn.className = 'grade-chip' + (selectedGrades&&selectedGrades[g]?' active':'');
+    btn.textContent = g;
+    btn.onclick = function(){
+      if (!selectedGrades) selectedGrades = {};
+      selectedGrades[g] = !selectedGrades[g];
+      if (Object.keys(selectedGrades).every(function(k){ return !selectedGrades[k]; })) selectedGrades = null;
+      buildGradeBar(); render();
+    };
+    bar.appendChild(btn);
+  });
+}
+
+function applyGradeFilter(rows) {
+  if (!selectedGrades) return rows;
+  return rows.filter(function(r){
+    return selectedGrades[String(r[COL_GRADE]||'').trim()];
+  });
+}
+
 /* \u2500\u2500 視角切換 \u2500\u2500 */
 function setViewMode(mode) {
   if (viewMode === mode) return;
@@ -930,7 +1011,7 @@ function render() {
   buildQuicknav();
   var stage=document.getElementById('stage');
   stage.innerHTML='';
-  var depth=drillStack.length, rows=getCurrentRows();
+  var depth=drillStack.length, rows=applyGradeFilter(getCurrentRows());
   var overallName = depth===0 ? '\u5168\u53F0' : drillStack[drillStack.length-1].key;
 
   if (viewMode === 'channel') {
