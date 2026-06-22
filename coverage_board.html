@@ -351,6 +351,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .tt-row { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; padding:4px 0; }
 .tt-label { font-size:13px; color:var(--sub); flex:1; line-height:1.4; white-space:normal; word-break:keep-all; text-align:left; }
 .tt-val { font-size:13px; font-weight:700; color:var(--text); white-space:nowrap; flex-shrink:0; text-align:right; }
+.tt-pct { font-size:11px; font-weight:500; color:var(--sub); margin-left:3px; }
 
 /* ── 全螢幕 Dialog ── */
 #detail-dialog {
@@ -836,7 +837,15 @@ function fetchSheet() {
       allRows  = (tbl.rows||[]).map(function(row){
         var obj = {};
         (row.c||[]).forEach(function(cell,i){
-          obj[cols[i]] = cell ? (cell.v!==null&&cell.v!==undefined ? cell.v : cell.f||'') : '';
+          if (!cell) { obj[cols[i]] = ''; return; }
+          var v = (cell.v!==null&&cell.v!==undefined) ? cell.v : '';
+          var f = cell.f || '';
+          /* 當 v=1（數字）但 f 是非空文字（業務描述），優先保留文字 */
+          if (v === 1 && f && typeof f === 'string' && f.trim() && !/^\d+(\.\d+)?$/.test(f.trim())) {
+            obj[cols[i]] = f.trim();
+          } else {
+            obj[cols[i]] = (v!==null&&v!==undefined&&v!=='') ? v : f||'';
+          }
         });
         return obj;
       });
@@ -1112,7 +1121,7 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
       '<div class="stat-label">'+esc(g.label)+'</div>'+
       '<div class="stat-val">'+cnt+'</div>'+
       '<div class="stat-pct">'+fp(cnt)+'</div>'+
-      (hasMultiCols ? '<div class="tooltip" id="'+ttBId+'">'+buildTooltipHTML(g.label, g.cols, stat.bColCounts)+'</div>' : '')+
+      (hasMultiCols ? '<div class="tooltip" id="'+ttBId+'">'+buildTooltipHTML(g.label, g.cols, stat.bColCounts, stat.total)+'</div>' : '')+
     '</div>';
   });
 
@@ -1126,7 +1135,7 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
       '<div class="stat-label">'+esc(g.label)+'</div>'+
       '<div class="stat-val">'+cnt+'</div>'+
       '<div class="stat-pct">'+fp(cnt)+'</div>'+
-      (hasMultiCols ? '<div class="tooltip" id="'+ttCId2+'">'+buildTooltipHTML(g.label, g.cols, stat.cColCounts)+'</div>' : '')+
+      (hasMultiCols ? '<div class="tooltip" id="'+ttCId2+'">'+buildTooltipHTML(g.label, g.cols, stat.cColCounts, stat.total)+'</div>' : '')+
     '</div>';
   });
 
@@ -1165,10 +1174,12 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
   return card;
 }
 
-function buildTooltipHTML(label, buckets, counts) {
+function buildTooltipHTML(label, buckets, counts, total) {
   return '<div class="tt-title">'+esc(label)+'</div>'+
     buckets.map(function(t){
-      return '<div class="tt-row"><span class="tt-label">'+esc(t)+'</span><span class="tt-val">'+(counts[t]||0)+' \u5BB6</span></div>';
+      var n = counts[t]||0;
+      var pct = (total>0) ? ' <span class="tt-pct">('+Math.round(n/total*100)+'%)</span>' : '';
+      return '<div class="tt-row"><span class="tt-label">'+esc(t)+'</span><span class="tt-val">'+n+' \u5BB6'+pct+'</span></div>';
     }).join('');
 }
 
