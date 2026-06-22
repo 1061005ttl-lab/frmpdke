@@ -2,7 +2,7 @@
 <!--
 ================================================================================
   業務王看板系統 — achievement_board.html
-  版本：Ver. 4.0.0 ｜ 最後更新：2026-06-22 09:00 (UTC+8)
+  版本：Ver. 4.0.1 ｜ 最後更新：2026-06-22 (UTC+8)
   維護者：TTL 業務王團隊
 ================================================================================
 
@@ -83,6 +83,8 @@
             var ratio = Math.min(1, window.innerWidth / BASE_W);
             ratio = Math.max(0.55, ratio);
             document.documentElement.style.zoom = ratio;
+            /* 讓 dialog 可反向補償縮放，保持原始尺寸 */
+            document.documentElement.style.setProperty('--page-zoom', ratio);
           }
           applyZoom();
           window.addEventListener('resize', applyZoom);
@@ -2388,6 +2390,8 @@
         justify-content: center;
         opacity: 0;
         transition: opacity .2s;
+        /* 反向補償頁面 zoom，讓 dialog 永遠以原始大小顯示 */
+        zoom: calc(1 / var(--page-zoom, 1));
       }
       #staff-dlg-overlay.open { opacity: 1; }
 
@@ -3430,7 +3434,7 @@
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
-      <div id="ver-ts">Ver. 4.0.0 (2026-06-22)</div>
+      <div id="ver-ts">Ver. 4.0.1 (2026-06-22)</div>
       <div id="data-sync-bar"></div>
       <div class="sep"></div>
       <div class="view-toggle"><button class="vt-btn on" id="vt-org" onclick="setViewMode('org')">🏢 組織</button><button class="vt-btn" id="vt-ch" onclick="setViewMode('ch')">🏪 通路</button></div>
