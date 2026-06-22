@@ -1,10 +1,15 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 1.2.5 ｜ 最後更新：2026-06-20
+  版本：Ver. 1.3.0 ｜ 最後更新：2026-06-20
 ════════════════════════════════════════════════════════════
 
 【版本紀錄】
+  1.3.0  2026-06-22  介面與 Tooltip 優化
+         - Grid 改 minmax(320px,1fr)，桌機自然呈現 4 欄
+         - 未商化（BUCKET_C）加入 Tooltip，與已商化一致
+         - Tooltip max-width 加大至 320px，標籤改 word-break:keep-all 不強制斷字
+         - buildTooltipHTML 改成通用函式，B/C 群各自顯示正確標題
   1.2.2  2026-06-20  修正 Dialog 表頭滾動消失
          - 根本原因：dlg-body(overflow:auto) + detail-scroll(overflow-x:auto) 雙層 overflow
            打斷了 thead position:sticky 的 scroll container 定位鏈
@@ -218,7 +223,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 }
 .grid {
   display:grid;
-  grid-template-columns:repeat(auto-fit, minmax(360px,1fr));
+  grid-template-columns:repeat(auto-fill, minmax(320px,1fr));
   gap:12px;
   margin-bottom:28px;
 }
@@ -291,7 +296,9 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   border:1px solid var(--border);
   border-radius:10px;
   padding:10px 14px;
-  min-width:170px;
+  min-width:200px;
+  max-width:320px;
+  width:max-content;
   z-index:200;
   pointer-events:none;
   opacity:0;
@@ -304,9 +311,9 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   top:calc(100% + 8px);
 }
 .tt-title { font-size:11px; font-weight:700; color:var(--sub); margin-bottom:7px; letter-spacing:.03em; }
-.tt-row { display:flex; justify-content:space-between; align-items:center; gap:20px; padding:4px 0; }
-.tt-label { font-size:13px; color:var(--sub); }
-.tt-val { font-size:13px; font-weight:700; color:var(--text); }
+.tt-row { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; padding:4px 0; }
+.tt-label { font-size:13px; color:var(--sub); flex:1; line-height:1.4; white-space:normal; word-break:keep-all; }
+.tt-val { font-size:13px; font-weight:700; color:var(--text); white-space:nowrap; flex-shrink:0; }
 
 /* ── 全螢幕 Dialog ── */
 #detail-dialog {
@@ -996,6 +1003,7 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
   function fp(n){ return T>0 ? Math.round(n/T*100)+'%' : '—'; }
   /* 全部卡片標題都是一行：組別小字 + 名稱大字 + 右側明細按鈕 */
   var topHtml = '<div class="card-top-inline">'+esc(topLabel)+' <span class="card-name-inline'+(isOverall?' card-name-overall':'')+'">'+esc(name)+'</span><button class="card-detail-btn" id="dbtn-'+ttId+'">📋 明細</button></div>';
+  var ttCId = (BUCKET_C.length >= 1) ? 'ttc-'+ttId : '';
   card.innerHTML=
     topHtml+
     '<div class="stat-row">'+
@@ -1004,29 +1012,24 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
       '<div class="stat-item good'+(chips['disp']===false?' dim':'')+'" id="si-'+ttId+'" style="position:relative">'+
         '<div class="stat-label">'+LABEL_B+'</div><div class="stat-val">'+stat.hasDisp+'</div>'+
         '<div class="stat-pct">'+fp(stat.hasDisp)+'</div>'+
-        (BUCKET_B.length>1?'<div class="tooltip" id="'+ttId+'">'+buildTooltipHTML(stat)+'</div>':'')+
+        (BUCKET_B.length>1?'<div class="tooltip" id="'+ttId+'">'+buildTooltipHTML(LABEL_B, BUCKET_B, stat.bCounts)+'</div>':'')+
       '</div>'+
-      (BUCKET_C.length?'<div class="stat-item warn'+(chips['no']===false?' dim':'')+'"><div class="stat-label">'+LABEL_C+'</div><div class="stat-val">'+stat.hasNo+'</div><div class="stat-pct">'+fp(stat.hasNo)+'</div></div>':'')+
+      (BUCKET_C.length?
+        '<div class="stat-item warn'+(chips['no']===false?' dim':'')+'" id="sic-'+ttId+'" style="position:relative">'+
+          '<div class="stat-label">'+LABEL_C+'</div><div class="stat-val">'+stat.hasNo+'</div>'+
+          '<div class="stat-pct">'+fp(stat.hasNo)+'</div>'+
+          (BUCKET_C.length>=1?'<div class="tooltip" id="ttc-'+ttId+'">'+buildTooltipHTML(LABEL_C, BUCKET_C, stat.cCounts)+'</div>':'')+
+        '</div>':'')+
     '</div>';
 
+  /* B群 tooltip */
   var siEl=card.querySelector('#si-'+ttId), ttEl=card.querySelector('#'+ttId);
-  if(siEl&&ttEl){
-    siEl.addEventListener('mouseenter',function(e){
-      e.stopPropagation();
-      /* 判斷卡片是否靠近視窗頂部，是則往下彈（flip），否則往上彈（預設）*/
-      var cardRect = card.getBoundingClientRect();
-      if(cardRect.top < 160){
-        ttEl.classList.add('flip');
-      } else {
-        ttEl.classList.remove('flip');
-      }
-      ttEl.classList.add('show');
-    });
-    siEl.addEventListener('mouseleave',function(){
-      ttEl.classList.remove('show');
-      ttEl.classList.remove('flip');
-    });
-  }
+  if(siEl&&ttEl) bindTooltip(siEl, ttEl, card);
+
+  /* C群 tooltip */
+  var siCEl = ttCId ? card.querySelector('#sic-'+ttId) : null;
+  var ttCEl = ttCId ? card.querySelector('#ttc-'+ttId) : null;
+  if(siCEl&&ttCEl) bindTooltip(siCEl, ttCEl, card);
 
   card.querySelector('#dbtn-'+ttId).addEventListener('click',function(e){
     e.stopPropagation(); openDialog(name,levelKey,rows);
@@ -1045,10 +1048,10 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
   return card;
 }
 
-function buildTooltipHTML(stat) {
-  return '<div class="tt-title">'+LABEL_B+'\u660E\u7D30</div>'+
-    BUCKET_B.map(function(t){
-      return '<div class="tt-row"><span class="tt-label">'+t+'</span><span class="tt-val">'+(stat.bCounts[t]||0)+' \u5BB6</span></div>';
+function buildTooltipHTML(label, buckets, counts) {
+  return '<div class="tt-title">'+esc(label)+'</div>'+
+    buckets.map(function(t){
+      return '<div class="tt-row"><span class="tt-label">'+esc(t)+'</span><span class="tt-val">'+(counts[t]||0)+' \u5BB6</span></div>';
     }).join('');
 }
 
