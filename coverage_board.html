@@ -910,21 +910,38 @@ function calcGroup(rows) {
 
   filtered.forEach(function(r){
     if (isOne(r[COL_UNFILL])) { unfilled++; return; }
-    var bi = rowBGroup(r);
-    if (bi >= 0) {
-      bGroupCounts[bi]++;
-      BUCKETS_B[bi].cols.forEach(function(t){ if (isOne(r[t])) bColCounts[t]++; });
-    }
-    var ci = rowCGroup(r);
-    if (ci >= 0) {
-      cGroupCounts[ci]++;
-      BUCKETS_C[ci].cols.forEach(function(t){ if (isOne(r[t])) cColCounts[t]++; });
-    }
+    /* 每個 B 群獨立計算（一家店可同時符合多個 B 群，如同時貼開瓶和黃薑） */
+    BUCKETS_B.forEach(function(g, i){
+      if (chips['b:'+i] === false) return;
+      if (g.cols.some(function(t){ return isOne(r[t]); })) {
+        bGroupCounts[i]++;
+        g.cols.forEach(function(t){ if (isOne(r[t])) bColCounts[t]++; });
+      }
+    });
+    /* 每個 C 群獨立計算 */
+    BUCKETS_C.forEach(function(g, j){
+      if (chips['c:'+j] === false) return;
+      if (g.cols.some(function(t){ return isOne(r[t]); })) {
+        cGroupCounts[j]++;
+        g.cols.forEach(function(t){ if (isOne(r[t])) cColCounts[t]++; });
+      }
+    });
   });
   var valid = total - unfilled;
-  /* hasDisp / hasNo 為所有 B/C 群的總計（向後相容） */
-  var hasDisp = bGroupCounts.reduce(function(s,n){ return s+n; }, 0);
-  var hasNo   = cGroupCounts.reduce(function(s,n){ return s+n; }, 0);
+  /* hasDisp = 至少符合一個 B 群的店家數（獨立去重）
+     hasNo   = 至少符合一個 C 群的店家數（獨立去重）*/
+  var hasDisp = filtered.filter(function(r){
+    if (isOne(r[COL_UNFILL])) return false;
+    return BUCKETS_B.some(function(g, i){
+      return chips['b:'+i] !== false && g.cols.some(function(t){ return isOne(r[t]); });
+    });
+  }).length;
+  var hasNo = filtered.filter(function(r){
+    if (isOne(r[COL_UNFILL])) return false;
+    return BUCKETS_C.some(function(g, j){
+      return chips['c:'+j] !== false && g.cols.some(function(t){ return isOne(r[t]); });
+    });
+  }).length;
   return { total:total, unfilled:unfilled, valid:valid,
            hasDisp:hasDisp, hasNo:hasNo,
            bGroupCounts:bGroupCounts, cGroupCounts:cGroupCounts,
