@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 2.5.0 ｜ 最後更新：2026-06-22
+  版本：Ver. 2.5.1 ｜ 最後更新：2026-06-23
 ════════════════════════════════════════════════════════════
 
 【⚠ 版本更新作業流程】
@@ -12,6 +12,9 @@
   日期格式：YYYY-MM-DD（台灣時間，UTC+8）
 
 【版本紀錄】
+  2.5.1  2026-06-23  修正 C 群文字值顯示為「—」的問題
+         - fetchSheet 解析時，v 為空但 f 有值（公式產生的文字）→ 改取 f
+         - 修正後公式欄位的業務文字可被 isCText 正確捕捉，顯示紅字
   2.5.0  2026-06-22  Dialog % 顯示、C類文字值紅字、等級整合、版本流程規範
          - Dialog 標題加入各狀態家數百分比
          - C 群欄位：文字值以紅字顯示業務描述，非文字值（1/0）顯示紅 ✖
@@ -826,21 +829,35 @@ function switchProject(sid) {
 /* \u2500\u2500 \u4E3B\u8CC7\u6599 \u2500\u2500 */
 function fetchSheet() {
   showLoading();
+  /* headers=0：不讓 gviz 自動解析標題列，避免文字值被誤判為多行 header */
   var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
-    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(SHEET_NAME);
+    '/gviz/tq?tqx=out:json&headers=0&sheet=' + encodeURIComponent(SHEET_NAME);
   fetch(url)
     .then(function(r){ return r.text(); })
     .then(function(txt){
       var json = JSON.parse(txt.replace(/^[^\(]+\(/, '').replace(/\);?\s*$/, ''));
-      var tbl  = json.table || {};
-      var cols = (tbl.cols||[]).map(function(c){ return c.label||''; });
-      allRows  = (tbl.rows||[]).map(function(row){
+      var tbl     = json.table || {};
+      var rawRows = tbl.rows  || [];
+      if (!rawRows.length) { hideLoading(); return; }
+      /* 第一列當欄位名稱 */
+      var cols = (rawRows[0].c || []).map(function(cell){
+        return cell ? String(cell.v !== null && cell.v !== undefined ? cell.v : (cell.f || '')) : '';
+      });
+      allRows = rawRows.slice(1).map(function(row){
         var obj = {};
-        (row.c||[]).forEach(function(cell,i){
+        (row.c || []).forEach(function(cell, i){
           if (!cell) { obj[cols[i]] = ''; return; }
-          var v = (cell.v!==null&&cell.v!==undefined) ? cell.v : '';
-          var f = cell.f || '';
-          obj[cols[i]] = (v!==''&&v!==null&&v!==undefined) ? v : f;
+          var v = (cell.v !== null && cell.v !== undefined) ? cell.v : '';
+          var f = String(cell.f || '');
+          /* v=1（數字勾選）但 f 是業務文字說明 → 保留文字 */
+          if (v === 1 && f && !/^\d+(\.\d+)?$/.test(f.trim())) {
+            obj[cols[i]] = f.trim();
+          } else if ((v === null || v === undefined || v === '') && f) {
+            /* v 是空但 f 有值（公式產生的文字）→ 取 f */
+            obj[cols[i]] = f;
+          } else {
+            obj[cols[i]] = (v !== '' && v !== null && v !== undefined) ? v : f;
+          }
         });
         return obj;
       });
