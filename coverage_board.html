@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 1.3.1 ｜ 最後更新：2026-06-20
+  版本：Ver. 2.0.0 ｜ 最後更新：2026-06-20
 ════════════════════════════════════════════════════════════
 
 【版本紀錄】
@@ -569,11 +569,15 @@ var COL_NAME    = '\u5E97\u5BB6\u540D\u7A31';
 var COL_CHANNEL = '\u901A\u8DEF\u5225';   /* 通路別 */
 var COL_TYPE    = '\u5E97\u5BB6\u578B\u614B'; /* 店家型態 */
 
-/* 動態桶設定（由覆蓋率型專案管理分頁載入） */
-var BUCKET_B = [];          /* 已有欄位列表（堆箱/端架/冰箱 or 原貨架/冰箱） */
-var BUCKET_C = [];          /* 未有欄位列表（未進貨/未上架 or 空） */
-var LABEL_B  = '\u5DF2\u6709';   /* 已有 stat 卡標題，預設「已有」 */
-var LABEL_C  = '\u672A\u6709';   /* 未有 stat 卡標題，預設「未有」 */
+/* 動態桶設定（由覆蓋率型專案管理分頁載入）
+   BUCKETS_B = [{label:'已貼海報', cols:['門口','四周']}, {label:'已貼冰貼', cols:['冰貼']}]
+   BUCKETS_C = [{label:'未商化', cols:['未商化']}]
+   向後相容：BUCKET_B / LABEL_B 指向第一個 B 群組（供舊程式路徑使用） */
+var BUCKETS_B = [];  /* B 群陣列，每項 {label, cols} */
+var BUCKETS_C = [];  /* C 群陣列，每項 {label, cols} */
+/* 所有 B/C 群欄位扁平列表 */
+function ALL_B_COLS(){ return BUCKETS_B.reduce(function(a,g){ return a.concat(g.cols); },[]); }
+function ALL_C_COLS(){ return BUCKETS_C.reduce(function(a,g){ return a.concat(g.cols); },[]); }
 
 /* 覆蓋率型專案管理分頁名稱 */
 var COV_CFG_SHEET = '\u8986\u84CB\u7387\u578B\u5C08\u6848\u7BA1\u7406';
@@ -601,13 +605,11 @@ var viewMode = 'org';
 /* 3 題燈： disp(已有) / no(未有，如果有 BUCKET_C) / unfill(未填寫) */
 var chips = { disp: true, no: true, unfill: true };
 
-/* bucketChips: 控制 BUCKET_B 各欄位子燈（只影響 hasDisp 細項，不影響 total） */
-var bucketChips = {};
-
 function initChips() {
-  chips = { disp: true, no: true, unfill: true };
-  bucketChips = {};
-  BUCKET_B.forEach(function(t){ bucketChips[t] = true; });
+  chips = {};
+  BUCKETS_B.forEach(function(g, i){ chips['b:'+i] = true; });
+  BUCKETS_C.forEach(function(g, i){ chips['c:'+i] = true; });
+  chips['unfill'] = true;
   renderLampBar();
 }
 
@@ -617,38 +619,21 @@ function renderLampBar() {
   bar.style.display = 'flex';
   bar.innerHTML = '';
 
-  function makeChip(key, label, cls, isBucket) {
+  function makeChip(key, label, cls) {
     var btn = document.createElement('button');
-    var on = isBucket ? (bucketChips[key] !== false) : chips[key];
-    btn.className = 'lamp-chip ' + cls + (on ? ' on' : '') + (isBucket ? ' sub' : '');
-    btn.innerHTML = '<span class="lamp-dot"></span>' + label;
+    btn.className = 'lamp-chip ' + cls + (chips[key] !== false ? ' on' : '');
+    btn.innerHTML = '<span class="lamp-dot"></span>' + esc(label);
     btn.dataset.key = key;
-    btn.dataset.bucket = isBucket ? '1' : '';
-    btn.addEventListener('click', function() {
-      if (isBucket) toggleBucketLamp(key);
-      else toggleLamp(key);
-    });
-    if (isBucket && !chips['disp']) btn.style.display = 'none';
+    btn.addEventListener('click', function() { toggleLamp(key); });
     bar.appendChild(btn);
   }
 
-  makeChip('disp', LABEL_B, 'good', false);
-  /* 子欄位燈：只在 BUCKET_B > 1 時顯示，加分隔 */
-  if (BUCKET_B.length > 1) {
-    var sep = document.createElement('span');
-    sep.className = 'lamp-sep';
-    sep.id = 'lamp-sep-b';
-    if (!chips['disp']) sep.style.display = 'none';
-    bar.appendChild(sep);
-    BUCKET_B.forEach(function(t) { makeChip(t, t, 'good', true); });
-    var sep2 = document.createElement('span');
-    sep2.className = 'lamp-sep';
-    sep2.id = 'lamp-sep-b2';
-    if (!chips['disp']) sep2.style.display = 'none';
-    bar.appendChild(sep2);
-  }
-  if (BUCKET_C.length) makeChip('no', LABEL_C, 'warn', false);
-  makeChip('unfill', '\u672a\u586b\u5beb', 'neutral', false);
+  /* B 群組：每個獨立一顆綠燈 */
+  BUCKETS_B.forEach(function(g, i) { makeChip('b:'+i, g.label, 'good'); });
+  /* C 群組：每個獨立一顆紅燈 */
+  BUCKETS_C.forEach(function(g, i) { makeChip('c:'+i, g.label, 'warn'); });
+  /* 未填寫燈 */
+  makeChip('unfill', '\u672a\u586b\u5beb', 'neutral');
 }
 
 function toggleLamp(key) {
@@ -656,31 +641,7 @@ function toggleLamp(key) {
   var bar = document.getElementById('lamp-bar');
   if (bar) {
     bar.querySelectorAll('.lamp-chip').forEach(function(btn) {
-      if (btn.dataset.key === key && !btn.dataset.bucket) {
-        btn.classList.toggle('on', chips[key]);
-      }
-      /* disp 群組燈關掉時，隱藏子燈 */
-      if (key === 'disp' && btn.classList.contains('sub')) {
-        btn.style.display = chips['disp'] ? '' : 'none';
-      }
-    });
-  }
-  /* 同步分隔線顯隱 */
-  if (key === 'disp') {
-    ['lamp-sep-b','lamp-sep-b2'].forEach(function(id) {
-      var el = document.getElementById(id);
-      if (el) el.style.display = chips['disp'] ? '' : 'none';
-    });
-  }
-  render();
-}
-
-function toggleBucketLamp(key) {
-  bucketChips[key] = !bucketChips[key];
-  var bar = document.getElementById('lamp-bar');
-  if (bar) {
-    bar.querySelectorAll('.lamp-chip.sub').forEach(function(btn) {
-      if (btn.dataset.key === key) btn.classList.toggle('on', bucketChips[key]);
+      if (btn.dataset.key === key) btn.classList.toggle('on', chips[key] !== false);
     });
   }
   render();
@@ -731,19 +692,30 @@ function init() {
         var sid = cv(cells[1]);
         if (!sid || sid.length < 20) return; /* 跳過表頭列 */
         if (sid !== SHEET_ID) return;
-        /* A:專案名  B:專案ID  C:未知群組標題  D:未知欄位  E:已有群組標題  F:已有欄位  G:未有群組標題  H:未有欄位 */
-        var labelA = cv(cells[2]);
-        var colsA  = parseCsv(cv(cells[3]));
-        var labelB = cv(cells[4]);
-        var colsB  = parseCsv(cv(cells[5]));
-        var labelC = cv(cells[6]);
-        var colsC  = parseCsv(cv(cells[7]));
-        if (colsB.length) BUCKET_B = colsB;
-        if (colsC.length) BUCKET_C = colsC;
-        if (labelB) LABEL_B = labelB;
-        if (labelC) LABEL_C = labelC;
-        /* COL_UNFILL 取桶A第一欄，若有設定的話 */
+        /* 欄位配置：
+           A=專案名 B=專案ID C=未知群組標題 D=未知欄位（COL_UNFILL）
+           E=B-1標題 F=B-1欄位  I=B-2標題 J=B-2欄位  K=B-3標題 L=B-3欄位 ...（每兩欄一個B群）
+           G=C-1標題 H=C-1欄位  M=C-2標題 N=C-2欄位 ...（每兩欄一個C群） */
+        var colsA = parseCsv(cv(cells[3]));
         if (colsA.length) COL_UNFILL = colsA[0];
+
+        /* 讀 B 群：E/F 起，每兩欄一個群組，到 G 欄前停止；之後跳到 I 欄繼續 */
+        BUCKETS_B = [];
+        /* B-1: cells[4]=E, cells[5]=F */
+        var lb1 = cv(cells[4]), cb1 = parseCsv(cv(cells[5]));
+        if (cb1.length) BUCKETS_B.push({ label: lb1 || '\u5DF2\u6709', cols: cb1 });
+        /* B-2 起：cells[8]=I, cells[9]=J, cells[10]=K, cells[11]=L ... */
+        for (var bi = 8; bi < cells.length - 1; bi += 2) {
+          var lbx = cv(cells[bi]), cbx = parseCsv(cv(cells[bi+1]));
+          /* 遇到空欄停止（避免讀到其他設定） */
+          if (!lbx && !cbx.length) break;
+          if (cbx.length) BUCKETS_B.push({ label: lbx, cols: cbx });
+        }
+
+        /* 讀 C 群：G/H 起，cells[6]=G, cells[7]=H */
+        BUCKETS_C = [];
+        var lc1 = cv(cells[6]), cc1 = parseCsv(cv(cells[7]));
+        if (cc1.length) BUCKETS_C.push({ label: lc1 || '\u672A\u6709', cols: cc1 });
       });
     })
     .catch(function(){})
@@ -852,44 +824,68 @@ function fetchSyncTime() {
 
 /* ── 計算 ── */
 
-/* 燈狀態筛選：燈關掉的店家排除 */
+/* 判斷一列屬於哪個 B 群組（燈開著的才算） */
+function rowBGroup(r) {
+  for (var i = 0; i < BUCKETS_B.length; i++) {
+    if (chips['b:'+i] === false) continue;
+    if (BUCKETS_B[i].cols.some(function(t){ return isOne(r[t]); })) return i;
+  }
+  return -1;
+}
+/* 判斷一列屬於哪個 C 群組（燈開著的才算） */
+function rowCGroup(r) {
+  for (var j = 0; j < BUCKETS_C.length; j++) {
+    if (chips['c:'+j] === false) continue;
+    if (BUCKETS_C[j].cols.some(function(t){ return isOne(r[t]); })) return j;
+  }
+  return -1;
+}
+function isDispRow(r){ return rowBGroup(r) >= 0; }
+function isNoRow(r){ return rowCGroup(r) >= 0; }
+
+/* 燈狀態篩選：關掉的燈所對應的店家排除 */
 function applyChips(rows) {
   return rows.filter(function(r) {
     if (isOne(r[COL_UNFILL])) return chips['unfill'] !== false;
-    if (isDispRow(r))         return chips['disp']   !== false;
-    if (isNoRow(r))           return chips['no']     !== false;
-    /* 其他（未進貨且未填寫）→ 不設專屬燈，永遠納入 */
-    return true;
+    var bi = rowBGroup(r);
+    if (bi >= 0) return chips['b:'+bi] !== false;
+    var ci = rowCGroup(r);
+    if (ci >= 0) return chips['c:'+ci] !== false;
+    return true; /* 其他（尚未確認）→ 永遠納入 */
   });
-}
-
-function isDispRow(r){
-  /* bucketChips 打開的欄位，任一為 1 → 已有 */
-  return BUCKET_B.some(function(t){ return bucketChips[t] !== false && isOne(r[t]); });
-}
-function isNoRow(r){
-  return BUCKET_C.some(function(t){ return isOne(r[t]); });
 }
 
 function calcGroup(rows) {
-  var filtered = applyChips(rows); /* 燈筛後的店家 */
-  var total = filtered.length;
-  var unfilled = 0, hasDisp = 0, hasNo = 0;
-  var bCounts = {}, cCounts = {};
-  BUCKET_B.forEach(function(t){ bCounts[t] = 0; });
-  BUCKET_C.forEach(function(t){ cCounts[t] = 0; });
+  var filtered = applyChips(rows);
+  var total = filtered.length, unfilled = 0;
+  /* 每個 B 群和 C 群各自計數 */
+  var bGroupCounts = BUCKETS_B.map(function(){ return 0; });
+  var cGroupCounts = BUCKETS_C.map(function(){ return 0; });
+  var bColCounts = {}, cColCounts = {};
+  BUCKETS_B.forEach(function(g){ g.cols.forEach(function(t){ bColCounts[t] = 0; }); });
+  BUCKETS_C.forEach(function(g){ g.cols.forEach(function(t){ cColCounts[t] = 0; }); });
+
   filtered.forEach(function(r){
     if (isOne(r[COL_UNFILL])) { unfilled++; return; }
-    if (isDispRow(r)) hasDisp++;
-    if (isNoRow(r))   hasNo++;
-    BUCKET_B.forEach(function(t){ if (isOne(r[t])) bCounts[t]++; });
-    BUCKET_C.forEach(function(t){ if (isOne(r[t])) cCounts[t]++; });
+    var bi = rowBGroup(r);
+    if (bi >= 0) {
+      bGroupCounts[bi]++;
+      BUCKETS_B[bi].cols.forEach(function(t){ if (isOne(r[t])) bColCounts[t]++; });
+    }
+    var ci = rowCGroup(r);
+    if (ci >= 0) {
+      cGroupCounts[ci]++;
+      BUCKETS_C[ci].cols.forEach(function(t){ if (isOne(r[t])) cColCounts[t]++; });
+    }
   });
   var valid = total - unfilled;
-  /* 分母 = 總家數（含未填寫，依燈筛選後） */
+  /* hasDisp / hasNo 為所有 B/C 群的總計（向後相容） */
+  var hasDisp = bGroupCounts.reduce(function(s,n){ return s+n; }, 0);
+  var hasNo   = cGroupCounts.reduce(function(s,n){ return s+n; }, 0);
   return { total:total, unfilled:unfilled, valid:valid,
            hasDisp:hasDisp, hasNo:hasNo,
-           bCounts:bCounts, cCounts:cCounts };
+           bGroupCounts:bGroupCounts, cGroupCounts:cGroupCounts,
+           bColCounts:bColCounts, cColCounts:cColCounts };
 }
 
 /* \u2500\u2500 \u7BE9\u9078 \u2500\u2500 */
@@ -1021,33 +1017,56 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
   function fp(n){ return T>0 ? Math.round(n/T*100)+'%' : '—'; }
   /* 全部卡片標題都是一行：組別小字 + 名稱大字 + 右側明細按鈕 */
   var topHtml = '<div class="card-top-inline">'+esc(topLabel)+' <span class="card-name-inline'+(isOverall?' card-name-overall':'')+'">'+esc(name)+'</span><button class="card-detail-btn" id="dbtn-'+ttId+'">📋 明細</button></div>';
-  var ttCId = (BUCKET_C.length >= 1) ? 'ttc-'+ttId : '';
-  card.innerHTML=
-    topHtml+
-    '<div class="stat-row">'+
-      '<div class="stat-item"><div class="stat-label">\u7E3D\u5BB6\u6578</div><div class="stat-val">'+stat.total+'</div><div class="stat-pct hidden">&nbsp;</div></div>'+
-      '<div class="stat-item warn'+(chips['unfill']===false?' dim':'')+'"><div class="stat-label">\u672A\u586B\u5BEB</div><div class="stat-val">'+stat.unfilled+'</div><div class="stat-pct">'+fp(stat.unfilled)+'</div></div>'+
-      '<div class="stat-item good'+(chips['disp']===false?' dim':'')+'" id="si-'+ttId+'" style="position:relative">'+
-        '<div class="stat-label">'+LABEL_B+'</div><div class="stat-val">'+stat.hasDisp+'</div>'+
-        '<div class="stat-pct">'+fp(stat.hasDisp)+'</div>'+
-        (BUCKET_B.length>1?'<div class="tooltip" id="'+ttId+'">'+buildTooltipHTML(LABEL_B, BUCKET_B, stat.bCounts)+'</div>':'')+
-      '</div>'+
-      (BUCKET_C.length?
-        '<div class="stat-item warn'+(chips['no']===false?' dim':'')+'" id="sic-'+ttId+'" style="position:relative">'+
-          '<div class="stat-label">'+LABEL_C+'</div><div class="stat-val">'+stat.hasNo+'</div>'+
-          '<div class="stat-pct">'+fp(stat.hasNo)+'</div>'+
-          (BUCKET_C.length>=1?'<div class="tooltip" id="ttc-'+ttId+'">'+buildTooltipHTML(LABEL_C, BUCKET_C, stat.cCounts)+'</div>':'')+
-        '</div>':'')+
+  /* 動態產生 B 群格 + C 群格 */
+  var statRowHtml = '<div class="stat-row">'+
+    '<div class="stat-item"><div class="stat-label">\u7E3D\u5BB6\u6578</div><div class="stat-val">'+stat.total+'</div><div class="stat-pct hidden">&nbsp;</div></div>'+
+    '<div class="stat-item warn'+(chips['unfill']===false?' dim':'')+'"><div class="stat-label">\u672A\u586B\u5BEB</div><div class="stat-val">'+stat.unfilled+'</div><div class="stat-pct">'+fp(stat.unfilled)+'</div></div>';
+
+  BUCKETS_B.forEach(function(g, i){
+    var cnt = stat.bGroupCounts[i] || 0;
+    var dim = chips['b:'+i]===false ? ' dim' : '';
+    var hasMultiCols = g.cols.length > 1;
+    var siId = 'sib'+i+'-'+ttId;
+    var ttBId = hasMultiCols ? 'ttb'+i+'-'+ttId : '';
+    statRowHtml += '<div class="stat-item good'+dim+'" id="'+siId+'" style="position:relative">'+
+      '<div class="stat-label">'+esc(g.label)+'</div>'+
+      '<div class="stat-val">'+cnt+'</div>'+
+      '<div class="stat-pct">'+fp(cnt)+'</div>'+
+      (hasMultiCols ? '<div class="tooltip" id="'+ttBId+'">'+buildTooltipHTML(g.label, g.cols, stat.bColCounts)+'</div>' : '')+
     '</div>';
+  });
 
-  /* B群 tooltip */
-  var siEl=card.querySelector('#si-'+ttId), ttEl=card.querySelector('#'+ttId);
-  if(siEl&&ttEl) bindTooltip(siEl, ttEl, card);
+  BUCKETS_C.forEach(function(g, j){
+    var cnt = stat.cGroupCounts[j] || 0;
+    var dim = chips['c:'+j]===false ? ' dim' : '';
+    var hasMultiCols = g.cols.length > 1;
+    var siId = 'sic'+j+'-'+ttId;
+    var ttCId2 = hasMultiCols ? 'ttc'+j+'-'+ttId : '';
+    statRowHtml += '<div class="stat-item warn'+dim+'" id="'+siId+'" style="position:relative">'+
+      '<div class="stat-label">'+esc(g.label)+'</div>'+
+      '<div class="stat-val">'+cnt+'</div>'+
+      '<div class="stat-pct">'+fp(cnt)+'</div>'+
+      (hasMultiCols ? '<div class="tooltip" id="'+ttCId2+'">'+buildTooltipHTML(g.label, g.cols, stat.cColCounts)+'</div>' : '')+
+    '</div>';
+  });
 
-  /* C群 tooltip */
-  var siCEl = ttCId ? card.querySelector('#sic-'+ttId) : null;
-  var ttCEl = ttCId ? card.querySelector('#ttc-'+ttId) : null;
-  if(siCEl&&ttCEl) bindTooltip(siCEl, ttCEl, card);
+  statRowHtml += '</div>';
+  card.innerHTML = topHtml + statRowHtml;
+
+  /* 綁定所有 B 群 tooltip */
+  BUCKETS_B.forEach(function(g, i){
+    if (g.cols.length <= 1) return;
+    var siEl = card.querySelector('#sib'+i+'-'+ttId);
+    var ttEl = card.querySelector('#ttb'+i+'-'+ttId);
+    if (siEl && ttEl) bindTooltip(siEl, ttEl, card);
+  });
+  /* 綁定所有 C 群 tooltip */
+  BUCKETS_C.forEach(function(g, j){
+    if (g.cols.length <= 1) return;
+    var siEl = card.querySelector('#sic'+j+'-'+ttId);
+    var ttEl = card.querySelector('#ttc'+j+'-'+ttId);
+    if (siEl && ttEl) bindTooltip(siEl, ttEl, card);
+  });
 
   card.querySelector('#dbtn-'+ttId).addEventListener('click',function(e){
     e.stopPropagation(); openDialog(name,levelKey,rows);
@@ -1178,21 +1197,19 @@ function buildQuicknav() {
 
 /* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 \u5E97\u5BB6\u660E\u7D30 Dialog \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */
 
-/* \u4f9d chips \u72c0\u614b\u51b3\u5b9a dialog \u8981\u986f\u793a\u54ea\u4e9b\u5217\uff0c\u4e26\u5e36\u6392\u5e8f\uff1a
-   1\ufe0f\u20e3 \u5df2\u6709\uff08disp\uff09  2\ufe0f\u20e3 \u672a\u6709\uff08no\uff09  3\ufe0f\u20e3 \u5176\u4ed6\u5c1a\u672a\u786e\u8a8d  4\ufe0f\u20e3 \u672a\u586b\u5beb */
+/* 依 chips 狀態決定 dialog 要顯示哪些列，並帶排序 */
 function dialogRows(rows, levelKey) {
   var result = [];
   rows.forEach(function(r) {
-    var isUnfill = isOne(r[COL_UNFILL]);
-    if (isUnfill) {
-      if (chips['unfill'] !== false) result.push({ r:r, grp:3 }); /* \u672a\u586b\u5beb */
-    } else if (isDispRow(r)) {
-      if (chips['disp']   !== false) result.push({ r:r, grp:0 }); /* \u5df2\u6709 */
-    } else if (isNoRow(r)) {
-      if (chips['no']     !== false) result.push({ r:r, grp:1 }); /* \u672a\u6709 */
-    } else {
-      result.push({ r:r, grp:2 }); /* \u5176\u4ed6\uff08\u672a\u9032\u8ca8\u4e14\u5df2\u77e5\uff09\u2014\u6c38\u9060\u986f\u793a */
+    if (isOne(r[COL_UNFILL])) {
+      if (chips['unfill'] !== false) result.push({ r:r, grp:3, bi:-1, ci:-1 });
+      return;
     }
+    var bi = rowBGroup(r);
+    if (bi >= 0) { result.push({ r:r, grp:0, bi:bi, ci:-1 }); return; }
+    var ci = rowCGroup(r);
+    if (ci >= 0) { result.push({ r:r, grp:1, bi:-1, ci:ci }); return; }
+    result.push({ r:r, grp:2, bi:-1, ci:-1 });
   });
   /* \u6392\u5e8f\u6b04\u4f4d\u4f9d\u7576\u524d\u5c64\u7d1a\u52d5\u614b\u6c7a\u5b9a\uff08\u7d44\u7e54\u8996\u89d2\u7528\u71df\u696d\u6240/\u4eba\u54e1\uff0c\u901a\u8def\u8996\u89d2\u7528\u5c0d\u61c9\u6b04\uff09 */
   var sortCols = levelKey ? getDisplayCols(levelKey) : [COL_OFFICE, COL_STAFF];
@@ -1258,9 +1275,15 @@ function buildStoreTable(rows, levelKey){
   extraCols.forEach(function(c){ html+='<th class="th-left">'+(colLabels[c]||c)+'</th>'; });
   html+='<th class="th-left">\u5E97\u78BC</th><th class="th-left">\u5E97\u540D</th>';
   if(showType) html+='<th class="th-left">\u5E97\u5BB6\u578B\u614B</th>';
-  html+='<th>\u72C0\u614B</th>';
-  if(BUCKET_B.length>1) BUCKET_B.forEach(function(t){ html+='<th>'+t+'</th>'; });
-  if(BUCKET_C.length)   BUCKET_C.forEach(function(t){ html+='<th>'+t+'</th>'; });
+  /* B 群欄：每個群組一欄（若群組有多個子欄再逐欄） */
+  BUCKETS_B.forEach(function(g){
+    if(g.cols.length===1) html+='<th>'+esc(g.label)+'</th>';
+    else g.cols.forEach(function(t){ html+='<th>'+esc(t)+'</th>'; });
+  });
+  BUCKETS_C.forEach(function(g){
+    if(g.cols.length===1) html+='<th>'+esc(g.label)+'</th>';
+    else g.cols.forEach(function(t){ html+='<th>'+esc(t)+'</th>'; });
+  });
   html+='</tr></thead><tbody>';
 
   items.forEach(function(d){
@@ -1278,14 +1301,20 @@ function buildStoreTable(rows, levelKey){
     /* \u72c0\u614b\u6b04 */
     if (isUnfill) {
       html += '<td><span class="d-unfill">\u672A\u586B\u5BEB</span></td>';
-      if(BUCKET_B.length>1) BUCKET_B.forEach(function(){ html+='<td><span class="d-no">\u2014</span></td>'; });
-      if(BUCKET_C.length)   BUCKET_C.forEach(function(){ html+='<td><span class="d-no">\u2014</span></td>'; });
+      BUCKETS_B.forEach(function(g){ g.cols.forEach(function(){ html+='<td><span class="d-no">\u2014</span></td>'; }); });
+      BUCKETS_C.forEach(function(g){ g.cols.forEach(function(){ html+='<td><span class="d-no">\u2014</span></td>'; }); });
     } else {
       if (grp === 0)      html += '<td><span class="d-yes">\u2705</span></td>';
       else if (grp === 1) html += '<td><span class="d-no-label">' + LABEL_C + '</span></td>';
       else                html += '<td><span class="d-no">\u2014</span></td>';
-      if(BUCKET_B.length>1) BUCKET_B.forEach(function(t){ html+='<td>'+(isOne(r[t])?'<span class="d-yes">\u2705</span>':'<span class="d-no">\u2014</span>')+'</td>'; });
-      if(BUCKET_C.length)   BUCKET_C.forEach(function(t){ html+='<td>'+(isOne(r[t])?'<span class="d-yes">\u2705</span>':'<span class="d-no">\u2014</span>')+'</td>'; });
+      BUCKETS_B.forEach(function(g){
+        var cols = g.cols.length===1 ? g.cols : g.cols;
+        cols.forEach(function(t){ html+='<td>'+(isOne(r[t])?'<span class="d-yes">\u2705</span>':'<span class="d-no">\u2014</span>')+'</td>'; });
+      });
+      BUCKETS_C.forEach(function(g){
+        var cols = g.cols.length===1 ? g.cols : g.cols;
+        cols.forEach(function(t){ html+='<td>'+(isOne(r[t])?'<span class="d-yes">\u2705</span>':'<span class="d-no">\u2014</span>')+'</td>'; });
+      });
     }
     html += '</tr>';
   });
@@ -1308,8 +1337,8 @@ function openDialog(displayName, levelKey, rows){
   var titleParts = ['\u3010' + ctx.join(' \u203A ') + '\u3011\u5E97\u5BB6\u660E\u7D30'];
   titleParts.push('\u5171 '+total+' \u5BB6');
   if(chips['unfill']!==false && unfillCnt) titleParts.push('\u672A\u586B\u5BEB '+unfillCnt);
-  titleParts.push(LABEL_B+' '+dispCnt);
-  if(BUCKET_C.length && chips['no']!==false) titleParts.push(LABEL_C+' '+noCnt);
+  BUCKETS_B.forEach(function(g,i){ if(chips['b:'+i]!==false) titleParts.push(esc(g.label)+' '+items.filter(function(d){ return d.grp===0 && d.bi===i; }).length); });
+  BUCKETS_C.forEach(function(g,j){ if(chips['c:'+j]!==false) titleParts.push(esc(g.label)+' '+items.filter(function(d){ return d.grp===1 && d.ci===j; }).length); });
   document.getElementById('dlg-title').textContent = titleParts.join('\u3000');
   document.getElementById('dlg-body').innerHTML=buildStoreTable(rows,levelKey);
   /* 重置按鈕狀態（不重置 innerHTML，靜態 HTML 已定義） */
@@ -1368,8 +1397,13 @@ function copyLine(){
     else lines.push('  \u2014 '+name+(code?' ('+code+')':''));
   });
   lines.push('\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');
-  var footParts=BUCKET_B.map(function(t){ return t+' '+_dialogRows.reduce(function(s,r){ return s+(isOne(r[t])?1:0); },0)+' \u5BB6'; });
-  if(BUCKET_C.length) BUCKET_C.forEach(function(t){ footParts.push(t+' '+_dialogRows.reduce(function(s,r){ return s+(isOne(r[t])?1:0); },0)+' \u5BB6'); });
+  var footParts = [];
+  BUCKETS_B.forEach(function(g){
+    g.cols.forEach(function(t){ footParts.push(t+' '+_dialogRows.reduce(function(s,r){ return s+(isOne(r[t])?1:0); },0)+' \u5BB6'); });
+  });
+  BUCKETS_C.forEach(function(g){
+    g.cols.forEach(function(t){ footParts.push(t+' '+_dialogRows.reduce(function(s,r){ return s+(isOne(r[t])?1:0); },0)+' \u5BB6'); });
+  });
   if(footParts.length) lines.push(footParts.join('\u3000'));
   _doCopy(lines.join('\n'),btn);
 }
@@ -1381,16 +1415,17 @@ function copyExcel(){
   lines.push(document.getElementById('dlg-title').textContent.trim()); lines.push('');
   var extraCols = getExtraCols(lv);
   var headers = extraCols.map(function(c){ return COL_LABELS[c] || c; });
-  var dynCols=[LABEL_B].concat(BUCKET_B.length>1?BUCKET_B:[]).concat(BUCKET_C);
+  var dynCols = [];
+  BUCKETS_B.forEach(function(g){ if(g.cols.length===1) dynCols.push(g.label); else g.cols.forEach(function(t){ dynCols.push(t); }); });
+  BUCKETS_C.forEach(function(g){ if(g.cols.length===1) dynCols.push(g.label); else g.cols.forEach(function(t){ dynCols.push(t); }); });
   headers=headers.concat(['\u5E97\u78BC','\u5E97\u540D']).concat(dynCols);
   lines.push(headers.join('\t'));
   valid.forEach(function(r){
     var row=[];
     extraCols.forEach(function(c){ row.push(String(r[c]||'')); });
     row.push(String(r[COL_CODE]||'')); row.push(String(r[COL_NAME]||''));
-    row.push(isDispRow(r)?1:0);
-    if(BUCKET_B.length>1) BUCKET_B.forEach(function(t){ row.push(isOne(r[t])?1:0); });
-    BUCKET_C.forEach(function(t){ row.push(isOne(r[t])?1:0); });
+    BUCKETS_B.forEach(function(g){ if(g.cols.length===1) row.push(isOne(r[g.cols[0]])?1:0); else g.cols.forEach(function(t){ row.push(isOne(r[t])?1:0); }); });
+    BUCKETS_C.forEach(function(g){ if(g.cols.length===1) row.push(isOne(r[g.cols[0]])?1:0); else g.cols.forEach(function(t){ row.push(isOne(r[t])?1:0); }); });
     lines.push(row.join('\t'));
   });
   _doCopy(lines.join('\n'),btn);
