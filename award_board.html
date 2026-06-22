@@ -1,7 +1,7 @@
 <!--
 ================================================================================
   全聯18天推廣進度看板 (award_board.html)
-  版本：Ver. 1.12.1 ｜ 最後更新：2026-06-21 09:00
+  版本：Ver. 1.12.2 ｜ 最後更新：2026-06-22 10:00
 ================================================================================
 
 【給下一位接手的 AI — 必讀事項】
@@ -644,7 +644,7 @@
   <button id="manual-toggle" onclick="toggleManual()">📋 說明書</button>
   <button class="tb-btn" onclick="toggleRank()" id="rank-btn" style="background:rgba(255,215,0,.15);border-color:rgba(200,160,0,.3);color:#7a5500;">🏆 品評排行</button>
   <div id="tb-right">
-    <div id="ver-ts">Ver. 1.12.1 (2026-06-21 09:00)</div>
+    <div id="ver-ts">Ver. 1.12.2 (2026-06-22 10:00)</div>
     <button class="tb-btn" onclick="mainCopyLine()" id="btn-main-line">💬 LINE</button>
     <button class="tb-btn" onclick="mainCopyExcel()" id="btn-main-excel">📊 Excel</button>
     <button class="tb-btn" onclick="mainScreenshot()" id="btn-main-shot">📸 截圖</button>
@@ -700,13 +700,13 @@
       </button>
     </div>
   </div>
-  <div style="padding:10px 16px;font-size:9px;color:#bbb;border-top:1px solid rgba(0,0,0,.06);" id="md-version">Ver. 1.12.1</div>
+  <div style="padding:10px 16px;font-size:9px;color:#bbb;border-top:1px solid rgba(0,0,0,.06);" id="md-version">Ver. 1.12.2</div>
 </div>
 
 <!-- 說明書（在 topbar 之後折疊展開）-->
 <div id="manual-bar">
   <div id="manual-inner">
-    <h3>📋 全聯18天推廣進度看板 — 怎麼看這個畫面？（Ver. 1.12.1）</h3>
+    <h3>📋 全聯18天推廣進度看板 — 怎麼看這個畫面？（Ver. 1.12.2）</h3>
     <p><b>【這個看板在追蹤什麼？】</b>追蹤全聯各門市在「18天推廣活動」期間，實際進貨箱數與去年同期相比，是增加還是減少。數字越大（正值）代表今年賣得比去年好；負值代表不如去年。</p>
     <hr>
     <p><b>【人員視角 — 誰負責哪些店？賣了多少？】</b>每張卡片代表一位業務員。卡片右上角的大數字（<b>品評CTN</b>）= 今年實際進貨 − 應達標準，綠色正數代表超標，紅色負數代表未達標。點「店家明細」可查看他每一家店、每個月的達成細節。</p>
@@ -794,7 +794,7 @@
 /*
 ================================================================================
   全聯18天推廣進度看板 — 程式說明書（供後續開發者 / AI 閱讀）
-  Ver. 1.12.1  最後更新：2026-06-21 09:00
+  Ver. 1.12.2  最後更新：2026-06-22 10:00
 ================================================================================
 
 【專案目的】
@@ -1882,6 +1882,26 @@ function makeCard(c){
   var teDisplayCls=te===null?'nil':(te>0?'pos':te<0?'neg':'nil');
   var totalRow='<tr class="total-row"><td>\u5408\u8A08</td><td class="ctn-stores">'+qd.totalStores+'</td><td class="ctn-cur">'+qd.totalCur+'</td><td class="ctn-tgt">'+toFrac(qd.totalTgt)+'</td><td class="ctn-eval '+teDisplayCls+'">'+toFracEval(te)+'</td></tr>';
 
+  /* 統計此業務員負責的店家裡有庫存異常的數量（受季度閘門保護） */
+  var alertCounts={negative:0,zero:0,dormant:0};
+  if(_invDateInCurQ()){
+    qd.storeRows.forEach(function(s){
+      var inv=_invLookup(s.code);
+      if(!inv||alertCounts['_seen_'+s.code]) return;
+      alertCounts['_seen_'+s.code]=1; /* 同店只算一次 */
+      if(inv.stock<0) alertCounts.negative++;
+      else if(inv.sale!==0&&inv.stock===0) alertCounts.zero++;
+      else if(inv.in===0&&inv.sale===0&&inv.upper<=0) alertCounts.dormant++;
+    });
+  }
+  var alertSummary='';
+  if(alertCounts.negative>0)
+    alertSummary+='<span style="font-size:11px;font-weight:900;color:#a01818;background:rgba(214,30,30,.12);border:1.5px solid rgba(214,30,30,.4);border-radius:5px;padding:2px 8px;margin-left:6px;">🔴 預借×'+alertCounts.negative+'</span>';
+  if(alertCounts.zero>0)
+    alertSummary+='<span style="font-size:11px;font-weight:900;color:#8a4a00;background:rgba(220,120,0,.12);border:1.5px solid rgba(220,120,0,.4);border-radius:5px;padding:2px 8px;margin-left:6px;">⚠️ 歸零×'+alertCounts.zero+'</span>';
+  if(alertCounts.dormant>0)
+    alertSummary+='<span style="font-size:11px;font-weight:900;color:#6a2da0;background:rgba(130,60,200,.12);border:1.5px solid rgba(130,60,200,.4);border-radius:5px;padding:2px 8px;margin-left:6px;">⬣ 停滯×'+alertCounts.dormant+'</span>';
+
   var el=document.createElement('div');
   el.className='person-card';
   el.innerHTML=
@@ -1899,7 +1919,10 @@ function makeCard(c){
       '<thead><tr><th>\u6708\u4EFD</th><th>\u5BB6\u6578</th><th>\u7576\u671FCTN</th><th>\u76EE\u6A19CTN</th><th>\u54C1\u8A55CTN</th></tr></thead>' +
       '<tbody>'+rowsHtml+totalRow+'</tbody>' +
     '</table>' +
-    '<div class="pc-detail-btn-row"><button class="pc-open-detail-btn" onclick="openDetailDialog(event,this)">\uD83D\uDCCB \u5E97\u5BB6\u660E\u7D30</button></div>';
+    '<div class="pc-detail-btn-row" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;">' +
+      '<button class="pc-open-detail-btn" onclick="openDetailDialog(event,this)">\uD83D\uDCCB \u5E97\u5BB6\u660E\u7D30</button>' +
+      alertSummary +
+    '</div>';
 
   el.querySelector('.pc-open-detail-btn').dataset.staff=c.staff;
   el.querySelector('.pc-open-detail-btn').dataset.area=c.area;
@@ -1955,9 +1978,9 @@ function buildDetailTable(qd,q){
     var rowBg= alertType==='negative'?'background:rgba(214,30,30,.08);':
                alertType==='zero'    ?'background:rgba(220,120,0,.09);':
                alertType==='dormant' ?'background:rgba(130,60,200,.08);':'';
-    var alertBadge= alertType==='negative'?'<span style="margin-left:5px;font-size:9px;font-weight:800;color:#a01818;background:rgba(214,30,30,.12);border:1px solid rgba(214,30,30,.35);border-radius:4px;padding:1px 5px;">🔴 預借</span>':
-                    alertType==='zero'    ?'<span style="margin-left:5px;font-size:9px;font-weight:800;color:#8a4a00;background:rgba(220,120,0,.12);border:1px solid rgba(220,120,0,.35);border-radius:4px;padding:1px 5px;">⚠️ 歸零</span>':
-                    alertType==='dormant' ?'<span style="margin-left:5px;font-size:9px;font-weight:800;color:#6a2da0;background:rgba(130,60,200,.12);border:1px solid rgba(130,60,200,.35);border-radius:4px;padding:1px 5px;">⬣ 停滯</span>':'';
+    var alertBadge= alertType==='negative'?'<span style="margin-left:7px;font-size:12px;font-weight:900;color:#a01818;background:rgba(214,30,30,.14);border:1.5px solid rgba(214,30,30,.45);border-radius:5px;padding:2px 7px;vertical-align:middle;">🔴 預借</span>':
+                    alertType==='zero'    ?'<span style="margin-left:7px;font-size:12px;font-weight:900;color:#8a4a00;background:rgba(220,120,0,.14);border:1.5px solid rgba(220,120,0,.45);border-radius:5px;padding:2px 7px;vertical-align:middle;">⚠️ 歸零</span>':
+                    alertType==='dormant' ?'<span style="margin-left:7px;font-size:12px;font-weight:900;color:#6a2da0;background:rgba(130,60,200,.14);border:1.5px solid rgba(130,60,200,.45);border-radius:5px;padding:2px 7px;vertical-align:middle;">⬣ 停滯</span>':'';
 
     var rowHtml='<td>'+esc(s.code)+'</td><td>'+esc(s.name)+alertBadge+'</td>';
     var storeEvalSum=0, hasAnyData=false;
