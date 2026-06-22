@@ -826,25 +826,31 @@ function switchProject(sid) {
 /* \u2500\u2500 \u4E3B\u8CC7\u6599 \u2500\u2500 */
 function fetchSheet() {
   showLoading();
+  /* headers=0：不讓 gviz 自動解析標題列，避免文字值被誤判為多行 header */
   var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
-    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(SHEET_NAME);
+    '/gviz/tq?tqx=out:json&headers=0&sheet=' + encodeURIComponent(SHEET_NAME);
   fetch(url)
     .then(function(r){ return r.text(); })
     .then(function(txt){
       var json = JSON.parse(txt.replace(/^[^\(]+\(/, '').replace(/\);?\s*$/, ''));
-      var tbl  = json.table || {};
-      var cols = (tbl.cols||[]).map(function(c){ return c.label||''; });
-      allRows  = (tbl.rows||[]).map(function(row){
+      var tbl     = json.table || {};
+      var rawRows = tbl.rows  || [];
+      if (!rawRows.length) { hideLoading(); return; }
+      /* 第一列當欄位名稱 */
+      var cols = (rawRows[0].c || []).map(function(cell){
+        return cell ? String(cell.v !== null && cell.v !== undefined ? cell.v : (cell.f || '')) : '';
+      });
+      allRows = rawRows.slice(1).map(function(row){
         var obj = {};
-        (row.c||[]).forEach(function(cell,i){
+        (row.c || []).forEach(function(cell, i){
           if (!cell) { obj[cols[i]] = ''; return; }
-          var v = (cell.v!==null&&cell.v!==undefined) ? cell.v : '';
-          var f = cell.f || '';
-          /* 當 v=1（數字）但 f 是非空文字（業務描述），優先保留文字 */
-          if (v === 1 && f && typeof f === 'string' && f.trim() && !/^\d+(\.\d+)?$/.test(f.trim())) {
+          var v = (cell.v !== null && cell.v !== undefined) ? cell.v : '';
+          var f = String(cell.f || '');
+          /* v=1（數字勾選）但 f 是業務文字說明 → 保留文字 */
+          if (v === 1 && f && !/^\d+(\.\d+)?$/.test(f.trim())) {
             obj[cols[i]] = f.trim();
           } else {
-            obj[cols[i]] = (v!==null&&v!==undefined&&v!=='') ? v : f||'';
+            obj[cols[i]] = (v !== '' && v !== null && v !== undefined) ? v : f;
           }
         });
         return obj;
