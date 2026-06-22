@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 2.1.0 ｜ 最後更新：2026-06-20
+  版本：Ver. 2.1.0 ｜ 最後更新：2026-06-22
 ════════════════════════════════════════════════════════════
 
 【版本紀錄】
@@ -212,46 +212,16 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   flex-shrink:0;
 }
 
-/* ── grade-bar 等級筛選 ── */
-.grade-bar {
-  padding:6px 16px;
-  display:flex;
-  align-items:center;
-  gap:6px;
-  background:#fff;
-  border-bottom:1px solid var(--border);
-  flex-wrap:wrap;
-}
+/* ── grade chips in quicknav ── */
 .grade-label {
-  font-size:11px;
+  font-size:10px;
   color:var(--sub);
   font-weight:600;
   white-space:nowrap;
   letter-spacing:.04em;
   opacity:.6;
-}
-.grade-chip {
-  padding:3px 10px;
-  border-radius:16px;
-  font-size:12px;
-  font-weight:600;
-  cursor:pointer;
-  border:1px solid transparent;
-  background:var(--bg);
-  color:var(--sub);
-  font-family:inherit;
-  white-space:nowrap;
-  transition:all .15s;
-}
-.grade-chip.active {
-  background:var(--primary);
-  color:#fff;
-  border-color:var(--primary);
-}
-.grade-chip:not(.active):hover { background:var(--primary-bg); color:var(--primary); }
-.grade-all {
-  font-size:11px;
-  padding:3px 9px;
+  flex-shrink:0;
+  padding-right:3px;
 }
 
 /* ── stage ── */
@@ -352,10 +322,10 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   bottom:auto;
   top:calc(100% + 8px);
 }
-.tt-title { font-size:11px; font-weight:700; color:var(--sub); margin-bottom:7px; letter-spacing:.03em; }
+.tt-title { font-size:11px; font-weight:700; color:var(--sub); margin-bottom:7px; letter-spacing:.03em; text-align:left; }
 .tt-row { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; padding:4px 0; }
-.tt-label { font-size:13px; color:var(--sub); flex:1; line-height:1.4; white-space:normal; word-break:keep-all; }
-.tt-val { font-size:13px; font-weight:700; color:var(--text); white-space:nowrap; flex-shrink:0; }
+.tt-label { font-size:13px; color:var(--sub); flex:1; line-height:1.4; white-space:normal; word-break:keep-all; text-align:left; }
+.tt-val { font-size:13px; font-weight:700; color:var(--text); white-space:nowrap; flex-shrink:0; text-align:right; }
 
 /* ── 全螢幕 Dialog ── */
 #detail-dialog {
@@ -576,7 +546,6 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 </div>
 
 <div class="quicknav" id="quicknav"></div>
-<div class="grade-bar" id="grade-bar" style="display:none"></div>
 <div class="stage" id="stage"></div>
 
 <!-- 全螢幕 Dialog 店家明細 -->
@@ -975,35 +944,16 @@ function getNextGroups(rows, col) {
 }
 
 /* \u2500\u2500 \u5e97\u5bb6\u7b49\u7d1a\u7b5b\u9078 \u2500\u2500 */
+/* buildGradeBar: 只收集等級清單，實際渲染整合進 buildQuicknav */
+var _gradeList = [];
 function buildGradeBar() {
-  var bar = document.getElementById('grade-bar');
-  if (!bar) return;
   var gradeSet = {};
   allRows.forEach(function(r){
     var g = String(r[COL_GRADE]||'').trim();
     if (g) gradeSet[g] = true;
   });
-  var grades = Object.keys(gradeSet).sort();
-  if (!grades.length) { bar.style.display='none'; return; }
-  bar.style.display = 'flex';
-  bar.innerHTML = '<span class="grade-label">\u5e97\u5bb6\u7b49\u7d1a</span>';
-  var allBtn = document.createElement('button');
-  allBtn.className = 'grade-chip grade-all' + (selectedGrades===null?' active':'');
-  allBtn.textContent = '\u5168\u9078';
-  allBtn.onclick = function(){ selectedGrades=null; buildGradeBar(); render(); };
-  bar.appendChild(allBtn);
-  grades.forEach(function(g){
-    var btn = document.createElement('button');
-    btn.className = 'grade-chip' + (selectedGrades&&selectedGrades[g]?' active':'');
-    btn.textContent = g;
-    btn.onclick = function(){
-      if (!selectedGrades) selectedGrades = {};
-      selectedGrades[g] = !selectedGrades[g];
-      if (Object.keys(selectedGrades).every(function(k){ return !selectedGrades[k]; })) selectedGrades = null;
-      buildGradeBar(); render();
-    };
-    bar.appendChild(btn);
-  });
+  _gradeList = Object.keys(gradeSet).sort();
+  buildQuicknav(); /* 重新渲染 quicknav（含等級群組） */
 }
 
 function applyGradeFilter(rows) {
@@ -1238,7 +1188,19 @@ function buildQuicknav() {
   var nav = document.getElementById('quicknav');
   if (!nav) return;
   var depth = drillStack.length;
-  var html  = '<div class="qn-group"><button class="qn-btn home' + (depth===0?' active':'') + '" onclick="drillTo(-1)">全覽</button></div>';
+  var html  = '';
+  /* 等級群組（若有資料則最前面顯示） */
+  if (_gradeList.length) {
+    html += '<div class="qn-group">';
+    html += '<span class="qn-label">\u5e97\u5bb6\u7b49\u7d1a</span>';
+    html += '<button class="qn-btn grade-all' + (selectedGrades===null?' active':'') + '" onclick="(function(){selectedGrades=null;buildGradeBar();render();})()">\u5168\u9078</button>';
+    _gradeList.forEach(function(g){
+      var isActive = selectedGrades && selectedGrades[g];
+      html += '<button class="qn-btn' + (isActive?' active':'') + '" onclick="(function(){if(!selectedGrades)selectedGrades={};selectedGrades['' + qEsc(g) + '']=!selectedGrades['' + qEsc(g) + ''];if(Object.keys(selectedGrades).every(function(k){return !selectedGrades[k];}))selectedGrades=null;buildGradeBar();render();})()">'+esc(g)+'</button>';
+    });
+    html += '</div>';
+  }
+  html += '<div class="qn-group"><button class="qn-btn home' + (depth===0?' active':'') + '" onclick="drillTo(-1)">\u5168\u89BD</button></div>';
 
   if (viewMode === 'org') {
     var areaGroups = getNextGroups(allRows, COL_AREA);
