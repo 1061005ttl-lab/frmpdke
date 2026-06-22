@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 1.3.0 ｜ 最後更新：2026-06-20
+  版本：Ver. 1.3.1 ｜ 最後更新：2026-06-20
 ════════════════════════════════════════════════════════════
 
 【版本紀錄】
@@ -991,6 +991,24 @@ function renderLevel(stage, rows, col, levelKey, labelText, overallName) {
   grid.appendChild(overallCard);
   keys.forEach(function(k){ grid.appendChild(buildCard(k,labelText,statCache[k],levelKey,groups[k],false)); });
   div.appendChild(grid); stage.appendChild(div);
+}
+
+/* \u2500\u2500 Tooltip \u7D81\u5B9A\u8F14\u52A9\u51FD\u5F0F \u2500\u2500 */
+function bindTooltip(triggerEl, ttEl, card) {
+  triggerEl.addEventListener('mouseenter', function(e) {
+    e.stopPropagation();
+    var cardRect = card.getBoundingClientRect();
+    if (cardRect.top < 160) {
+      ttEl.classList.add('flip');
+    } else {
+      ttEl.classList.remove('flip');
+    }
+    ttEl.classList.add('show');
+  });
+  triggerEl.addEventListener('mouseleave', function() {
+    ttEl.classList.remove('show');
+    ttEl.classList.remove('flip');
+  });
 }
 
 /* \u2500\u2500 \u5361\u7247 \u2500\u2500 */
