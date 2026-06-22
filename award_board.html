@@ -1,7 +1,7 @@
 <!--
 ================================================================================
   全聯18天推廣進度看板 (award_board.html)
-  版本：Ver. 1.12.0 ｜ 最後更新：2026-06-20 18:30
+  版本：Ver. 1.12.1 ｜ 最後更新：2026-06-21 09:00
 ================================================================================
 
 【給下一位接手的 AI — 必讀事項】
@@ -311,7 +311,8 @@
     .detail-tbl td { padding:8px 14px; text-align:right; border-bottom:1px solid rgba(0,0,0,.04); white-space:nowrap; transition:background .1s; }
     .detail-tbl td:first-child, .detail-tbl td:nth-child(2) { text-align:left; color:var(--text); max-width:180px; overflow:hidden; text-overflow:ellipsis; }
     .detail-tbl tr:last-child td { border-bottom:none; }
-    .detail-tbl tbody tr:hover td { background:rgba(139,166,144,.18) !important; }
+    .detail-tbl tbody tr:hover { outline:2px solid rgba(139,166,144,.45); outline-offset:-1px; }
+    .detail-tbl tbody tr:hover td { filter:brightness(.94); cursor:default; }
     /* 月份分組：每3欄（當期/目標/品評）一組，左側有明顯邊界線 */
     .detail-tbl td.m-sep, .detail-tbl th.m-sep { border-left:2px solid rgba(139,166,144,.35); }
     .detail-tbl td.m-bg1, .detail-tbl th.m-bg1 { background:rgba(240,248,242,.6); }
@@ -643,7 +644,7 @@
   <button id="manual-toggle" onclick="toggleManual()">📋 說明書</button>
   <button class="tb-btn" onclick="toggleRank()" id="rank-btn" style="background:rgba(255,215,0,.15);border-color:rgba(200,160,0,.3);color:#7a5500;">🏆 品評排行</button>
   <div id="tb-right">
-    <div id="ver-ts">Ver. 1.12.0 (2026-06-20 18:30)</div>
+    <div id="ver-ts">Ver. 1.12.1 (2026-06-21 09:00)</div>
     <button class="tb-btn" onclick="mainCopyLine()" id="btn-main-line">💬 LINE</button>
     <button class="tb-btn" onclick="mainCopyExcel()" id="btn-main-excel">📊 Excel</button>
     <button class="tb-btn" onclick="mainScreenshot()" id="btn-main-shot">📸 截圖</button>
@@ -699,13 +700,13 @@
       </button>
     </div>
   </div>
-  <div style="padding:10px 16px;font-size:9px;color:#bbb;border-top:1px solid rgba(0,0,0,.06);" id="md-version">Ver. 1.12.0</div>
+  <div style="padding:10px 16px;font-size:9px;color:#bbb;border-top:1px solid rgba(0,0,0,.06);" id="md-version">Ver. 1.12.1</div>
 </div>
 
 <!-- 說明書（在 topbar 之後折疊展開）-->
 <div id="manual-bar">
   <div id="manual-inner">
-    <h3>📋 全聯18天推廣進度看板 — 怎麼看這個畫面？（Ver. 1.12.0）</h3>
+    <h3>📋 全聯18天推廣進度看板 — 怎麼看這個畫面？（Ver. 1.12.1）</h3>
     <p><b>【這個看板在追蹤什麼？】</b>追蹤全聯各門市在「18天推廣活動」期間，實際進貨箱數與去年同期相比，是增加還是減少。數字越大（正值）代表今年賣得比去年好；負值代表不如去年。</p>
     <hr>
     <p><b>【人員視角 — 誰負責哪些店？賣了多少？】</b>每張卡片代表一位業務員。卡片右上角的大數字（<b>品評CTN</b>）= 今年實際進貨 − 應達標準，綠色正數代表超標，紅色負數代表未達標。點「店家明細」可查看他每一家店、每個月的達成細節。</p>
@@ -793,7 +794,7 @@
 /*
 ================================================================================
   全聯18天推廣進度看板 — 程式說明書（供後續開發者 / AI 閱讀）
-  Ver. 1.12.0  最後更新：2026-06-20 18:30
+  Ver. 1.12.1  最後更新：2026-06-21 09:00
 ================================================================================
 
 【專案目的】
@@ -1943,7 +1944,22 @@ function buildDetailTable(qd,q){
 
   var tbodyHtml='';
   Object.values(storeIndex).forEach(function(s){
-    var rowHtml='<td>'+esc(s.code)+'</td><td>'+esc(s.name)+'</td>';
+    /* 庫存狀態判斷（與組織視角同一套邏輯，需在當季才生效） */
+    var inv=hasInv?_invLookup(s.code):null;
+    var alertType=null;
+    if(inv){
+      if(inv.stock<0) alertType='negative';
+      else if(inv.sale!==0&&inv.stock===0) alertType='zero';
+      else if(inv.in===0&&inv.sale===0&&inv.upper<=0) alertType='dormant';
+    }
+    var rowBg= alertType==='negative'?'background:rgba(214,30,30,.08);':
+               alertType==='zero'    ?'background:rgba(220,120,0,.09);':
+               alertType==='dormant' ?'background:rgba(130,60,200,.08);':'';
+    var alertBadge= alertType==='negative'?'<span style="margin-left:5px;font-size:9px;font-weight:800;color:#a01818;background:rgba(214,30,30,.12);border:1px solid rgba(214,30,30,.35);border-radius:4px;padding:1px 5px;">🔴 預借</span>':
+                    alertType==='zero'    ?'<span style="margin-left:5px;font-size:9px;font-weight:800;color:#8a4a00;background:rgba(220,120,0,.12);border:1px solid rgba(220,120,0,.35);border-radius:4px;padding:1px 5px;">⚠️ 歸零</span>':
+                    alertType==='dormant' ?'<span style="margin-left:5px;font-size:9px;font-weight:800;color:#6a2da0;background:rgba(130,60,200,.12);border:1px solid rgba(130,60,200,.35);border-radius:4px;padding:1px 5px;">⬣ 停滯</span>':'';
+
+    var rowHtml='<td>'+esc(s.code)+'</td><td>'+esc(s.name)+alertBadge+'</td>';
     var storeEvalSum=0, hasAnyData=false;
     months.forEach(function(m,mi){
       var md=s.byMonth[m];
@@ -1976,7 +1992,7 @@ function buildDetailTable(qd,q){
         rowHtml+='<td class="m-sep m-bg1 d-nil">—</td><td class="m-bg1 d-nil">—</td><td class="m-bg1 d-nil">—</td><td class="m-bg1 d-nil">—</td><td class="m-bg1 d-nil">—</td><td class="m-bg1 d-nil">—</td>';
       }
     }
-    tbodyHtml+='<tr>'+rowHtml+'</tr>';
+    tbodyHtml+='<tr style="'+rowBg+'">'+rowHtml+'</tr>';
   });
 
   /* 各月總計列 */
