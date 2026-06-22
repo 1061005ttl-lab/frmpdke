@@ -1,7 +1,7 @@
 <!--
 ================================================================================
   全聯18天推廣進度看板 (award_board.html)
-  版本：Ver. 1.11.0 ｜ 最後更新：2026-06-20 17:00
+  版本：Ver. 1.12.0 ｜ 最後更新：2026-06-20 18:30
 ================================================================================
 
 【給下一位接手的 AI — 必讀事項】
@@ -48,7 +48,10 @@
 
 ▌注意事項
   · 進銷存非同步載入，loadInvData() 完成後呼叫 refreshOrgCards() 補刷卡片
-  · 高光條件：橘色＝inv.sale≠0 且 inv.stock=0（銷貨中庫存歸零）；紅色＝inv.stock<0（店家預借待補還，優先權較高）
+  · 高光條件（僅在 invDate 月份落於目前選擇季度時生效，見 _invDateInCurQ()）：
+    紅色＝inv.stock<0（店家預借待補還，優先權最高）
+    橘色＝inv.sale≠0 且 inv.stock=0（銷貨中庫存歸零）
+    紫色＝inv.in=0 且 inv.sale=0 且 inv.upper<=0（本季未進貨、未銷貨）
     → 卡片加 .card-alert / .card-alert-negative，警示橫幅固定在卡片最底部（appendChild，不擠壓標題）
   · 庫存排序為升序（庫存少的排前），其他排序為降序
   · 截圖用 html2canvas CDN，動態載入，失敗時改為下載 PNG
@@ -327,9 +330,10 @@
     .d-cur { color:var(--blue); }
     .d-tgt { color:var(--purple); }
 
-    /* ══ 高光卡片：庫存異常提示 ══
+    /* ══ 高光卡片：庫存異常提示（僅在進銷存資料月份落於目前季度時生效）══
+       紅色＝庫存為負（店家預借，待補還）（inv.stock<0），優先權最高
        橘色＝銷貨中、庫存歸零（inv.sale≠0 且 inv.stock=0）
-       紅色＝庫存為負（店家預借，待補還）（inv.stock<0） */
+       紫色＝本季未進貨、未銷貨（inv.in=0 且 inv.sale=0 且 inv.upper<=0） */
     .card-alert {
       border:3px solid rgba(220,120,0,.75) !important;
       box-shadow:0 0 0 4px rgba(255,160,0,.22), 0 6px 20px rgba(180,90,0,.28) !important;
@@ -338,6 +342,11 @@
     .card-alert-negative {
       border:3px solid rgba(214,30,30,.78) !important;
       box-shadow:0 0 0 4px rgba(230,40,40,.22), 0 6px 20px rgba(180,20,20,.30) !important;
+      position:relative;
+    }
+    .card-alert-dormant {
+      border:3px solid rgba(130,60,200,.72) !important;
+      box-shadow:0 0 0 4px rgba(150,80,220,.20), 0 6px 20px rgba(110,40,170,.26) !important;
       position:relative;
     }
     .card-alert-banner {
@@ -351,6 +360,11 @@
       background:linear-gradient(90deg,rgba(230,40,40,.22),rgba(255,120,120,.14));
       border-top:1.5px solid rgba(214,30,30,.4);
       color:#a01818;
+    }
+    .card-alert-banner.dormant {
+      background:linear-gradient(90deg,rgba(150,80,220,.20),rgba(190,140,240,.12));
+      border-top:1.5px solid rgba(130,60,200,.4);
+      color:#6a2da0;
     }
     .ctn-staff {
       font-size:10px; color:var(--sub); text-align:left !important;
@@ -629,7 +643,7 @@
   <button id="manual-toggle" onclick="toggleManual()">📋 說明書</button>
   <button class="tb-btn" onclick="toggleRank()" id="rank-btn" style="background:rgba(255,215,0,.15);border-color:rgba(200,160,0,.3);color:#7a5500;">🏆 品評排行</button>
   <div id="tb-right">
-    <div id="ver-ts">Ver. 1.11.0 (2026-06-20 17:00)</div>
+    <div id="ver-ts">Ver. 1.12.0 (2026-06-20 18:30)</div>
     <button class="tb-btn" onclick="mainCopyLine()" id="btn-main-line">💬 LINE</button>
     <button class="tb-btn" onclick="mainCopyExcel()" id="btn-main-excel">📊 Excel</button>
     <button class="tb-btn" onclick="mainScreenshot()" id="btn-main-shot">📸 截圖</button>
@@ -685,17 +699,17 @@
       </button>
     </div>
   </div>
-  <div style="padding:10px 16px;font-size:9px;color:#bbb;border-top:1px solid rgba(0,0,0,.06);" id="md-version">Ver. 1.11.0</div>
+  <div style="padding:10px 16px;font-size:9px;color:#bbb;border-top:1px solid rgba(0,0,0,.06);" id="md-version">Ver. 1.12.0</div>
 </div>
 
 <!-- 說明書（在 topbar 之後折疊展開）-->
 <div id="manual-bar">
   <div id="manual-inner">
-    <h3>📋 全聯18天推廣進度看板 — 怎麼看這個畫面？（Ver. 1.11.0）</h3>
+    <h3>📋 全聯18天推廣進度看板 — 怎麼看這個畫面？（Ver. 1.12.0）</h3>
     <p><b>【這個看板在追蹤什麼？】</b>追蹤全聯各門市在「18天推廣活動」期間，實際進貨箱數與去年同期相比，是增加還是減少。數字越大（正值）代表今年賣得比去年好；負值代表不如去年。</p>
     <hr>
     <p><b>【人員視角 — 誰負責哪些店？賣了多少？】</b>每張卡片代表一位業務員。卡片右上角的大數字（<b>品評CTN</b>）= 今年實際進貨 − 應達標準，綠色正數代表超標，紅色負數代表未達標。點「店家明細」可查看他每一家店、每個月的達成細節。</p>
-    <p><b>【組織視角 — 這個區域整體賣得怎樣？】</b>每張卡片代表一家門市。右上角大數字（<b>增減CTN</b>）= 今年進貨量 − 去年進貨量。卡片下方顯示這家店的即時庫存狀況，幫助判斷是否需要追貨。訪員欄顯示當月負責的業務員姓名。<br>⚠️ <b>橘色邊框</b>：正在銷貨但庫存已歸零，需要特別關注補貨。<br>🔴 <b>紅色邊框</b>：庫存為負數，代表店家預借、尚待補還，優先處理。</p>
+    <p><b>【組織視角 — 這個區域整體賣得怎樣？】</b>每張卡片代表一家門市。右上角大數字（<b>增減CTN</b>）= 今年進貨量 − 去年進貨量。卡片下方顯示這家店的即時庫存狀況，幫助判斷是否需要追貨。訪員欄顯示當月負責的業務員姓名。進銷存資料只會顯示在資料當月所屬的那一季（例如6月的庫存快照只出現在 Q2，不會誤植到 Q1/Q3/Q4）。<br>🔴 <b>紅色邊框</b>：庫存為負數，代表店家預借、尚待補還，優先處理。<br>⚠️ <b>橘色邊框</b>：正在銷貨但庫存已歸零，需要特別關注補貨。<br>⬣ <b>紫色邊框</b>：本季完全沒有進貨也沒有銷貨，可能是新分配、已停止經營或尚未鋪貨的門市，建議確認狀況。</p>
     <hr>
     <p><b>【上方篩選器怎麼用？】</b>點擊「北部」「桃園」等按鈕只看特定區域；點進去後可再選特定營業所；點「全部」回到整體。排序按鈕可依品評CTN、當期箱數、去年同期、庫存（組織視角）重新排列，庫存排序讓庫存最少的門市排最前面，方便快速找到需要補貨的店。</p>
     <p><b>【📊 彙整表是什麼？】</b>切到組織視角，點「📊 彙整表」開啟一張整合大表，把所有門市的業績與庫存集中呈現，適合開會逐店討論。可下載成 Excel 或截圖分享。</p>
@@ -779,7 +793,7 @@
 /*
 ================================================================================
   全聯18天推廣進度看板 — 程式說明書（供後續開發者 / AI 閱讀）
-  Ver. 1.11.0  最後更新：2026-06-20 17:00
+  Ver. 1.12.0  最後更新：2026-06-20 18:30
 ================================================================================
 
 【專案目的】
@@ -880,6 +894,18 @@ var INV_SHEET     = '全聯進銷存資料';
 var INV_DATE_CELL = 'K1';
 var invData = {};   /* key: 6碼店號, value: {上存,進貨,退貨,銷貨,庫存,psd} */
 var invDate = '';   /* K1 資料日期字串 */
+
+/* 判斷進銷存資料（invDate，格式如 20260618）的月份是否落在目前選擇的季度（curQ）內。
+   只有落在當季時才顯示進銷存區塊，避免舊季度卡片顯示「未來」或「過季」的庫存快照。
+   若 invDate 格式無法解析或 curQ 未設定，預設仍顯示（避免誤判導致資料完全消失）。 */
+function _invDateInCurQ(){
+  if(!invDate || !curQ) return true;
+  var m = invDate.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if(!m) return true;
+  var month = parseInt(m[2], 10);
+  var months = QUARTERS[curQ] || [];
+  return months.indexOf(month) >= 0;
+}
 
 /* \u2550\u2550 \u56FA\u5B9A\u71DF\u696D\u8655\u6392\u5E8F \u2550\u2550 */
 var AREA_ORDER = ['\u5317\u90E8','\u6843\u5712','\u81FA\u4E2D','\u5609\u7FA9','\u81FA\u5357','\u9AD8\u96C4','\u82B1\u84EE'];
@@ -1500,6 +1526,7 @@ function renderOrg(){
 function buildInvCardBlock(code){
   var d=_invLookup(code);
   if(!d) return '';
+  if(!_invDateInCurQ()) return ''; /* 進銷存資料月份不在目前季度範圍內，不顯示 */
   var dateStr=invDate?'<span style="color:var(--sub);font-size:9px;margin-left:5px;">'+esc(invDate)+'</span>':'<span style="color:var(--red);font-size:9px;margin-left:5px;">（無資料時間）</span>';
   var psdCls=d.psd>=2?'ctn-eval pos':d.psd>=1?'':'ctn-eval neg';
   return '<div class="org-inv-block">'+
@@ -1530,14 +1557,17 @@ function makeOrgCard(c){
   else if(delta<0){ bigNum=String(delta); teCls='neg'; }
   else { bigNum='0'; teCls='nil'; }
 
-  /* 高光判斷：
+  /* 高光判斷（僅在進銷存資料月份落在目前季度時才生效，避免拿過季資料誤判）：
+     紅色＝庫存為負（店家預借，待補還）（stock<0），優先權最高
      橘色＝銷貨中、庫存歸零（sale≠0 且 stock=0）
-     紅色＝庫存為負（店家預借，待補還）（stock<0），優先權高於橘色 */
+     紫色＝本季未進貨、未銷貨（in=0 且 sale=0，且上存也非正值＝完全無補貨銷售動作） */
   var inv=_invLookup(c.code);
+  var invInQ=_invDateInCurQ();
   var alertType=null;
-  if(inv){
+  if(inv&&invInQ){
     if(inv.stock<0) alertType='negative';
     else if(inv.sale!==0&&inv.stock===0) alertType='zero';
+    else if(inv.in===0&&inv.sale===0&&inv.upper<=0) alertType='dormant';
   }
 
   var rowsHtml=qd.months.map(function(m){
@@ -1551,18 +1581,22 @@ function makeOrgCard(c){
   var totDcls=delta>0?'pos':delta<0?'neg':'nil';
   var totalRow='<tr class="total-row"><td>合計</td><td class="ctn-staff"></td><td class="ctn-cur">'+qd.totalCur+'</td><td class="ctn-tgt">'+qd.totalLast+'</td><td class="ctn-eval '+totDcls+'">'+(delta>0?'+':'')+delta+'</td></tr>';
 
-  var invHtml=alertType
-    ?buildInvCardBlock(c.code) /* 已有資料，直接用 */
-    :(inv?buildInvCardBlock(c.code):(c.code?'<div class="org-inv-pending"></div>':''));
+  var invHtml=inv?buildInvCardBlock(c.code):(c.code?'<div class="org-inv-pending"></div>':'');
 
   var bannerHtml='';
   if(alertType==='negative'){
     bannerHtml='<div class="card-alert-banner negative">🔴 店家預借，待補還</div>';
   } else if(alertType==='zero'){
     bannerHtml='<div class="card-alert-banner">⚠️ 銷貨中、庫存歸零</div>';
+  } else if(alertType==='dormant'){
+    bannerHtml='<div class="card-alert-banner dormant">⬣ 本季未進貨、未銷貨</div>';
   }
 
-  var cardClass='person-card'+(alertType==='negative'?' card-alert-negative':alertType==='zero'?' card-alert':'');
+  var cardClass='person-card'+(
+    alertType==='negative'?' card-alert-negative':
+    alertType==='zero'?' card-alert':
+    alertType==='dormant'?' card-alert-dormant':''
+  );
 
   var el=document.createElement('div');
   el.className=cardClass;
@@ -1661,6 +1695,7 @@ function loadInvData(){
 
 /* ══ 進銷存到位後補刷組織視角卡片 ══ */
 function refreshOrgCards(){
+  var ALERT_CLASSES=['card-alert','card-alert-negative','card-alert-dormant'];
   document.querySelectorAll('#main-area .person-card[data-storekey]').forEach(function(el){
     var code=el.dataset.storekey;
     var placeholder=el.querySelector('.org-inv-pending');
@@ -1668,26 +1703,38 @@ function refreshOrgCards(){
       var html=buildInvCardBlock(code);
       if(html){ placeholder.outerHTML=html; }
     }
-    /* 補刷高光：紅色（庫存負數）優先於橘色（銷貨中庫存歸零） */
+    /* 補刷高光：紅色（庫存負數）＞橘色（銷貨中庫存歸零）＞紫色（本季未進貨未銷貨）
+       三者皆只在進銷存資料月份落在目前季度時才生效 */
     var inv=_invLookup(code);
+    var invInQ=_invDateInCurQ();
     var alertType=null;
-    if(inv){
+    if(inv&&invInQ){
       if(inv.stock<0) alertType='negative';
       else if(inv.sale!==0&&inv.stock===0) alertType='zero';
+      else if(inv.in===0&&inv.sale===0&&inv.upper<=0) alertType='dormant';
     }
-    el.classList.toggle('card-alert', alertType==='zero');
-    el.classList.toggle('card-alert-negative', alertType==='negative');
+
+    ALERT_CLASSES.forEach(function(cls){ el.classList.remove(cls); });
+    var targetClass = alertType==='negative'?'card-alert-negative'
+                     : alertType==='zero'?'card-alert'
+                     : alertType==='dormant'?'card-alert-dormant'
+                     : null;
+    if(targetClass) el.classList.add(targetClass);
 
     var existingBanner=el.querySelector('.card-alert-banner');
     if(alertType){
-      var wantNegative=(alertType==='negative');
-      var hasRightBanner=existingBanner &&
-        existingBanner.classList.contains('negative')===wantNegative;
+      var bannerCls = alertType==='negative'?'negative' : alertType==='dormant'?'dormant' : '';
+      var hasRightBanner = existingBanner && (
+        (bannerCls==='' && !existingBanner.classList.contains('negative') && !existingBanner.classList.contains('dormant')) ||
+        (bannerCls!=='' && existingBanner.classList.contains(bannerCls))
+      );
       if(!hasRightBanner){
         if(existingBanner) existingBanner.remove();
         var banner=document.createElement('div');
-        banner.className='card-alert-banner'+(wantNegative?' negative':'');
-        banner.textContent=wantNegative?'🔴 店家預借，待補還':'⚠️ 銷貨中、庫存歸零';
+        banner.className='card-alert-banner'+(bannerCls?' '+bannerCls:'');
+        banner.textContent = alertType==='negative'?'🔴 店家預借，待補還'
+                            : alertType==='dormant'?'⬣ 本季未進貨、未銷貨'
+                            : '⚠️ 銷貨中、庫存歸零';
         el.appendChild(banner); /* 永遠附加在卡片最底部 */
       }
     } else if(existingBanner){
@@ -1720,6 +1767,7 @@ function _invLookup(code){
 function buildInvBlock(code){
   var d=_invLookup(code);
   if(!d) return '';
+  if(!_invDateInCurQ()) return ''; /* 進銷存資料月份不在目前季度範圍內，不顯示 */
 
   var dateStr=invDate
     ?('<span style="color:var(--sub);font-size:10px;font-weight:600;margin-left:8px;">'+esc(invDate)+'</span>')
@@ -1871,7 +1919,7 @@ function buildDetailTable(qd,q){
     storeIndex[k].byMonth[s.month]=s;
   });
 
-  var hasInv=Object.values(storeIndex).some(function(s){ return !!_invLookup(s.code); });
+  var hasInv=_invDateInCurQ() && Object.values(storeIndex).some(function(s){ return !!_invLookup(s.code); });
   var invDateHdr=hasInv&&invDate
     ?'<span style="font-size:9px;font-weight:400;color:var(--sub);margin-left:4px;">('+esc(invDate)+')</span>'
     :'';
@@ -2540,7 +2588,7 @@ function _exportOrgXLSX(){
   var ws1=XLSX.utils.aoa_to_sheet(rows);
   _xlsxAutoWidth(ws1,rows);
   XLSX.utils.book_append_sheet(wb,ws1,(curQ||'')+'業績');
-  if(Object.keys(invData).length){
+  if(Object.keys(invData).length && _invDateInCurQ()){
     var ih=['店碼','店名','上存','進貨','退貨','銷貨','庫存','本月平均PSD','資料時間'];
     var irows=[ih];
     var seen={};
@@ -2576,9 +2624,9 @@ function openSummaryTable(){
   var months=QUARTERS[curQ]||[];
   var areaLabel=fOffice?fOffice:(fArea?fArea:'全體');
   document.getElementById('summary-title').textContent='📊 彙整表 — '+areaLabel;
-  document.getElementById('summary-subtitle').textContent=curQ+' 組織視角　共 '+storeKeys.length+' 家店'+(invDate?' ｜ 進銷存資料時間：'+invDate:'');
+  document.getElementById('summary-subtitle').textContent=curQ+' 組織視角　共 '+storeKeys.length+' 家店'+(invDate&&_invDateInCurQ()?' ｜ 進銷存資料時間：'+invDate:(invDate?' ｜ 進銷存資料（'+invDate+'）不屬於本季，未顯示':''));
 
-  var hasInv=Object.keys(invData).length>0;
+  var hasInv=_invDateInCurQ() && Object.keys(invData).length>0;
   var thS='padding:7px 10px;font-size:11px;font-weight:800;color:#444;background:#f0f4f0;border-bottom:2px solid #ccd8cc;border-right:1px solid #dde8dd;white-space:nowrap;text-align:right;position:sticky;top:0;z-index:2;';
   var thSL=thS+'text-align:left;';
   var thSM=thS+'background:#e4eee4;';
