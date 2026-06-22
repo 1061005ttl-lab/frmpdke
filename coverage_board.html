@@ -431,6 +431,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   font-size:11px; font-weight:700; color:var(--red);
   background:var(--red-bg); padding:2px 7px; border-radius:6px;
 }
+.d-c-yes { color:var(--red); font-weight:700; font-size:15px; }
 .row-unfill td { background:rgba(255,243,224,.45); color:#aaa; }
 .row-unfill .td-name { color:#bbb; }
 
@@ -755,7 +756,7 @@ function init() {
           var lc = cv(cells[gi+2] || {}), cc = parseCsv(cv(cells[gi+3] || {}));
           if (!lb && !cb.length && !lc && !cc.length) break; /* 空白即停 */
           if (cb.length) BUCKETS_B.push({ label: lb || '\u5DF2\u6709', cols: cb });
-          if (cc.length) BUCKETS_C.push({ label: lc || '\u672A\u6709', cols: cc });
+          if (cc.length) BUCKETS_C.push({ label: lc.trim() || '\u672A\u6709', cols: cc.filter(Boolean) });
         }
       });
     })
@@ -1362,8 +1363,8 @@ function buildStoreTable(rows, levelKey){
     else g.cols.forEach(function(t){ html+='<th>'+esc(t)+'</th>'; });
   });
   BUCKETS_C.forEach(function(g){
-    if(g.cols.length===1) html+='<th>'+esc(g.label)+'</th>';
-    else g.cols.forEach(function(t){ html+='<th>'+esc(t)+'</th>'; });
+    if(g.cols.length===1) html+='<th>'+esc(g.label||'未有')+'</th>';
+    else g.cols.filter(function(t){ return t; }).forEach(function(t){ html+='<th>'+esc(t)+'</th>'; });
   });
   html+='</tr></thead><tbody>';
 
@@ -1383,7 +1384,7 @@ function buildStoreTable(rows, levelKey){
     if (isUnfill) {
       html += '<td><span class="d-unfill">\u672A\u586B\u5BEB</span></td>';
       BUCKETS_B.forEach(function(g){ g.cols.forEach(function(){ html+='<td><span class="d-no">\u2014</span></td>'; }); });
-      BUCKETS_C.forEach(function(g){ g.cols.forEach(function(){ html+='<td><span class="d-no">\u2014</span></td>'; }); });
+      BUCKETS_C.forEach(function(g){ g.cols.filter(function(t){ return t; }).forEach(function(){ html+='<td><span class="d-no">\u2014</span></td>'; }); });
     } else {
       if (grp === 0)      html += '<td><span class="d-yes">\u2705</span></td>';
       else if (grp === 1) { var _lc = (BUCKETS_C[d.ci] && BUCKETS_C[d.ci].label) || '\u672A\u6709'; html += '<td><span class="d-no-label">' + esc(_lc) + '</span></td>'; }
@@ -1393,8 +1394,8 @@ function buildStoreTable(rows, levelKey){
         cols.forEach(function(t){ html+='<td>'+(isOne(r[t])?'<span class="d-yes">\u2705</span>':'<span class="d-no">\u2014</span>')+'</td>'; });
       });
       BUCKETS_C.forEach(function(g){
-        var cols = g.cols.length===1 ? g.cols : g.cols;
-        cols.forEach(function(t){ html+='<td>'+(isOne(r[t])?'<span class="d-yes">\u2705</span>':'<span class="d-no">\u2014</span>')+'</td>'; });
+        var cols = g.cols.filter(function(t){ return t; });
+        cols.forEach(function(t){ html+='<td>'+(isOne(r[t])?'<span class="d-c-yes">\u2716</span>':'<span class="d-no">\u2014</span>')+'</td>'; });
       });
     }
     html += '</tr>';
