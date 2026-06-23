@@ -3431,6 +3431,9 @@
       </div><span class="tb-label">型態</span>
       <div class="ms-wrap" id="ms-tp-wrap"><button class="ms-btn tb-sel" id="ms-tp-btn" onclick="toggleMsDropdown('tp')" disabled>全部</button>
         <div class="ms-drop" id="ms-tp-drop"></div>
+      </div><span class="tb-label" id="ms-gr-label" style="display:none">等級</span>
+      <div class="ms-wrap" id="ms-gr-wrap" style="display:none"><button class="ms-btn tb-sel" id="ms-gr-btn" onclick="toggleMsDropdown('gr')" disabled>全部</button>
+        <div class="ms-drop" id="ms-gr-drop"></div>
       </div>
       <div class="sep"></div>
       <div id="chips"></div><button id="clear-btn" onclick="clearAllFilters()">✕ 清除篩選</button>
@@ -3472,6 +3475,9 @@
         </div>
         <div class="mm-row"><span class="tb-label">型態</span><button class="ms-btn tb-sel" id="mm-tp-btn" onclick="toggleMsDropdown('tp',true)" disabled style="width:100%">全部</button>
           <div class="ms-drop ms-drop-mm" id="mm-tp-drop"></div>
+        </div>
+        <div class="mm-row" id="mm-gr-wrap" style="display:none"><span class="tb-label">等級</span><button class="ms-btn tb-sel" id="mm-gr-btn" onclick="toggleMsDropdown('gr',true)" disabled style="width:100%">全部</button>
+          <div class="ms-drop ms-drop-mm" id="mm-gr-drop"></div>
         </div>
       </div>
       <div id="mm-chips-row"><button id="mm-clear" onclick="clearAllFilters();syncMmSelects()">✕ 清除篩選</button></div>
@@ -3751,7 +3757,8 @@
         fOffice = '',
         fStaff = '';
       var fChSet = null,
-        fTpSet = null;
+        fTpSet = null,
+        fGrSet = null; /* 等級篩選 */
       var drillStack = [];
       var curSurvey = -1;
       var _oMap = {},
@@ -3768,7 +3775,8 @@
       var _chDrillStack = [];
       var _chTypeMap = {};
       var _allCh = [],
-        _allTp = [];
+        _allTp = [],
+        _allGr = []; /* 等級清單 */
 
       /* \u2550\u2550 \u81EA\u52D5\u8FA8\u8B58\u72C0\u614B\u6B04 \u2550\u2550 */
       function autoDetectStatuses(headers, rawRows) {
@@ -4091,6 +4099,7 @@
           if (fStaff && gv(r, 'staff') !== fStaff) return false;
           if (fChSet !== null && !fChSet.has(gv(r, 'channel'))) return false;
           if (fTpSet !== null && !fTpSet.has(gv(r, 'type'))) return false;
+          if (fGrSet !== null && !fGrSet.has(gv(r, 'grade'))) return false;
           return chips[gs(r)];
         });
       }
@@ -4144,8 +4153,10 @@
         fStaff = '';
         fChSet = null;
         fTpSet = null;
+        fGrSet = null;
         _allCh = [];
         _allTp = [];
+        _allGr = [];
         _chTypeMap = {};
         _oMap = {};
         _sMap = {};
@@ -4664,12 +4675,14 @@
         var yearSet = new Set(), monthSet = new Set();
         _oMap = {};
         _sMap = {};
-        var chSet = new Set(), tpSet = new Set();
+        var chSet = new Set(), tpSet = new Set(), grSet = new Set();
         _chTypeMap = {};
         _allCh = [];
         _allTp = [];
+        _allGr = [];
         fChSet = null;
         fTpSet = null;
+        fGrSet = null;
         allRows.forEach(function(r) {
           var yr = gv(r, 'year'), mo = gv(r, 'month');
           var a = gv(r, 'area'), o = gv(r, 'office'), s = gv(r, 'staff');
@@ -4692,6 +4705,8 @@
             if (tp) _chTypeMap[ch].add(tp);
           }
           if (tp) tpSet.add(tp);
+          var gr = gv(r, 'grade');
+          if (gr) grSet.add(gr);
         });
         /* \u5E74\u4EFD\uFF1A\u6578\u5B57\u5347\u51AA\u6392\u5217\uFF1B\u6708\u4EFD\uFF1A\u6578\u5B57\u5347\u51AA\u6392\u5217 */
         var yearArr = Array.from(yearSet).sort(function(a, b) { return Number(a) - Number(b); });
@@ -4727,12 +4742,35 @@
         fillSel('sel-area', Array.from(aSet));
         _allCh = Array.from(chSet).sort(function(a, b) { return a.localeCompare(b, 'zh-TW'); });
         _allTp = Array.from(tpSet).sort(function(a, b) { return a.localeCompare(b, 'zh-TW'); });
+        /* 等級排序：依 GRADE_STD key 順序，再接其他等級字母排序 */
+        var grOrder = Object.keys(GRADE_STD);
+        _allGr = Array.from(grSet).sort(function(a, b) {
+          var ia = grOrder.indexOf(a), ib = grOrder.indexOf(b);
+          if (ia >= 0 && ib >= 0) return ia - ib;
+          if (ia >= 0) return -1;
+          if (ib >= 0) return 1;
+          return a.localeCompare(b, 'zh-TW');
+        });
         buildMsDrop('ch', _allCh);
         buildMsDrop('tp', _allTp);
+        buildMsDrop('gr', _allGr);
+        var hasGrade = _allGr.length > 0 && CI['grade'] >= 0;
+        ['ms-gr-wrap', 'mm-gr-wrap'].forEach(function(id) {
+          var el = document.getElementById(id);
+          if (el) el.style.display = hasGrade ? '' : 'none';
+        });
+        var grLabel = document.getElementById('ms-gr-label');
+        if (grLabel) grLabel.style.display = hasGrade ? '' : 'none';
         ['ms-ch-btn', 'ms-tp-btn', 'mm-ch-btn', 'mm-tp-btn'].forEach(function(id) {
           var el = document.getElementById(id);
           if (el) el.disabled = false;
         });
+        if (hasGrade) {
+          ['ms-gr-btn', 'mm-gr-btn'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) el.disabled = false;
+          });
+        }
         document.getElementById('sel-area').disabled = false;
         onAreaFilter(false);
       }
@@ -4818,7 +4856,7 @@
         var btn = document.getElementById('clear-btn');
         if (!btn) return;
         var allOn = curStatuses.every(function(s) { return chips[s.key]; });
-        var hasFilter = fYear || fMonth || fArea || fOffice || fStaff || fChSet !== null || fTpSet !== null || !allOn;
+        var hasFilter = fYear || fMonth || fArea || fOffice || fStaff || fChSet !== null || fTpSet !== null || fGrSet !== null || !allOn;
         btn.style.display = hasFilter ? '' : 'none';
       }
 
@@ -4830,6 +4868,7 @@
         fStaff = '';
         fChSet = null;
         fTpSet = null;
+        fGrSet = null;
         ['sel-year', 'sel-month', 'sel-area', 'sel-office', 'sel-staff', 'mm-year', 'mm-month'].forEach(function(id) {
           var el = document.getElementById(id);
           if (el) el.value = '';
@@ -4841,6 +4880,7 @@
         });
         buildMsDrop('ch', _allCh);
         buildMsDrop('tp', _allTp);
+        buildMsDrop('gr', _allGr);
         updateClearBtn();
         render('none');
         updateRankDrawer();
@@ -4857,7 +4897,8 @@
       /* \u2550\u2550 Multi-Select \u2550\u2550 */
       function buildMsDrop(key, items) {
         var isChKey = (key === 'ch');
-        var currentSet = isChKey ? fChSet : fTpSet;
+        var isGrKey = (key === 'gr');
+        var currentSet = isChKey ? fChSet : (isGrKey ? fGrSet : fTpSet);
         var dropIds = ['ms-' + key + '-drop', 'mm-' + key + '-drop'];
         var btnIds = ['ms-' + key + '-btn', 'mm-' + key + '-btn'];
         dropIds.forEach(function(dropId) {
@@ -4905,13 +4946,15 @@
 
       function msToggleItem(key, val, checked) {
         var isChKey = (key === 'ch');
-        var currentSet = isChKey ? fChSet : fTpSet;
-        var allItems = isChKey ? _allCh : _allTp;
+        var isGrKey = (key === 'gr');
+        var currentSet = isChKey ? fChSet : (isGrKey ? fGrSet : fTpSet);
+        var allItems = isChKey ? _allCh : (isGrKey ? _allGr : _allTp);
         if (currentSet === null) currentSet = new Set(allItems);
         if (checked) currentSet.add(val);
         else currentSet.delete(val);
         if (currentSet.size === allItems.length) currentSet = null;
         if (isChKey) fChSet = currentSet;
+        else if (isGrKey) fGrSet = currentSet;
         else fTpSet = currentSet;
         syncMsCheckboxes(key, allItems);
         updateMsBtnLabel(key, allItems);
@@ -4933,8 +4976,10 @@
 
       function msSelectAll(key, selectAll) {
         var isChKey = (key === 'ch');
-        var allItems = isChKey ? _allCh : _allTp;
+        var isGrKey = (key === 'gr');
+        var allItems = isChKey ? _allCh : (isGrKey ? _allGr : _allTp);
         if (isChKey) fChSet = selectAll ? null : new Set();
+        else if (isGrKey) fGrSet = selectAll ? null : new Set();
         else fTpSet = selectAll ? null : new Set();
         syncMsCheckboxes(key, allItems);
         updateMsBtnLabel(key, allItems);
@@ -4944,7 +4989,8 @@
 
       function syncMsCheckboxes(key, allItems) {
         var isChKey = (key === 'ch');
-        var currentSet = isChKey ? fChSet : fTpSet;
+        var isGrKey = (key === 'gr');
+        var currentSet = isChKey ? fChSet : (isGrKey ? fGrSet : fTpSet);
         ['ms-' + key + '-drop', 'mm-' + key + '-drop'].forEach(function(dropId) {
           var drop = document.getElementById(dropId);
           if (!drop) return;
@@ -4957,7 +5003,8 @@
 
       function updateMsBtnLabel(key, allItems) {
         var isChKey = (key === 'ch');
-        var currentSet = isChKey ? fChSet : fTpSet;
+        var isGrKey = (key === 'gr');
+        var currentSet = isChKey ? fChSet : (isGrKey ? fGrSet : fTpSet);
         var label, hasFilter;
         if (currentSet === null || currentSet.size === allItems.length) {
           label = '\u5168\u90E8'; hasFilter = false;
@@ -5638,7 +5685,7 @@
         var statusClsMap = {};
         curStatuses.forEach(function(st) { statusClsMap[st.key] = STATUS_CLS_MAP[st.cls] || 'td-st-r'; });
         var cfg2 = _curCfg || {};
-        var noGrade   = !!cfg2.noGrade;
+        var noGrade   = CI['grade'] < 0; /* 資料有等級欄位時永遠顯示 */
         var noChannel = !!cfg2.noChannel;
         var noVisits  = !!cfg2.noVisits || CI['visits'] < 0;
         var extraCols = Array.isArray(cfg2.extraCols) ? cfg2.extraCols : [];
@@ -6202,7 +6249,7 @@
         });
         var cfg2 = _curCfg || {};
         var isCombo   = cfg2.statusMode === 'combo';
-        var noGrade   = !!cfg2.noGrade;
+        var noGrade   = CI['grade'] < 0; /* 資料有等級欄位時永遠顯示，不受 noGrade 旗標影響 */
         var noChannel = !!cfg2.noChannel;
         var noVisits  = !!cfg2.noVisits || CI['visits'] < 0;
         var extraCols = Array.isArray(cfg2.extraCols) ? cfg2.extraCols : [];
