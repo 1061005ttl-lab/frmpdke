@@ -3504,9 +3504,9 @@
         <div id="staff-dlg-summary"></div>
         <div id="staff-dlg-filter">
           <span class="dlg-filter-lbl">篩選</span>
-          <button class="dlg-filter-btn active-all" id="dlg-f-all"  onclick="dlgFilter('all')">全部</button>
-          <button class="dlg-filter-btn" id="dlg-f-met"   onclick="dlgFilter('met')">✅ 達成</button>
-          <button class="dlg-filter-btn" id="dlg-f-unmet" onclick="dlgFilter('unmet')">🔴 未達</button>
+          <button class="dlg-filter-btn active-all" id="dlg-f-all" onclick="dlgFilter('all')">全部</button>
+          <!-- 動態按鈕由 rebuildDlgFilterBtns() 注入，與外層 curStatuses 同步 -->
+          <span id="dlg-f-status-btns"></span>
         </div>
         <div id="staff-dlg-body"></div>
       </div>
@@ -3849,9 +3849,24 @@
             mmRow.insertBefore(btn, clearBtn);
           });
         }
+        rebuildDlgFilterBtns();
       }
 
-      /* \u2550\u2550 \u6B04\u4F4D\u7D22\u5F15 \u2550\u2550 */
+      /* ── Dialog 篩選按鈕：與外層 curStatuses 同步 ── */
+      function rebuildDlgFilterBtns() {
+        var container = document.getElementById('dlg-f-status-btns');
+        if (!container) return;
+        container.innerHTML = '';
+        curStatuses.forEach(function(st) {
+          var btn = document.createElement('button');
+          btn.className = 'dlg-filter-btn';
+          btn.id = 'dlg-f-st-' + st.key;
+          btn.textContent = st.label;
+          btn.onclick = (function(key) { return function() { dlgFilter('st:' + key); }; })(st.key);
+          container.appendChild(btn);
+        });
+      }
+
       var CI = {
         area: -1,
         office: -1,
@@ -6311,9 +6326,16 @@
       }
 
       function dlgFilter(mode) {
-        ['all','met','unmet'].forEach(function(m) {
-          var btn = document.getElementById('dlg-f-' + m);
-          if (btn) btn.className = 'dlg-filter-btn' + (m === mode ? ' active-' + m : '');
+        /* 重置全部按鈕 active 狀態 */
+        var allBtn = document.getElementById('dlg-f-all');
+        if (allBtn) allBtn.className = 'dlg-filter-btn' + (mode === 'all' ? ' active-all' : '');
+        /* 動態狀態按鈕（由 rebuildDlgFilterBtns 產生） */
+        curStatuses.forEach(function(st) {
+          var btn = document.getElementById('dlg-f-st-' + st.key);
+          if (!btn) return;
+          var isActive = (mode === 'st:' + st.key);
+          var activeCls = st.cls === 'g' ? ' active-met' : st.cls === 'r' ? ' active-unmet' : ' active-all';
+          btn.className = 'dlg-filter-btn' + (isActive ? activeCls : '');
         });
         var trs = document.querySelectorAll('#staff-dlg-body .store-tbl tbody tr');
         var visIdx = 0;
@@ -6321,8 +6343,17 @@
           var show = true;
           if (mode !== 'all') {
             var td = tr.querySelector('.col-status');
-            var isMet = td && td.className.indexOf('td-st-g') >= 0;
-            show = (mode === 'met') ? isMet : !isMet;
+            if (mode.indexOf('st:') === 0) {
+              /* 精確比對某一狀態 key（透過 class） */
+              var filterKey = mode.slice(3);
+              var filterSt = curStatuses.find(function(s) { return s.key === filterKey; });
+              var filterCls = filterSt ? ('td-st-' + filterSt.cls) : '';
+              show = td && filterCls && td.className.indexOf(filterCls) >= 0;
+            } else {
+              /* 舊有 met/unmet 相容 */
+              var isMet = td && td.className.indexOf('td-st-g') >= 0;
+              show = (mode === 'met') ? isMet : !isMet;
+            }
           }
           if (show) {
             tr.classList.remove('dlg-hidden');
