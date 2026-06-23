@@ -538,38 +538,54 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
    手機優化 (640px 以下)
 ══════════════════════════════ */
 @media (max-width: 640px) {
+  /* ── Toolbar：固定單行，避免換行佔空間 ── */
   .toolbar {
-    height:auto; padding:8px 12px; flex-wrap:wrap; gap:6px;
+    height:44px;
+    padding:0 10px;
+    flex-wrap:nowrap;
+    gap:6px;
+    overflow:hidden;
   }
-  .toolbar-title { font-size:13px; }
-  .proj-sel { font-size:12px; max-width:150px; }
-  .back-btn { font-size:12px; padding:4px 9px; }
-  .sync-note { font-size:10px; order:5; width:100%; }
-  .lamp-bar { order:4; width:100%; flex-wrap:wrap; gap:4px; padding-bottom:2px; }
-  .lamp-chip { font-size:11px; padding:4px 9px; }
+  .toolbar-title { font-size:12px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .proj-sel { font-size:11px; max-width:110px; padding:3px 6px; }
+  .back-btn { font-size:11px; padding:3px 8px; flex-shrink:0; }
+  .view-toggle { gap:3px; flex-shrink:0; }
+  .vt-btn { font-size:11px; padding:3px 7px; }
+  /* 同步時間和燈號列：收進 quicknav 下方，手機不顯示 */
+  .sync-note { display:none; }
+  .lamp-bar { order:4; flex-wrap:nowrap; gap:3px; padding-bottom:2px; flex-shrink:0; }
+  .lamp-chip { font-size:10px; padding:3px 7px; white-space:nowrap; }
 
-  .quicknav { top:auto; position:relative; }
+  /* quicknav 在手機上不 sticky（toolbar 高度固定44px） */
+  .quicknav { top:44px; padding:4px 10px 0; }
+  /* 等級標籤手機上縮小 */
+  .grade-label { font-size:9px; }
+  .qn-btn { font-size:11px; padding:4px 8px; }
 
-  .stage { padding:12px 10px 40px; }
+  .stage { padding:10px 8px 40px; }
   .grid { grid-template-columns:1fr !important; gap:8px; }
 
-  .card { padding:14px 14px 12px; }
+  .card { padding:12px 12px 10px; }
   .card-name-inline { font-size:16px; }
-  .stat-row { gap:6px; }
-  .stat-item { padding:9px 6px; border-radius:9px; }
-  .stat-val { font-size:24px !important; }
-  .stat-label { font-size:10px; }
-  .stat-pct { font-size:13px; }
+  .stat-row { gap:5px; }
+  .stat-item { padding:8px 5px; border-radius:9px; }
+  .stat-val { font-size:22px !important; }
+  .stat-label { font-size:9px; min-height:2.4em; }
+  .stat-pct { font-size:12px; }
   .card-detail-btn { font-size:11px; padding:4px 10px; }
 
   .dlg-box { width:100vw; height:100dvh; border-radius:0; }
-  .dlg-header { padding:10px 12px; font-size:13px; flex-wrap:wrap; gap:6px; }
-  .dlg-header > span { order:-1; width:100%; font-size:12px; line-height:1.4; }
+  .dlg-header { padding:8px 12px; font-size:12px; flex-wrap:wrap; gap:5px; }
+  .dlg-header > span { order:-1; width:100%; font-size:11px; line-height:1.4; }
   .dlg-action-btn { font-size:11px; padding:4px 8px; }
   .btn-txt { display:none; }
-  .detail-tbl { font-size:13px; }
-  .detail-tbl th { padding:7px 10px; font-size:11px; }
-  .detail-tbl td { padding:6px 10px; }
+  .detail-tbl { font-size:12px; }
+  .detail-tbl th { padding:6px 8px; font-size:10px; }
+  .detail-tbl td { padding:5px 8px; }
+
+  /* ── 手機 Tooltip：長按 stat-item 才觸發，阻止立即鑽層 ── */
+  .stat-item .tooltip { pointer-events:none; }
+  .stat-item.tt-active .tooltip { display:block !important; pointer-events:auto; }
 }
 </style>
 </head>
@@ -1141,20 +1157,45 @@ function renderLevel(stage, rows, col, levelKey, labelText, overallName) {
 
 /* \u2500\u2500 Tooltip \u7D81\u5B9A\u8F14\u52A9\u51FD\u5F0F \u2500\u2500 */
 function bindTooltip(triggerEl, ttEl, card) {
+  /* 桌機：hover */
   triggerEl.addEventListener('mouseenter', function(e) {
     e.stopPropagation();
     var cardRect = card.getBoundingClientRect();
-    if (cardRect.top < 160) {
-      ttEl.classList.add('flip');
-    } else {
-      ttEl.classList.remove('flip');
-    }
+    ttEl.classList.toggle('flip', cardRect.top < 160);
     ttEl.classList.add('show');
   });
   triggerEl.addEventListener('mouseleave', function() {
     ttEl.classList.remove('show');
     ttEl.classList.remove('flip');
   });
+
+  /* 手機：長按 500ms 顯示 tooltip，短按正常鑽層 */
+  var _pressTimer = null;
+  var _didLongPress = false;
+  triggerEl.addEventListener('touchstart', function(e) {
+    _didLongPress = false;
+    _pressTimer = setTimeout(function() {
+      _didLongPress = true;
+      document.querySelectorAll('.tooltip.show').forEach(function(el){ el.classList.remove('show'); });
+      var cardRect = card.getBoundingClientRect();
+      ttEl.classList.toggle('flip', cardRect.top < 160);
+      ttEl.classList.add('show');
+      function dismissOnce(ev) {
+        if (!ttEl.contains(ev.target)) {
+          ttEl.classList.remove('show');
+          document.removeEventListener('touchstart', dismissOnce);
+        }
+      }
+      setTimeout(function(){ document.addEventListener('touchstart', dismissOnce); }, 50);
+    }, 500);
+  }, { passive: true });
+  triggerEl.addEventListener('touchend', function(e) {
+    clearTimeout(_pressTimer);
+    if (_didLongPress) e.preventDefault();
+  });
+  triggerEl.addEventListener('touchmove', function() {
+    clearTimeout(_pressTimer);
+  }, { passive: true });
 }
 
 /* \u2500\u2500 \u5361\u7247 \u2500\u2500 */
