@@ -293,7 +293,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 
 /* ── stat row ── */
 .stat-row { display:flex; gap:6px; margin-top:4px; }
-.stat-item { flex:1; min-width:0; background:var(--bg); border-radius:10px; padding:10px 6px; text-align:center; }
+.stat-item { flex:1; min-width:0; background:var(--bg); border-radius:10px; padding:10px 6px; text-align:center; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
 .stat-item.warn { background:var(--red-bg); }
 .stat-item.good { background:var(--green-bg); }
 .stat-label { font-size:10px; font-weight:500; color:var(--sub); margin-bottom:6px; word-break:keep-all; overflow-wrap:break-word; line-height:1.3; min-height:2.6em; display:flex; align-items:center; justify-content:center; }
@@ -497,6 +497,22 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .vt-btn:not(.active):hover { background:var(--primary-bg); color:var(--primary); }
 
 /* ── lamp chips (toolbar 燈號切換) ── */
+.lamp-row {
+  background:#fff;
+  border-bottom:1px solid var(--border);
+  padding:5px 16px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:nowrap;
+  overflow-x:auto;
+  scrollbar-width:none;
+  -webkit-overflow-scrolling:touch;
+  position:sticky;
+  top:52px;
+  z-index:39;
+}
+.lamp-row::-webkit-scrollbar { display:none; }
 .lamp-bar {
   display:flex; align-items:center; gap:6px; flex-shrink:0;
 }
@@ -546,17 +562,21 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     gap:6px;
     overflow:hidden;
   }
-  .toolbar-title { font-size:12px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .proj-sel { font-size:11px; max-width:110px; padding:3px 6px; }
+  /* 手機：隱藏看板名稱（proj-sel 已有），proj-sel 展開填空間 */
+  .toolbar-title { display:none; }
+  .proj-sel { font-size:11px; max-width:none; flex:1; padding:3px 6px; min-width:0; }
   .back-btn { font-size:11px; padding:3px 8px; flex-shrink:0; }
   .view-toggle { gap:3px; flex-shrink:0; }
   .vt-btn { font-size:11px; padding:3px 7px; }
-  /* 同步時間和燈號列：收進 quicknav 下方，手機不顯示 */
+  /* 同步時間手機隱藏 */
   .sync-note { display:none; }
-  .lamp-bar { order:4; flex-wrap:nowrap; gap:3px; padding-bottom:2px; flex-shrink:0; }
+  /* 燈號列移到 quicknav 同列（overflow scroll） */
+  .lamp-bar { flex-shrink:0; gap:3px; }
   .lamp-chip { font-size:10px; padding:3px 7px; white-space:nowrap; }
 
-  /* quicknav 在手機上不 sticky（toolbar 高度固定44px） */
+  /* lamp-row 在手機上 top=44px */
+  .lamp-row { top:44px; padding:4px 10px; }
+  /* quicknav 在手機上 top 由 JS 動態設定，fallback = 44px */
   .quicknav { top:44px; padding:4px 10px 0; }
   /* 等級標籤手機上縮小 */
   .grade-label { font-size:9px; }
@@ -602,7 +622,11 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <button class="vt-btn"        id="vt-channel" onclick="setViewMode('channel')">🏪 通路</button>
   </div>
   <span class="sync-note" id="tb-sync"></span>
-  <div class="lamp-bar" id="lamp-bar" style="display:none"></div>
+</div>
+
+<!-- 燈號列獨立在 toolbar 下方，與 quicknav 同層 sticky -->
+<div class="lamp-row" id="lamp-row" style="display:none">
+  <div class="lamp-bar" id="lamp-bar"></div>
 </div>
 
 <div class="quicknav" id="quicknav"></div>
@@ -692,9 +716,17 @@ function initChips() {
 
 function renderLampBar() {
   var bar = document.getElementById('lamp-bar');
+  var row = document.getElementById('lamp-row');
   if (!bar) return;
-  bar.style.display = 'flex';
+  if (row) row.style.display = 'flex';
   bar.innerHTML = '';
+  /* 更新 quicknav top，避免被燈號列遮住 */
+  var qn = document.getElementById('quicknav');
+  if (qn) {
+    var toolbarH = document.querySelector('.toolbar') ? document.querySelector('.toolbar').offsetHeight : 52;
+    var lampH = row ? row.offsetHeight : 0;
+    qn.style.top = (toolbarH + lampH) + 'px';
+  }
 
   function makeChip(key, label, cls) {
     var btn = document.createElement('button');
@@ -1333,15 +1365,20 @@ function buildQuicknav() {
   if (!nav) return;
   var depth = drillStack.length;
   var html  = '';
-  /* 等級群組（若有資料則最前面顯示） */
+  /* 等級群組（可折疊，預設展開） */
   if (_gradeList.length) {
+    var gradeExpanded = (window._gradeExpanded !== false);
+    var hasActiveGrade = selectedGrades !== null;
+    var dot = hasActiveGrade ? '<span style="width:5px;height:5px;border-radius:50%;background:var(--primary);display:inline-block;margin-left:3px;vertical-align:middle;flex-shrink:0;"></span>' : '';
     html += '<div class="qn-group">';
-    html += '<span class="qn-label">\u5e97\u5bb6\u7b49\u7d1a</span>';
-    html += '<button class="qn-btn grade-all' + (selectedGrades===null?' active':'') + '" onclick="(function(){selectedGrades=null;buildGradeBar();render();})()">\u5168\u9078</button>';
-    _gradeList.forEach(function(g){
-      var isActive = selectedGrades && selectedGrades[g];
-      html += '<button class="qn-btn' + (isActive?' active':'') + '" onclick="(function(){if(!selectedGrades)selectedGrades={};selectedGrades[\'' + qEsc(g) + '\']=!selectedGrades[\'' + qEsc(g) + '\'];if(Object.keys(selectedGrades).every(function(k){return !selectedGrades[k];}))selectedGrades=null;buildGradeBar();render();})()">'+esc(g)+'</button>';
-    });
+    html += '<button class="qn-btn" style="gap:3px;font-size:10px;padding:4px 7px;" onclick="(function(){window._gradeExpanded=!(window._gradeExpanded!==false);buildQuicknav();})()"><span style="font-size:9px;color:var(--sub);font-weight:600;">等級</span> ' + (gradeExpanded ? '◀' : '▶') + dot + '</button>';
+    if (gradeExpanded) {
+      html += '<button class="qn-btn grade-all' + (selectedGrades===null?' active':'') + '" onclick="(function(){selectedGrades=null;buildGradeBar();render();})()">全選</button>';
+      _gradeList.forEach(function(g){
+        var isActive = selectedGrades && selectedGrades[g];
+        html += '<button class="qn-btn' + (isActive?' active':'') + '" onclick="(function(){if(!selectedGrades)selectedGrades={};selectedGrades['' + qEsc(g) + '']=!selectedGrades['' + qEsc(g) + ''];if(Object.keys(selectedGrades).every(function(k){return !selectedGrades[k];}))selectedGrades=null;buildGradeBar();render();})()">'+esc(g)+'</button>';
+      });
+    }
     html += '</div>';
   }
   html += '<div class="qn-group"><button class="qn-btn home' + (depth===0?' active':'') + '" onclick="drillTo(-1)">\u5168\u89BD</button></div>';
