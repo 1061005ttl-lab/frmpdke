@@ -3763,6 +3763,7 @@
       var _curCfg = null;
       var _monthColIdxMap = {};
       var _activeMontCols = [];
+      var _originalHdrs = []; /* 含 statusCol 的原始標題列，fetchSheetText 回傳 */
       var _viewMode = 'org';
       var _chDrillStack = [];
       var _chTypeMap = {};
@@ -4183,6 +4184,7 @@
         Promise.all([p1, p2, p3]).then(function(res) {
           try {
             allHeaders = res[0].headers;
+            _originalHdrs = res[0].originalHdrs || res[0].headers; /* 含 statusCol 原始標題 */
             allRows = res[0].rows;
             curStatuses = res[0].statuses;
             _monthColIdxMap = res[0].monthColKeepIdxMap || {};
@@ -4537,7 +4539,11 @@
             activeMontCols = [];
           }
 
-          var excludeIdx = new Set([statusColIdx]);
+          /* statusCol 通常從 keepHdrs 移除（已轉成 key 欄），
+             但若 cfg.extraCols 中也包含此欄名（為顯示原始值），則保留 */
+          var extraColNames = Array.isArray(cfg.extraCols) ? cfg.extraCols : [];
+          var statusColInExtra = extraColNames.indexOf(cfg.statusCol) >= 0;
+          var excludeIdx = statusColInExtra ? new Set() : new Set([statusColIdx]);
           var keepHdrs = hdrs.filter(function(h, i) { return !excludeIdx.has(i); });
 
           /* \u6708\u4EFD\u6B04\u5C0D\u61C9\u5230 keepHdrs \u5F8C\u7684\u7D22\u5F15 */
@@ -4566,7 +4572,8 @@
             monthValue: monthValue,
             resolvedMonthCol: resolvedMonthCol,
             monthColKeepIdxMap: monthColKeepIdxMap,
-            activeMontCols: activeMontCols
+            activeMontCols: activeMontCols,
+            originalHdrs: hdrs   /* 含 statusCol 的原始標題，供 extraCols 索引用 */
           });
         }).catch(function(e) {
           console.error('fetchSheetText:', e);
@@ -6201,6 +6208,11 @@
         var extraColIdxs = extraCols.map(function(name) {
           return allHeaders.findIndex(function(h) { return h === name; });
         });
+        /* combo 模式：額外顯示 statusCol2（副狀態欄）原始值 */
+        var statusCol2Idx = -1;
+        if (isCombo && cfg2.statusCol2) {
+          statusCol2Idx = allHeaders.findIndex(function(h) { return h === cfg2.statusCol2; });
+        }
         var html = '<table class="store-tbl"><thead><tr>' +
           '<th class="col-status" style="width:72px">\u72C0\u614B</th>' +
           '<th class="col-name">\u5E97\u5BB6\u540D\u7A31</th>' +
@@ -6210,6 +6222,7 @@
           '<th class="col-code" style="width:120px">\u5E97\u5BB6\u4EE3\u78BC</th>' +
           (noVisits ? '' : '<th class="col-visits" style="width:46px;text-align:center">\u6A19\u6E96</th>') +
           (noVisits ? '' : '<th class="col-visits" style="width:46px;text-align:center">\u5DF2\u8A2A</th>') +
+          (statusCol2Idx >= 0 ? '<th class="col-visits" style="width:72px;text-align:center">' + esc(cfg2.statusCol2) + '</th>' : '') +
           extraCols.map(function(name) { return '<th class="col-visits" style="width:64px;text-align:center">' + esc(name) + '</th>'; }).join('') +
           (_activeMontCols.length ? _activeMontCols.map(function(mc) { return '<th class="col-visits" style="width:64px;text-align:center">' + esc(mc) + '</th>'; }).join('') : '') +
           '</tr></thead><tbody>';
@@ -6235,6 +6248,12 @@
               '<td class="col-visits td-sub" style="text-align:center">' + esc(String(std)) + '</td>' +
               '<td class="col-visits td-sub" style="text-align:center"' + visitsCls + '>' + esc(visitsVal) + '</td>'
             ) +
+            (statusCol2Idx >= 0 ? (function() {
+              var v2 = (r[statusCol2Idx] != null) ? String(r[statusCol2Idx]).trim() : '';
+              var isUnmet = v2 && (v2.indexOf('\u672a') >= 0 || v2.indexOf('\u672A') >= 0);
+              var s2 = 'text-align:center' + (isUnmet ? ';background:rgba(217,48,37,.10);color:#c62828;font-weight:700' : (v2 ? ';color:#22a84c;font-weight:700' : ''));
+              return '<td class="col-visits td-sub" style="' + s2 + '">' + esc(v2 || '\u2014') + '</td>';
+            })() : '') +
             extraColIdxs.map(function(ci, ei) {
               var v = (ci >= 0 && r[ci] != null) ? String(r[ci]).trim() : '';
               var colName = extraCols[ei] || '';
