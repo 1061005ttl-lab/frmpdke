@@ -1,35 +1,16 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 2.5.0 ｜ 最後更新：2026-06-22
+  版本：Ver. 2.2.0 ｜ 最後更新：2026-06-22 18:35 (UTC+8)
 ════════════════════════════════════════════════════════════
 
-【⚠ 版本更新作業流程】
-  每次修改此檔案後，務必同步更新以下兩處：
-  1. 本註解最頂端的「版本」與「最後更新」日期（台灣時區 UTC+8）
-  2. 【版本紀錄】區塊，補上新版本號、日期、改動摘要
-  格式範例：2.5.0  2026-06-22  簡述本次主要修改
-  日期格式：YYYY-MM-DD（台灣時間，UTC+8）
-
 【版本紀錄】
-  2.5.0  2026-06-22  Dialog % 顯示、C類文字值紅字、等級整合、版本流程規範
-         - Dialog 標題加入各狀態家數百分比
-         - C 群欄位：文字值以紅字顯示業務描述，非文字值（1/0）顯示紅 ✖
-         - 店家等級篩選整合進 quicknav 同一列（等級前、單位後）
-         - Tooltip 文字靠左對齊
-         - parseGvizDate 明確指定 Asia/Taipei 時區
-         - 補充版本更新作業流程說明
-  2.4.0  2026-06-22  Dialog 表頭欄位對齊修正
-         - 加入遺漏的「狀態」<th>，修正所有欄位右移一格的問題
-  2.3.0  2026-06-22  B2 計數修正、表頭空白欄修正
-         - calcGroup 改為每個 bucket 獨立計算（一店可同時符合 B1+B2）
-         - BUCKETS_C cols 加入 filter(Boolean) 排除空字串
-  2.2.0  2026-06-22  LABEL_C 未定義修正、C類 ✖ 紅色符號
-         - 移除 buildStoreTable / copyLine 對舊變數 LABEL_C/BUCKET_B 的依賴
-         - C 群子欄位有值改顯示紅色 ✖
-  2.1.0  2026-06-22  Dialog 開啟修正、卡片4欄、stat文字換行
-         - 修正 LABEL_C is not defined 導致 Dialog 無法開啟
-         - Grid 強制 4 欄、stat-label 文字換行
+  2.2.0  2026-06-22 18:35 (UTC+8)  五項優化
+         - 版本說明加入台灣時區時間戳（UTC+8），作業流程說明同步更新
+         - 等級篩選器與全覽/單位列合併為同一 sticky 列，排序：等級→單位
+         - Tooltip 標籤文字靠左對齊
+         - Tooltip 各欄位加 % 顯示（佔群組有效家數）
+         - C 群組欄位：文字值以紅字顯示；非文字值維持紅 ✖
   1.3.0  2026-06-22  介面與 Tooltip 優化
          - Grid 改 minmax(320px,1fr)，桌機自然呈現 4 欄
          - 未商化（BUCKET_C）加入 Tooltip，與已商化一致
@@ -72,6 +53,13 @@
   支援多種欄位組合（有二位/已上架/未進貨…），
   欄位定義由管理表「覆蓋率型專案管理」分頁動態載入，
   不需修改此 HTML 即可支援不同專案。
+
+【版本更新作業流程】
+  每次修改程式後，務必更新以下兩處：
+  1. 第 4 行「版本：Ver. X.X.X ｜ 最後更新：YYYY-MM-DD HH:MM (UTC+8)」
+  2. 【版本紀錄】區塊最上方加一筆：
+       X.X.X  YYYY-MM-DD HH:MM (UTC+8)  本次更動摘要
+  時區請使用台灣時間（UTC+8，Asia/Taipei）。
 
 【啟動流程】
   1. 從 URL 取得 sheetId
@@ -239,14 +227,12 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 
 /* ── grade chips in quicknav ── */
 .grade-label {
-  font-size:10px;
-  color:var(--sub);
-  font-weight:600;
-  white-space:nowrap;
-  letter-spacing:.04em;
-  opacity:.6;
-  flex-shrink:0;
-  padding-right:3px;
+  font-size:10px; color:var(--sub); font-weight:600;
+  white-space:nowrap; letter-spacing:.04em; opacity:.6;
+  flex-shrink:0; padding-right:3px;
+}
+.qn-btn.grade-all {
+  font-size:11px; padding:3px 9px;
 }
 
 /* ── stage ── */
@@ -348,10 +334,10 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   top:calc(100% + 8px);
 }
 .tt-title { font-size:11px; font-weight:700; color:var(--sub); margin-bottom:7px; letter-spacing:.03em; text-align:left; }
-.tt-row { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; padding:4px 0; }
+.tt-row { display:flex; justify-content:flex-start; align-items:flex-start; gap:16px; padding:4px 0; }
 .tt-label { font-size:13px; color:var(--sub); flex:1; line-height:1.4; white-space:normal; word-break:keep-all; text-align:left; }
-.tt-val { font-size:13px; font-weight:700; color:var(--text); white-space:nowrap; flex-shrink:0; text-align:right; }
-.tt-pct { font-size:11px; font-weight:500; color:var(--sub); margin-left:3px; }
+.tt-val { font-size:13px; font-weight:700; color:var(--text); white-space:nowrap; flex-shrink:0; margin-left:auto; }
+.tt-pct { font-size:11px; font-weight:500; color:var(--sub); opacity:.7; }
 
 /* ── 全螢幕 Dialog ── */
 #detail-dialog {
@@ -419,6 +405,8 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .detail-tbl tbody tr:hover td { background:rgba(55,138,221,.06); }
 .d-yes { color:var(--green); font-weight:700; }
 .d-no  { color:#ccc; }
+.d-c-yes { color:var(--red); font-weight:700; font-size:15px; }
+.d-c-text { color:var(--red); font-weight:600; font-size:12px; white-space:normal; word-break:keep-all; line-height:1.3; }
 .d-unfill {
   font-size:11px; font-weight:700; color:#E65100;
   background:#FFF3E0; padding:2px 7px; border-radius:6px;
@@ -428,7 +416,6 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   background:var(--red-bg); padding:2px 7px; border-radius:6px;
 }
 .d-c-yes { color:var(--red); font-weight:700; font-size:15px; }
-.d-c-text { color:var(--red); font-size:11px; font-weight:600; line-height:1.3; word-break:keep-all; display:inline-block; max-width:160px; vertical-align:middle; }
 .row-unfill td { background:rgba(255,243,224,.45); color:#aaa; }
 .row-unfill .td-name { color:#bbb; }
 
@@ -695,21 +682,16 @@ function toggleLamp(key) {
 function showLoading(){ document.getElementById('loading').classList.add('show'); }
 function hideLoading(){ document.getElementById('loading').classList.remove('show'); }
 function isOne(v){ return Number(v)===1||v===true||v==='true'||v==='1'; }
-/* C 群欄位：判斷是否為業務文字敘述（非 0/1 的非空字串） */
-function isCText(v){ return v!==null && v!==undefined && v!=='' && v!==0 && v!=='0' && v!==false && !isOne(v) && typeof v==='string' && v.trim().length>0; }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 /* \u2500\u2500 \u89E3\u6790 gviz \u65E5\u671F\u683C\u5F0F \u2192 \u4EBA\u985E\u53EF\u8B80 \u2500\u2500 */
 function parseGvizDate(v) {
   var m = String(v).match(/Date\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)/);
   if (!m) return String(v);
-  /* gviz 回傳的 Date() 已是本地時間（瀏覽器時區），直接用 Date constructor 即可
-     但為確保不同時區的瀏覽器都顯示台灣時間（UTC+8），明確指定 timeZone */
   var d = new Date(+m[1], +m[2], +m[3], +m[4], +m[5], +m[6]);
   return d.toLocaleString('zh-TW', {
     year:'numeric', month:'2-digit', day:'2-digit',
-    hour:'2-digit', minute:'2-digit',
-    timeZone:'Asia/Taipei'
+    hour:'2-digit', minute:'2-digit'
   });
 }
 
@@ -837,10 +819,7 @@ function fetchSheet() {
       allRows  = (tbl.rows||[]).map(function(row){
         var obj = {};
         (row.c||[]).forEach(function(cell,i){
-          if (!cell) { obj[cols[i]] = ''; return; }
-          var v = (cell.v!==null&&cell.v!==undefined) ? cell.v : '';
-          var f = cell.f || '';
-          obj[cols[i]] = (v!==''&&v!==null&&v!==undefined) ? v : f;
+          obj[cols[i]] = cell ? (cell.v!==null&&cell.v!==undefined ? cell.v : cell.f||'') : '';
         });
         return obj;
       });
@@ -981,6 +960,14 @@ function getNextGroups(rows, col) {
 /* \u2500\u2500 \u5e97\u5bb6\u7b49\u7d1a\u7b5b\u9078 \u2500\u2500 */
 /* buildGradeBar: 只收集等級清單，實際渲染整合進 buildQuicknav */
 var _gradeList = [];
+function toggleGrade(g) {
+  if (!selectedGrades) selectedGrades = {};
+  selectedGrades[g] = !selectedGrades[g];
+  if (Object.keys(selectedGrades).every(function(k){ return !selectedGrades[k]; })) selectedGrades = null;
+  buildQuicknav();
+  render();
+}
+
 function buildGradeBar() {
   var gradeSet = {};
   allRows.forEach(function(r){
@@ -1116,7 +1103,7 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
       '<div class="stat-label">'+esc(g.label)+'</div>'+
       '<div class="stat-val">'+cnt+'</div>'+
       '<div class="stat-pct">'+fp(cnt)+'</div>'+
-      (hasMultiCols ? '<div class="tooltip" id="'+ttBId+'">'+buildTooltipHTML(g.label, g.cols, stat.bColCounts, stat.total)+'</div>' : '')+
+      (hasMultiCols ? '<div class="tooltip" id="'+ttBId+'">'+buildTooltipHTML(g.label, g.cols, stat.bColCounts)+'</div>' : '')+
     '</div>';
   });
 
@@ -1130,7 +1117,7 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
       '<div class="stat-label">'+esc(g.label)+'</div>'+
       '<div class="stat-val">'+cnt+'</div>'+
       '<div class="stat-pct">'+fp(cnt)+'</div>'+
-      (hasMultiCols ? '<div class="tooltip" id="'+ttCId2+'">'+buildTooltipHTML(g.label, g.cols, stat.cColCounts, stat.total)+'</div>' : '')+
+      (hasMultiCols ? '<div class="tooltip" id="'+ttCId2+'">'+buildTooltipHTML(g.label, g.cols, stat.cColCounts)+'</div>' : '')+
     '</div>';
   });
 
@@ -1169,12 +1156,13 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
   return card;
 }
 
-function buildTooltipHTML(label, buckets, counts, total) {
+function buildTooltipHTML(label, buckets, counts, groupTotal) {
+  var total = groupTotal || buckets.reduce(function(s,t){ return s+(counts[t]||0); }, 0);
   return '<div class="tt-title">'+esc(label)+'</div>'+
     buckets.map(function(t){
       var n = counts[t]||0;
-      var pct = (total>0) ? ' <span class="tt-pct">('+Math.round(n/total*100)+'%)</span>' : '';
-      return '<div class="tt-row"><span class="tt-label">'+esc(t)+'</span><span class="tt-val">'+n+' \u5BB6'+pct+'</span></div>';
+      var pct = total>0 ? Math.round(n/total*100) : 0;
+      return '<div class="tt-row"><span class="tt-label">'+esc(t)+'</span><span class="tt-val">'+n+' \u5BB6<span class="tt-pct"> '+pct+'%</span></span></div>';
     }).join('');
 }
 
@@ -1233,7 +1221,7 @@ function buildQuicknav() {
     html += '<button class="qn-btn grade-all' + (selectedGrades===null?' active':'') + '" onclick="(function(){selectedGrades=null;buildGradeBar();render();})()">\u5168\u9078</button>';
     _gradeList.forEach(function(g){
       var isActive = selectedGrades && selectedGrades[g];
-      html += '<button class="qn-btn' + (isActive?' active':'') + '" onclick="(function(){if(!selectedGrades)selectedGrades={};selectedGrades[\'' + qEsc(g) + '\']=!selectedGrades[\'' + qEsc(g) + '\'];if(Object.keys(selectedGrades).every(function(k){return !selectedGrades[k];}))selectedGrades=null;buildGradeBar();render();})()">'+esc(g)+'</button>';
+      html += '<button class="qn-btn' + (isActive?' active':'') + '" onclick="toggleGrade(\'' + qEsc(g) + '\')">' + esc(g) + '</button>';
     });
     html += '</div>';
   }
@@ -1414,11 +1402,17 @@ function buildStoreTable(rows, levelKey){
         var cols = g.cols.filter(function(t){ return t; });
         cols.forEach(function(t){
           var v = r[t];
+          var vStr = (v===null||v===undefined) ? '' : String(v).trim();
           var cell;
-          if (isOne(v))       cell = '<span class="d-c-yes">\u2716</span>';
-          else if (isCText(v)) cell = '<span class="d-c-text">'+esc(String(v))+'</span>';
-          else                 cell = '<span class="d-no">\u2014</span>';
-          html += '<td>'+cell+'</td>';
+          if (!vStr || vStr==='0' || vStr.toLowerCase()==='false') {
+            cell = '<span class="d-no">\u2014</span>';
+          } else if (vStr==='1' || vStr.toLowerCase()==='true' || isOne(v)) {
+            cell = '<span class="d-c-yes">\u2716</span>';
+          } else {
+            /* 文字值：紅字直接顯示 */
+            cell = '<span class="d-c-text">'+esc(vStr)+'</span>';
+          }
+          html+='<td>'+cell+'</td>';
         });
       });
     }
@@ -1442,21 +1436,9 @@ function openDialog(displayName, levelKey, rows){
   ctx.push(displayName);
   var titleParts = ['\u3010' + ctx.join(' \u203A ') + '\u3011\u5E97\u5BB6\u660E\u7D30'];
   titleParts.push('\u5171 '+total+' \u5BB6');
-  var validTotal = items.filter(function(d){ return d.grp!==3; }).length;
-  function pct(n, base){ var b = base||validTotal; return b>0 ? ' ('+Math.round(n/b*100)+'%)' : ''; }
-  if(chips['unfill']!==false && unfillCnt) titleParts.push('\u672A\u586B\u5BEB '+unfillCnt+pct(unfillCnt, total));
-  BUCKETS_B.forEach(function(g,i){
-    if(chips['b:'+i]!==false){
-      var cnt = items.filter(function(d){ return d.grp===0 && d.bi===i; }).length;
-      titleParts.push(esc(g.label)+' '+cnt+pct(cnt, validTotal));
-    }
-  });
-  BUCKETS_C.forEach(function(g,j){
-    if(chips['c:'+j]!==false){
-      var cnt = items.filter(function(d){ return d.grp===1 && d.ci===j; }).length;
-      titleParts.push(esc(g.label)+' '+cnt+pct(cnt, validTotal));
-    }
-  });
+  if(chips['unfill']!==false && unfillCnt) titleParts.push('\u672A\u586B\u5BEB '+unfillCnt);
+  BUCKETS_B.forEach(function(g,i){ if(chips['b:'+i]!==false) titleParts.push(esc(g.label)+' '+items.filter(function(d){ return d.grp===0 && d.bi===i; }).length); });
+  BUCKETS_C.forEach(function(g,j){ if(chips['c:'+j]!==false) titleParts.push(esc(g.label)+' '+items.filter(function(d){ return d.grp===1 && d.ci===j; }).length); });
   document.getElementById('dlg-title').textContent = titleParts.join('\u3000');
   document.getElementById('dlg-body').innerHTML=buildStoreTable(rows,levelKey);
   /* 重置按鈕狀態（不重置 innerHTML，靜態 HTML 已定義） */
