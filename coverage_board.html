@@ -195,7 +195,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   border-bottom:1px solid var(--border);
   background:#fff;
   position:sticky;
-  top:52px;
+  top:52px; /* updated by JS after lamp-row renders */
   z-index:40;
 }
 .quicknav::-webkit-scrollbar { display:none; }
@@ -510,7 +510,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   -webkit-overflow-scrolling:touch;
   position:sticky;
   top:52px;
-  z-index:39;
+  z-index:41;
 }
 .lamp-row::-webkit-scrollbar { display:none; }
 .lamp-bar {
@@ -574,9 +574,9 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   .lamp-bar { flex-shrink:0; gap:3px; }
   .lamp-chip { font-size:10px; padding:3px 7px; white-space:nowrap; }
 
-  /* lamp-row 在手機上 top=44px */
-  .lamp-row { top:44px; padding:4px 10px; }
-  /* quicknav 在手機上 top 由 JS 動態設定，fallback = 44px */
+  /* lamp-row 和 quicknav 的 top 由 JS updateStickyTops 動態設定
+     fallback：lamp-row=44px, quicknav=44px（無燈號時） */
+  .lamp-row { top:44px !important; padding:4px 10px; }
   .quicknav { top:44px; padding:4px 10px 0; }
   /* 等級標籤手機上縮小 */
   .grade-label { font-size:9px; }
@@ -714,6 +714,17 @@ function initChips() {
   renderLampBar();
 }
 
+/* sticky 層疊高度：toolbar → lamp-row → quicknav，每層緊接上一層 */
+function updateStickyTops() {
+  var toolbar = document.querySelector('.toolbar');
+  var lampRow = document.getElementById('lamp-row');
+  var quicknav = document.getElementById('quicknav');
+  var tbH = toolbar ? toolbar.offsetHeight : 52;
+  var lampH = (lampRow && lampRow.style.display !== 'none') ? lampRow.offsetHeight : 0;
+  if (lampRow) lampRow.style.top = tbH + 'px';
+  if (quicknav) quicknav.style.top = (tbH + lampH) + 'px';
+}
+
 function renderLampBar() {
   var bar = document.getElementById('lamp-bar');
   var row = document.getElementById('lamp-row');
@@ -721,12 +732,7 @@ function renderLampBar() {
   if (row) row.style.display = 'flex';
   bar.innerHTML = '';
   /* 更新 quicknav top，避免被燈號列遮住 */
-  var qn = document.getElementById('quicknav');
-  if (qn) {
-    var toolbarH = document.querySelector('.toolbar') ? document.querySelector('.toolbar').offsetHeight : 52;
-    var lampH = row ? row.offsetHeight : 0;
-    qn.style.top = (toolbarH + lampH) + 'px';
-  }
+  setTimeout(updateStickyTops, 0);
 
   function makeChip(key, label, cls) {
     var btn = document.createElement('button');
@@ -959,6 +965,7 @@ function fetchSheet() {
       });
       return Promise.all(promises).then(function(){
         buildGradeBar(); render();
+        setTimeout(updateStickyTops, 100);
       });
     })
     .catch(function(err){
@@ -966,6 +973,8 @@ function fetchSheet() {
       document.getElementById('stage').innerHTML = '<div class="empty">\u26A0\uFE0F \u8F09\u5165\u5931\u6557\uFF1A' + err + '</div>';
     });
 }
+
+window.addEventListener('resize', updateStickyTops);
 
 function fetchSyncTime() {
   var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
@@ -1126,6 +1135,7 @@ function setViewMode(mode) {
 function render() {
   hideLoading();
   buildQuicknav();
+  setTimeout(updateStickyTops, 0);
   var stage=document.getElementById('stage');
   stage.innerHTML='';
   var depth=drillStack.length, rows=applyGradeFilter(getCurrentRows());
@@ -1189,12 +1199,33 @@ function renderLevel(stage, rows, col, levelKey, labelText, overallName) {
 
 /* \u2500\u2500 Tooltip \u7D81\u5B9A\u8F14\u52A9\u51FD\u5F0F \u2500\u2500 */
 function bindTooltip(triggerEl, ttEl, card) {
+  function positionTooltip() {
+    var cardRect = card.getBoundingClientRect();
+    /* 上/下翻轉 */
+    ttEl.classList.toggle('flip', cardRect.top < 160);
+    /* 先顯示再量寬，處理左右溢出 */
+    ttEl.style.left = '';
+    ttEl.style.right = '';
+    ttEl.style.transform = '';
+    var ttRect = ttEl.getBoundingClientRect();
+    var vw = window.innerWidth;
+    if (ttRect.right > vw - 8) {
+      /* 靠右對齊 trigger */
+      ttEl.style.left = 'auto';
+      ttEl.style.right = '0';
+      ttEl.style.transform = 'none';
+    } else if (ttRect.left < 8) {
+      /* 靠左對齊 trigger */
+      ttEl.style.left = '0';
+      ttEl.style.transform = 'none';
+    }
+  }
+
   /* 桌機：hover */
   triggerEl.addEventListener('mouseenter', function(e) {
     e.stopPropagation();
-    var cardRect = card.getBoundingClientRect();
-    ttEl.classList.toggle('flip', cardRect.top < 160);
     ttEl.classList.add('show');
+    positionTooltip();
   });
   triggerEl.addEventListener('mouseleave', function() {
     ttEl.classList.remove('show');
