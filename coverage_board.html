@@ -826,38 +826,57 @@ function switchProject(sid) {
 /* \u2500\u2500 \u4E3B\u8CC7\u6599 \u2500\u2500 */
 function fetchSheet() {
   showLoading();
-  /* headers=0 避免 gviz 把含文字的資料列誤判為多行 header */
+  /* headers=1 讓 gviz 正確解析欄位名稱；
+     文字值儲存格：gviz 的 cell.v = null，cell.f = 文字，
+     但若該列被 gviz 誤吃為多行 header，需用 parsedNumHeaders 修正 offset */
   var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
-    '/gviz/tq?tqx=out:json&headers=0&sheet=' + encodeURIComponent(SHEET_NAME);
+    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(SHEET_NAME);
   fetch(url)
     .then(function(r){ return r.text(); })
     .then(function(txt){
       var json = JSON.parse(txt.replace(/^[^\(]+\(/, '').replace(/\);?\s*$/, ''));
-      var tbl     = json.table || {};
-      var rawRows = tbl.rows  || [];
-      if (!rawRows.length) { hideLoading(); return; }
-      /* 第一列 = 欄位名稱 */
-      var cols = (rawRows[0].c || []).map(function(cell){
-        if (!cell) return '';
-        var v = cell.v !== null && cell.v !== undefined ? cell.v : '';
-        var f = cell.f || '';
-        return String(v !== '' ? v : f);
-      });
-      /* 第二列之後 = 資料 */
-      allRows = rawRows.slice(1).map(function(row){
+      var tbl  = json.table || {};
+      var cols = (tbl.cols||[]).map(function(c){ return c.label||''; });
+      /* parsedNumHeaders：gviz 實際吃掉幾列當 header（正常=1，有文字值時>1）
+         rows 裡缺少的那幾列需要補回來 */
+      var parsedNum = tbl.parsedNumHeaders || 1;
+      allRows = (tbl.rows||[]).map(function(row){
         var obj = {};
-        (row.c || []).forEach(function(cell, i){
-          if (i >= cols.length) return;
+        (row.c||[]).forEach(function(cell,i){
           if (!cell) { obj[cols[i]] = ''; return; }
-          var v = (cell.v !== null && cell.v !== undefined) ? cell.v : '';
+          var v = (cell.v!==null&&cell.v!==undefined) ? cell.v : '';
           var f = cell.f || '';
-          /* 文字儲存格：v=null，f 有值 → 保留文字 */
-          obj[cols[i]] = (v !== '' && v !== null && v !== undefined) ? v : f;
+          obj[cols[i]] = (v!==''&&v!==null&&v!==undefined) ? v : f;
         });
         return obj;
       });
-      buildGradeBar();
-      render();
+      /* 若 gviz 多吃了幾列（parsedNum>1），用第二次請求補回遺失的資料列 */
+      if (parsedNum <= 1) {
+        buildGradeBar();
+        render();
+        return;
+      }
+      /* 重新請求，跳過已讀的 header，只取純資料 */
+      var url2 = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+        '/gviz/tq?tqx=out:json&headers=0&sheet=' + encodeURIComponent(SHEET_NAME) +
+        '&range=A' + (parsedNum+1) + ':ZZ';
+      return fetch(url2).then(function(r2){ return r2.text(); }).then(function(txt2){
+        var json2 = JSON.parse(txt2.replace(/^[^\(]+\(/, '').replace(/\);?\s*$/, ''));
+        var rows2 = (json2.table||{}).rows || [];
+        var extra = rows2.map(function(row){
+          var obj = {};
+          (row.c||[]).forEach(function(cell,i){
+            if (!cell) { obj[cols[i]] = ''; return; }
+            var v = (cell.v!==null&&cell.v!==undefined) ? cell.v : '';
+            var f = cell.f || '';
+            obj[cols[i]] = (v!==''&&v!==null&&v!==undefined) ? v : f;
+          });
+          return obj;
+        });
+        allRows = allRows.concat(extra);
+        buildGradeBar();
+        render();
+      });
     })
     .catch(function(err){
       hideLoading();
