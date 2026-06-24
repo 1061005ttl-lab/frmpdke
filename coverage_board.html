@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 2.7.0 ｜ 最後更新：2026-06-24
+  版本：Ver. 2.6.0 ｜ 最後更新：2026-06-23
 ════════════════════════════════════════════════════════════
 
 【⚠ 版本更新作業流程】
@@ -20,12 +20,6 @@
     top 值由 updateStickyTops() 動態計算，每次 render/resize 後呼叫
 
 【版本紀錄】
-  2.7.0  2026-06-24  卡片層 LINE/CSV/截圖、LINE格式重構、CSV下載
-         - 卡片右上角加 💬📥📸 三個動作按鈕（不需進 dialog 即可操作）
-         - LINE 格式重構：分 B群✅/C群✖/尚未執行/未填寫 四大區塊，條列式直式排版
-         - 頁腳統計由一大串改為分群條列（B群各欄、C群各欄各佔一行）
-         - 複製 Excel 改為下載 CSV，檔名：標題_YYYYMMDD_HHMM.csv
-         - CSV 包含狀態欄（已有/未有/尚未執行/未填寫）
   2.6.0  2026-06-23  手機優化、長按Tooltip修正、sticky堆疊修正
          - 長按 tooltip 放開後不再鑽層（window._lastLongPress 攔截 click）
          - Tooltip 偵測螢幕邊界，右側不再被截斷
@@ -325,10 +319,6 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .stat-item.dim .stat-val,
 .stat-item.dim .stat-pct { color:#999 !important; }
 
-/* ── 卡片右上角動作群組 ── */
-.card-action-group { display:flex; align-items:center; gap:4px; margin-left:auto; flex-shrink:0; }
-.card-act-btn { border:none; background:transparent; cursor:pointer; font-size:14px; padding:2px 4px; border-radius:6px; opacity:.5; transition:opacity .15s; line-height:1; }
-.card-act-btn:hover { opacity:1; background:var(--bg); }
 /* ── 明細按鈕（標題列右上角） ── */
 .card-detail-btn {
   flex-shrink:0;
@@ -655,7 +645,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
       <span id="dlg-title"></span>
       <div style="display:flex;align-items:center;gap:6px;">
         <button class="dlg-action-btn" id="btn-copy-line"    onclick="copyLine()"><span class="btn-icon">💬</span><span class="btn-txt"> 複製 LINE</span></button>
-        <button class="dlg-action-btn" id="btn-copy-excel"   onclick="downloadCsv()"><span class="btn-icon">📥</span><span class="btn-txt"> 下載 CSV</span></button>
+        <button class="dlg-action-btn" id="btn-copy-excel"   onclick="copyExcel()"><span class="btn-icon">📊</span><span class="btn-txt"> 複製 Excel</span></button>
         <button class="dlg-action-btn" id="btn-screenshot"   onclick="takeScreenshot()"><span class="btn-icon">📸</span><span class="btn-txt"> 截圖</span></button>
         <button class="dlg-close"                            onclick="closeDialog()">✕</button>
       </div>
@@ -1283,14 +1273,7 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
   var T = stat.total;
   function fp(n){ return T>0 ? Math.round(n/T*100)+'%' : '—'; }
   /* 全部卡片標題都是一行：組別小字 + 名稱大字 + 右側明細按鈕 */
-  var _safeName = name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-  var topHtml = '<div class="card-top-inline">'+esc(topLabel)+' <span class="card-name-inline'+(isOverall?' card-name-overall':'')+'">'+esc(name)+'</span>'
-    +'<div class="card-action-group">'
-    +'<button class="card-detail-btn" id="dbtn-'+ttId+'">📋 明細</button>'
-    +'<button class="card-act-btn" title="LINE" onclick="event.stopPropagation();cardCopyLine(this,\''+_safeName+'\',\''+levelKey+'\')">💬</button>'
-    +'<button class="card-act-btn" title="CSV"  onclick="event.stopPropagation();cardDownloadCsv(this,\''+_safeName+'\',\''+levelKey+'\')">📥</button>'
-    +'<button class="card-act-btn" title="截圖"  onclick="event.stopPropagation();cardScreenshot(this,\''+_safeName+'\',\''+levelKey+'\')">📸</button>'
-    +'</div></div>';
+  var topHtml = '<div class="card-top-inline">'+esc(topLabel)+' <span class="card-name-inline'+(isOverall?' card-name-overall':'')+'">'+esc(name)+'</span><button class="card-detail-btn" id="dbtn-'+ttId+'">📋 明細</button></div>';
   /* 動態產生 B 群格 + C 群格 */
   var statRowHtml = '<div class="stat-row">'+
     '<div class="stat-item"><div class="stat-label">\u7E3D\u5BB6\u6578</div><div class="stat-val">'+stat.total+'</div><div class="stat-pct hidden">&nbsp;</div></div>'+
@@ -1694,149 +1677,63 @@ function _doCopy(text,btn){
   } else { fallbackCopy(text); _flashBtn(btn,'\u2705 \u5DF2\u8907\u88FD\uFF01'); }
 }
 
-/* ── LINE 格式（共用） ── */
-function buildLineText(dRows, lv, title) {
-  var DIV = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
-  var allD = dialogRows(dRows, lv);
-  var unfill = allD.filter(function(d){return d.grp===3;}).map(function(d){return d.r;});
-  var valid  = allD.filter(function(d){return d.grp!==3;}).map(function(d){return d.r;});
-  var disp   = valid.filter(function(r){return isDispRow(r);});
-  var no     = valid.filter(function(r){return isNoRow(r);});
-  var other  = valid.filter(function(r){return !isDispRow(r)&&!isNoRow(r);});
-  var gcol   = getExtraCols(lv)[0]||null;
-  function gh(r){return gcol?String(r[gcol]||''):null;}
-  function ss(r){var c=String(r[COL_CODE]||''),n=String(r[COL_NAME]||'\u2014');return n+(c?' ('+c+')'':'');}
-  /* 摘要 */
-  var sp=['\u6709\u6548 '+valid.length+' \u5BB6'];
-  BUCKETS_B.forEach(function(g){sp.push(g.label+' '+valid.filter(function(r){return g.cols.some(function(t){return isOne(r[t]);});}).length+' \u5BB6');});
-  BUCKETS_C.forEach(function(g){sp.push(g.label+' '+valid.filter(function(r){return g.cols.some(function(t){return isOne(r[t])||isCText(r[t]);});}).length+' \u5BB6');});
-  if(unfill.length) sp.push('\u672A\u586B\u5BEB '+unfill.length+' \u5BB6');
-  var lines=['\u3010'+title+'\u3011\u5E97\u5BB6\u660E\u7D30',sp.join('\u3000'),DIV];
-  /* B 群 */
-  BUCKETS_B.forEach(function(g){
-    var gr=disp.filter(function(r){return g.cols.some(function(t){return isOne(r[t]);});});
-    if(!gr.length)return;
-    lines.push('');lines.push('\u2705 '+g.label+'\uff08'+gr.length+' \u5BB6\uff09');
-    var cur=null;
-    gr.forEach(function(r){
-      var gk=gh(r);if(gk!==null&&gk!==cur){cur=gk;if(gk)lines.push('\u258C '+gk);}
-      lines.push('  \u2022 '+ss(r));
-      var at=g.cols.filter(function(t){return isOne(r[t]);});
-      if(at.length)lines.push('     \u2514 '+at.join('\u3001'));
-    });
-  });
-  /* C 群 */
-  BUCKETS_C.forEach(function(g){
-    var gr=no.filter(function(r){return g.cols.some(function(t){return isOne(r[t])||isCText(r[t]);});});
-    if(!gr.length)return;
-    lines.push('');lines.push('\u274C '+g.label+'\uff08'+gr.length+' \u5BB6\uff09');
-    var cur=null;
-    gr.forEach(function(r){
-      var gk=gh(r);if(gk!==null&&gk!==cur){cur=gk;if(gk)lines.push('\u258C '+gk);}
-      lines.push('  \u2022 '+ss(r));
-      var rs=g.cols.filter(function(t){return isOne(r[t])||isCText(r[t]);}).map(function(t){return isCText(r[t])?t+'\uff1a'+r[t]:t;});
-      if(rs.length)lines.push('     \u2514 '+rs.join('\u3001'));
-    });
-  });
-  /* 尚未執行 */
-  if(other.length){
-    lines.push('');lines.push('\u2014 \u5C1A\u672A\u57F7\u884C\uff08'+other.length+' \u5BB6\uff09');
-    var cur=null;
-    other.forEach(function(r){var gk=gh(r);if(gk!==null&&gk!==cur){cur=gk;if(gk)lines.push('\u258C '+gk);}lines.push('  \u2022 '+ss(r));});
-  }
-  /* 未填寫 */
-  if(unfill.length){
-    lines.push('');lines.push('\u26A0\uFE0F \u672A\u586B\u5BEB\uff08'+unfill.length+' \u5BB6\uff09');
-    var cur=null;
-    unfill.forEach(function(r){var gk=gh(r);if(gk!==null&&gk!==cur){cur=gk;if(gk)lines.push('\u258C '+gk);}lines.push('  \u2022 '+ss(r));});
-  }
-  /* 頁腳統計 */
-  lines.push('');lines.push(DIV);
-  BUCKETS_B.forEach(function(g){
-    lines.push('\u25A0 '+g.label);
-    g.cols.forEach(function(t){lines.push('  '+t+'\uff1a'+dRows.reduce(function(s,r){return s+(isOne(r[t])?1:0);},0)+' \u5BB6');});
-  });
-  BUCKETS_C.forEach(function(g){
-    lines.push('\u25A0 '+g.label);
-    g.cols.forEach(function(t){lines.push('  '+t+'\uff1a'+dRows.reduce(function(s,r){return s+(isOne(r[t])?1:0);},0)+' \u5BB6');});
-  });
-  return lines.join('\n');
-}
-
 function copyLine(){
   var btn=document.getElementById('btn-copy-line');
-  if(!_dialogRows.length){_flashBtn(btn,'\u26A0\uFE0F \u7121\u8CC7\u6599');return;}
-  _doCopy(buildLineText(_dialogRows,_dialogLevel,_dialogTitle),btn);
-}
-
-
-/* ── CSV 下載（共用） ── */
-function buildCsvContent(dRows, lv) {
-  var allD = dialogRows(dRows, lv);
-  var extraCols = getExtraCols(lv);
-  var dynCols = [];
-  BUCKETS_B.forEach(function(g){if(g.cols.length===1)dynCols.push(g.label);else g.cols.forEach(function(t){dynCols.push(t);});});
-  BUCKETS_C.forEach(function(g){if(g.cols.length===1)dynCols.push(g.label);else g.cols.forEach(function(t){dynCols.push(t);});});
-  var headers = extraCols.map(function(c){return COL_LABELS[c]||c;}).concat(['\u5E97\u78BC','\u5E97\u540D','\u72C0\u614B']).concat(dynCols);
-  var rows=[headers];
-  allD.forEach(function(d){
-    var r=d.r,row=[];
-    extraCols.forEach(function(c){row.push(String(r[c]||''));});
-    row.push(String(r[COL_CODE]||''));row.push(String(r[COL_NAME]||''));
-    row.push(d.grp===3?'\u672A\u586B\u5BEB':d.grp===0?'\u5DF2\u6709':d.grp===1?'\u672A\u6709':'\u2014');
-    BUCKETS_B.forEach(function(g){if(g.cols.length===1)row.push(isOne(r[g.cols[0]])?1:0);else g.cols.forEach(function(t){row.push(isOne(r[t])?1:0);});});
-    BUCKETS_C.forEach(function(g){if(g.cols.length===1){var v=r[g.cols[0]];row.push(isOne(v)?1:(isCText(v)?String(v):0));}else g.cols.forEach(function(t){var v=r[t];row.push(isOne(v)?1:(isCText(v)?String(v):0));});});
-    rows.push(row);
+  if(!_dialogRows.length){ _flashBtn(btn,'\u26A0\uFE0F \u7121\u8CC7\u6599'); return; }
+  var valid=sortedValidRows(_dialogRows, _dialogLevel), lv=_dialogLevel;
+  var hasDisp=valid.filter(function(r){ return isDispRow(r); }).length;
+  var hasNo=valid.filter(function(r){ return isNoRow(r); }).length;
+  var _lb = BUCKETS_B.length ? BUCKETS_B[0].label : '\u5DF2\u6709';
+  var _lc = BUCKETS_C.length ? BUCKETS_C[0].label : '\u672A\u6709';
+  var summary='\u6709\u6548 '+valid.length+' \u5BB6\u3000'+_lb+' '+hasDisp+' \u5BB6'+(BUCKETS_C.length?' \u3000'+_lc+' '+hasNo+' \u5BB6':'');
+  var lines=['\u3010'+_dialogTitle+'\u3011\u5E97\u5BB6\u660E\u7D30',summary,'\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500'];
+  /* \u4ee5\u7b2c\u4e00\u500b\u9644\u52a0\u6b04\u70ba\u5206\u7d44\u4f9d\u636e\uff08\u7d44\u7e54/\u901a\u8def\u8996\u89d2\u901a\u7528\uff09 */
+  var groupCol = getExtraCols(lv)[0] || null;
+  var curGroup=null;
+  var _allBCols = ALL_B_COLS();
+  valid.forEach(function(r){
+    var groupKey = groupCol ? String(r[groupCol]||'') : null;
+    if(groupKey!==null&&groupKey!==curGroup){ curGroup=groupKey; if(groupKey) lines.push('\n\u258C '+groupKey); }
+    var code=String(r[COL_CODE]||''), name=String(r[COL_NAME]||'\u2014'), disp=isDispRow(r), noDisp=isNoRow(r);
+    var activeTypes=_allBCols.filter(function(t){ return isOne(r[t]); });
+    if(disp){ lines.push('  \u2705 '+name+(code?' ('+code+')':'')); if(activeTypes.length) lines.push('     \u2514 '+activeTypes.join('\u3001')); }
+    else if(noDisp) lines.push('  \u274C '+name+(code?' ('+code+')':'')+'\uff08'+_lc+'\uff09');
+    else lines.push('  \u2014 '+name+(code?' ('+code+')':''));
   });
-  return '\uFEFF'+rows.map(function(r){return r.map(function(c){var s=String(c);return /[,"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}).join(',');}).join('\n');
+  lines.push('\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500');
+  var footParts = [];
+  BUCKETS_B.forEach(function(g){
+    g.cols.forEach(function(t){ footParts.push(t+' '+_dialogRows.reduce(function(s,r){ return s+(isOne(r[t])?1:0); },0)+' \u5BB6'); });
+  });
+  BUCKETS_C.forEach(function(g){
+    g.cols.forEach(function(t){ footParts.push(t+' '+_dialogRows.reduce(function(s,r){ return s+(isOne(r[t])?1:0); },0)+' \u5BB6'); });
+  });
+  if(footParts.length) lines.push(footParts.join('\u3000'));
+  _doCopy(lines.join('\n'),btn);
 }
 
-function buildCsvFilename(title) {
-  var now=new Date(),p=function(n){return String(n).padStart(2,'0');};
-  return (title||'export').replace(/[\\/:*?"<>|]/g,'_')+'_'+now.getFullYear()+p(now.getMonth()+1)+p(now.getDate())+'_'+p(now.getHours())+p(now.getMinutes())+'.csv';
-}
-
-function _triggerCsvDownload(csv, title) {
-  var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
-  var url=URL.createObjectURL(blob);
-  var a=document.createElement('a');a.href=url;a.download=buildCsvFilename(title);
-  document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
-}
-
-function downloadCsv(){
+function copyExcel(){
   var btn=document.getElementById('btn-copy-excel');
-  if(!_dialogRows.length){_flashBtn(btn,'\u26A0\uFE0F \u7121\u8CC7\u6599');return;}
-  _triggerCsvDownload(buildCsvContent(_dialogRows,_dialogLevel),_dialogTitle);
-  _flashBtn(btn,'\u2705 \u5DF2\u4E0B\u8F09');
+  if(!_dialogRows.length){ _flashBtn(btn,'\u26A0\uFE0F \u7121\u8CC7\u6599'); return; }
+  var valid=sortedValidRows(_dialogRows, _dialogLevel), lv=_dialogLevel, lines=[];
+  lines.push(document.getElementById('dlg-title').textContent.trim()); lines.push('');
+  var extraCols = getExtraCols(lv);
+  var headers = extraCols.map(function(c){ return COL_LABELS[c] || c; });
+  var dynCols = [];
+  BUCKETS_B.forEach(function(g){ if(g.cols.length===1) dynCols.push(g.label); else g.cols.forEach(function(t){ dynCols.push(t); }); });
+  BUCKETS_C.forEach(function(g){ if(g.cols.length===1) dynCols.push(g.label); else g.cols.forEach(function(t){ dynCols.push(t); }); });
+  headers=headers.concat(['\u5E97\u78BC','\u5E97\u540D']).concat(dynCols);
+  lines.push(headers.join('\t'));
+  valid.forEach(function(r){
+    var row=[];
+    extraCols.forEach(function(c){ row.push(String(r[c]||'')); });
+    row.push(String(r[COL_CODE]||'')); row.push(String(r[COL_NAME]||''));
+    BUCKETS_B.forEach(function(g){ if(g.cols.length===1) row.push(isOne(r[g.cols[0]])?1:0); else g.cols.forEach(function(t){ row.push(isOne(r[t])?1:0); }); });
+    BUCKETS_C.forEach(function(g){ if(g.cols.length===1) row.push(isOne(r[g.cols[0]])?1:0); else g.cols.forEach(function(t){ row.push(isOne(r[t])?1:0); }); });
+    lines.push(row.join('\t'));
+  });
+  _doCopy(lines.join('\n'),btn);
 }
-
-/* ── 卡片層輔助：取得對應列資料 ── */
-function _getCardRows(levelKey, name){
-  var colMap={area:'\u71DF\u696D\u8655\u540D\u7A31',office:'\u71DF\u696D\u6240/\u8AB2',staff:'\u57F7\u884C\u4EBA\u54E1',
-    'ch-type':'\u5E97\u5BB6\u578B\u614B','ch-area':'\u71DF\u696D\u8655\u540D\u7A31','ch-office':'\u71DF\u696D\u6240/\u8AB2'};
-  var col=colMap[levelKey];
-  var base=applyGradeFilter(allRows);
-  if(!col)return base;
-  return base.filter(function(r){return String(r[col]||'')===name;});
-}
-
-function cardCopyLine(btn,name,levelKey){
-  var rows=_getCardRows(levelKey,name);
-  _doCopy(buildLineText(rows,levelKey,name),btn);
-}
-
-function cardDownloadCsv(btn,name,levelKey){
-  var rows=_getCardRows(levelKey,name);
-  _triggerCsvDownload(buildCsvContent(rows,levelKey),name);
-  _flashBtn(btn,'\u2705');
-}
-
-function cardScreenshot(btn,name,levelKey){
-  var rows=_getCardRows(levelKey,name);
-  openDialog(name,levelKey,rows);
-  setTimeout(function(){takeScreenshot();},400);
-}
-
 
 function takeScreenshot(){
   var btn=document.getElementById('btn-screenshot');
