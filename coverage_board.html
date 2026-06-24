@@ -1541,20 +1541,12 @@ function dialogRows(rows, levelKey) {
       if (chips['unfill'] !== false) result.push({ r:r, grp:3, bi:-1, ci:-1 });
       return;
     }
-    var bi = rowBGroup(r);   /* -1 表示 chip 關或不符合 */
-    var ci = rowCGroup(r);
-    /* 店家屬於某個 B 群且 chip 開啟 → 顯示為 grp:0 */
+    var bi = rowBGroup(r);
     if (bi >= 0) { result.push({ r:r, grp:0, bi:bi, ci:-1 }); return; }
-    /* 店家屬於某個 C 群且 chip 開啟 → 顯示為 grp:1 */
+    var ci = rowCGroup(r);
     if (ci >= 0) { result.push({ r:r, grp:1, bi:-1, ci:ci }); return; }
-    /* 確認此店家「原本」屬於哪個群，若那個群的 chip 已關 → 隱藏（不推入 result） */
-    var rawBi = -1, rawCi = -1;
-    BUCKETS_B.forEach(function(g,i){ if(rawBi<0 && g.cols.some(function(t){return isOne(r[t]);})) rawBi=i; });
-    if (rawBi >= 0 && chips['b:'+rawBi] === false) return; /* chip 關，隱藏 */
-    BUCKETS_C.forEach(function(g,j){ if(rawCi<0 && g.cols.some(function(t){return isOne(r[t])||isCText(r[t]);})) rawCi=j; });
-    if (rawCi >= 0 && chips['c:'+rawCi] === false) return; /* chip 關，隱藏 */
-    /* 所有 chip 都沒關，但此店不符合任何 B/C 群 → 尚未執行 */
-    result.push({ r:r, grp:2, bi:-1, ci:-1 });
+    /* B/C 都沒有值 → 邏輯上不應存在，但若發生視同未填寫處理 */
+    if (chips['unfill'] !== false) result.push({ r:r, grp:3, bi:-1, ci:-1 });
   });
   /* \u6392\u5e8f\u6b04\u4f4d\u4f9d\u7576\u524d\u5c64\u7d1a\u52d5\u614b\u6c7a\u5b9a\uff08\u7d44\u7e54\u8996\u89d2\u7528\u71df\u696d\u6240/\u4eba\u54e1\uff0c\u901a\u8def\u8996\u89d2\u7528\u5c0d\u61c9\u6b04\uff09 */
   var sortCols = levelKey ? getDisplayCols(levelKey) : [COL_OFFICE, COL_STAFF];
@@ -1685,25 +1677,25 @@ function refreshDialogContent() {
   var items = dialogRows(rows, levelKey);
   var total = items.length;
   var validTotal = items.filter(function(d){ return d.grp!==3; }).length;
-  /* % 統一以 total（含未填寫）為分母，與卡片一致 */
-  function pct(n, base){ var b = base||total; return b>0 ? ' ('+Math.round(n/b*100)+'%)' : ''; }
+  /* % 分母 = 當前可見總家數（隨 chip 動態變化，與卡片一致） */
+  function pct(n){ return total>0 ? ' ('+Math.round(n/total*100)+'%)' : ''; }
 
   var ctx = drillStack.map(function(d){ return d.key; });
   ctx.push(_dialogTitle);
   var line1 = '\u3010' + ctx.join(' \u203A ') + '\u3011\u5E97\u5BB6\u660E\u7D30';
   var parts = ['\u5171 ' + total + ' \u5BB6'];
   var unfillCnt = items.filter(function(d){ return d.grp===3; }).length;
-  if(chips['unfill']!==false && unfillCnt) parts.push('\u672A\u586B\u5BEB ' + unfillCnt + pct(unfillCnt, total));
+  if(chips['unfill']!==false && unfillCnt) parts.push('\u672A\u586B\u5BEB ' + unfillCnt + pct(unfillCnt));
   BUCKETS_B.forEach(function(g,i){
     if(chips['b:'+i]!==false){
       var cnt = items.filter(function(d){ return d.grp===0 && d.bi===i; }).length;
-      parts.push(esc(g.label)+' '+cnt+pct(cnt, validTotal));
+      parts.push(esc(g.label)+' '+cnt+pct(cnt));
     }
   });
   BUCKETS_C.forEach(function(g,j){
     if(chips['c:'+j]!==false){
       var cnt = items.filter(function(d){ return d.grp===1 && d.ci===j; }).length;
-      parts.push(esc(g.label)+' '+cnt+pct(cnt, validTotal));
+      parts.push(esc(g.label)+' '+cnt+pct(cnt));
     }
   });
   var titleEl = document.getElementById('dlg-title');
