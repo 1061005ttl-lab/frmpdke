@@ -193,6 +193,23 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 }
 .proj-sel:focus { border-color:var(--primary); }
 .sync-note { font-size:11px; color:var(--sub); }
+.tb-act-btn {
+  padding:5px 12px;
+  border:1px solid var(--border);
+  border-radius:8px;
+  font-size:13px;
+  font-weight:600;
+  cursor:pointer;
+  color:var(--text);
+  background:#fff;
+  font-family:inherit;
+  white-space:nowrap;
+  transition:all .15s;
+  flex-shrink:0;
+}
+.tb-act-btn:hover { background:var(--primary-bg); border-color:var(--primary); color:var(--primary); }
+.tb-act-btn.done  { border-color:var(--green); color:var(--green); background:var(--green-bg); }
+.tb-act-btn.loading { opacity:.6; pointer-events:none; }
 
 /* ── quicknav ── */
 .quicknav {
@@ -638,6 +655,11 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <button class="vt-btn"        id="vt-channel" onclick="setViewMode('channel')">🏪 通路</button>
   </div>
   <span class="sync-note" id="tb-sync"></span>
+  <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;" id="toolbar-actions">
+    <button class="tb-act-btn" id="tb-btn-line"       onclick="toolbarCopyLine()">💬 LINE</button>
+    <button class="tb-act-btn" id="tb-btn-csv"        onclick="toolbarDownloadCsv()">📥 CSV</button>
+    <button class="tb-act-btn" id="tb-btn-screenshot" onclick="toolbarScreenshot()">📸 截圖</button>
+  </div>
 </div>
 
 <!-- 燈號列獨立在 toolbar 下方，與 quicknav 同層 sticky -->
@@ -715,6 +737,10 @@ var drillStack = [];
 var _dialogTitle = '';
 var _dialogRows  = [];
 var _dialogLevel = 'staff';
+/* 整體概況列資料，供 toolbar LINE/CSV/截圖使用 */
+var _overallRows = [];
+var _overallLevel = 'area';
+var _overallTitle = '';
 /* 視角：'org'（組織）| 'channel'（通路） */
 var viewMode = 'org';
 
@@ -1207,6 +1233,8 @@ function renderLevel(stage, rows, col, levelKey, labelText, overallName) {
   div.innerHTML='<div class="level-label">'+labelText+'</div>';
   var grid=document.createElement('div'); grid.className='grid';
   /* 整體卡片固定最前，點即開 dialog */
+  /* 記錄整體概況資料供 toolbar 使用 */
+  _overallRows = rows; _overallLevel = levelKey; _overallTitle = overallName;
   var overallCard=buildCard(overallName, labelText, calcGroup(rows), levelKey, rows, true);
   grid.appendChild(overallCard);
   keys.forEach(function(k){ grid.appendChild(buildCard(k,labelText,statCache[k],levelKey,groups[k],false)); });
@@ -1218,7 +1246,7 @@ function bindTooltip(triggerEl, ttEl, card) {
   function positionTooltip() {
     var cardRect = card.getBoundingClientRect();
     /* 上/下翻轉 */
-    ttEl.classList.toggle('flip', cardRect.top < 160);
+    var stickyH = (document.querySelector('.toolbar')||{offsetHeight:52}).offsetHeight + (document.getElementById('lamp-row')||{offsetHeight:0}).offsetHeight + (document.getElementById('quicknav')||{offsetHeight:40}).offsetHeight + 20; ttEl.classList.toggle('flip', cardRect.top < stickyH + 120);
     /* 先顯示再量寬，處理左右溢出 */
     ttEl.style.left = '';
     ttEl.style.right = '';
@@ -1287,9 +1315,6 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
   var topHtml = '<div class="card-top-inline">'+esc(topLabel)+' <span class="card-name-inline'+(isOverall?' card-name-overall':'')+'">'+esc(name)+'</span>'
     +'<div class="card-action-group">'
     +'<button class="card-detail-btn" id="dbtn-'+ttId+'">📋 明細</button>'
-    +'<button class="card-act-btn" title="LINE" onclick="event.stopPropagation();cardCopyLine(this,\''+_safeName+'\',\''+levelKey+'\')">💬</button>'
-    +'<button class="card-act-btn" title="CSV"  onclick="event.stopPropagation();cardDownloadCsv(this,\''+_safeName+'\',\''+levelKey+'\')">📥</button>'
-    +'<button class="card-act-btn" title="截圖"  onclick="event.stopPropagation();cardScreenshot(this,\''+_safeName+'\',\''+levelKey+'\')">📸</button>'
     +'</div></div>';
   /* 動態產生 B 群格 + C 群格 */
   var statRowHtml = '<div class="stat-row">'+
@@ -1429,7 +1454,7 @@ function buildQuicknav() {
       html += '<button class="qn-btn grade-all' + (selectedGrades===null?' active':'') + '" onclick="(function(){selectedGrades=null;buildGradeBar();render();})()">全選</button>';
       _gradeList.forEach(function(g){
         var isActive = selectedGrades && selectedGrades[g];
-        html += '<button class="qn-btn' + (isActive?' active':'') + '" onclick="(function(){if(!selectedGrades)selectedGrades={};selectedGrades[\'' + qEsc(g) + '\']=!selectedGrades[\'' + qEsc(g) + '\'];if(Object.keys(selectedGrades).every(function(k){return !selectedGrades[k];}))selectedGrades=null;buildGradeBar();render();})()">'+ esc(g) +'</button>';
+        html += '<button class="qn-btn' + (isActive?' active':'') + '" onclick="(function(){if(!selectedGrades)selectedGrades={};selectedGrades[\' + qEsc(g) + \']=!selectedGrades[\' + qEsc(g) + \'];if(Object.keys(selectedGrades).every(function(k){return !selectedGrades[k];}))selectedGrades=null;buildGradeBar();render();})()">'+ esc(g) +'</button>';
       });
     }
     html += '</div>';
