@@ -653,6 +653,28 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   .stat-item .tooltip { pointer-events:none; }
   .stat-item.tt-active .tooltip { display:block !important; pointer-events:auto; }
 }
+/* ── 說明文件列 ── */
+#manual-bar {
+  background:#fffbe6; border-bottom:1px solid #f0e08a;
+  font-size:13px; line-height:1.7; color:#555;
+}
+#manual-toggle {
+  display:flex; align-items:center; gap:6px; padding:7px 16px;
+  cursor:pointer; font-size:12px; font-weight:600; color:#888;
+  user-select:none; -webkit-user-select:none;
+}
+#manual-toggle:hover { color:#555; }
+#manual-inner {
+  display:none; padding:12px 20px 16px; border-top:1px solid #f0e08a;
+}
+#manual-inner h3 { font-size:14px; font-weight:800; color:#444; margin:0 0 10px; }
+#manual-inner p { margin:0 0 10px; }
+#manual-inner hr { border:none; border-top:1px solid #eee; margin:10px 0; }
+#manual-inner b { color:#333; }
+#manual-inner .m-icon { font-size:15px; vertical-align:middle; }
+@media (max-width:640px) {
+  #manual-inner { padding:10px 14px 14px; font-size:12px; }
+}
 </style>
 </head>
 <body>
@@ -673,6 +695,66 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <button class="tb-act-btn" id="tb-btn-line-simple" onclick="toolbarCopyLineSimple()">💬 LINE精簡</button>
     <button class="tb-act-btn" id="tb-btn-csv"         onclick="toolbarDownloadCsv()">📥 CSV</button>
     <button class="tb-act-btn" id="tb-btn-screenshot" onclick="toolbarScreenshot()">📸 截圖</button>
+  </div>
+</div>
+
+<!-- 說明文件（折疊列） -->
+<div id="manual-bar">
+  <div id="manual-toggle" onclick="var i=document.getElementById('manual-inner');var t=document.getElementById('manual-toggle');if(i.style.display==='block'){i.style.display='none';t.innerHTML='📖 操作說明 ▶';}else{i.style.display='block';t.innerHTML='📖 操作說明 ▼';}">
+    📖 操作說明 ▶
+  </div>
+  <div id="manual-inner">
+    <h3>📋 覆蓋率看板 — 怎麼看這個畫面？</h3>
+
+    <p><b>【這個看板在追蹤什麼？】</b>追蹤各店家的廣宣物料覆蓋狀況。每一筆資料代表一家店，狀態只有三種：<b>已知有</b>（業務已完成貼附）、<b>已知無</b>（業務確認無法執行，並填寫原因）、<b>未填寫</b>（業務尚未回報）。</p>
+
+    <hr>
+
+    <p><b>【卡片上的數字怎麼看？】</b></p>
+    <p>每張卡片代表一個單位（營業處 / 營業所 / 業務人員）。卡片內的數字方塊含義如下：</p>
+    <p>
+      <span class="m-icon">⬜</span> <b>總家數</b>：這個單位負責的店家總數<br>
+      <span class="m-icon">🟥</span> <b>未填寫</b>：業務尚未回報的店家數（紅色代表需要催填）<br>
+      <span class="m-icon">🟩</span> <b>已貼開瓶 / 已貼黃董</b>（B群）：已成功貼附對應廣宣物料的店家數<br>
+      <span class="m-icon">🟥</span> <b>未商化</b>（C群）：業務已確認無法貼附的店家數（含原因說明）<br>
+    </p>
+    <p>數字下方的 <b>%</b> = 該狀態家數 ÷ 總家數，讓你快速掌握覆蓋率進度。</p>
+    <p>將滑鼠移到數字上（手機長按），可展開 <b>提示工具</b>，看到細項拆分（如：開瓶海報-店外 3 家、開瓶冰貼 5 家），以及在該群組內的佔比。</p>
+
+    <hr>
+
+    <p><b>【上方篩選列怎麼用？】</b></p>
+    <p>
+      <span class="m-icon">🏢</span><b> 組織 / 通路</b>：切換兩種視角。組織視角依「營業處 → 營業所 → 業務人員」逐層鑽取；通路視角依「通路別 → 營業處 → 營業所」鑽取。<br>
+      <b>等級 ▶</b>：展開後可選擇只看 A 級或 B 級店家，點「全選」回到全部。<br>
+      <b>全覽 / 北部 / 桃園…</b>：點擊直接跳到對應層級，點「全覽」回到最上層。<br>
+      <b>已貼開瓶 / 已貼黃董 / 未商化 / 未填寫</b>（燈號）：點擊可關閉某個狀態類別，讓卡片統計與明細只顯示你關心的那幾類。
+    </p>
+
+    <hr>
+
+    <p><b>【點進明細 Dialog 看什麼？】</b></p>
+    <p>點卡片右上角的 <b>📋 明細</b>，或直接點卡片本身（最末層），會開啟店家明細表。</p>
+    <p>
+      • 標題列顯示目前的篩選條件和各狀態家數及佔比<br>
+      • 表格欄位依群組上底色：<span style="background:rgba(52,199,89,.2);padding:1px 6px;border-radius:4px;">綠色 = B1 群（已貼開瓶）</span>、<span style="background:rgba(0,122,255,.15);padding:1px 6px;border-radius:4px;">藍色 = B2 群（已貼黃董）</span>、<span style="background:rgba(255,59,48,.1);padding:1px 6px;border-radius:4px;">紅色 = C 群（未商化）</span><br>
+      • ✅ = 該欄位有值（已貼附）；✖ = 該欄位有值（未商化原因）；— = 無此狀態<br>
+      • 利用燈號篩選器可只顯示特定群組後再截圖，截圖只含需要的資料
+    </p>
+
+    <hr>
+
+    <p><b>【卡片右上角的小按鈕是什麼？】</b></p>
+    <p>
+      <span class="m-icon">💬</span> <b>複製 LINE 訊息</b>：產生條列式文字，分已貼 / 未商化 / 未填寫三大區塊，貼到 LINE 群組直接發送<br>
+      <span class="m-icon">📥</span> <b>下載 CSV</b>：下載該單位的店家資料，檔名含單位名稱與時間戳，用 Excel 開啟可進一步分析<br>
+      <span class="m-icon">📸</span> <b>截圖</b>：自動開啟明細並截圖，方便存檔或分享<br>
+    </p>
+    <p>Dialog 內也有相同的三個按鈕，操作結果相同。</p>
+
+    <hr>
+
+    <p><b>【資料更新時間】</b>看板右上角顯示最後同步時間（台灣時間），每次開啟頁面會自動從 Google 試算表讀取最新資料。</p>
   </div>
 </div>
 
@@ -1174,8 +1256,11 @@ function buildGradeBar() {
 
 function applyGradeFilter(rows) {
   if (!selectedGrades) return rows;
+  /* selectedGrades = { 'A': true, 'B': false } → 只保留 value===true 的等級 */
+  var active = Object.keys(selectedGrades).filter(function(k){ return selectedGrades[k]; });
+  if (!active.length) return rows; /* 全部都 false 視同全選 */
   return rows.filter(function(r){
-    return selectedGrades[String(r[COL_GRADE]||'').trim()];
+    return active.indexOf(String(r[COL_GRADE]||'').trim()) >= 0;
   });
 }
 
@@ -1470,7 +1555,8 @@ function buildQuicknav() {
       html += '<button class="qn-btn grade-all' + (selectedGrades===null?' active':'') + '" onclick="(function(){selectedGrades=null;buildGradeBar();render();})()">全選</button>';
       _gradeList.forEach(function(g){
         var isActive = selectedGrades && selectedGrades[g];
-        html += '<button class="qn-btn' + (isActive?' active':'') + '" onclick="(function(){if(!selectedGrades)selectedGrades={};selectedGrades[\' + qEsc(g) + \']=!selectedGrades[\' + qEsc(g) + \'];if(Object.keys(selectedGrades).every(function(k){return !selectedGrades[k];}))selectedGrades=null;buildGradeBar();render();})()">'+ esc(g) +'</button>';
+        var safeG = g.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        html += '<button class="qn-btn' + (isActive?' active':'') + '" onclick="(function(){if(!selectedGrades)selectedGrades={};selectedGrades[\'' + safeG + '\']=!selectedGrades[\'' + safeG + '\'];buildGradeBar();render();})()">'+ esc(g) +'</button>';
       });
     }
     html += '</div>';
