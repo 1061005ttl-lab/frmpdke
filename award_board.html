@@ -1,7 +1,7 @@
 <!--
 ================================================================================
   全聯18天推廣進度看板 (award_board.html)
-  版本：Ver. 1.12.4 ｜ 最後更新：2026-06-24 10:00
+  版本：Ver. 1.12.5 ｜ 最後更新：2026-06-24 14:00
 ================================================================================
 
 【給下一位接手的 AI — 必讀事項】
@@ -439,27 +439,27 @@
        手機 RWD（≤ 767px）
     ══════════════════════════════════════════ */
     @media (max-width: 767px) {
-      /* Topbar 手機版：整體可橫向捲動，漢堡 sticky 黏在右側，永遠可見且不重疊 */
+      /* Topbar 手機版：返回 + ☰ 固定在左側，季度 Q1-Q4 可橫向捲動 */
       #topbar {
         flex-wrap:nowrap; padding:6px 8px; gap:6px;
         min-height:auto; overflow-x:auto; overflow-y:hidden;
         -webkit-overflow-scrolling:touch;
       }
       #topbar::-webkit-scrollbar { display:none; }
-      #title { font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:76px; flex-shrink:0; }
+      #title { display:none !important; } /* 手機不需要顯示標題 */
       .sep { display:none; }
       #q-chips { flex-shrink:0; display:flex; gap:5px; }
       #q-chips .q-chip { flex-shrink:0; }
-      #q-chips-spacer { display:flex !important; width:56px !important; } /* 手機才顯示佔位 spacer */
+      #q-chips-spacer { display:none !important; } /* 漢堡已在 flow 內，不需要 spacer */
       /* 隱藏桌面專用元素 */
       #vc-person, #vc-org, #manual-toggle, #rank-btn,
       #tb-right { display:none !important; }
-      /* 漢堡：絕對定位在 #topbar-wrap 右側，不在 topbar 捲動流裡，永遠不被內容覆蓋也不覆蓋內容 */
+      /* 漢堡：在 flex 流內，緊接「← 返回」右側，不捲動，不疊加任何內容 */
       #hamburger-btn {
         display:flex !important;
-        position:absolute; top:50%; right:6px; transform:translateY(-50%); z-index:120;
-        width:34px; height:34px; font-size:16px;
-        box-shadow:0 2px 8px rgba(0,0,0,.15), -10px 0 14px -4px rgba(240,237,230,1);
+        position:static; transform:none;
+        box-shadow:none; flex-shrink:0;
+        width:34px; height:34px; font-size:16px; margin-right:2px;
       }
 
       /* 說明書 */
@@ -645,7 +645,9 @@
 <!-- TOPBAR 外層容器（手機版漢堡用 absolute 定位在此容器右側）-->
 <div id="topbar-wrap" style="position:relative;">
 <div id="topbar">
-  <button onclick="window.location.href='index.html'" style="background:none;border:1px solid rgba(0,0,0,.12);border-radius:7px;padding:4px 10px;font-size:12px;font-weight:700;color:#666;cursor:pointer;font-family:inherit;flex-shrink:0;">← 返回</button>  <div id="title">全聯18天推廣進度看板</div>
+  <button onclick="window.location.href='index.html'" style="background:none;border:1px solid rgba(0,0,0,.12);border-radius:7px;padding:4px 10px;font-size:12px;font-weight:700;color:#666;cursor:pointer;font-family:inherit;flex-shrink:0;">← 返回</button>
+  <button id="hamburger-btn" onclick="toggleMobileDrawer()">☰</button>
+  <div id="title">全聯18天推廣進度看板</div>
   <div class="sep"></div>
   <span style="font-size:11px;color:var(--sub);font-weight:700;flex-shrink:0;">季度</span>
   <div id="q-chips"></div>
@@ -656,13 +658,11 @@
   <button id="manual-toggle" onclick="toggleManual()">📋 說明書</button>
   <button class="tb-btn" onclick="toggleRank()" id="rank-btn" style="background:rgba(255,215,0,.15);border-color:rgba(200,160,0,.3);color:#7a5500;">🏆 品評排行</button>
   <div id="tb-right">
-    <div id="ver-ts">Ver. 1.12.4 (2026-06-24 11:00)</div>
+    <div id="ver-ts">Ver. 1.12.5 (2026-06-24 14:00)</div>
     <button class="tb-btn" onclick="mainCopyLine()" id="btn-main-line">💬 LINE</button>
-    <button class="tb-btn" onclick="mainCopyExcel()" id="btn-main-excel">📊 Excel</button>
     <button class="tb-btn" onclick="mainScreenshot()" id="btn-main-shot">📸 截圖</button>
     <button class="tb-btn" onclick="downloadXLSX()">📥 XLSX</button>
   </div>
-  <button id="hamburger-btn" onclick="toggleMobileDrawer()">☰</button>
 </div><!-- /topbar -->
 </div><!-- /topbar-wrap -->
 
@@ -702,9 +702,6 @@
       <button class="drawer-btn" onclick="mainCopyLine();closeMobileDrawer();">
         <span class="db-icon">💬</span>複製 LINE
       </button>
-      <button class="drawer-btn" onclick="mainCopyExcel();closeMobileDrawer();">
-        <span class="db-icon">📊</span>複製 Excel
-      </button>
       <button class="drawer-btn" onclick="mainScreenshot();closeMobileDrawer();">
         <span class="db-icon">📸</span>截圖
       </button>
@@ -713,13 +710,13 @@
       </button>
     </div>
   </div>
-  <div style="padding:10px 16px;font-size:9px;color:#bbb;border-top:1px solid rgba(0,0,0,.06);" id="md-version">Ver. 1.12.4</div>
+  <div style="padding:10px 16px;font-size:9px;color:#bbb;border-top:1px solid rgba(0,0,0,.06);" id="md-version">Ver. 1.12.5</div>
 </div>
 
 <!-- 說明書（在 topbar 之後折疊展開）-->
 <div id="manual-bar">
   <div id="manual-inner">
-    <h3>📋 全聯18天推廣進度看板 — 怎麼看這個畫面？（Ver. 1.12.4）</h3>
+    <h3>📋 全聯18天推廣進度看板 — 怎麼看這個畫面？（Ver. 1.12.5）</h3>
     <p><b>【這個看板在追蹤什麼？】</b>追蹤全聯各門市在「18天推廣活動」期間，實際進貨箱數與去年同期相比，是增加還是減少。數字越大（正值）代表今年賣得比去年好；負值代表不如去年。</p>
     <hr>
     <p><b>【人員視角 — 誰負責哪些店？賣了多少？】</b>每張卡片代表一位業務員。卡片右上角的大數字（<b>品評CTN</b>）= 今年實際進貨 − 應達標準，綠色正數代表超標，紅色負數代表未達標。點「店家明細」可查看他每一家店、每個月的達成細節。</p>
@@ -776,7 +773,6 @@
       <span id="dlg-title"></span>
       <div style="display:flex;align-items:center;gap:6px;">
         <button class="dlg-action-btn" id="btn-copy-line" onclick="copyLine()">💬 複製 LINE</button>
-        <button class="dlg-action-btn" id="btn-copy-excel" onclick="copyExcel()">📊 複製 Excel</button>
         <button class="dlg-action-btn" id="btn-screenshot" onclick="takeScreenshot()">📸 截圖</button>
         <button class="dlg-close" onclick="closeDetailDialog()">✕</button>
       </div>
@@ -807,7 +803,7 @@
 /*
 ================================================================================
   全聯18天推廣進度看板 — 程式說明書（供後續開發者 / AI 閱讀）
-  Ver. 1.12.4  最後更新：2026-06-24 10:00
+  Ver. 1.12.5  最後更新：2026-06-24 14:00
 ================================================================================
 
 【專案目的】
@@ -2767,6 +2763,16 @@ function openSummaryTable(){
   });
   var gKeys=Object.keys(groups);
   if(!fOffice&&!fArea) gKeys=sortAreas(gKeys); else gKeys.sort();
+
+  /* 各群組內部依 curSort 排序（原本 cards 整體排序已做，但分組後可再確保所內有序） */
+  function sortCardsInGroup(arr){
+    arr.sort(function(a,b){
+      var av=curSort==='cur'?a.qd.totalCur:curSort==='tgt'?a.qd.totalLast:curSort==='stock'?(_invLookup(a.s.code)||{stock:999999}).stock:a.qd.totalDelta;
+      var bv=curSort==='cur'?b.qd.totalCur:curSort==='tgt'?b.qd.totalLast:curSort==='stock'?(_invLookup(b.s.code)||{stock:999999}).stock:b.qd.totalDelta;
+      return curSort==='stock'?av-bv:bv-av;
+    });
+  }
+  gKeys.forEach(function(gk){ sortCardsInGroup(groups[gk]); });
 
   var totalCols=4+months.length*3+3+(hasInv?6:0);
   var tbody='<tbody>';
