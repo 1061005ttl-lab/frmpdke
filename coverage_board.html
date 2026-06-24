@@ -1,40 +1,46 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 2.5.0 ｜ 最後更新：2026-06-22
+  版本：Ver. 2.6.0 ｜ 最後更新：2026-06-23
 ════════════════════════════════════════════════════════════
 
 【⚠ 版本更新作業流程】
-  每次修改此檔案後，務必同步更新以下兩處：
-  1. 本註解最頂端的「版本」與「最後更新」日期（台灣時區 UTC+8）
-  2. 【版本紀錄】區塊，補上新版本號、日期、改動摘要
-  格式範例：2.5.0  2026-06-22  簡述本次主要修改
-  日期格式：YYYY-MM-DD（台灣時間，UTC+8）
+  每次修改後務必同步更新：
+  1. 本頁頂端「版本」與「最後更新」（台灣時區 UTC+8，格式 YYYY-MM-DD）
+  2. 下方【版本紀錄】補上版本號、日期、摘要
+
+【關鍵注意事項】
+  · quicknav 裡等級按鈕的 onclick 字串：selectedGrades[\'...\'} 需正確跳脫單引號
+    否則會發生 SyntaxError（已發生過多次，修改時務必用 node 驗證語法）
+  · gviz headers=1 時，C 群欄位若整欄為數字型，文字值會被丟棄（v=null）
+    目前以二次請求補回，但 gviz 仍可能讀不到文字值，需 Google Sheet 端設純文字格式
+  · 長按 Tooltip 後的 click 事件：用 window._lastLongPress 時間戳攔截，
+    card click handler 600ms 內忽略，避免長按後意外鑽層
+  · sticky 層疊順序：toolbar(z:50) → lamp-row(z:41) → quicknav(z:40)
+    top 值由 updateStickyTops() 動態計算，每次 render/resize 後呼叫
 
 【版本紀錄】
-  2.5.0  2026-06-22  Dialog % 顯示、C類文字值紅字、等級整合、版本流程規範
-         - Dialog 標題加入各狀態家數百分比
-         - C 群欄位：文字值以紅字顯示業務描述，非文字值（1/0）顯示紅 ✖
-         - 店家等級篩選整合進 quicknav 同一列（等級前、單位後）
-         - Tooltip 文字靠左對齊
-         - parseGvizDate 明確指定 Asia/Taipei 時區
-         - 補充版本更新作業流程說明
-  2.4.0  2026-06-22  Dialog 表頭欄位對齊修正
-         - 加入遺漏的「狀態」<th>，修正所有欄位右移一格的問題
-  2.3.0  2026-06-22  B2 計數修正、表頭空白欄修正
-         - calcGroup 改為每個 bucket 獨立計算（一店可同時符合 B1+B2）
-         - BUCKETS_C cols 加入 filter(Boolean) 排除空字串
-  2.2.0  2026-06-22  LABEL_C 未定義修正、C類 ✖ 紅色符號
-         - 移除 buildStoreTable / copyLine 對舊變數 LABEL_C/BUCKET_B 的依賴
-         - C 群子欄位有值改顯示紅色 ✖
-  2.1.0  2026-06-22  Dialog 開啟修正、卡片4欄、stat文字換行
-         - 修正 LABEL_C is not defined 導致 Dialog 無法開啟
-         - Grid 強制 4 欄、stat-label 文字換行
-  1.3.0  2026-06-22  介面與 Tooltip 優化
-         - Grid 改 minmax(320px,1fr)，桌機自然呈現 4 欄
-         - 未商化（BUCKET_C）加入 Tooltip，與已商化一致
-         - Tooltip max-width 加大至 320px，標籤改 word-break:keep-all 不強制斷字
-         - buildTooltipHTML 改成通用函式，B/C 群各自顯示正確標題
+  2.6.0  2026-06-23  手機優化、長按Tooltip修正、sticky堆疊修正
+         - 長按 tooltip 放開後不再鑽層（window._lastLongPress 攔截 click）
+         - Tooltip 偵測螢幕邊界，右側不再被截斷
+         - updateStickyTops() 動態計算 lamp-row/quicknav sticky top
+         - 手機隱藏 toolbar-title、燈號列移出 toolbar 獨立 sticky
+         - 等級群組加折疊按鈕（▶/◀）省空間
+         - stat-item 加 -webkit-touch-callout:none 阻止系統選單
+
+  2.5.0  2026-06-22  Dialog統計%、C群欄位群組色、Tooltip群組內佔比
+         - Dialog 標題加各狀態家數及百分比
+         - C 群文字值以紅字顯示（isCText）；非文字值顯示紅 ✖
+         - Dialog 表格依 B/C 群組上底色便於閱讀
+         - Tooltip % 改以群組內家數為分母（B群/C群各自100%）
+         - 等級篩選整合進 quicknav 同一列
+
+  2.4.x  2026-06-22  各項資料計算與顯示修正
+         - Dialog 表頭補「狀態」欄，修正所有欄右移問題
+         - calcGroup 改為各 bucket 獨立計算（一店可同 B1+B2）
+         - BUCKETS_C 過濾空字串，移除舊變數 LABEL_C/BUCKET_B 依賴
+         - 二次請求補回 gviz 丟失的文字值（parsedNumHeaders 問題）
+         - parseGvizDate 指定 Asia/Taipei 時區
   1.2.2  2026-06-20  修正 Dialog 表頭滾動消失
          - 根本原因：dlg-body(overflow:auto) + detail-scroll(overflow-x:auto) 雙層 overflow
            打斷了 thead position:sticky 的 scroll container 定位鏈
@@ -1232,17 +1238,15 @@ function bindTooltip(triggerEl, ttEl, card) {
     ttEl.classList.remove('flip');
   });
 
-  /* 手機：長按 500ms 顯示 tooltip，短按正常鑽層 */
+  /* 手機：長按 500ms 顯示 tooltip，短按正常鑽層
+     用全域 _lastLongPress 時間戳，讓 card click handler 判斷是否要忽略此次 click */
   var _pressTimer = null;
-  var _didLongPress = false;
   triggerEl.addEventListener('touchstart', function(e) {
-    _didLongPress = false;
     _pressTimer = setTimeout(function() {
-      _didLongPress = true;
+      window._lastLongPress = Date.now();
       document.querySelectorAll('.tooltip.show').forEach(function(el){ el.classList.remove('show'); });
-      var cardRect = card.getBoundingClientRect();
-      ttEl.classList.toggle('flip', cardRect.top < 160);
       ttEl.classList.add('show');
+      positionTooltip();
       function dismissOnce(ev) {
         if (!ttEl.contains(ev.target)) {
           ttEl.classList.remove('show');
@@ -1250,11 +1254,10 @@ function bindTooltip(triggerEl, ttEl, card) {
         }
       }
       setTimeout(function(){ document.addEventListener('touchstart', dismissOnce); }, 50);
-    }, 500);
+    }, 480);
   }, { passive: true });
   triggerEl.addEventListener('touchend', function(e) {
     clearTimeout(_pressTimer);
-    if (_didLongPress) e.preventDefault();
   });
   triggerEl.addEventListener('touchmove', function() {
     clearTimeout(_pressTimer);
@@ -1326,6 +1329,8 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
     e.stopPropagation(); openDialog(name,levelKey,rows);
   });
   card.addEventListener('click',function(e){
+    /* 長按後 600ms 內的 click 一律忽略（避免長按 tooltip 後鑽層） */
+    if (window._lastLongPress && Date.now() - window._lastLongPress < 600) return;
     if(e.target.closest('#si-'+ttId)||e.target.closest('#dbtn-'+ttId)) return;
     /* 整體卡片：開 dialog */
     if(isOverall){ openDialog(name,levelKey,rows); return; }
