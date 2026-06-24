@@ -279,11 +279,11 @@
     <h3>&#128203; 傳統通路購值進度 — 怎麼看這個畫面？（Ver. 1.0.0）</h3>
     <p><b>【追蹤目標】</b>追蹤傳統通路訪員每季業績達標狀況與激勵獎金。成長值 = 當期業績 - 目標門檻，正值（綠色）超標，負值（紅色）未達標。</p>
     <hr>
-    <p><b>【目標門檻計算】</b>每月目標門檻 = MAX(去年業績 &times; 1.05，105千元)。去年未達10萬者目標固定10萬；超過者目標為去年1.05倍。</p>
+    <p><b>【目標門檻計算】</b>以<b>月份</b>為單位：該訪員負責所有店家的去年同期業績加總，若加總 &lt; 10萬則以10萬為基礎，再 &times; 1.05 為當月目標門檻。成長值 = 當期合計 - 月目標門檻，成長% = 成長值 ÷ 目標門檻 &times; 100。</p>
     <hr>
     <p><b>【身分狀態說明】</b>&#x1F7E2; 審核通過：可正常發放｜&#x1F7E1; 等候審核：含暫估身分｜&#x274C; 暫鎖/不符資格：有效月份不足或身分別空白｜&#x26A0;&#xFE0F; 排除不發放：黑名單人員</p>
     <hr>
-    <p><b>【獎金規則】</b>成長值 &ge; 0 且有效月份 &ge; 2個月：2個月任職 $500 / 3個月任職 $1,000。<br>&#x1F947; 卓越貢獻獎：各處 $1,000 達標者，依成長值排名前3名。&#x1F680; 成長突破獎：各處 $1,000 達標者，依成長率排名前3名。</p>
+    <p><b>【獎金規則】</b>季成長% &ge; 5% 且有效月份 &ge; 2個月：2個月 $500 / 3個月 $1,000（卡片上綠色成長%即代表達標）。<br>&#x1F947; 卓越貢獻獎：各處 $1,000 達標者，依成長值排名前3名。&#x1F680; 成長突破獎：各處 $1,000 達標者，依成長率排名前3名。</p>
   </div>
 </div>
 
@@ -382,7 +382,9 @@ var _currentQd=null, _currentStaff='', _currentOrgStore=null;
 
 function _isMob(){ return ('ontouchstart' in window)||window.innerWidth<768; }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function fmt2(v){ return Math.round(v*100)/100; }
+function fmt2(v){ var n=Math.round(v*10)/10; return n; }
+function fmtN(v){ if(v===null||v===undefined) return "—"; return (Math.round(v*10)/10).toFixed(1); }
+function fmtPct(cur,tgt){ if(!tgt) return "—"; return ((cur/tgt-1)*100).toFixed(1)+"%"; }
 function sortAreas(arr){
   return arr.slice().sort(function(a,b){
     var ai=AREA_ORDER.indexOf(a),bi=AREA_ORDER.indexOf(b);
@@ -583,9 +585,11 @@ function calcIdentity(monthData,months,isExcluded){
 }
 
 /* 達標獎金 */
-function calcBonus(identity,growth,roleMonthCnt){
+function calcBonus(identity,growth,growthPct,roleMonthCnt){
   if(['excl','lock_all','lock_part','ineligible'].indexOf(identity.status)>=0) return null;
+  /* 達標條件：成長值≥0 且 季成長%≥5% */
   if(growth<0) return null;
+  if(growthPct===null||growthPct<5) return null;
   if(roleMonthCnt<2) return null;
   return roleMonthCnt>=3?1000:500;
 }
@@ -601,16 +605,32 @@ function calcPersonQ(rows,q){
     if(gv(r,'exclude').trim()){isExcluded=true;return;}
     var m=parseInt(gv(r,'month'),10);
     if(!months.includes(m)) return;
-    var cur=gn(r,'cur'),last=gn(r,'last'),tgt=calcThr(last);
+    var cur=gn(r,'cur'),last=gn(r,'last');
     var role=gv(r,'role').trim();
     var code=gv(r,'code'),storeName=gv(r,'store');
-    monthData[m].cur+=cur; monthData[m].last+=last; monthData[m].tgt+=tgt; monthData[m].hasData=true;
+    monthData[m].cur+=cur; monthData[m].last+=last; monthData[m].hasData=true;
     if(role) monthData[m].role=role;
     var key=m+'-'+(code||storeName);
-    if(!storeMap[key]){storeMap[key]={month:m,code:code,name:storeName,cur:0,last:0,tgt:0};monthData[m].stores++;}
-    storeMap[key].cur+=cur; storeMap[key].last+=last; storeMap[key].tgt+=tgt;
+    if(!storeMap[key]){storeMap[key]={month:m,code:code,name:storeName,cur:0,last:0};monthData[m].stores++;}
+    storeMap[key].cur+=cur; storeMap[key].last+=last;
   });
-  months.forEach(function(m){var d=monthData[m];d.growth=fmt2(d.cur-d.tgt);});
+  /* 修正2：目標門檻以月為單位，月加總去年業績後再套孰高公式 */
+  months.forEach(function(m){
+    var d=monthData[m];
+    d.tgt=d.hasData?Math.max(d.last*GR_RATE, MIN_THR):0;
+    d.growth=fmt2(d.cur-d.tgt);
+    d.growthPct=d.tgt>0?((d.cur/d.tgt-1)*100):null;
+  });
+  /* store 層級目標用比例分配（僅供明細顯示） */
+  months.forEach(function(m){
+    var d=monthData[m];
+    Object.keys(storeMap).forEach(function(k){
+      var s=storeMap[k];
+      if(s.month!==m) return;
+      s.tgt=d.last>0?(s.last/d.last*d.tgt):MIN_THR;
+      s.growth=fmt2(s.cur-s.tgt);
+    });
+  });
   var evalM=months.filter(function(m){return monthData[m].hasData;});
   var roleM=evalM.filter(function(m){return monthData[m].role!=='';});
   var totalCur=evalM.reduce(function(s,m){return s+monthData[m].cur;},0);
@@ -619,13 +639,14 @@ function calcPersonQ(rows,q){
   var totalStores=evalM.reduce(function(s,m){return s+monthData[m].stores;},0);
   var totalGrowth=evalM.length>0?fmt2(evalM.reduce(function(s,m){return s+monthData[m].growth;},0)):null;
   var growthRate=totalTgt>0&&totalGrowth!==null?totalGrowth/totalTgt:0;
+  var totalPct=totalTgt>0&&totalGrowth!==null?(totalGrowth/totalTgt*100):null;
   var identity=calcIdentity(monthData,months,isExcluded);
-  var bonus=calcBonus(identity,totalGrowth!==null?totalGrowth:0,roleM.length);
+  var bonus=calcBonus(identity,totalGrowth!==null?totalGrowth:0,totalPct,roleM.length);
   var storeRows=Object.values(storeMap).sort(function(a,b){return a.month-b.month||(a.name>b.name?1:-1);});
   storeRows.forEach(function(s){s.tgt=fmt2(s.tgt);s.growth=fmt2(s.cur-s.tgt);});
   return{monthData:monthData,months:months,evalMonths:evalM,validMonths:roleM,
     totalCur:totalCur,totalLast:totalLast,totalTgt:totalTgt,totalGrowth:totalGrowth,
-    growthRate:growthRate,totalStores:totalStores,identity:identity,bonus:bonus,
+    growthRate:growthRate,totalPct:totalPct,totalStores:totalStores,identity:identity,bonus:bonus,
     roleMonthCount:roleM.length,storeRows:storeRows};
 }
 
@@ -720,7 +741,8 @@ function render(){
   });
   cards.forEach(function(c){area.appendChild(makeCard(c));});
   var b1=0,b5=0; cards.forEach(function(c){if(c.qd.bonus===1000)b1++;else if(c.qd.bonus===500)b5++;});
-  document.getElementById('gb-count').innerHTML='顯示 <b>'+cards.length+'</b> 人&emsp;&#127885; $1,000&#215;<b style="color:#7a5500">'+b1+'</b> 人 / $500&#215;<b style="color:#3a6a45">'+b5+'</b> 人';
+  var totPctDisp=cards.filter(function(c){return c.qd.bonus!==null;}).length;
+document.getElementById('gb-count').innerHTML='顯示 <b>'+cards.length+'</b> 人&emsp;&#127885; $1,000&#215;<b style="color:#7a5500">'+b1+'</b> 人 / $500&#215;<b style="color:#3a6a45">'+b5+'</b> 人';
   updateRank(pMap);
 }
 
@@ -743,12 +765,17 @@ function makeCard(c){
     var isForeign=(mA&&qd.personArea&&mA!==qd.personArea)||(mO&&qd.personOffice&&mO!==qd.personOffice);
     var mLabel=isForeign?MNAMES[m]+'<span style="font-size:9px;color:#c07000;margin-left:2px;vertical-align:super;">&#65290;</span>':MNAMES[m];
     var trCls=isForeign?' style="background:rgba(255,200,50,.13);"':'';
-    if(!d.hasData) return '<tr'+trCls+'><td>'+mLabel+'</td><td class="ctn-stores">—</td><td class="ctn-cur">—</td><td class="ctn-tgt">—</td><td class="ctn-eval nil">—</td></tr>';
-    var gv2=d.growth,gcls=gv2>0?'pos':gv2<0?'neg':'nil';
-    return '<tr'+trCls+'><td>'+mLabel+'</td><td class="ctn-stores">'+d.stores+'</td><td class="ctn-cur">'+d.cur+'</td><td class="ctn-tgt">'+fmt2(d.tgt)+'</td><td class="ctn-eval '+gcls+'">'+(gv2>0?'+':'')+gv2+'</td></tr>';
+    if(!d.hasData) return '<tr'+trCls+'><td>'+mLabel+'</td><td class="ctn-stores">—</td><td class="ctn-cur">—</td><td class="ctn-tgt">—</td><td class="ctn-eval nil">—</td><td class="ctn-eval nil">—</td></tr>';
+    var gv2=fmt2(d.growth),gcls=gv2>0?'pos':gv2<0?'neg':'nil';
+    var pct=d.growthPct!==null?d.growthPct.toFixed(1)+'%':'—';
+    var pCls=d.growthPct!==null&&d.growthPct>=5?'pos':d.growthPct!==null&&d.growthPct<0?'neg':'nil';
+    return '<tr'+trCls+'><td>'+mLabel+'</td><td class="ctn-stores">'+d.stores+'</td><td class="ctn-cur">'+fmtN(d.cur)+'</td><td class="ctn-tgt">'+fmtN(d.tgt)+'</td><td class="ctn-eval '+gcls+'">'+(gv2>0?'+':'')+fmtN(gv2)+'</td><td class="ctn-eval '+pCls+'">'+pct+'</td></tr>';
   }).join('');
   var tgDCls=tg===null?'nil':(tg>0?'pos':tg<0?'neg':'nil');
-  var totalRow='<tr class="total-row"><td>合計</td><td class="ctn-stores">'+qd.totalStores+'</td><td class="ctn-cur">'+qd.totalCur+'</td><td class="ctn-tgt">'+fmt2(qd.totalTgt)+'</td><td class="ctn-eval '+tgDCls+'">'+(tg!==null?(tg>0?'+':'')+tg:'—')+'</td></tr>';
+  var totPct=qd.totalPct;
+  var totPctStr=totPct!==null?totPct.toFixed(1)+'%':'—';
+  var totPCls=totPct!==null&&totPct>=5?'pos':totPct!==null&&totPct<0?'neg':'nil';
+  var totalRow='<tr class="total-row"><td>合計</td><td class="ctn-stores">'+qd.totalStores+'</td><td class="ctn-cur">'+fmtN(qd.totalCur)+'</td><td class="ctn-tgt">'+fmtN(qd.totalTgt)+'</td><td class="ctn-eval '+tgDCls+'">'+(tg!==null?(tg>0?'+':'')+fmtN(tg):'—')+'</td><td class="ctn-eval '+totPCls+'">'+totPctStr+'</td></tr>';
   var el=document.createElement('div'); el.className='person-card';
   el.innerHTML=
     '<div class="pc-header"><div class="pc-title-row">'+
@@ -758,7 +785,7 @@ function makeCard(c){
     '<span class="pc-q-label">'+curQ+' 成長值</span>'+
     '<span class="pc-total-num '+teCls+'">'+bigNum+'</span>'+
     '</div></div>'+
-    '<table class="pc-table"><thead><tr><th>月份</th><th>家數</th><th>當期業績</th><th>目標門檻</th><th>成長值</th></tr></thead>'+
+    '<table class="pc-table"><thead><tr><th>月份</th><th>家數</th><th>當期業績</th><th>目標門檻</th><th>成長值</th><th>成長%</th></tr></thead>'+
     '<tbody>'+rowsHtml+totalRow+'</tbody></table>'+
     '<div class="pc-identity-block"><span class="pc-valid-tag '+ident.cls+'">'+ident.label+'</span>'+(bonusHtml||'')+'</div>'+
     '<div class="pc-detail-btn-row"><button class="pc-open-detail-btn" onclick="openDetailDlg(event,this)" data-staff="'+esc(c.staff)+'" data-area="'+esc(c.area)+'" data-office="'+esc(c.office)+'">&#128203; 店家明細</button></div>';
@@ -872,7 +899,7 @@ function updateRank(pMap){
     var sec=document.createElement('div');sec.className='rd-section';
     var title=document.createElement('div');title.className='rd-sec-title';title.textContent=areaName;sec.appendChild(title);
     top3.forEach(function(x){
-      var valStr=_rankTab==='growth'?(x.growth>0?'+':'')+x.growth:(x.growthRate>=0?'+':'')+Math.floor(x.growthRate*100)+'%';
+      var valStr=_rankTab==='growth'?(x.growth>0?'+':'')+fmtN(x.growth):(x.growthRate>=0?'+':'')+fmtN(x.growthRate*100)+'%';
       var item=document.createElement('div');item.className='rank-item';
       item.innerHTML=
         '<div class="rank-no'+(x._rank===1?' top1':x._rank===2?' top2':x._rank===3?' top3':'')+'">'+x._rank+'</div>'+
@@ -908,7 +935,7 @@ function buildDetailTbl(qd){
   qd.storeRows.forEach(function(s){var k=s.code||s.name;if(!si[k])si[k]={code:s.code,name:s.name,bm:{}};si[k].bm[s.month]=s;});
   function mCls(mi,col){var bg=mi%2===0?'m-bg1':'m-bg2';return(col===0?'m-sep ':'')+bg;}
   var thCols='<th>店碼</th><th>店名</th>';
-  months.forEach(function(m,mi){thCols+='<th class="'+mCls(mi,0)+'">'+MNAMES[m]+'<br>當期</th><th class="'+mCls(mi,1)+'">'+MNAMES[m]+'<br>目標</th><th class="'+mCls(mi,2)+'">'+MNAMES[m]+'<br>成長值</th>';});
+  months.forEach(function(m,mi){thCols+='<th class="'+mCls(mi,0)+'">'+MNAMES[m]+'<br>當期</th><th class="'+mCls(mi,1)+'">'+MNAMES[m]+'<br>目標</th><th class="'+mCls(mi,2)+'">'+MNAMES[m]+'<br>成長值</th><th class="'+mCls(mi,2)+' ctn-pct">'+MNAMES[m]+'<br>成長%</th>';});
   thCols+='<th class="m-sep">單店<br>成長值</th>';
   var tbody='';
   Object.values(si).forEach(function(s){
@@ -916,14 +943,17 @@ function buildDetailTbl(qd){
     var sg=0,hasAny=false;
     months.forEach(function(m,mi){
       var md=s.bm[m];
-      if(!md){row+='<td class="'+mCls(mi,0)+' d-nil">—</td><td class="'+mCls(mi,1)+' d-nil">—</td><td class="'+mCls(mi,2)+' d-nil">—</td>';return;}
+      if(!md){row+='<td class="'+mCls(mi,0)+' d-nil">—</td><td class="'+mCls(mi,1)+' d-nil">—</td><td class="'+mCls(mi,2)+' d-nil">—</td><td class="'+mCls(mi,2)+' d-nil">—</td>';return;}
       hasAny=true; sg+=md.growth;
       var gcls=md.growth>0?'d-pos':md.growth<0?'d-neg':'d-nil';
-      row+='<td class="'+mCls(mi,0)+' d-cur">'+md.cur+'</td><td class="'+mCls(mi,1)+' d-tgt">'+fmt2(md.tgt)+'</td><td class="'+mCls(mi,2)+' '+gcls+'">'+(md.growth>0?'+':'')+md.growth+'</td>';
+      var dpct=md.tgt>0?((md.cur/md.tgt-1)*100):null;
+      var dpcls=dpct!==null&&dpct>=5?'d-pos':dpct!==null&&dpct<0?'d-neg':'d-nil';
+      var dpctStr=dpct!==null?dpct.toFixed(1)+'%':'—';
+      row+='<td class="'+mCls(mi,0)+' d-cur">'+fmtN(md.cur)+'</td><td class="'+mCls(mi,1)+' d-tgt">'+fmtN(md.tgt)+'</td><td class="'+mCls(mi,2)+' '+gcls+'">'+(md.growth>0?'+':'')+fmtN(md.growth)+'</td><td class="'+mCls(mi,2)+' '+dpcls+'">'+dpctStr+'</td>';
     });
     sg=fmt2(sg);
     var scls=sg>0?'d-pos':sg<0?'d-neg':'d-nil';
-    row+=hasAny?'<td class="m-sep '+scls+'" style="font-weight:900;">'+(sg>0?'+':'')+sg+'</td>':'<td class="m-sep d-nil">—</td>';
+    row+=hasAny?'<td class="m-sep '+scls+'" style="font-weight:900;">'+(sg>0?'+':'')+fmtN(sg)+'</td>':'<td class="m-sep d-nil">—</td>';
     tbody+='<tr>'+row+'</tr>';
   });
   /* 合計列 */
@@ -933,8 +963,8 @@ function buildDetailTbl(qd){
     Object.values(si).forEach(function(s){var md=s.bm[m];if(!md)return;hasAny=true;tc+=md.cur;tt+=md.tgt;tg+=md.growth;});
     tt=fmt2(tt);tg=fmt2(tg);
     var bl=mi===0?'m-sep ':'';
-    if(!hasAny){tRow+='<td class="'+bl+mCls(mi,0)+' d-nil">—</td><td class="'+mCls(mi,1)+' d-nil">—</td><td class="'+mCls(mi,2)+' d-nil">—</td>';}
-    else{var ecls=tg>0?'d-pos':tg<0?'d-neg':'d-nil';tRow+='<td class="'+bl+mCls(mi,0)+' d-cur">'+tc+'</td><td class="'+mCls(mi,1)+' d-tgt">'+tt+'</td><td class="'+mCls(mi,2)+' '+ecls+'">'+(tg>0?'+':'')+tg+'</td>';}
+    if(!hasAny){tRow+='<td class="'+bl+mCls(mi,0)+' d-nil">—</td><td class="'+mCls(mi,1)+' d-nil">—</td><td class="'+mCls(mi,2)+' d-nil">—</td><td class="'+mCls(mi,2)+' d-nil">—</td>';}
+    else{var ecls=tg>0?'d-pos':tg<0?'d-neg':'d-nil';var tpct=tt>0?((tc/tt-1)*100):null;var tpcls=tpct!==null&&tpct>=5?'d-pos':tpct!==null&&tpct<0?'d-neg':'d-nil';var tpctStr=tpct!==null?tpct.toFixed(1)+'%':'—';tRow+='<td class="'+bl+mCls(mi,0)+' d-cur">'+fmtN(tc)+'</td><td class="'+mCls(mi,1)+' d-tgt">'+fmtN(tt)+'</td><td class="'+mCls(mi,2)+' '+ecls+'">'+(tg>0?'+':'')+fmtN(tg)+'</td><td class="'+mCls(mi,2)+' '+tpcls+'">'+tpctStr+'</td>';}
   });
   var gg=fmt2(qd.totalGrowth||0);
   var gCls=gg>0?'d-pos':gg<0?'d-neg':'d-nil';
