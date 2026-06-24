@@ -1,0 +1,1251 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-3XTQ1DT3LQ"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-3XTQ1DT3LQ');
+  </script>
+  <script>
+    (function () {
+      if (localStorage.getItem('ttl_auth_v1') !== '1') {
+        window.location.replace('index.html');
+      }
+      (function () {
+        var BASE_W = 1440, MIN_ZOOM = 0.55;
+        function applyZoom() {
+          var isMobile = ('ontouchstart' in window) || window.innerWidth < 768;
+          if(isMobile){ document.documentElement.style.zoom = ''; return; }
+          var ratio = Math.max(MIN_ZOOM, Math.min(1, window.innerWidth / BASE_W));
+          document.documentElement.style.zoom = ratio;
+        }
+        applyZoom();
+        window.addEventListener('resize', applyZoom);
+      })();
+    })();
+  </script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>傳統通路購值進度</title>
+  <style>
+    :root {
+      --primary:#8BA690; --primary-d:#6a8a70;
+      --bg:#F0EDE6; --card:#FFFFFF;
+      --green:#22a84c; --green-bg:rgba(34,168,76,.08); --green-bd:rgba(34,168,76,.22);
+      --red:#d93025; --red-bg:rgba(217,48,37,.08); --red-bd:rgba(217,48,37,.22);
+      --blue:#1a73e8; --purple:#7c3aed; --gold:#b8860b;
+      --text:#2D2D2D; --sub:#333; --border:rgba(0,0,0,0.09);
+      --shadow:rgba(80,100,85,.13); --r:12px;
+      --glass:rgba(255,255,255,0.78); --glass-border:rgba(255,255,255,0.55);
+      --card-w:340px;
+    }
+    *,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+    html,body{height:100%;overflow:hidden;font-family:'Microsoft JhengHei','Noto Sans TC',sans-serif;}
+    body{display:flex;flex-direction:column;background:var(--bg);color:var(--text);}
+    #topbar{flex-shrink:0;background:var(--glass);backdrop-filter:blur(14px);border-bottom:1px solid var(--glass-border);padding:0 16px;display:flex;align-items:center;gap:10px;min-height:46px;box-shadow:0 2px 12px rgba(0,0,0,.07);z-index:100;}
+    #title{font-size:14px;font-weight:900;color:var(--primary-d);letter-spacing:.3px;white-space:nowrap;flex-shrink:0;}
+    .sep{width:1px;height:18px;background:rgba(0,0,0,.1);flex-shrink:0;}
+    #q-chips{display:flex;gap:5px;flex-shrink:0;}
+    .q-chip{padding:4px 13px;border-radius:99px;font-size:11px;font-weight:700;border:1.5px solid rgba(139,166,144,.35);cursor:pointer;background:transparent;color:#4a7a55;font-family:inherit;transition:all .15s;}
+    .q-chip.on{background:var(--green-bg);border-color:var(--green);color:#1e6e35;}
+    #tb-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0;}
+    #ver-ts{font-size:10px;color:var(--sub);white-space:nowrap;background:rgba(0,0,0,.04);padding:3px 9px;border-radius:6px;}
+    .tb-btn{padding:4px 12px;border-radius:7px;border:1px solid rgba(0,0,0,.12);background:rgba(255,255,255,.7);color:var(--text);font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit;transition:all .14s;}
+    .tb-btn:hover{border-color:var(--primary);color:var(--primary-d);}
+    #navbars{flex-shrink:0;background:rgba(255,255,255,.6);backdrop-filter:blur(8px);border-bottom:1px solid rgba(0,0,0,.07);z-index:90;}
+    .nav-row{display:flex;align-items:center;gap:5px;padding:5px 16px;flex-wrap:nowrap;overflow-x:auto;min-height:34px;}
+    .nav-row::-webkit-scrollbar{height:2px;}
+    .nav-row::-webkit-scrollbar-thumb{background:rgba(0,0,0,.1);border-radius:2px;}
+    .nav-chip{padding:3px 12px;border-radius:99px;font-size:11px;font-weight:700;border:1.5px solid rgba(0,0,0,.28);cursor:pointer;white-space:nowrap;background:rgba(255,255,255,.85);color:#333;font-family:inherit;transition:all .14s;flex-shrink:0;}
+    .nav-chip:hover{border-color:var(--primary-d);color:#fff;background:var(--primary);}
+    .nav-chip.on{background:var(--primary-d);border-color:var(--primary-d);color:#fff;}
+    .nav-chip.all{border-color:rgba(0,0,0,.3);color:#222;font-weight:800;}
+    .nav-divider{width:1px;height:16px;background:rgba(0,0,0,.15);flex-shrink:0;margin:0 2px;}
+    .nav-chip.nav-area-btn{font-weight:900;color:#1a1a1a;border-color:rgba(0,0,0,.32);}
+    .nav-chip.nav-office-chip{color:#222;border-color:rgba(0,0,0,.22);font-weight:700;}
+    #nav-office-row{display:none!important;}
+    .sort-btn{padding:3px 11px;border-radius:99px;font-size:11px;font-weight:700;border:1.5px solid rgba(0,0,0,.1);cursor:pointer;white-space:nowrap;background:transparent;color:var(--sub);font-family:inherit;transition:all .14s;}
+    .sort-btn:hover{border-color:var(--primary);color:var(--primary-d);}
+    .sort-btn.on{background:var(--primary-d);border-color:var(--primary-d);color:#fff;}
+    #gbar{flex-shrink:0;background:rgba(255,255,255,.4);border-bottom:1px solid rgba(0,0,0,.05);padding:3px 16px;display:flex;align-items:center;justify-content:space-between;min-height:26px;}
+    #gb-sync{font-size:10px;color:var(--sub);}
+    #gb-count{font-size:10px;color:var(--sub);}
+    #content-wrap{flex:1;min-height:0;display:flex;overflow:hidden;}
+    #main-area{flex:1;min-width:0;overflow-y:auto;overflow-x:auto;padding:14px 16px;display:flex;flex-wrap:wrap;gap:12px;align-content:start;}
+    #main-area::-webkit-scrollbar{width:4px;}
+    #main-area::-webkit-scrollbar-thumb{background:rgba(0,0,0,.1);border-radius:4px;}
+    .person-card{width:calc(20% - 10px);min-width:240px;flex-shrink:0;background:var(--card);border-radius:var(--r);border:1px solid var(--border);box-shadow:0 2px 10px var(--shadow);overflow:hidden;transition:box-shadow .2s,transform .2s;}
+    .person-card:hover{box-shadow:0 5px 20px rgba(80,100,85,.2);transform:translateY(-1px);}
+    .pc-valid-tag{font-size:10px;font-weight:800;padding:2px 7px;border-radius:99px;border:1px solid;white-space:nowrap;flex-shrink:0;}
+    .pc-valid-tag.ok{background:var(--green-bg);color:var(--green);border-color:var(--green-bd);}
+    .pc-valid-tag.pend{background:rgba(255,180,0,.1);color:#996600;border-color:rgba(200,150,0,.3);}
+    .pc-valid-tag.ng{background:rgba(0,0,0,.04);color:var(--sub);border-color:rgba(0,0,0,.1);}
+    .pc-valid-tag.excl{background:rgba(217,48,37,.07);color:var(--red);border-color:var(--red-bd);}
+    .pc-bonus-badge{display:inline-flex;align-items:center;gap:3px;font-size:11px;font-weight:900;padding:2px 8px;border-radius:99px;border:1.5px solid;white-space:nowrap;flex-shrink:0;}
+    .pc-bonus-badge.b1000{background:rgba(255,215,0,.15);color:#7a5500;border-color:rgba(200,160,0,.4);}
+    .pc-bonus-badge.b500{background:rgba(139,166,144,.12);color:#3a6a45;border-color:rgba(139,166,144,.4);}
+    .pc-table{width:100%;border-collapse:collapse;}
+    .pc-table th{font-size:11px;font-weight:800;color:var(--sub);letter-spacing:.3px;padding:5px 11px;text-align:right;border-bottom:1px solid rgba(0,0,0,.07);background:rgba(0,0,0,.02);}
+    .pc-table th:first-child{text-align:left;}
+    .pc-table td{font-size:13px;font-weight:600;padding:7px 11px;text-align:right;border-bottom:1px solid rgba(0,0,0,.04);}
+    .pc-table td:first-child{text-align:left;color:var(--sub);font-size:12px;font-weight:700;}
+    .pc-table tr:last-child td{border-bottom:none;}
+    .pc-table tr.total-row td{font-weight:900;font-size:13px;background:rgba(0,0,0,.02);border-top:1.5px solid rgba(0,0,0,.08);border-bottom:none;padding:8px 11px;}
+    .pc-table tr.total-row td:first-child{color:var(--text);}
+    td.ctn-stores{color:var(--sub);font-weight:700;}
+    td.ctn-cur{color:var(--blue);}
+    td.ctn-tgt{color:var(--purple);}
+    td.ctn-eval{font-weight:900;}
+    td.ctn-eval.pos{color:var(--green);}
+    td.ctn-eval.neg{color:var(--red);}
+    td.ctn-eval.nil{color:var(--sub);}
+    .pc-header{padding:11px 13px 9px;border-bottom:1px solid rgba(0,0,0,.06);}
+    .pc-title-row{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;min-width:0;overflow:hidden;}
+    .pc-name{font-size:15px;font-weight:900;color:var(--text);white-space:nowrap;flex-shrink:0;}
+    .pc-unit{font-size:11px;color:var(--sub);white-space:nowrap;flex-shrink:0;}
+    .pc-title-spacer{flex:1;min-width:4px;}
+    .pc-q-label{font-size:10px;color:var(--sub);white-space:nowrap;flex-shrink:0;}
+    .pc-total-num{font-size:24px;font-weight:900;line-height:1;flex-shrink:0;}
+    .pc-total-num.pos{color:var(--green);}
+    .pc-total-num.neg{color:var(--red);}
+    .pc-total-num.nil{color:var(--sub);}
+    .pc-detail-btn-row{padding:6px 13px 8px;}
+    .pc-open-detail-btn{font-size:10px;font-weight:700;padding:3px 10px;border-radius:6px;border:1px solid rgba(0,0,0,.12);background:rgba(255,255,255,.8);color:var(--text);cursor:pointer;font-family:inherit;transition:all .14s;}
+    .pc-open-detail-btn:hover{border-color:var(--primary);color:var(--primary-d);}
+    .pc-identity-block{border-top:1px solid rgba(0,0,0,.06);padding:6px 13px 8px;background:rgba(0,0,0,.015);display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+    #detail-dialog{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:500;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s;}
+    #detail-dialog.open{opacity:1;}
+    .dlg-box{background:#fff;border-radius:14px;width:95vw;height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 80px rgba(0,0,0,.35);transform:translateY(16px);transition:transform .22s;}
+    #detail-dialog.open .dlg-box{transform:translateY(0);}
+    .dlg-header{padding:14px 20px;border-bottom:1px solid rgba(0,0,0,.09);display:flex;align-items:center;justify-content:space-between;font-size:15px;font-weight:900;color:var(--text);flex-shrink:0;background:rgba(248,250,248,1);}
+    .dlg-close{cursor:pointer;font-size:14px;color:var(--sub);padding:4px 12px;border-radius:7px;border:1px solid rgba(0,0,0,.12);background:#fff;font-family:inherit;font-weight:700;transition:all .14s;}
+    .dlg-close:hover{border-color:var(--primary);color:var(--primary-d);}
+    .dlg-action-btn{cursor:pointer;font-size:13px;color:var(--sub);padding:4px 11px;border-radius:7px;border:1px solid rgba(0,0,0,.12);background:#fff;font-family:inherit;font-weight:700;transition:all .14s;white-space:nowrap;}
+    .dlg-action-btn:hover{border-color:var(--primary);color:var(--primary-d);}
+    .dlg-action-btn.done{border-color:var(--green);color:var(--green);background:var(--green-bg);}
+    .dlg-body{overflow:auto;flex:1;min-height:0;padding:4px 0;}
+    .detail-scroll{overflow-x:auto;}
+    .detail-scroll::-webkit-scrollbar{height:3px;}
+    .detail-scroll::-webkit-scrollbar-thumb{background:rgba(0,0,0,.1);border-radius:3px;}
+    .detail-tbl{width:max-content;min-width:100%;border-collapse:collapse;font-size:15px;}
+    .detail-tbl th{position:sticky;top:0;z-index:2;padding:9px 14px;text-align:right;font-weight:800;font-size:12px;color:var(--sub);border-bottom:1px solid rgba(0,0,0,.08);background:rgba(248,250,248,.98);white-space:nowrap;}
+    .detail-tbl th:first-child,.detail-tbl th:nth-child(2){text-align:left;}
+    .detail-tbl td{padding:8px 14px;text-align:right;border-bottom:1px solid rgba(0,0,0,.04);white-space:nowrap;}
+    .detail-tbl td:first-child,.detail-tbl td:nth-child(2){text-align:left;color:var(--text);max-width:180px;overflow:hidden;text-overflow:ellipsis;}
+    .detail-tbl tr:last-child td{border-bottom:none;}
+    .detail-tbl tbody tr:hover{outline:2px solid rgba(139,166,144,.45);outline-offset:-1px;}
+    .detail-tbl td.m-sep,.detail-tbl th.m-sep{border-left:2px solid rgba(139,166,144,.35);}
+    .detail-tbl td.m-bg1,.detail-tbl th.m-bg1{background:rgba(240,248,242,.6);}
+    .detail-tbl td.m-bg2,.detail-tbl th.m-bg2{background:rgba(244,248,255,.6);}
+    .d-pos{color:var(--green);font-weight:800;}
+    .d-neg{color:var(--red);font-weight:800;}
+    .d-nil{color:var(--sub);}
+    .d-cur{color:var(--blue);}
+    .d-tgt{color:var(--purple);}
+    #rank-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s;pointer-events:none;}
+    #rank-modal.open{opacity:1;pointer-events:auto;}
+    .rank-modal-box{background:#fff;border-radius:14px;width:420px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 80px rgba(0,0,0,.35);transform:translateY(14px);transition:transform .22s;}
+    #rank-modal.open .rank-modal-box{transform:translateY(0);}
+    .rank-modal-header{padding:13px 16px;border-bottom:1px solid rgba(0,0,0,.09);display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:900;color:var(--text);flex-shrink:0;background:rgba(248,250,248,1);}
+    .rank-tabs{display:flex;gap:6px;margin:0 16px;padding:8px 0 4px;border-bottom:1px solid rgba(0,0,0,.07);flex-shrink:0;}
+    .rank-tab{padding:3px 12px;border-radius:99px;font-size:11px;font-weight:700;border:1.5px solid rgba(0,0,0,.12);cursor:pointer;white-space:nowrap;background:transparent;color:var(--sub);font-family:inherit;transition:all .14s;}
+    .rank-tab.on{background:var(--primary-d);border-color:var(--primary-d);color:#fff;}
+    .rank-modal-body{flex:1;overflow-y:auto;}
+    .rank-modal-body::-webkit-scrollbar{width:3px;}
+    .rank-modal-body::-webkit-scrollbar-thumb{background:rgba(0,0,0,.1);border-radius:3px;}
+    .rd-section{padding:8px 10px 4px;}
+    .rd-sec-title{font-size:9px;font-weight:900;letter-spacing:.8px;color:#aaa;margin-bottom:6px;display:flex;align-items:center;gap:5px;}
+    .rd-sec-title::after{content:'';flex:1;height:1px;background:rgba(0,0,0,.07);}
+    .rank-item{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:8px;margin-bottom:3px;border:1px solid transparent;transition:all .15s;}
+    .rank-item:hover{background:rgba(139,166,144,.1);border-color:rgba(139,166,144,.25);}
+    .rank-no{width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.07);font-size:9px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--sub);}
+    .rank-no.top1{background:#FFD700;color:#7a5500;}
+    .rank-no.top2{background:#C0C0C0;color:#555;}
+    .rank-no.top3{background:#CD7F32;color:#fff;}
+    .rank-info{flex:1;min-width:0;}
+    .rank-name{font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .rank-sub{font-size:10px;color:var(--sub);margin-top:1px;}
+    .rank-val{font-size:15px;font-weight:900;flex-shrink:0;}
+    .rank-val.pos{color:var(--green);}
+    .rank-val.neg{color:var(--red);}
+    .rank-val.nil{color:var(--sub);}
+    .org-section{width:100%;flex-basis:100%;}
+    .org-section-title{font-size:11px;font-weight:900;color:var(--sub);letter-spacing:.6px;padding:4px 2px 6px;display:flex;align-items:center;gap:6px;}
+    .org-section-title::after{content:'';flex:1;height:1px;background:rgba(0,0,0,.07);}
+    .view-chip{padding:4px 12px;border-radius:99px;font-size:11px;font-weight:700;border:1.5px solid rgba(139,166,144,.35);cursor:pointer;background:transparent;color:#4a7a55;font-family:inherit;transition:all .15s;}
+    .view-chip.on{background:#4a7a55;border-color:#4a7a55;color:#fff;}
+    #manual-bar{flex-shrink:0;background:rgba(255,248,220,.92);border-bottom:1.5px solid rgba(200,170,80,.3);font-size:11px;color:#6b5200;overflow:hidden;transition:max-height .3s ease;max-height:0;}
+    #manual-bar.open{max-height:500px;}
+    #manual-inner{padding:10px 18px 12px;}
+    #manual-inner h3{font-size:12px;font-weight:900;margin-bottom:7px;color:#4a3800;}
+    #manual-inner p{margin-bottom:5px;line-height:1.7;}
+    #manual-inner b{color:#4a3800;}
+    #manual-inner hr{border:none;border-top:1px solid rgba(200,170,80,.3);margin:7px 0;}
+    #manual-toggle{padding:3px 10px;border-radius:7px;border:1px solid rgba(200,170,80,.5);background:rgba(255,248,220,.8);color:#6b5200;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit;transition:all .14s;}
+    #loading{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:12px;}
+    #loading-txt{font-size:13px;font-weight:700;color:var(--sub);letter-spacing:.5px;}
+    .empty-msg{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:60px 20px;color:var(--sub);font-size:13px;font-weight:600;width:100%;}
+    .empty-msg .ei{font-size:32px;}
+    #mobile-drawer-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;}
+    #mobile-drawer-overlay.open{display:block;}
+    #mobile-drawer{position:fixed;top:0;right:-280px;width:260px;height:100%;background:#fff;z-index:201;box-shadow:-4px 0 20px rgba(0,0,0,.15);transition:right .25s ease;display:flex;flex-direction:column;font-family:'Microsoft JhengHei','Noto Sans TC',sans-serif;}
+    #mobile-drawer.open{right:0;}
+    .drawer-header{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid rgba(0,0,0,.07);font-size:14px;font-weight:900;color:var(--text);flex-shrink:0;}
+    .drawer-close{background:none;border:1px solid rgba(0,0,0,.12);border-radius:6px;font-size:14px;padding:3px 9px;cursor:pointer;color:var(--sub);}
+    .drawer-section{padding:10px 12px 6px;}
+    .drawer-section-title{font-size:9px;font-weight:900;letter-spacing:.8px;color:#aaa;margin-bottom:6px;padding:0 4px;}
+    .drawer-divider{height:1px;background:rgba(0,0,0,.06);margin:0 12px;}
+    .drawer-btn{display:flex;align-items:center;gap:10px;width:100%;padding:10px 12px;background:none;border:none;border-radius:8px;font-size:13px;font-weight:700;color:var(--text);cursor:pointer;font-family:inherit;transition:background .14s;text-align:left;}
+    .drawer-btn:hover{background:rgba(139,166,144,.12);}
+    .drawer-btn.view-on{background:rgba(74,122,85,.1);color:#2d5a38;}
+    .db-icon{font-size:16px;width:22px;text-align:center;flex-shrink:0;}
+    #hamburger-btn{display:none;align-items:center;justify-content:center;background:rgba(255,255,255,.8);border:1px solid rgba(0,0,0,.12);border-radius:8px;font-size:18px;cursor:pointer;padding:4px 10px;color:var(--text);flex-shrink:0;}
+    @media(max-width:768px){
+      #topbar{flex-wrap:nowrap;padding:6px 54px 6px 8px;gap:6px;min-height:auto;overflow-x:auto;overflow-y:hidden;}
+      #topbar::-webkit-scrollbar{display:none;}
+      #title{font-size:12px;max-width:76px;overflow:hidden;text-overflow:ellipsis;flex-shrink:0;}
+      .sep{display:none;}
+      #vc-person,#vc-org,#manual-toggle,#rank-btn,#tb-right{display:none!important;}
+      #hamburger-btn{display:flex!important;position:fixed;top:8px;right:10px;z-index:120;width:34px;height:34px;font-size:16px;box-shadow:0 2px 8px rgba(0,0,0,.15);}
+      #main-area{padding:8px;gap:8px;}
+      .person-card{width:100%!important;min-width:0!important;}
+      #detail-dialog{align-items:flex-end;}
+      .dlg-box{width:100%!important;height:88vh!important;border-radius:16px 16px 0 0!important;}
+      .rank-modal-box{width:95vw;}
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+<div id="loading">
+  <canvas id="loading-canvas" width="280" height="110"></canvas>
+  <div id="loading-txt">載入資料中</div>
+</div>
+
+<div id="topbar">
+  <button onclick="window.location.href='index.html'" style="background:none;border:1px solid rgba(0,0,0,.12);border-radius:7px;padding:4px 10px;font-size:12px;font-weight:700;color:#666;cursor:pointer;font-family:inherit;flex-shrink:0;">&#8592; 返回</button>
+  <div id="title">傳統通路購值進度</div>
+  <div class="sep"></div>
+  <span style="font-size:11px;color:var(--sub);font-weight:700;flex-shrink:0;">季度</span>
+  <div id="q-chips"></div>
+  <div class="sep"></div>
+  <button class="view-chip on" id="vc-person" onclick="setViewMode('person')">&#128100; 人員視角</button>
+  <button class="view-chip" id="vc-org" onclick="setViewMode('org')">&#127970; 組織視角</button>
+  <div class="sep"></div>
+  <button id="manual-toggle" onclick="toggleManual()">&#128203; 說明書</button>
+  <button class="tb-btn" onclick="toggleRank()" id="rank-btn" style="background:rgba(255,215,0,.15);border-color:rgba(200,160,0,.3);color:#7a5500;">&#127942; 獎金排行</button>
+  <div id="tb-right">
+    <div id="ver-ts">Ver. 1.0.0 (2026-06-23)</div>
+    <button class="tb-btn" onclick="mainCopyLine()" id="btn-main-line">&#128172; LINE</button>
+    <button class="tb-btn" onclick="mainCopyExcel()" id="btn-main-excel">&#128202; Excel</button>
+    <button class="tb-btn" onclick="mainScreenshot()" id="btn-main-shot">&#128248; 截圖</button>
+    <button class="tb-btn" onclick="downloadXLSX()">&#128229; XLSX</button>
+  </div>
+  <button id="hamburger-btn" onclick="toggleMobileDrawer()">&#9776;</button>
+</div>
+
+<div id="mobile-drawer-overlay" onclick="closeMobileDrawer()"></div>
+<div id="mobile-drawer">
+  <div class="drawer-header"><span>&#9881;&#65039; 功能選單</span><button class="drawer-close" onclick="closeMobileDrawer()">&#10005;</button></div>
+  <div style="flex:1;overflow-y:auto;">
+    <div class="drawer-section">
+      <div class="drawer-section-title">視角</div>
+      <button class="drawer-btn view-on" id="md-vc-person" onclick="setViewMode('person');closeMobileDrawer();"><span class="db-icon">&#128100;</span>人員視角</button>
+      <button class="drawer-btn" id="md-vc-org" onclick="setViewMode('org');closeMobileDrawer();"><span class="db-icon">&#127970;</span>組織視角</button>
+    </div>
+    <div class="drawer-divider"></div>
+    <div class="drawer-section">
+      <div class="drawer-section-title">資訊</div>
+      <button class="drawer-btn" onclick="toggleManual();closeMobileDrawer();"><span class="db-icon">&#128203;</span>說明書</button>
+      <button class="drawer-btn" onclick="toggleRank();closeMobileDrawer();"><span class="db-icon">&#127942;</span>獎金排行</button>
+      <button class="drawer-btn" id="md-summary-btn" onclick="openSummaryTable();closeMobileDrawer();" style="display:none;"><span class="db-icon">&#128202;</span>彙整表</button>
+    </div>
+    <div class="drawer-divider"></div>
+    <div class="drawer-section">
+      <div class="drawer-section-title">分享 / 匯出</div>
+      <button class="drawer-btn" onclick="mainCopyLine();closeMobileDrawer();"><span class="db-icon">&#128172;</span>複製 LINE</button>
+      <button class="drawer-btn" onclick="mainCopyExcel();closeMobileDrawer();"><span class="db-icon">&#128202;</span>複製 Excel</button>
+      <button class="drawer-btn" onclick="mainScreenshot();closeMobileDrawer();"><span class="db-icon">&#128248;</span>截圖</button>
+      <button class="drawer-btn" onclick="downloadXLSX();closeMobileDrawer();"><span class="db-icon">&#128229;</span>下載 XLSX</button>
+    </div>
+  </div>
+  <div style="padding:10px 16px;font-size:9px;color:#bbb;border-top:1px solid rgba(0,0,0,.06);">Ver. 1.0.0</div>
+</div>
+
+<div id="manual-bar">
+  <div id="manual-inner">
+    <h3>&#128203; 傳統通路購值進度 — 怎麼看這個畫面？（Ver. 1.0.0）</h3>
+    <p><b>【追蹤目標】</b>追蹤傳統通路訪員每季業績達標狀況與激勵獎金。成長值 = 當期業績 - 目標門檻，正值（綠色）超標，負值（紅色）未達標。</p>
+    <hr>
+    <p><b>【目標門檻計算】</b>每月目標門檻 = MAX(去年業績 &times; 1.05，105千元)。去年未達10萬者目標固定10萬；超過者目標為去年1.05倍。</p>
+    <hr>
+    <p><b>【身分狀態說明】</b>&#x1F7E2; 審核通過：可正常發放｜&#x1F7E1; 等候審核：含暫估身分｜&#x274C; 暫鎖/不符資格：有效月份不足或身分別空白｜&#x26A0;&#xFE0F; 排除不發放：黑名單人員</p>
+    <hr>
+    <p><b>【獎金規則】</b>成長值 &ge; 0 且有效月份 &ge; 2個月：2個月任職 $500 / 3個月任職 $1,000。<br>&#x1F947; 卓越貢獻獎：各處 $1,000 達標者，依成長值排名前3名。&#x1F680; 成長突破獎：各處 $1,000 達標者，依成長率排名前3名。</p>
+  </div>
+</div>
+
+<div id="navbars">
+  <div class="nav-row" id="nav-area-row"></div>
+  <div class="nav-row" id="nav-office-row"></div>
+</div>
+
+<div id="gbar">
+  <div id="gb-sync"></div>
+  <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;">
+    <span style="font-size:10px;color:var(--sub);font-weight:700;">排序</span>
+    <button class="sort-btn on" data-sort="eval" onclick="setSort('eval')">成長值</button>
+    <button class="sort-btn" data-sort="stores" onclick="setSort('stores')">總家數</button>
+    <button class="sort-btn" data-sort="cur" onclick="setSort('cur')">當期業績</button>
+    <button class="sort-btn" data-sort="tgt" onclick="setSort('tgt')">目標門檻</button>
+  </div>
+  <div style="display:flex;align-items:center;gap:6px;margin-left:6px;" id="gb-extra-btns">
+    <button class="tb-btn" id="btn-summary" onclick="openSummaryTable()" style="display:none;background:rgba(74,122,85,.12);border-color:rgba(74,122,85,.35);color:#2d5a38;font-weight:800;">&#128202; 彙整表</button>
+  </div>
+  <div id="gb-count"></div>
+</div>
+
+<div id="content-wrap"><div id="main-area"></div></div>
+
+<div id="rank-modal" style="display:none" onclick="if(event.target===this)closeRank()">
+  <div class="rank-modal-box">
+    <div class="rank-modal-header"><span>&#127942; 獎金排行</span><button class="dlg-close" onclick="closeRank()">&#10005;</button></div>
+    <div class="rank-tabs">
+      <button class="rank-tab on" id="rank-tab-growth" onclick="setRankTab('growth')">&#x1F947; 卓越貢獻（成長值）</button>
+      <button class="rank-tab" id="rank-tab-rate" onclick="setRankTab('rate')">&#x1F680; 成長突破（成長率）</button>
+    </div>
+    <div class="rank-modal-body" id="rd-content"></div>
+  </div>
+</div>
+
+<div id="detail-dialog" style="display:none" onclick="if(event.target===this)closeDetailDialog()">
+  <div class="dlg-box">
+    <div class="dlg-header">
+      <span id="dlg-title"></span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <button class="dlg-action-btn" id="btn-copy-line" onclick="copyLine()">&#128172; 複製 LINE</button>
+        <button class="dlg-action-btn" id="btn-copy-excel" onclick="copyExcel()">&#128202; 複製 Excel</button>
+        <button class="dlg-action-btn" id="btn-screenshot" onclick="takeScreenshot()">&#128248; 截圖</button>
+        <button class="dlg-close" onclick="closeDetailDialog()">&#10005;</button>
+      </div>
+    </div>
+    <div class="dlg-body" id="dlg-body"></div>
+  </div>
+</div>
+
+<div id="summary-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:600;align-items:flex-start;justify-content:center;padding:20px 12px;overflow-y:auto;" onclick="if(event.target===this)closeSummaryTable()">
+  <div style="background:#fff;border-radius:14px;width:100%;max-width:1400px;min-height:200px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 80px rgba(0,0,0,.35);margin:auto;">
+    <div style="padding:13px 18px;border-bottom:1px solid rgba(0,0,0,.09);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:rgba(248,250,248,1);">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <span style="font-size:14px;font-weight:900;color:var(--text);" id="summary-title">&#128202; 彙整表</span>
+        <span style="font-size:11px;color:var(--sub);" id="summary-subtitle"></span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <button class="dlg-action-btn" onclick="exportSummaryXLSX()">&#128229; 下載 XLSX</button>
+        <button class="dlg-action-btn" onclick="takeSummaryScreenshot()" id="btn-summary-shot">&#128248; 截圖</button>
+        <button class="dlg-close" onclick="closeSummaryTable()">&#10005;</button>
+      </div>
+    </div>
+    <div style="flex:1;overflow:auto;" id="summary-body"></div>
+  </div>
+</div>
+
+<script>
+/* ====================================================================
+   傳統通路購值進度看板  Ver.1.0.0
+   計算邏輯：
+     目標門檻(月) = MAX(去年業績×1.05, 105)  [千元單位]
+     成長值(季)   = 當期業績總和 - 目標門檻總和
+     獎金：成長值≥0 且 有效月份≥2 → 2月=$500, 3月=$1000
+     卓越貢獻獎：各處$1000達標者依成長值前3名
+     成長突破獎：各處$1000達標者依成長率前3名
+   ==================================================================== */
+
+var MGMT_ID    = '1PR9OR7BIGyTpcH8QSMRXkPhQTr4h3m0UK3gET29f19s';
+var MGMT_SHEET = '專案管理';
+var SHEET_ID   = (new URLSearchParams(location.search)).get('sheetId') || '1cqdyV4Z-Re2uF4j1ZSvFrj-SOyIUYI8K6w-f3Ibb6Gs';
+var SHEET_NAME = '店家名冊';
+var SYNC_SHEET = '輔助';
+var SYNC_CELL  = 'B1';
+var PROJ_NAME  = '傳統通路購值進度';
+var MIN_THR    = 105;   /* 千元：10萬×1.05 */
+var GR_RATE    = 1.05;
+var QUARTERS   = {Q1:[1,2,3],Q2:[4,5,6],Q3:[7,8,9],Q4:[10,11,12]};
+var AREA_ORDER = ['北部','桃園','台中','嘉義','台南','高雄','花蓮'];
+var MNAMES     = ['','1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+
+var allRows=[],CI={},curQ='',fArea='',fOffice='',_syncTime='';
+var curSort='eval', viewMode='person', _rankTab='growth', _runRaf=null;
+var _currentQd=null, _currentStaff='', _currentOrgStore=null;
+
+function _isMob(){ return ('ontouchstart' in window)||window.innerWidth<768; }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmt2(v){ return Math.round(v*100)/100; }
+function sortAreas(arr){
+  return arr.slice().sort(function(a,b){
+    var ai=AREA_ORDER.indexOf(a),bi=AREA_ORDER.indexOf(b);
+    if(ai<0)ai=999;if(bi<0)bi=999;
+    return ai-bi||(a>b?1:-1);
+  });
+}
+
+/* ── 欄位索引 ── */
+function initCI(hdrs){
+  var MAP={year:'年份',month:'月份',quarter:'季度',area:'營業處名稱',
+    office:'營業所/課',staff:'主要訪員',type:'店家型態',
+    code:'店家代碼',store:'店家名稱',grade:'店家等級',
+    cur:'當期業績',last:'去年業績',source:'資料來源',
+    role:'身分別',exclude:'排除原由',mcheck:'月份數確認'};
+  CI={};
+  Object.keys(MAP).forEach(function(k){
+    var i=hdrs.findIndex(function(h){return h===MAP[k];});
+    if(i<0) i=hdrs.findIndex(function(h){return h.indexOf(MAP[k])>=0;});
+    CI[k]=i;
+  });
+}
+function gv(row,key){ var i=CI[key]; return(i>=0&&row[i]!=null)?String(row[i]).trim():''; }
+function gn(row,key){ var v=parseFloat(gv(row,key)); return isNaN(v)?0:v; }
+
+function parseCellVal(c){
+  if(!c||c.v==null) return '';
+  var sv=String(c.v);
+  if(sv.indexOf('Date(')===0){
+    var m=sv.match(/Date\((\d+),(\d+),(\d+)/);
+    if(m) return m[1]+'/'+(+m[2]+1).toString().padStart(2,'0')+'/'+m[3].toString().padStart(2,'0');
+  }
+  return c.f!=null?String(c.f):sv;
+}
+
+/* ── 同步時間 ── */
+function fetchSyncTime(id,sheet,cell){
+  var url='https://docs.google.com/spreadsheets/d/'+id+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(sheet)+'&range='+cell;
+  return fetch(url).then(function(r){return r.text();}).then(function(txt){
+    var s=txt.indexOf('{'),e=txt.lastIndexOf('}');
+    if(s<0) return '';
+    var json=JSON.parse(txt.slice(s,e+1));
+    var c0=json.table&&json.table.rows&&json.table.rows[0]&&json.table.rows[0].c&&json.table.rows[0].c[0];
+    if(!c0) return '';
+    var raw=String(c0.f||c0.v||'').trim();
+    var dm=raw.match(/^Date\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)$/);
+    if(dm) return dm[1]+'/'+(+dm[2]+1).toString().padStart(2,'0')+'/'+dm[3].toString().padStart(2,'0')+' '+dm[4].toString().padStart(2,'0')+':'+dm[5].toString().padStart(2,'0')+':'+dm[6].toString().padStart(2,'0');
+    return raw;
+  }).catch(function(){return '';});
+}
+
+/* ── 載入資料 ── */
+function loadData(){
+  showLoading();
+  var base='https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(SHEET_NAME);
+  Promise.all([
+    fetch(base+'&headers=0&range=1:1').then(function(r){return r.text();}),
+    fetch(base+'&headers=0').then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.text();}),
+    fetchSyncTime(SHEET_ID,SYNC_SHEET,SYNC_CELL)
+  ]).then(function(res){
+    _syncTime=res[2];
+    var hs0=JSON.parse(res[0].slice(res[0].indexOf('{'),res[0].lastIndexOf('}')+1));
+    var trueHdrs=(hs0.table&&hs0.table.rows&&hs0.table.rows[0]&&hs0.table.rows[0].c||[]).map(function(c){
+      if(!c) return '';
+      return(c.f!=null&&String(c.f).trim())?String(c.f).trim():(c.v!=null?String(c.v).trim():'');
+    });
+    var s=res[1].indexOf('{'),e=res[1].lastIndexOf('}');
+    var json=JSON.parse(res[1].slice(s,e+1));
+    var tbl=json.table;
+    if(!tbl||!tbl.rows||!tbl.rows.length) throw new Error('無資料');
+    var colLabels=(tbl.cols||[]).map(function(c){return(c.label||'').trim();});
+    var allHeaders=(tbl.rows[0].c||[]).map(function(c,i){
+      if(trueHdrs[i]) return trueHdrs[i];
+      var v=(c&&c.f!=null&&String(c.f).trim())?String(c.f).trim():(c&&c.v!=null?String(c.v).trim():'');
+      return v||colLabels[i]||'';
+    });
+    initCI(allHeaders);
+    allRows=tbl.rows.slice(1).map(function(row){
+      return(row.c||[]).map(parseCellVal);
+    }).filter(function(r){return !r.every(function(v){return !v.trim();});});
+    var qSet=new Set();
+    allRows.forEach(function(r){var q=gv(r,'quarter');if(q)qSet.add(q);});
+    buildQChips(Array.from(qSet).sort());
+    buildNavbar();
+    hideLoading();
+    render(); updateGbar(); updateRank();
+  }).catch(function(err){
+    hideLoading();
+    document.getElementById('main-area').innerHTML='<div class="empty-msg"><div class="ei">&#9888;&#65039;</div><div>載入失敗：'+err+'</div></div>';
+  });
+}
+
+/* ── Q Chips ── */
+function buildQChips(qs){
+  var el=document.getElementById('q-chips');
+  el.innerHTML='';
+  var list=qs.length?qs:['Q1','Q2','Q3','Q4'];
+  if(!curQ&&list.length) curQ=list[0];
+  list.forEach(function(q){
+    var btn=document.createElement('button');
+    btn.className='q-chip'+(q===curQ?' on':'');
+    btn.textContent=q;
+    btn.onclick=(function(qq){return function(){
+      curQ=qq;
+      document.querySelectorAll('.q-chip').forEach(function(b){b.classList.toggle('on',b.textContent===qq);});
+      render(); updateRank();
+    };})(q);
+    el.appendChild(btn);
+  });
+}
+
+/* ── Navbar ── */
+function buildNavbar(){
+  var areas=new Set();
+  allRows.forEach(function(r){var a=gv(r,'area');if(a)areas.add(a);});
+  var aRow=document.getElementById('nav-area-row');
+  aRow.innerHTML='';
+  var allBtn=document.createElement('button');
+  allBtn.className='nav-chip all'+(fArea===''?' on':'');
+  allBtn.textContent='全部'; allBtn.onclick=function(){setArea('');};
+  aRow.appendChild(allBtn);
+  sortAreas(Array.from(areas)).forEach(function(a){
+    var btn=document.createElement('button');
+    btn.className='nav-chip nav-area-btn'+(fArea===a?' on':'');
+    btn.dataset.area=a; btn.textContent=a;
+    btn.onclick=(function(aa){return function(){setArea(aa);};})(a);
+    aRow.appendChild(btn);
+  });
+  appendOfficeChips(aRow,fArea);
+}
+function appendOfficeChips(aRow,area){
+  aRow.querySelectorAll('.nav-office-chip,.nav-office-divider').forEach(function(el){el.remove();});
+  if(!area) return;
+  var dv=document.createElement('div'); dv.className='nav-divider nav-office-divider'; aRow.appendChild(dv);
+  var allO=document.createElement('button'); allO.className='nav-chip nav-office-chip'+(fOffice===''?' on':''); allO.textContent='全所'; allO.onclick=function(){setOffice('');};aRow.appendChild(allO);
+  var offices=new Set();
+  allRows.forEach(function(r){if(gv(r,'area')===area){var o=gv(r,'office');if(o)offices.add(o);}});
+  Array.from(offices).sort().forEach(function(o){
+    var btn=document.createElement('button'); btn.className='nav-chip nav-office-chip'+(fOffice===o?' on':''); btn.textContent=o; btn.onclick=(function(oo){return function(){setOffice(oo);};})(o); aRow.appendChild(btn);
+  });
+}
+function refreshNavHL(){
+  document.querySelectorAll('.nav-area-btn').forEach(function(b){b.classList.toggle('on',b.dataset.area===fArea);});
+  document.querySelectorAll('#nav-area-row .nav-chip.all:not(.nav-office-chip)').forEach(function(b){b.classList.toggle('on',fArea==='');});
+  document.querySelectorAll('.nav-office-chip').forEach(function(b){b.classList.toggle('on',b.textContent===(fOffice||'全所'));});
+}
+function setArea(a){fArea=a;fOffice='';refreshNavHL();appendOfficeChips(document.getElementById('nav-area-row'),a);refreshNavHL();render();updateGbar();}
+function setOffice(o){fOffice=o;refreshNavHL();render();updateGbar();}
+function setSort(s){curSort=s;document.querySelectorAll('.sort-btn').forEach(function(b){b.classList.toggle('on',b.dataset.sort===s);});render();}
+function toggleManual(){document.getElementById('manual-bar').classList.toggle('open');}
+function toggleMobileDrawer(){
+  var o=document.getElementById('mobile-drawer-overlay'),d=document.getElementById('mobile-drawer');
+  if(d.classList.contains('open')){closeMobileDrawer();}else{o.classList.add('open');d.classList.add('open');document.body.style.overflow='hidden';}
+}
+function closeMobileDrawer(){document.getElementById('mobile-drawer-overlay').classList.remove('open');document.getElementById('mobile-drawer').classList.remove('open');document.body.style.overflow='';}
+
+/* ── 視角切換 ── */
+function setViewMode(mode){
+  viewMode=mode;
+  document.getElementById('vc-person').classList.toggle('on',mode==='person');
+  document.getElementById('vc-org').classList.toggle('on',mode==='org');
+  var mdP=document.getElementById('md-vc-person'),mdO=document.getElementById('md-vc-org');
+  if(mdP)mdP.classList.toggle('view-on',mode==='person');
+  if(mdO)mdO.classList.toggle('view-on',mode==='org');
+  var sb=document.getElementById('btn-summary'),msb=document.getElementById('md-summary-btn');
+  if(sb)sb.style.display=mode==='org'?'':'none';
+  if(msb)msb.style.display=mode==='org'?'':'none';
+  if(mode==='person')closeSummaryTable();
+  _updateSortLabels(); render(); updateGbar(); updateRank();
+}
+function _updateSortLabels(){
+  var isOrg=viewMode==='org';
+  document.querySelectorAll('.sort-btn').forEach(function(b){
+    var s=b.dataset.sort;
+    if(s==='eval') b.textContent=isOrg?'增減業績':'成長值';
+    if(s==='tgt')  b.textContent=isOrg?'去年業績':'目標門檻';
+    if(s==='stores')b.style.display=isOrg?'none':'';
+  });
+}
+
+/* ════════════════════════════════════════
+   核心計算
+   ════════════════════════════════════════ */
+function calcThr(last){ return Math.max(last*GR_RATE, MIN_THR); }
+
+/* 身分審核 */
+function calcIdentity(monthData,months,isExcluded){
+  if(isExcluded) return {status:'excl',label:'&#x26A0;&#xFE0F; 排除不發放',cls:'excl'};
+  var dataM=months.filter(function(m){return monthData[m].hasData;});
+  var blankDataM=dataM.filter(function(m){return monthData[m].hasData&&monthData[m].role==='';});
+  var roleM=dataM.filter(function(m){return monthData[m].role!=='';});
+  var hasPend=roleM.some(function(m){var r=monthData[m].role;return r.indexOf('(暫)')>=0||r.indexOf('（暫）')>=0;});
+  if(dataM.length>0&&blankDataM.length===dataM.length) return{status:'lock_all',label:'&#x274C; 暫鎖發放（身分別全數空白）',cls:'ng'};
+  if(blankDataM.length>0) return{status:'lock_part',label:'&#x274C; 暫鎖發放（仍有月份空白）',cls:'ng'};
+  if(roleM.length<2) return{status:'ineligible',label:'&#x274C; 不符資格（有效月份'+roleM.length+'個月）',cls:'ng'};
+  if(hasPend) return{status:'pending',label:'&#x1F7E1; 等候審核（含暫估）',cls:'pend'};
+  return{status:'ok',label:'&#x1F7E2; 審核通過',cls:'ok'};
+}
+
+/* 達標獎金 */
+function calcBonus(identity,growth,roleMonthCnt){
+  if(['excl','lock_all','lock_part','ineligible'].indexOf(identity.status)>=0) return null;
+  if(growth<0) return null;
+  if(roleMonthCnt<2) return null;
+  return roleMonthCnt>=3?1000:500;
+}
+
+/* 人員×季計算 */
+function calcPersonQ(rows,q){
+  var months=QUARTERS[q]||[];
+  var monthData={};
+  months.forEach(function(m){monthData[m]={cur:0,last:0,tgt:0,growth:0,stores:0,hasData:false,role:''};});
+  var storeMap={};
+  var isExcluded=false;
+  rows.forEach(function(r){
+    if(gv(r,'exclude').trim()){isExcluded=true;return;}
+    var m=parseInt(gv(r,'month'),10);
+    if(!months.includes(m)) return;
+    var cur=gn(r,'cur'),last=gn(r,'last'),tgt=calcThr(last);
+    var role=gv(r,'role').trim();
+    var code=gv(r,'code'),storeName=gv(r,'store');
+    monthData[m].cur+=cur; monthData[m].last+=last; monthData[m].tgt+=tgt; monthData[m].hasData=true;
+    if(role) monthData[m].role=role;
+    var key=m+'-'+(code||storeName);
+    if(!storeMap[key]){storeMap[key]={month:m,code:code,name:storeName,cur:0,last:0,tgt:0};monthData[m].stores++;}
+    storeMap[key].cur+=cur; storeMap[key].last+=last; storeMap[key].tgt+=tgt;
+  });
+  months.forEach(function(m){var d=monthData[m];d.growth=fmt2(d.cur-d.tgt);});
+  var evalM=months.filter(function(m){return monthData[m].hasData;});
+  var roleM=evalM.filter(function(m){return monthData[m].role!=='';});
+  var totalCur=evalM.reduce(function(s,m){return s+monthData[m].cur;},0);
+  var totalLast=evalM.reduce(function(s,m){return s+monthData[m].last;},0);
+  var totalTgt=fmt2(evalM.reduce(function(s,m){return s+monthData[m].tgt;},0));
+  var totalStores=evalM.reduce(function(s,m){return s+monthData[m].stores;},0);
+  var totalGrowth=evalM.length>0?fmt2(evalM.reduce(function(s,m){return s+monthData[m].growth;},0)):null;
+  var growthRate=totalTgt>0&&totalGrowth!==null?totalGrowth/totalTgt:0;
+  var identity=calcIdentity(monthData,months,isExcluded);
+  var bonus=calcBonus(identity,totalGrowth!==null?totalGrowth:0,roleM.length);
+  var storeRows=Object.values(storeMap).sort(function(a,b){return a.month-b.month||(a.name>b.name?1:-1);});
+  storeRows.forEach(function(s){s.tgt=fmt2(s.tgt);s.growth=fmt2(s.cur-s.tgt);});
+  return{monthData:monthData,months:months,evalMonths:evalM,validMonths:roleM,
+    totalCur:totalCur,totalLast:totalLast,totalTgt:totalTgt,totalGrowth:totalGrowth,
+    growthRate:growthRate,totalStores:totalStores,identity:identity,bonus:bonus,
+    roleMonthCount:roleM.length,storeRows:storeRows};
+}
+
+/* 店家×季（組織視角） */
+function calcStoreQ(rows,q){
+  var months=QUARTERS[q]||[];
+  var monthData={};
+  months.forEach(function(m){monthData[m]={cur:0,last:0,delta:0,hasData:false,staffSet:{}};});
+  rows.forEach(function(r){
+    if(gv(r,'exclude').trim()) return;
+    var m=parseInt(gv(r,'month'),10);
+    if(!months.includes(m)) return;
+    monthData[m].cur+=gn(r,'cur'); monthData[m].last+=gn(r,'last'); monthData[m].hasData=true;
+    var staff=gv(r,'staff'); if(staff) monthData[m].staffSet[staff]=1;
+  });
+  months.forEach(function(m){var d=monthData[m];d.delta=d.cur-d.last;d.staffNames=Object.keys(d.staffSet).join('／');});
+  var evalM=months.filter(function(m){return monthData[m].hasData;});
+  var totalCur=evalM.reduce(function(s,m){return s+monthData[m].cur;},0);
+  var totalLast=evalM.reduce(function(s,m){return s+monthData[m].last;},0);
+  return{months:months,monthData:monthData,evalMonths:evalM,totalCur:totalCur,totalLast:totalLast,totalDelta:totalCur-totalLast};
+}
+
+/* ── 人員清單 ── */
+function getPersonList(){
+  var map={};
+  var qM=QUARTERS[curQ]||[];
+  allRows.forEach(function(r){
+    var staff=gv(r,'staff')||'（未知）';
+    if(!map[staff]) map[staff]={rows:[],area:'',office:'',lastM:0,lastMAll:0};
+    map[staff].rows.push(r);
+    var m=parseInt(gv(r,'month'))||0;
+    if(qM.indexOf(m)>=0&&m>map[staff].lastM){map[staff].lastM=m;map[staff].area=gv(r,'area');map[staff].office=gv(r,'office');}
+    if(m>map[staff].lastMAll){map[staff].lastMAll=m;if(!map[staff].area)map[staff].area=gv(r,'area');if(!map[staff].office)map[staff].office=gv(r,'office');}
+  });
+  if(fArea||fOffice){
+    Object.keys(map).forEach(function(s){
+      if(fArea&&map[s].area!==fArea){delete map[s];return;}
+      if(fOffice&&map[s].office!==fOffice){delete map[s];}
+    });
+  }
+  return map;
+}
+
+/* ── 店家清單 ── */
+function getStoreList(){
+  var qM=QUARTERS[curQ]||[];
+  var storeMap={};
+  allRows.forEach(function(r){
+    if(gv(r,'exclude').trim()) return;
+    var code=gv(r,'code'),storeName=gv(r,'store'),key=code||storeName;
+    if(!key) return;
+    if(!storeMap[key]) storeMap[key]={code:code,name:storeName,area:'',office:'',lastM:0,rows:[]};
+    storeMap[key].rows.push(r);
+    var m=parseInt(gv(r,'month'))||0;
+    if(qM.indexOf(m)>=0&&m>storeMap[key].lastM){storeMap[key].lastM=m;storeMap[key].area=gv(r,'area');storeMap[key].office=gv(r,'office');}
+    if(!storeMap[key].area)storeMap[key].area=gv(r,'area');
+    if(!storeMap[key].office)storeMap[key].office=gv(r,'office');
+  });
+  if(fArea||fOffice){
+    Object.keys(storeMap).forEach(function(k){
+      if(fArea&&storeMap[k].area!==fArea){delete storeMap[k];return;}
+      if(fOffice&&storeMap[k].office!==fOffice){delete storeMap[k];}
+    });
+  }
+  return storeMap;
+}
+
+/* ════════════════════════
+   渲染
+   ════════════════════════ */
+function render(){
+  if(viewMode==='org'){renderOrg();return;}
+  var area=document.getElementById('main-area'); area.innerHTML='';
+  if(!allRows.length) return;
+  var pMap=getPersonList();
+  var cards=Object.keys(pMap).map(function(staff){
+    var info=pMap[staff];
+    var qd=calcPersonQ(info.rows,curQ);
+    qd.personArea=info.area; qd.personOffice=info.office;
+    qd.monthArea={}; qd.monthOffice={};
+    info.rows.forEach(function(r){var m=parseInt(gv(r,'month'))||0;if(!qd.monthArea[m])qd.monthArea[m]=gv(r,'area');if(!qd.monthOffice[m])qd.monthOffice[m]=gv(r,'office');});
+    return{staff:staff,area:info.area,office:info.office,qd:qd};
+  }).filter(function(c){return c.qd.evalMonths.length>0;});
+  if(!cards.length){area.innerHTML='<div class="empty-msg"><div class="ei">&#128269;</div><div>沒有符合條件的資料</div></div>';return;}
+  function getSV(c){var qd=c.qd;if(curSort==='stores')return qd.totalStores;if(curSort==='cur')return qd.totalCur;if(curSort==='tgt')return qd.totalTgt;return qd.totalGrowth;}
+  cards.sort(function(a,b){
+    var aL=a.qd.evalMonths.length<2,bL=b.qd.evalMonths.length<2;
+    if(aL!==bL) return aL?1:-1;
+    var av=getSV(a),bv=getSV(b);
+    if(av===null&&bv===null)return 0; if(av===null)return 1; if(bv===null)return -1;
+    return bv-av;
+  });
+  cards.forEach(function(c){area.appendChild(makeCard(c));});
+  var b1=0,b5=0; cards.forEach(function(c){if(c.qd.bonus===1000)b1++;else if(c.qd.bonus===500)b5++;});
+  document.getElementById('gb-count').innerHTML='顯示 <b>'+cards.length+'</b> 人&emsp;&#127885; $1,000&#215;<b style="color:#7a5500">'+b1+'</b> 人 / $500&#215;<b style="color:#3a6a45">'+b5+'</b> 人';
+  updateRank(pMap);
+}
+
+/* ── 人員卡片 ── */
+function makeCard(c){
+  var qd=c.qd, tg=qd.totalGrowth, em=qd.evalMonths.length;
+  var bigNum,teCls;
+  if(em<2){bigNum='—';teCls='nil';}
+  else if(tg===null){bigNum='—';teCls='nil';}
+  else if(tg>0){bigNum='+'+tg;teCls='pos';}
+  else if(tg<0){bigNum=String(tg);teCls='neg';}
+  else{bigNum='0';teCls='nil';}
+  var ident=qd.identity;
+  var bonusHtml='';
+  if(qd.bonus===1000) bonusHtml='<span class="pc-bonus-badge b1000">&#127885; $1,000 達標獎金</span>';
+  else if(qd.bonus===500) bonusHtml='<span class="pc-bonus-badge b500">&#9989; $500 達標獎金</span>';
+  var rowsHtml=qd.months.map(function(m){
+    var d=qd.monthData[m];
+    var mA=qd.monthArea[m]||'',mO=qd.monthOffice[m]||'';
+    var isForeign=(mA&&qd.personArea&&mA!==qd.personArea)||(mO&&qd.personOffice&&mO!==qd.personOffice);
+    var mLabel=isForeign?MNAMES[m]+'<span style="font-size:9px;color:#c07000;margin-left:2px;vertical-align:super;">&#65290;</span>':MNAMES[m];
+    var trCls=isForeign?' style="background:rgba(255,200,50,.13);"':'';
+    if(!d.hasData) return '<tr'+trCls+'><td>'+mLabel+'</td><td class="ctn-stores">—</td><td class="ctn-cur">—</td><td class="ctn-tgt">—</td><td class="ctn-eval nil">—</td></tr>';
+    var gv2=d.growth,gcls=gv2>0?'pos':gv2<0?'neg':'nil';
+    return '<tr'+trCls+'><td>'+mLabel+'</td><td class="ctn-stores">'+d.stores+'</td><td class="ctn-cur">'+d.cur+'</td><td class="ctn-tgt">'+fmt2(d.tgt)+'</td><td class="ctn-eval '+gcls+'">'+(gv2>0?'+':'')+gv2+'</td></tr>';
+  }).join('');
+  var tgDCls=tg===null?'nil':(tg>0?'pos':tg<0?'neg':'nil');
+  var totalRow='<tr class="total-row"><td>合計</td><td class="ctn-stores">'+qd.totalStores+'</td><td class="ctn-cur">'+qd.totalCur+'</td><td class="ctn-tgt">'+fmt2(qd.totalTgt)+'</td><td class="ctn-eval '+tgDCls+'">'+(tg!==null?(tg>0?'+':'')+tg:'—')+'</td></tr>';
+  var el=document.createElement('div'); el.className='person-card';
+  el.innerHTML=
+    '<div class="pc-header"><div class="pc-title-row">'+
+    '<span class="pc-name">'+esc(c.staff)+'</span>'+
+    '<span class="pc-unit">'+esc(c.area)+'&#183;'+esc(c.office)+'</span>'+
+    '<span class="pc-title-spacer"></span>'+
+    '<span class="pc-q-label">'+curQ+' 成長值</span>'+
+    '<span class="pc-total-num '+teCls+'">'+bigNum+'</span>'+
+    '</div></div>'+
+    '<table class="pc-table"><thead><tr><th>月份</th><th>家數</th><th>當期業績</th><th>目標門檻</th><th>成長值</th></tr></thead>'+
+    '<tbody>'+rowsHtml+totalRow+'</tbody></table>'+
+    '<div class="pc-identity-block"><span class="pc-valid-tag '+ident.cls+'">'+ident.label+'</span>'+(bonusHtml||'')+'</div>'+
+    '<div class="pc-detail-btn-row"><button class="pc-open-detail-btn" onclick="openDetailDlg(event,this)" data-staff="'+esc(c.staff)+'" data-area="'+esc(c.area)+'" data-office="'+esc(c.office)+'">&#128203; 店家明細</button></div>';
+  el._qd=qd;
+  return el;
+}
+
+/* ── 組織視角渲染 ── */
+function renderOrg(){
+  var area=document.getElementById('main-area'); area.innerHTML='';
+  if(!allRows.length) return;
+  var storeMap=getStoreList();
+  var scards=Object.keys(storeMap).map(function(k){
+    var s=storeMap[k]; var qd=calcStoreQ(s.rows,curQ);
+    return{key:k,code:s.code,name:s.name,area:s.area,office:s.office,qd:qd};
+  }).filter(function(c){return c.qd.evalMonths.length>0;});
+  if(!scards.length){area.innerHTML='<div class="empty-msg"><div class="ei">&#128269;</div><div>沒有符合條件的資料</div></div>';return;}
+  function oSV(c){if(curSort==='cur')return c.qd.totalCur;if(curSort==='tgt')return c.qd.totalLast;return c.qd.totalDelta;}
+  scards.sort(function(a,b){return oSV(b)-oSV(a);});
+  if(fOffice){
+    scards.forEach(function(c){area.appendChild(makeOrgCard(c));});
+  } else if(fArea){
+    var og={};
+    scards.forEach(function(c){var o=c.office||'（未知）';if(!og[o])og[o]=[];og[o].push(c);});
+    Object.keys(og).sort().forEach(function(o){
+      var sec=document.createElement('div');sec.className='org-section';
+      sec.innerHTML='<div class="org-section-title">&#128205; '+esc(o)+'</div>';
+      area.appendChild(sec);og[o].forEach(function(c){area.appendChild(makeOrgCard(c));});
+    });
+  } else {
+    var ag={};
+    scards.forEach(function(c){var a=c.area||'（未知）';if(!ag[a])ag[a]=[];ag[a].push(c);});
+    sortAreas(Object.keys(ag)).forEach(function(a){
+      var sec=document.createElement('div');sec.className='org-section';
+      sec.innerHTML='<div class="org-section-title">&#127970; '+esc(a)+'</div>';
+      area.appendChild(sec);ag[a].forEach(function(c){area.appendChild(makeOrgCard(c));});
+    });
+  }
+  var totD=scards.reduce(function(s,c){return s+c.qd.totalDelta;},0);
+  document.getElementById('gb-count').innerHTML='顯示 <b>'+scards.length+'</b> 家店&emsp;增減合計 <b style="color:'+(totD>=0?'var(--green)':'var(--red)')+'">'+( totD>0?'+':'')+totD+'</b>';
+}
+
+function makeOrgCard(c){
+  var qd=c.qd,delta=qd.totalDelta;
+  var bigNum,teCls;
+  if(!qd.evalMonths.length){bigNum='—';teCls='nil';}
+  else if(delta>0){bigNum='+'+delta;teCls='pos';}
+  else if(delta<0){bigNum=String(delta);teCls='neg';}
+  else{bigNum='0';teCls='nil';}
+  var rowsHtml=qd.months.map(function(m){
+    var d=qd.monthData[m];
+    var staffCell='<td style="color:var(--sub);font-size:11px;">'+esc(d.staffNames||'—')+'</td>';
+    if(!d.hasData) return '<tr><td>'+MNAMES[m]+'</td>'+staffCell+'<td class="ctn-cur">—</td><td class="ctn-tgt">—</td><td class="ctn-eval nil">—</td></tr>';
+    var dv=d.delta,dcls=dv>0?'pos':dv<0?'neg':'nil';
+    return '<tr><td>'+MNAMES[m]+'</td>'+staffCell+'<td class="ctn-cur">'+d.cur+'</td><td class="ctn-tgt">'+d.last+'</td><td class="ctn-eval '+dcls+'">'+(dv>0?'+':'')+dv+'</td></tr>';
+  }).join('');
+  var tdcls=delta>0?'pos':delta<0?'neg':'nil';
+  var totalRow='<tr class="total-row"><td>合計</td><td></td><td class="ctn-cur">'+qd.totalCur+'</td><td class="ctn-tgt">'+qd.totalLast+'</td><td class="ctn-eval '+tdcls+'">'+(delta>0?'+':'')+delta+'</td></tr>';
+  var el=document.createElement('div');el.className='person-card';
+  el.innerHTML=
+    '<div class="pc-header"><div class="pc-title-row">'+
+    '<span class="pc-name">'+esc(c.name)+'</span>'+
+    '<span class="pc-unit">'+esc(c.area)+'&#183;'+esc(c.office)+'</span>'+
+    '<span class="pc-title-spacer"></span>'+
+    '<span class="pc-q-label">'+curQ+' 增減業績</span>'+
+    '<span class="pc-total-num '+teCls+'">'+bigNum+'</span>'+
+    '</div></div>'+
+    '<table class="pc-table"><thead><tr><th>月份</th><th>訪員</th><th>當期業績</th><th>去年業績</th><th>增減</th></tr></thead>'+
+    '<tbody>'+rowsHtml+totalRow+'</tbody></table>'+
+    '<div class="pc-detail-btn-row"><button class="pc-open-detail-btn" onclick="openOrgDlg(event,this)">&#128203; 店家明細</button></div>';
+  el._qd=qd; el._si=c;
+  return el;
+}
+
+/* ── 排行榜 ── */
+function setRankTab(tab){
+  _rankTab=tab;
+  document.getElementById('rank-tab-growth').classList.toggle('on',tab==='growth');
+  document.getElementById('rank-tab-rate').classList.toggle('on',tab==='rate');
+  updateRank();
+}
+function updateRank(pMap){
+  var content=document.getElementById('rd-content'); content.innerHTML='';
+  if(!allRows.length||!curQ) return;
+  var staffMap=pMap||{};
+  if(!pMap){
+    allRows.forEach(function(r){
+      var staff=gv(r,'staff')||'（未知）';
+      if(!staffMap[staff])staffMap[staff]={rows:[],area:'',office:''};
+      staffMap[staff].rows.push(r);
+      if(!staffMap[staff].area)staffMap[staff].area=gv(r,'area');
+      if(!staffMap[staff].office)staffMap[staff].office=gv(r,'office');
+    });
+  }
+  var eligible=Object.keys(staffMap).map(function(staff){
+    var info=staffMap[staff];
+    var qd=calcPersonQ(info.rows,curQ);
+    if(qd.bonus!==1000) return null;
+    return{staff:staff,area:info.area,office:info.office,growth:qd.totalGrowth||0,growthRate:qd.growthRate||0};
+  }).filter(Boolean);
+  if(!eligible.length){content.innerHTML='<div style="padding:16px;font-size:13px;color:var(--sub);text-align:center;">尚無 $1,000 達標人員</div>';return;}
+  var byArea={};
+  eligible.forEach(function(x){var a=x.area||'（未知）';if(!byArea[a])byArea[a]=[];byArea[a].push(x);});
+  var sf=_rankTab==='growth'?'growth':'growthRate';
+  sortAreas(Object.keys(byArea)).forEach(function(areaName){
+    var list=byArea[areaName].slice().sort(function(a,b){return b[sf]-a[sf];});
+    var rank=1;
+    list.forEach(function(x,i){if(i>0&&x[sf]!==list[i-1][sf])rank=i+1;x._rank=rank;});
+    var top3=list.filter(function(x){return x._rank<=3;});
+    if(!top3.length) return;
+    var sec=document.createElement('div');sec.className='rd-section';
+    var title=document.createElement('div');title.className='rd-sec-title';title.textContent=areaName;sec.appendChild(title);
+    top3.forEach(function(x){
+      var valStr=_rankTab==='growth'?(x.growth>0?'+':'')+x.growth:(x.growthRate>=0?'+':'')+Math.floor(x.growthRate*100)+'%';
+      var item=document.createElement('div');item.className='rank-item';
+      item.innerHTML=
+        '<div class="rank-no'+(x._rank===1?' top1':x._rank===2?' top2':x._rank===3?' top3':'')+'">'+x._rank+'</div>'+
+        '<div class="rank-info"><div class="rank-name">'+esc(x.staff)+'</div><div class="rank-sub">'+esc(x.office)+'　'+valStr+'</div></div>'+
+        '<div class="rank-val '+(x[sf]>0?'pos':x[sf]<0?'neg':'nil')+'">'+valStr+'</div>';
+      sec.appendChild(item);
+    });
+    content.appendChild(sec);
+  });
+}
+function toggleRank(){var m=document.getElementById('rank-modal');if(m.classList.contains('open')){closeRank();}else{m.style.display='flex';requestAnimationFrame(function(){m.classList.add('open');});}}
+function closeRank(){var m=document.getElementById('rank-modal');m.classList.remove('open');setTimeout(function(){m.style.display='none';},220);}
+function updateGbar(){document.getElementById('gb-sync').textContent=_syncTime?'資料同步：'+_syncTime:'';}
+
+/* ── 人員明細 Dialog ── */
+function openDetailDlg(e,btn){
+  e.stopPropagation();
+  var card=btn.closest('.person-card');
+  _currentQd=card._qd; _currentStaff=btn.dataset.staff;
+  var dlg=document.getElementById('detail-dialog');
+  document.getElementById('dlg-title').textContent=_currentStaff+'  店家明細  '+curQ+'  總家數 '+_currentQd.totalStores;
+  document.getElementById('dlg-body').innerHTML=buildDetailTbl(_currentQd);
+  ['btn-copy-line','btn-copy-excel','btn-screenshot'].forEach(function(id){var b=document.getElementById(id);if(b)b.classList.remove('done','loading');});
+  dlg.style.display='flex'; requestAnimationFrame(function(){dlg.classList.add('open');});
+}
+function closeDetailDialog(){var dlg=document.getElementById('detail-dialog');dlg.classList.remove('open');setTimeout(function(){dlg.style.display='none';},220);}
+document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeDetailDialog();closeRank();closeSummaryTable();closeMobileDrawer();}});
+
+function buildDetailTbl(qd){
+  if(!qd.storeRows.length) return '<div style="padding:10px 13px;font-size:10px;color:var(--sub);">無明細資料</div>';
+  var months=qd.months;
+  var si={};
+  qd.storeRows.forEach(function(s){var k=s.code||s.name;if(!si[k])si[k]={code:s.code,name:s.name,bm:{}};si[k].bm[s.month]=s;});
+  function mCls(mi,col){var bg=mi%2===0?'m-bg1':'m-bg2';return(col===0?'m-sep ':'')+bg;}
+  var thCols='<th>店碼</th><th>店名</th>';
+  months.forEach(function(m,mi){thCols+='<th class="'+mCls(mi,0)+'">'+MNAMES[m]+'<br>當期</th><th class="'+mCls(mi,1)+'">'+MNAMES[m]+'<br>目標</th><th class="'+mCls(mi,2)+'">'+MNAMES[m]+'<br>成長值</th>';});
+  thCols+='<th class="m-sep">單店<br>成長值</th>';
+  var tbody='';
+  Object.values(si).forEach(function(s){
+    var row='<td>'+esc(s.code)+'</td><td>'+esc(s.name)+'</td>';
+    var sg=0,hasAny=false;
+    months.forEach(function(m,mi){
+      var md=s.bm[m];
+      if(!md){row+='<td class="'+mCls(mi,0)+' d-nil">—</td><td class="'+mCls(mi,1)+' d-nil">—</td><td class="'+mCls(mi,2)+' d-nil">—</td>';return;}
+      hasAny=true; sg+=md.growth;
+      var gcls=md.growth>0?'d-pos':md.growth<0?'d-neg':'d-nil';
+      row+='<td class="'+mCls(mi,0)+' d-cur">'+md.cur+'</td><td class="'+mCls(mi,1)+' d-tgt">'+fmt2(md.tgt)+'</td><td class="'+mCls(mi,2)+' '+gcls+'">'+(md.growth>0?'+':'')+md.growth+'</td>';
+    });
+    sg=fmt2(sg);
+    var scls=sg>0?'d-pos':sg<0?'d-neg':'d-nil';
+    row+=hasAny?'<td class="m-sep '+scls+'" style="font-weight:900;">'+(sg>0?'+':'')+sg+'</td>':'<td class="m-sep d-nil">—</td>';
+    tbody+='<tr>'+row+'</tr>';
+  });
+  /* 合計列 */
+  var tRow='<tr style="font-weight:900;background:rgba(0,0,0,.03);border-top:2px solid rgba(0,0,0,.1);"><td colspan="2" style="text-align:left;padding:7px 14px;color:var(--sub);font-size:11px;">合計</td>';
+  months.forEach(function(m,mi){
+    var tc=0,tt=0,tg=0,hasAny=false;
+    Object.values(si).forEach(function(s){var md=s.bm[m];if(!md)return;hasAny=true;tc+=md.cur;tt+=md.tgt;tg+=md.growth;});
+    tt=fmt2(tt);tg=fmt2(tg);
+    var bl=mi===0?'m-sep ':'';
+    if(!hasAny){tRow+='<td class="'+bl+mCls(mi,0)+' d-nil">—</td><td class="'+mCls(mi,1)+' d-nil">—</td><td class="'+mCls(mi,2)+' d-nil">—</td>';}
+    else{var ecls=tg>0?'d-pos':tg<0?'d-neg':'d-nil';tRow+='<td class="'+bl+mCls(mi,0)+' d-cur">'+tc+'</td><td class="'+mCls(mi,1)+' d-tgt">'+tt+'</td><td class="'+mCls(mi,2)+' '+ecls+'">'+(tg>0?'+':'')+tg+'</td>';}
+  });
+  var gg=fmt2(qd.totalGrowth||0);
+  var gCls=gg>0?'d-pos':gg<0?'d-neg':'d-nil';
+  tRow+='<td class="m-sep '+gCls+'" style="font-weight:900;">'+(gg>0?'+':'')+gg+'</td></tr>';
+  return '<div class="detail-scroll"><table class="detail-tbl"><thead><tr>'+thCols+'</tr></thead><tbody>'+tbody+tRow+'</tbody></table></div>';
+}
+
+/* ── 組織明細 Dialog ── */
+function openOrgDlg(e,btn){
+  e.stopPropagation();
+  var card=btn.closest('.person-card'); _currentOrgStore=card._si; _currentQd=card._si.qd; _currentStaff=card._si.name;
+  var dlg=document.getElementById('detail-dialog');
+  document.getElementById('dlg-title').textContent=_currentStaff+'  店家明細  '+curQ+'（組織視角）';
+  document.getElementById('dlg-body').innerHTML=buildOrgDetailTbl(card._si);
+  ['btn-copy-line','btn-copy-excel','btn-screenshot'].forEach(function(id){var b=document.getElementById(id);if(b)b.classList.remove('done','loading');});
+  dlg.style.display='flex'; requestAnimationFrame(function(){dlg.classList.add('open');});
+}
+function buildOrgDetailTbl(si){
+  var months=QUARTERS[curQ]||[]; var rowMap={};
+  si.rows.forEach(function(r){
+    if(gv(r,'exclude').trim()) return;
+    var m=parseInt(gv(r,'month'),10); if(!months.includes(m)) return;
+    var staff=gv(r,'staff')||'（未知）'; var k=m+'-'+staff;
+    if(!rowMap[k])rowMap[k]={month:m,staff:staff,cur:0,last:0};
+    rowMap[k].cur+=gn(r,'cur'); rowMap[k].last+=gn(r,'last');
+  });
+  var rows=Object.values(rowMap).sort(function(a,b){return a.month-b.month||(a.staff>b.staff?1:-1);});
+  rows.forEach(function(s){s.delta=s.cur-s.last;});
+  if(!rows.length) return '<div style="padding:10px;font-size:10px;color:var(--sub);">無資料</div>';
+  var tC=rows.reduce(function(s,r){return s+r.cur;},0);
+  var tL=rows.reduce(function(s,r){return s+r.last;},0);
+  var tD=tC-tL; var dCls=tD>0?'d-pos':tD<0?'d-neg':'d-nil';
+  var tbody=rows.map(function(r){var dv=r.delta,dcls=dv>0?'d-pos':dv<0?'d-neg':'d-nil';return '<tr><td>'+MNAMES[r.month]+'</td><td>'+esc(r.staff)+'</td><td class="d-cur">'+r.cur+'</td><td class="d-tgt">'+r.last+'</td><td class="'+dcls+'">'+(dv>0?'+':'')+dv+'</td></tr>';}).join('');
+  tbody+='<tr style="font-weight:900;background:rgba(0,0,0,.02);border-top:1.5px solid rgba(0,0,0,.08);"><td colspan="2">整季合計</td><td class="d-cur">'+tC+'</td><td class="d-tgt">'+tL+'</td><td class="'+dCls+'">'+(tD>0?'+':'')+tD+'</td></tr>';
+  return '<div class="detail-scroll"><table class="detail-tbl"><thead><tr><th style="text-align:left;">月份</th><th style="text-align:left;">業務員</th><th>當期業績</th><th>去年業績</th><th>增減</th></tr></thead><tbody>'+tbody+'</tbody></table></div>';
+}
+
+/* ── 複製工具 ── */
+function _fb(btn,lbl){var o=btn.textContent;btn.textContent=lbl;btn.classList.add('done');setTimeout(function(){btn.textContent=o;btn.classList.remove('done');},2000);}
+function _fc(text){var ta=document.createElement('textarea');ta.value=text;ta.style.cssText='position:fixed;top:0;left:0;opacity:0;pointer-events:none;';document.body.appendChild(ta);ta.focus();ta.select();try{document.execCommand('copy');}catch(e){}document.body.removeChild(ta);}
+function _doCopy(text,btn){if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){_fb(btn,'&#9989; 已複製！');}).catch(function(){_fc(text);_fb(btn,'&#9989; 已複製！');});}else{_fc(text);_fb(btn,'&#9989; 已複製！');}}
+
+function copyLine(){
+  var btn=document.getElementById('btn-copy-line');
+  if(!_currentQd){_fb(btn,'&#9888;&#65039; 無資料');return;}
+  var qd=_currentQd,months=qd.months;
+  var lines=['【'+_currentStaff+'】店家明細 '+curQ,'總家數 '+qd.totalStores+' 家','─────────────────'];
+  var si={};
+  qd.storeRows.forEach(function(s){var k=s.code||s.name;if(!si[k])si[k]={code:s.code,name:s.name,bm:{}};si[k].bm[s.month]=s;});
+  Object.values(si).forEach(function(s){
+    lines.push('▸ '+s.name+(s.code?' ('+s.code+')':''));
+    months.forEach(function(m){var md=s.bm[m];if(!md)return;lines.push('  '+MNAMES[m]+'：當期 '+md.cur+' / 目標 '+fmt2(md.tgt)+' / 成長值 '+(md.growth>0?'+':'')+md.growth);});
+  });
+  lines.push('─────────────────');
+  lines.push('合計：當期 '+qd.totalCur+' / 目標 '+fmt2(qd.totalTgt)+' / 成長值 '+(qd.totalGrowth>0?'+':'')+qd.totalGrowth);
+  lines.push(qd.identity.label.replace(/&#[^;]+;/g,'').replace(/&[^;]+;/g,''));
+  if(qd.bonus) lines.push('達標獎金：$'+qd.bonus);
+  _doCopy(lines.join('\n'),btn);
+}
+function copyExcel(){
+  var btn=document.getElementById('btn-copy-excel');
+  if(!_currentQd){_fb(btn,'&#9888;&#65039; 無資料');return;}
+  var qd=_currentQd,months=qd.months;
+  var si={};
+  qd.storeRows.forEach(function(s){var k=s.code||s.name;if(!si[k])si[k]={code:s.code,name:s.name,bm:{}};si[k].bm[s.month]=s;});
+  var hdrs=['店碼','店名'];
+  months.forEach(function(m){hdrs.push(MNAMES[m]+'當期',MNAMES[m]+'目標',MNAMES[m]+'成長值');});
+  hdrs.push('季成長值');
+  var lines=[hdrs.join('\t')];
+  Object.values(si).forEach(function(s){
+    var cells=[s.code,s.name]; var sg=0;
+    months.forEach(function(m){var md=s.bm[m];if(!md){cells.push('','','');return;}sg+=md.growth;cells.push(md.cur,fmt2(md.tgt),md.growth);});
+    cells.push(fmt2(sg)); lines.push(cells.join('\t'));
+  });
+  _doCopy(lines.join('\n'),btn);
+}
+
+/* ── 截圖 ── */
+function _nowStr(){var d=new Date(),p=function(n){return n<10?'0'+n:String(n);};return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'_'+p(d.getHours())+p(d.getMinutes());}
+function _unitLabel(){return fOffice?fOffice:(fArea?fArea+'_全所':'全體');}
+function _dl(canvas,fname,btn){
+  var link=document.createElement('a');link.download=fname;link.href=canvas.toDataURL('image/png');link.click();
+  btn.classList.remove('loading');_fb(btn,'&#9989; 已下載！');
+}
+function _copyOrDl(canvas,fname,btn){
+  if(navigator.clipboard&&window.ClipboardItem&&!_isMob()){
+    canvas.toBlob(function(blob){
+      try{navigator.clipboard.write([new ClipboardItem({'image/png':blob})]).then(function(){btn.classList.remove('loading');_fb(btn,'&#9989; 已複製圖片！');}).catch(function(){_dl(canvas,fname,btn);});}catch(e){_dl(canvas,fname,btn);}
+    },'image/png');
+  } else { _dl(canvas,fname,btn); }
+}
+function _loadH2C(cb){if(window.html2canvas){cb();}else{var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';s.onload=cb;s.onerror=function(){alert('html2canvas 載入失敗');};document.head.appendChild(s);}}
+
+function takeScreenshot(){
+  var btn=document.getElementById('btn-screenshot'); btn.classList.add('loading'); btn.textContent='&#9203; 截圖中...';
+  _loadH2C(function(){
+    var body=document.getElementById('dlg-body');
+    var titleText=document.getElementById('dlg-title').textContent.trim();
+    var wrapper=document.createElement('div');
+    wrapper.style.cssText='background:#fff;padding:20px 24px;font-family:Microsoft JhengHei,Noto Sans TC,sans-serif;display:inline-block;min-width:600px;position:fixed;top:-9999px;left:-9999px;';
+    var h=document.createElement('div');h.style.cssText='font-size:15px;font-weight:900;color:#2D2D2D;margin-bottom:14px;padding-bottom:10px;border-bottom:2px solid #e8e8e8;';h.textContent=titleText;wrapper.appendChild(h);
+    var bc=body.cloneNode(true);
+    bc.querySelectorAll('th').forEach(function(el){el.style.position='static';el.style.padding='7px 12px';el.style.fontSize='11px';el.style.fontWeight='800';el.style.color='#888';el.style.background='#f8f8f8';el.style.borderBottom='1px solid #e0e0e0';el.style.whiteSpace='nowrap';});
+    bc.querySelectorAll('td').forEach(function(el){el.style.padding='7px 12px';el.style.borderBottom='1px solid #f0f0f0';el.style.whiteSpace='nowrap';});
+    bc.querySelectorAll('.d-pos').forEach(function(el){el.style.color='#22a84c';el.style.fontWeight='800';});
+    bc.querySelectorAll('.d-neg').forEach(function(el){el.style.color='#d93025';el.style.fontWeight='800';});
+    bc.querySelectorAll('.d-nil').forEach(function(el){el.style.color='#aaa';});
+    bc.querySelectorAll('.d-cur').forEach(function(el){el.style.color='#1a73e8';});
+    bc.querySelectorAll('.d-tgt').forEach(function(el){el.style.color='#7c3aed';});
+    bc.querySelectorAll('.detail-scroll').forEach(function(el){el.style.overflow='visible';});
+    wrapper.appendChild(bc);
+    var ts=document.createElement('div');ts.style.cssText='font-size:10px;color:#bbb;margin-top:12px;text-align:right;';ts.textContent='傳統通路購值進度　'+new Date().toLocaleString('zh-TW');wrapper.appendChild(ts);
+    document.body.appendChild(wrapper);
+    html2canvas(wrapper,{scale:2,backgroundColor:'#ffffff',useCORS:true,width:wrapper.scrollWidth,height:wrapper.scrollHeight}).then(function(canvas){
+      document.body.removeChild(wrapper);
+      _copyOrDl(canvas,(titleText||'截圖').replace(/[\s\/\\:*?"<>|]/g,'_')+'.png',btn);
+    }).catch(function(err){document.body.removeChild(wrapper);btn.classList.remove('loading');btn.textContent='&#128248; 截圖';alert('截圖失敗：'+err);});
+  });
+}
+
+function mainScreenshot(){
+  var btn=document.getElementById('btn-main-shot');btn.textContent='&#9203;';
+  _loadH2C(function(){
+    var area=document.getElementById('main-area');
+    var wrapper=document.createElement('div');
+    wrapper.style.cssText='background:#F0EDE6;padding:12px 14px;font-family:Microsoft JhengHei,Noto Sans TC,sans-serif;position:fixed;top:-9999px;left:-9999px;width:'+Math.max(area.scrollWidth,600)+'px;';
+    var hdr=document.createElement('div');hdr.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid rgba(0,0,0,.1);';
+    var nc=document.querySelector('#nav-area-row .nav-chip.on:not(.all)')||null;
+    var scopeLabel=nc?nc.textContent:'全體';
+    hdr.innerHTML='<span style="font-size:14px;font-weight:900;color:#2D2D2D;">傳統通路購值進度　'+(curQ||'')+'　'+(viewMode==='org'?'組織視角':'人員視角')+'　'+scopeLabel+'</span><span style="font-size:10px;color:#999;">'+new Date().toLocaleString('zh-TW')+'</span>';
+    wrapper.appendChild(hdr);
+    var clone=area.cloneNode(true);clone.style.cssText='display:flex;flex-wrap:wrap;gap:12px;align-content:start;overflow:visible;height:auto;max-height:none;';wrapper.appendChild(clone);
+    document.body.appendChild(wrapper);
+    html2canvas(wrapper,{scale:2,backgroundColor:'#F0EDE6',useCORS:true,width:wrapper.scrollWidth,height:wrapper.scrollHeight}).then(function(canvas){
+      document.body.removeChild(wrapper);btn.textContent='&#128248; 截圖';
+      _copyOrDl(canvas,'傳統購值_'+(curQ||'')+'_'+scopeLabel+'_'+_nowStr()+'.png',btn);
+    }).catch(function(err){document.body.removeChild(wrapper);btn.textContent='&#128248; 截圖';alert('截圖失敗：'+err);});
+  });
+}
+
+function mainCopyLine(){var btn=document.getElementById('btn-main-line');var text=_buildMainText();if(!text){alert('目前無資料可複製');return;}_doCopy(text,btn);}
+function mainCopyExcel(){var btn=document.getElementById('btn-main-excel');var text=_buildMainText();if(!text){alert('目前無資料可複製');return;}_doCopy(text,btn);}
+
+function _assembleRows(withQ){
+  var months=QUARTERS[curQ]||[];
+  var hdr,rows=[];
+  if(viewMode==='person'){
+    var pMap=getPersonList();
+    hdr=['人員','營業處','營業所'];if(withQ)hdr.push('季度');
+    months.forEach(function(m){hdr.push(MNAMES[m]+'當期',MNAMES[m]+'目標',MNAMES[m]+'成長值');});
+    hdr.push('季當期','季目標','季成長值','身分狀態','達標獎金');
+    var cards=Object.keys(pMap).map(function(staff){var info=pMap[staff];var qd=calcPersonQ(info.rows,curQ);return{staff:staff,info:info,qd:qd};}).filter(function(c){return c.qd.evalMonths.length>0;});
+    cards.sort(function(a,b){return (b.qd.totalGrowth||0)-(a.qd.totalGrowth||0);});
+    cards.forEach(function(c){
+      var qd=c.qd,row=[c.staff,c.info.area,c.info.office];if(withQ)row.push(curQ);
+      months.forEach(function(m){var d=qd.monthData[m];row.push(d.hasData?d.cur:'',d.hasData?fmt2(d.tgt):'',d.hasData?d.growth:'');});
+      row.push(qd.totalCur,fmt2(qd.totalTgt||0),qd.totalGrowth||0,qd.identity.label.replace(/&#[^;]+;/g,'').replace(/&[^;]+;/g,''),qd.bonus?('$'+qd.bonus):'');
+      rows.push(row);
+    });
+  } else {
+    var sm=getStoreList();
+    hdr=['店碼','店名','營業處','營業所'];
+    months.forEach(function(m){hdr.push(MNAMES[m]+'當期',MNAMES[m]+'去年',MNAMES[m]+'增減');});
+    hdr.push('季當期','季去年','季增減');
+    var scards=Object.keys(sm).map(function(k){var s=sm[k];return{s:s,qd:calcStoreQ(s.rows,curQ)};}).filter(function(c){return c.qd.evalMonths.length>0;});
+    scards.sort(function(a,b){return b.qd.totalDelta-a.qd.totalDelta;});
+    scards.forEach(function(c){
+      var s=c.s,qd=c.qd,row=[s.code,s.name,s.area,s.office];
+      months.forEach(function(m){var d=qd.monthData[m];row.push(d.hasData?d.cur:'',d.hasData?d.last:'',d.hasData?d.delta:'');});
+      row.push(qd.totalCur,qd.totalLast,qd.totalDelta);rows.push(row);
+    });
+  }
+  return{hdr:hdr,rows:rows};
+}
+function _buildMainText(){var a=_assembleRows(false);var lines=[a.hdr.join('\t')];a.rows.forEach(function(r){lines.push(r.join('\t'));});return lines.join('\n');}
+
+/* ── XLSX ── */
+function downloadXLSX(){if(!window.XLSX){alert('XLSX 套件載入中，請稍後再試');return;}var a=_assembleRows(true);var rows=[a.hdr].concat(a.rows);var wb=XLSX.utils.book_new();var ws=XLSX.utils.aoa_to_sheet(rows);var cols=rows[0].map(function(_,i){var mx=rows.reduce(function(m,r){return Math.max(m,String(r[i]||'').length);},0);return{wch:Math.min(Math.max(mx+2,8),30)};});ws['!cols']=cols;XLSX.utils.book_append_sheet(wb,ws,(curQ||'')+(viewMode==='org'?'組織':'人員'));XLSX.writeFile(wb,'傳統購值_'+(curQ||'')+'_'+_unitLabel()+'_'+_nowStr()+'.xlsx');}
+
+/* ── 彙整表 ── */
+function openSummaryTable(){
+  var modal=document.getElementById('summary-modal');
+  var sm=getStoreList();var skys=Object.keys(sm);
+  if(!skys.length){alert('目前篩選範圍無資料');return;}
+  var months=QUARTERS[curQ]||[];
+  var areaLabel=fOffice?fOffice:(fArea?fArea:'全體');
+  document.getElementById('summary-title').textContent='&#128202; 彙整表 — '+areaLabel;
+  document.getElementById('summary-subtitle').textContent=curQ+'　共 '+skys.length+' 家店';
+  var thS='padding:7px 10px;font-size:11px;font-weight:800;color:#444;background:#f0f4f0;border-bottom:2px solid #ccd8cc;border-right:1px solid #dde8dd;white-space:nowrap;text-align:right;position:sticky;top:0;z-index:2;';
+  var thSL=thS+'text-align:left;';
+  var thSM=thS+'background:#e4eee4;';var thST=thS+'background:#d8ead8;';
+  var thead='<thead><tr><th colspan="4" style="'+thSL+'">店家資訊</th>';
+  months.forEach(function(m){thead+='<th colspan="3" style="'+thSM+'border-left:2px solid #b8ccb8;">'+MNAMES[m]+'</th>';});
+  thead+='<th colspan="3" style="'+thST+'border-left:2px solid #a0c0a0;">季合計</th></tr><tr>';
+  ['店碼','店名','營業處','營業所'].forEach(function(t){thead+='<th style="'+thSL+'top:34px;">'+t+'</th>';});
+  months.forEach(function(m,mi){['當期','去年','增減'].forEach(function(t,i){thead+='<th style="'+thS+'top:34px;'+(i===0?'border-left:2px solid #b8ccb8;background:#e4eee4;':'background:#f0f4f0;')+'">'+t+'</th>';});});
+  ['當期','去年','增減'].forEach(function(t,i){thead+='<th style="'+thST+'top:34px;'+(i===0?'border-left:2px solid #a0c0a0;':'')+'">'+t+'</th>';});
+  thead+='</tr></thead>';
+  var tdS='padding:6px 10px;font-size:12px;border-bottom:1px solid #eee;border-right:1px solid #f0f0f0;text-align:right;white-space:nowrap;';
+  var tdSL=tdS+'text-align:left;';
+  function dCl(v){return v>0?'color:#22a84c;font-weight:800;':v<0?'color:#d93025;font-weight:800;':'color:#aaa;';}
+  function ds(v){return(v>0?'+':'')+v;}
+  var cards=skys.map(function(k){var s=sm[k];return{s:s,qd:calcStoreQ(s.rows,curQ)};}).filter(function(c){return c.qd.evalMonths.length>0;});
+  cards.sort(function(a,b){return b.qd.totalDelta-a.qd.totalDelta;});
+  var groups={};
+  cards.forEach(function(c){var gk=fOffice?'__flat__':(fArea?c.s.office:c.s.area);if(!groups[gk])groups[gk]=[];groups[gk].push(c);});
+  var gKeys=Object.keys(groups);
+  if(!fOffice&&!fArea)gKeys=sortAreas(gKeys);else gKeys.sort();
+  var totalCols=4+months.length*3+3;
+  function makeTotRow(label,lstyle,rstyle,gc,bl,bg){
+    var sC=gc.reduce(function(s,c){return s+c.qd.totalCur;},0);
+    var sL=gc.reduce(function(s,c){return s+c.qd.totalLast;},0);
+    var sD=sC-sL;
+    var r='<tr style="'+rstyle+'"><td colspan="4" style="'+tdSL+lstyle+'">'+label+'</td>';
+    months.forEach(function(m,mi){
+      var mc=gc.reduce(function(s,c){return s+(c.qd.monthData[m].hasData?c.qd.monthData[m].cur:0);},0);
+      var ml=gc.reduce(function(s,c){return s+(c.qd.monthData[m].hasData?c.qd.monthData[m].last:0);},0);
+      var md=mc-ml;
+      var bls=mi===0?'border-left:2px solid '+bl+';':'';
+      r+='<td style="'+tdS+bls+'color:#1a73e8;background:'+bg+';">'+mc+'</td>';
+      r+='<td style="'+tdS+'color:#7c3aed;background:'+bg+';">'+ml+'</td>';
+      r+='<td style="'+tdS+dCl(md)+'background:'+bg+';">'+ds(md)+'</td>';
+    });
+    r+='<td style="'+tdS+'border-left:2px solid '+bl+';color:#1a73e8;font-weight:900;background:'+bg+';">'+sC+'</td>';
+    r+='<td style="'+tdS+'color:#7c3aed;font-weight:900;background:'+bg+';">'+sL+'</td>';
+    r+='<td style="'+tdS+dCl(sD)+'font-weight:900;background:'+bg+';">'+ds(sD)+'</td></tr>';
+    return r;
+  }
+  var tbody='<tbody>';
+  gKeys.forEach(function(gk){
+    var gc=groups[gk];
+    if(gk!=='__flat__')tbody+='<tr><td colspan="'+totalCols+'" style="padding:7px 12px;font-size:11px;font-weight:900;color:#3a6a45;background:#edf5ed;border-top:2px solid #c0d8c0;border-bottom:1px solid #cce0cc;">'+(fArea?'&#128205; ':'&#127970; ')+gk+'　<span style="font-weight:500;color:#888;">'+gc.length+' 家</span></td></tr>';
+    gc.forEach(function(c){
+      var s=c.s,qd=c.qd;
+      var row='<tr class="sum-data-row"><td style="'+tdSL+'color:#777;font-size:11px;">'+s.code+'</td><td style="'+tdSL+'font-weight:700;">'+s.name+'</td><td style="'+tdSL+'color:#888;font-size:11px;">'+s.area+'</td><td style="'+tdSL+'color:#888;font-size:11px;">'+s.office+'</td>';
+      months.forEach(function(m,mi){var d=qd.monthData[m];var bl=mi===0?'border-left:2px solid #ddeedd;':'';if(!d.hasData){row+='<td style="'+tdS+bl+'color:#ddd;">—</td><td style="'+tdS+'color:#ddd;">—</td><td style="'+tdS+'color:#ddd;">—</td>';}else{row+='<td style="'+tdS+bl+'color:#1a73e8;">'+d.cur+'</td><td style="'+tdS+'color:#7c3aed;">'+d.last+'</td><td style="'+tdS+dCl(d.delta)+'">'+ds(d.delta)+'</td>';}});
+      row+='<td style="'+tdS+'border-left:2px solid #b0ccb0;background:#f4faf4;color:#1a73e8;font-weight:800;">'+qd.totalCur+'</td><td style="'+tdS+'background:#f4faf4;color:#7c3aed;font-weight:800;">'+qd.totalLast+'</td><td style="'+tdS+'background:#f4faf4;'+dCl(qd.totalDelta)+'">'+ds(qd.totalDelta)+'</td></tr>';
+      tbody+=row;
+    });
+    if(gc.length>1)tbody+=makeTotRow('小計　'+gc.length+' 家','color:#3a6a45;font-size:11px;','background:#edf5ed;font-weight:900;border-top:1.5px solid #c0d8c0;',gc,'#c0d8c0','#edf5ed');
+  });
+  tbody+=makeTotRow('&#128290; 總計　'+cards.length+' 家店','color:#1a3a22;font-size:12px;letter-spacing:.3px;','background:#c2dfc2;font-weight:900;border-top:3px solid #5a9a5a;',cards,'#5a9a5a','#d2ecd2');
+  tbody+='</tbody>';
+  document.getElementById('summary-body').innerHTML='<table style="border-collapse:collapse;font-size:13px;min-width:100%;">'+thead+tbody+'</table>';
+  modal.style.display='flex'; requestAnimationFrame(function(){modal.style.opacity='1';});
+}
+function closeSummaryTable(){var m=document.getElementById('summary-modal');m.style.opacity='0';setTimeout(function(){m.style.display='none';},200);}
+function exportSummaryXLSX(){downloadXLSX();}
+function takeSummaryScreenshot(){
+  var btn=document.getElementById('btn-summary-shot');btn.textContent='&#9203; 截圖中...';
+  _loadH2C(function(){
+    var body=document.getElementById('summary-body');
+    var titleText=document.getElementById('summary-title').textContent+' '+document.getElementById('summary-subtitle').textContent;
+    var wrapper=document.createElement('div');wrapper.style.cssText='background:#fff;padding:16px 20px;font-family:Microsoft JhengHei,Noto Sans TC,sans-serif;position:fixed;top:-9999px;left:-9999px;';
+    var h=document.createElement('div');h.style.cssText='font-size:14px;font-weight:900;color:#1a2a1a;margin-bottom:12px;padding-bottom:10px;border-bottom:2px solid #c8dcc8;';h.textContent=titleText;wrapper.appendChild(h);
+    var bc=body.cloneNode(true);bc.style.overflow='visible';bc.querySelectorAll('*').forEach(function(el){if(el.style)el.style.overflow='visible';});bc.querySelectorAll('th').forEach(function(el){el.style.position='static';});wrapper.appendChild(bc);
+    var ts=document.createElement('div');ts.style.cssText='font-size:10px;color:#bbb;margin-top:10px;text-align:right;';ts.textContent='傳統通路購值進度　'+new Date().toLocaleString('zh-TW');wrapper.appendChild(ts);
+    document.body.appendChild(wrapper);
+    html2canvas(wrapper,{scale:2,backgroundColor:'#ffffff',useCORS:true,width:wrapper.scrollWidth,height:wrapper.scrollHeight}).then(function(canvas){document.body.removeChild(wrapper);_copyOrDl(canvas,'彙整表_'+_unitLabel()+'_'+_nowStr()+'.png',btn);}).catch(function(err){document.body.removeChild(wrapper);btn.textContent='&#128248; 截圖';alert('截圖失敗：'+err);});
+  });
+}
+
+/* ── Loading 動畫 ── */
+function showLoading(){
+  var ls=document.getElementById('loading');ls.style.display='flex';ls.style.opacity='1';
+  var canvas=document.getElementById('loading-canvas'),ctx=canvas.getContext('2d'),W=canvas.width,H=canvas.height,S=7,C='#8BA690';
+  var frame=0,dots=0,txtEl=document.getElementById('loading-txt');
+  var f0=[[0,0,1,1,0,0,0,0],[0,0,1,1,0,0,0,0],[0,1,1,1,1,0,0,0],[0,0,1,1,0,0,0,0],[0,1,1,1,1,0,0,0],[0,1,0,0,1,0,0,0],[1,1,0,0,0,0,0,0],[0,1,0,0,1,1,0,0]];
+  var f1=[[0,0,1,1,0,0,0,0],[0,0,1,1,0,0,0,0],[0,1,1,1,1,0,0,0],[0,0,1,1,0,0,0,0],[0,1,1,1,1,0,0,0],[0,0,0,1,1,0,0,0],[0,0,0,0,1,1,0,0],[0,1,1,0,0,0,0,0]];
+  var bricks=[];for(var i=0;i<Math.ceil(W/S)+2;i++)bricks.push(i*S);
+  if(_runRaf)cancelAnimationFrame(_runRaf);
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='rgba(128,128,128,.15)';
+    for(var b=0;b<bricks.length;b++){var bx=((bricks[b]-frame*2)%W+W)%W;ctx.fillRect(bx,H-S,S-1,S-1);}
+    ctx.fillStyle=C;
+    var sf=frame%8<4?f0:f1;
+    for(var row=0;row<8;row++)for(var col=0;col<8;col++)if(sf[row][col])ctx.fillRect(W/2-4*S+col*S,H-S-8*S-4+row*S,S-1,S-1);
+    frame++;
+    if(frame%20===0){dots=(dots+1)%4;if(txtEl)txtEl.textContent='載入資料中'+'.'.repeat(dots);}
+    _runRaf=requestAnimationFrame(draw);
+  }
+  draw();
+}
+function hideLoading(){
+  if(_runRaf){cancelAnimationFrame(_runRaf);_runRaf=null;}
+  var ls=document.getElementById('loading');ls.style.transition='opacity .4s';ls.style.opacity='0';
+  setTimeout(function(){ls.style.display='none';ls.style.transition='';},420);
+}
+
+/* ── 啟動 ── */
+document.addEventListener('DOMContentLoaded',function(){
+  var url='https://docs.google.com/spreadsheets/d/'+MGMT_ID+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(MGMT_SHEET);
+  fetch(url).then(function(r){return r.text();})
+    .then(function(txt){
+      var json=JSON.parse(txt.replace(/^[^\(]+\(/,'').replace(/\);?\s*$/,''));
+      var rows=(json.table&&json.table.rows)||[];
+      rows.forEach(function(row){
+        var cells=row.c||[];
+        function cv(c){return c?String(c.v!==null&&c.v!==undefined?c.v:c.f||'').trim():'';}
+        if(cv(cells[2])===SHEET_ID){
+          SHEET_NAME=cv(cells[3])||SHEET_NAME;
+          SYNC_SHEET=cv(cells[4])||SYNC_SHEET;
+          SYNC_CELL=cv(cells[5])||SYNC_CELL;
+          PROJ_NAME=cv(cells[1])||PROJ_NAME;
+          var t=document.getElementById('title');if(t)t.textContent=PROJ_NAME;
+          document.title=PROJ_NAME;
+        }
+      });
+    }).catch(function(){}).then(function(){loadData();});
+});
+</script>
+</body>
+</html>
