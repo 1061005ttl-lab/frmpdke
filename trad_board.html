@@ -147,7 +147,7 @@
     .d-tgt{color:var(--purple);}
     #rank-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s;pointer-events:none;}
     #rank-modal.open{opacity:1;pointer-events:auto;}
-    .rank-modal-box{background:#fff;border-radius:14px;width:420px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 80px rgba(0,0,0,.35);transform:translateY(14px);transition:transform .22s;}
+    .rank-modal-box{background:#fff;border-radius:14px;width:480px;max-height:85vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 80px rgba(0,0,0,.35);transform:translateY(14px);transition:transform .22s;}
     #rank-modal.open .rank-modal-box{transform:translateY(0);}
     .rank-modal-header{padding:13px 16px;border-bottom:1px solid rgba(0,0,0,.09);display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:900;color:var(--text);flex-shrink:0;background:rgba(248,250,248,1);}
     .rank-tabs{display:flex;gap:6px;margin:0 16px;padding:8px 0 4px;border-bottom:1px solid rgba(0,0,0,.07);flex-shrink:0;}
@@ -159,17 +159,17 @@
     .rd-section{padding:8px 10px 4px;}
     .rd-sec-title{font-size:9px;font-weight:900;letter-spacing:.8px;color:#aaa;margin-bottom:6px;display:flex;align-items:center;gap:5px;}
     .rd-sec-title::after{content:'';flex:1;height:1px;background:rgba(0,0,0,.07);}
-    .rank-item{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:8px;margin-bottom:3px;border:1px solid transparent;transition:all .15s;}
+    .rank-item{display:flex;align-items:flex-start;gap:10px;padding:10px 10px;border-radius:10px;margin-bottom:6px;border:1px solid transparent;transition:all .15s;}
     .rank-item:hover{background:rgba(139,166,144,.1);border-color:rgba(139,166,144,.25);}
-    .rank-no{width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.07);font-size:9px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--sub);}
+    .rank-no{width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.07);font-size:11px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--sub);margin-top:2px;}
     .rank-no.top1{background:#FFD700;color:#7a5500;}
     .rank-no.top2{background:#C0C0C0;color:#555;}
     .rank-no.top3{background:#CD7F32;color:#fff;}
     .rank-info{flex:1;min-width:0;}
-    .rank-name{font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-    .rank-sub{font-size:10px;color:var(--sub);margin-top:1px;}
+    .rank-name{font-size:15px;font-weight:900;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .rank-sub{font-size:12px;color:var(--sub);margin-top:3px;}
     .rank-eval-badge{font-size:10px;font-weight:900;color:#7a5500;background:rgba(255,215,0,.18);border:1px solid rgba(200,160,0,.35);border-radius:6px;padding:2px 7px;margin-top:4px;display:inline-block;}
-    .rank-val{font-size:15px;font-weight:900;flex-shrink:0;}
+    .rank-val{font-size:16px;font-weight:900;flex-shrink:0;text-align:right;line-height:1.4;}
     .rank-val.pos{color:var(--green);}
     .rank-val.neg{color:var(--red);}
     .rank-val.nil{color:var(--sub);}
@@ -674,16 +674,22 @@ function calcStoreQ(rows,q){
 }
 
 /* ── 人員清單 ── */
+var SPLIT_NAMES=['重複主訪','無主訪'];
 function getPersonList(){
   var map={};
   var qM=QUARTERS[curQ]||[];
   allRows.forEach(function(r){
-    var staff=gv(r,'staff')||'（未知）';
-    if(!map[staff]) map[staff]={rows:[],area:'',office:'',lastM:0,lastMAll:0};
-    map[staff].rows.push(r);
+    var rawStaff=gv(r,'staff')||'（未知）';
+    var area=gv(r,'area'), office=gv(r,'office');
+    /* 特殊名稱依 area+office 拆開為獨立卡片 */
+    var key=SPLIT_NAMES.indexOf(rawStaff)>=0
+      ? rawStaff+'||'+area+'||'+office
+      : rawStaff;
+    if(!map[key]) map[key]={rows:[],area:'',office:'',displayName:rawStaff,lastM:0,lastMAll:0};
+    map[key].rows.push(r);
     var m=parseInt(gv(r,'month'))||0;
-    if(qM.indexOf(m)>=0&&m>map[staff].lastM){map[staff].lastM=m;map[staff].area=gv(r,'area');map[staff].office=gv(r,'office');}
-    if(m>map[staff].lastMAll){map[staff].lastMAll=m;if(!map[staff].area)map[staff].area=gv(r,'area');if(!map[staff].office)map[staff].office=gv(r,'office');}
+    if(qM.indexOf(m)>=0&&m>map[key].lastM){map[key].lastM=m;map[key].area=area;map[key].office=office;}
+    if(m>map[key].lastMAll){map[key].lastMAll=m;if(!map[key].area)map[key].area=area;if(!map[key].office)map[key].office=office;}
   });
   if(fArea||fOffice){
     Object.keys(map).forEach(function(s){
@@ -729,10 +735,10 @@ function render(){
   var cards=Object.keys(pMap).map(function(staff){
     var info=pMap[staff];
     var qd=calcPersonQ(info.rows,curQ);
-    qd.personArea=info.area; qd.personOffice=info.office;
+    qd.personArea=info.area; qd.personOffice=info.office; qd.displayName=info.displayName||staff;
     qd.monthArea={}; qd.monthOffice={};
     info.rows.forEach(function(r){var m=parseInt(gv(r,'month'))||0;if(!qd.monthArea[m])qd.monthArea[m]=gv(r,'area');if(!qd.monthOffice[m])qd.monthOffice[m]=gv(r,'office');});
-    return{staff:staff,area:info.area,office:info.office,qd:qd};
+    return{staff:qd.displayName,area:info.area,office:info.office,qd:qd,rawKey:staff};
   }).filter(function(c){return c.qd.evalMonths.length>0;});
   if(!cards.length){area.innerHTML='<div class="empty-msg"><div class="ei">&#128269;</div><div>沒有符合條件的資料</div></div>';return;}
   function getSV(c){var qd=c.qd;if(curSort==='stores')return qd.totalStores;if(curSort==='cur')return qd.totalCur;if(curSort==='tgt')return qd.totalTgt;return qd.totalGrowth;}
@@ -744,6 +750,7 @@ function render(){
     return bv-av;
   });
   cards.forEach(function(c){area.appendChild(makeCard(c));});
+  updateRank();
   var b1=0,b5=0; cards.forEach(function(c){if(c.qd.bonus===1000)b1++;else if(c.qd.bonus===500)b5++;});
   var totPctDisp=cards.filter(function(c){return c.qd.bonus!==null;}).length;
 document.getElementById('gb-count').innerHTML='顯示 <b>'+cards.length+'</b> 人&emsp;&#127885; $1,000&#215;<b style="color:#7a5500">'+b1+'</b> 人 / $500&#215;<b style="color:#3a6a45">'+b5+'</b> 人';
@@ -773,13 +780,13 @@ function makeCard(c){
     var gv2=fmt2(d.growth),gcls=gv2>0?'pos':gv2<0?'neg':'nil';
     var pct=d.growthPct!==null?d.growthPct.toFixed(1)+'%':'—';
     var pCls=d.growthPct!==null&&d.growthPct>=5?'pos':d.growthPct!==null&&d.growthPct<0?'neg':'nil';
-    return '<tr'+trCls+'><td>'+mLabel+'</td><td class="ctn-stores">'+d.stores+'</td><td class="ctn-cur">'+fmtN(d.cur)+'</td><td class="ctn-tgt">'+fmtN(d.last)+'</td><td class="ctn-eval '+gcls+'">'+(gv2>0?'+':'')+fmtN(gv2)+'</td><td class="ctn-eval '+pCls+'">'+pct+'</td></tr>';
+    return '<tr'+trCls+'><td>'+mLabel+'</td><td class="ctn-stores">'+d.stores+'</td><td class="ctn-cur">'+fmtN(d.cur)+'</td><td class="ctn-tgt">'+fmtN(d.tgt)+'</td><td class="ctn-eval '+gcls+'">'+(gv2>0?'+':'')+fmtN(gv2)+'</td><td class="ctn-eval '+pCls+'">'+pct+'</td></tr>';
   }).join('');
   var tgDCls=tg===null?'nil':(tg>0?'pos':tg<0?'neg':'nil');
   var totPct=qd.totalPct;
   var totPctStr=totPct!==null?totPct.toFixed(1)+'%':'—';
   var totPCls=totPct!==null&&totPct>=5?'pos':totPct!==null&&totPct<0?'neg':'nil';
-  var totalRow='<tr class="total-row"><td>合計</td><td class="ctn-stores">'+qd.totalStores+'</td><td class="ctn-cur">'+fmtN(qd.totalCur)+'</td><td class="ctn-tgt">'+fmtN(qd.totalLast)+'</td><td class="ctn-eval '+tgDCls+'">'+(tg!==null?(tg>0?'+':'')+fmtN(tg):'—')+'</td><td class="ctn-eval '+totPCls+'">'+totPctStr+'</td></tr>';
+  var totalRow='<tr class="total-row"><td>合計</td><td class="ctn-stores">'+qd.totalStores+'</td><td class="ctn-cur">'+fmtN(qd.totalCur)+'</td><td class="ctn-tgt">'+fmtN(qd.totalTgt)+'</td><td class="ctn-eval '+tgDCls+'">'+(tg!==null?(tg>0?'+':'')+fmtN(tg):'—')+'</td><td class="ctn-eval '+totPCls+'">'+totPctStr+'</td></tr>';
   var el=document.createElement('div'); el.className='person-card';
   el.innerHTML=
     '<div class="pc-header"><div class="pc-title-row">'+
@@ -790,7 +797,7 @@ function makeCard(c){
     '<span class="pc-q-label">'+curQ+' 成長值</span>'+
     '<span class="pc-total-num '+teCls+'">'+bigNum+'</span>'+
     '</div></div>'+
-    '<table class="pc-table"><thead><tr><th>月份</th><th>家數</th><th>當期業績</th><th>同期業績</th><th>成長值</th><th>成長%</th></tr></thead>'+
+    '<table class="pc-table"><thead><tr><th>月份</th><th>家數</th><th>當期業績</th><th>目標(孰高)</th><th>成長值</th><th>成長%</th></tr></thead>'+
     '<tbody>'+rowsHtml+totalRow+'</tbody></table>'+
     '<div class="pc-identity-block"><span class="pc-valid-tag '+ident.cls+'">'+ident.label+'</span>'+(bonusHtml||'')+'</div>'+
     '<div class="pc-detail-btn-row"><button class="pc-open-detail-btn" onclick="openDetailDlg(event,this)" data-staff="'+esc(c.staff)+'" data-area="'+esc(c.area)+'" data-office="'+esc(c.office)+'">&#128203; 店家明細</button></div>';
@@ -872,24 +879,25 @@ function setRankTab(tab){
   document.getElementById('rank-tab-rate').classList.toggle('on',tab==='rate');
   updateRank();
 }
-function updateRank(pMap){
+function updateRank(){
   var content=document.getElementById('rd-content'); content.innerHTML='';
   if(!allRows.length||!curQ) return;
-  var staffMap=pMap||{};
-  if(!pMap){
-    allRows.forEach(function(r){
-      var staff=gv(r,'staff')||'（未知）';
-      if(!staffMap[staff])staffMap[staff]={rows:[],area:'',office:''};
-      staffMap[staff].rows.push(r);
-      if(!staffMap[staff].area)staffMap[staff].area=gv(r,'area');
-      if(!staffMap[staff].office)staffMap[staff].office=gv(r,'office');
-    });
-  }
+  /* 修正6：排行榜永遠用全體 allRows，不受 fArea/fOffice 篩選影響 */
+  var staffMap={};
+  allRows.forEach(function(r){
+    var rawStaff=gv(r,'staff')||'（未知）';
+    var area=gv(r,'area'),office=gv(r,'office');
+    var key=SPLIT_NAMES.indexOf(rawStaff)>=0?rawStaff+'||'+area+'||'+office:rawStaff;
+    if(!staffMap[key])staffMap[key]={rows:[],area:area,office:office,displayName:rawStaff};
+    staffMap[key].rows.push(r);
+    if(!staffMap[key].area)staffMap[key].area=area;
+    if(!staffMap[key].office)staffMap[key].office=office;
+  });
   var eligible=Object.keys(staffMap).map(function(staff){
     var info=staffMap[staff];
     var qd=calcPersonQ(info.rows,curQ);
     if(qd.bonus!==1000) return null;
-    return{staff:staff,area:info.area,office:info.office,growth:qd.totalGrowth||0,growthRate:qd.growthRate||0,totalPct:qd.totalPct||0,evalAmt:qd.evalAmt||0};
+    return{staff:info.displayName||staff,area:info.area,office:info.office,growth:qd.totalGrowth||0,growthRate:qd.growthRate||0,totalPct:qd.totalPct||0,evalAmt:qd.evalAmt||0};
   }).filter(Boolean);
   if(!eligible.length){content.innerHTML='<div style="padding:16px;font-size:13px;color:var(--sub);text-align:center;">尚無 $1,000 達標人員</div>';return;}
   var byArea={};
@@ -904,16 +912,28 @@ function updateRank(pMap){
     var sec=document.createElement('div');sec.className='rd-section';
     var title=document.createElement('div');title.className='rd-sec-title';title.textContent=areaName;sec.appendChild(title);
     top3.forEach(function(x){
-      var valStr=_rankTab==='growth'?(x.growth>0?'+':'')+fmtN(x.growth):(x.growthRate>=0?'+':'')+fmtN(x.growthRate*100)+'%';
+      /* valStr 已被 growthStr/pctStr 取代，保留空字串避免錯誤 */
+      var valStr='';
       var item=document.createElement('div');item.className='rank-item';
+      /* 成長值 & 成長% 兩個都顯示 */
+      var growthStr=(x.growth>0?'+':'')+fmtN(x.growth);
+      var pctStr=x.totalPct!==null?(x.totalPct>=0?'+':'')+x.totalPct.toFixed(1)+'%':'—';
       var evalBadge='';
       if(_rankTab==='growth'&&x._rank===1&&x.evalAmt>0){
-        evalBadge='<div class="rank-eval-badge">&#x1F3C5; 品評額度 $'+x.evalAmt.toLocaleString()+'</div>';
+        evalBadge='<div class="rank-eval-badge">🏅 品評額度 $'+x.evalAmt.toLocaleString()+'</div>';
       }
+      var mainValCls=x.growth>0?'pos':x.growth<0?'neg':'nil';
       item.innerHTML=
         '<div class="rank-no'+(x._rank===1?' top1':x._rank===2?' top2':x._rank===3?' top3':'')+'">'+x._rank+'</div>'+
-        '<div class="rank-info"><div class="rank-name">'+esc(x.staff)+'</div><div class="rank-sub">'+esc(x.office)+'　'+valStr+'</div>'+evalBadge+'</div>'+
-        '<div class="rank-val '+(x[sf]>0?'pos':x[sf]<0?'neg':'nil')+'">'+valStr+'</div>';
+        '<div class="rank-info">'+
+          '<div class="rank-name">'+esc(x.staff)+'</div>'+
+          '<div class="rank-sub">'+esc(x.office)+'</div>'+
+          evalBadge+
+        '</div>'+
+        '<div style="flex-shrink:0;text-align:right;">'+
+          '<div class="rank-val '+mainValCls+'">'+growthStr+'</div>'+
+          '<div style="font-size:12px;font-weight:700;color:'+(x.totalPct!==null&&x.totalPct>=5?'var(--green)':x.totalPct!==null&&x.totalPct<0?'var(--red)':'var(--sub)')+';">'+pctStr+'</div>'+
+        '</div>';
       sec.appendChild(item);
     });
     content.appendChild(sec);
@@ -1014,11 +1034,11 @@ function buildOrgDetailTbl(si){
 /* ── 複製工具 ── */
 function _fb(btn,lbl){var o=btn.textContent;btn.textContent=lbl;btn.classList.add('done');setTimeout(function(){btn.textContent=o;btn.classList.remove('done');},2000);}
 function _fc(text){var ta=document.createElement('textarea');ta.value=text;ta.style.cssText='position:fixed;top:0;left:0;opacity:0;pointer-events:none;';document.body.appendChild(ta);ta.focus();ta.select();try{document.execCommand('copy');}catch(e){}document.body.removeChild(ta);}
-function _doCopy(text,btn){if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){_fb(btn,'&#9989; 已複製！');}).catch(function(){_fc(text);_fb(btn,'&#9989; 已複製！');});}else{_fc(text);_fb(btn,'&#9989; 已複製！');}}
+function _doCopy(text,btn){if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(function(){_fb(btn,'✅ 已複製！');}).catch(function(){_fc(text);_fb(btn,'✅ 已複製！');});}else{_fc(text);_fb(btn,'✅ 已複製！');}}
 
 function copyLine(){
   var btn=document.getElementById('btn-copy-line');
-  if(!_currentQd){_fb(btn,'&#9888;&#65039; 無資料');return;}
+  if(!_currentQd){_fb(btn,'⚠️ 無資料');return;}
   var qd=_currentQd,months=qd.months;
   var lines=['【'+_currentStaff+'】店家明細 '+curQ,'總家數 '+qd.totalStores+' 家','─────────────────'];
   var si={};
@@ -1035,7 +1055,7 @@ function copyLine(){
 }
 function copyExcel(){
   var btn=document.getElementById('btn-copy-excel');
-  if(!_currentQd){_fb(btn,'&#9888;&#65039; 無資料');return;}
+  if(!_currentQd){_fb(btn,'⚠️ 無資料');return;}
   var qd=_currentQd,months=qd.months;
   var si={};
   qd.storeRows.forEach(function(s){var k=s.code||s.name;if(!si[k])si[k]={code:s.code,name:s.name,bm:{}};si[k].bm[s.month]=s;});
@@ -1056,19 +1076,19 @@ function _nowStr(){var d=new Date(),p=function(n){return n<10?'0'+n:String(n);};
 function _unitLabel(){return fOffice?fOffice:(fArea?fArea+'_全所':'全體');}
 function _dl(canvas,fname,btn){
   var link=document.createElement('a');link.download=fname;link.href=canvas.toDataURL('image/png');link.click();
-  btn.classList.remove('loading');_fb(btn,'&#9989; 已下載！');
+  btn.classList.remove('loading');_fb(btn,'✅ 已下載！');
 }
 function _copyOrDl(canvas,fname,btn){
   if(navigator.clipboard&&window.ClipboardItem&&!_isMob()){
     canvas.toBlob(function(blob){
-      try{navigator.clipboard.write([new ClipboardItem({'image/png':blob})]).then(function(){btn.classList.remove('loading');_fb(btn,'&#9989; 已複製圖片！');}).catch(function(){_dl(canvas,fname,btn);});}catch(e){_dl(canvas,fname,btn);}
+      try{navigator.clipboard.write([new ClipboardItem({'image/png':blob})]).then(function(){btn.classList.remove('loading');_fb(btn,'✅ 已複製圖片！');}).catch(function(){_dl(canvas,fname,btn);});}catch(e){_dl(canvas,fname,btn);}
     },'image/png');
   } else { _dl(canvas,fname,btn); }
 }
 function _loadH2C(cb){if(window.html2canvas){cb();}else{var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';s.onload=cb;s.onerror=function(){alert('html2canvas 載入失敗');};document.head.appendChild(s);}}
 
 function takeScreenshot(){
-  var btn=document.getElementById('btn-screenshot'); btn.classList.add('loading'); btn.textContent='&#9203; 截圖中...';
+  var btn=document.getElementById('btn-screenshot'); btn.classList.add('loading'); btn.textContent='⏳ 截圖中...';
   _loadH2C(function(){
     var body=document.getElementById('dlg-body');
     var titleText=document.getElementById('dlg-title').textContent.trim();
@@ -1090,12 +1110,12 @@ function takeScreenshot(){
     html2canvas(wrapper,{scale:2,backgroundColor:'#ffffff',useCORS:true,width:wrapper.scrollWidth,height:wrapper.scrollHeight}).then(function(canvas){
       document.body.removeChild(wrapper);
       _copyOrDl(canvas,(titleText||'截圖').replace(/[\s\/\\:*?"<>|]/g,'_')+'.png',btn);
-    }).catch(function(err){document.body.removeChild(wrapper);btn.classList.remove('loading');btn.textContent='&#128248; 截圖';alert('截圖失敗：'+err);});
+    }).catch(function(err){document.body.removeChild(wrapper);btn.classList.remove('loading');btn.textContent='📸 截圖';alert('截圖失敗：'+err);});
   });
 }
 
 function mainScreenshot(){
-  var btn=document.getElementById('btn-main-shot');btn.textContent='&#9203;';
+  var btn=document.getElementById('btn-main-shot');btn.textContent='⏳';
   _loadH2C(function(){
     var area=document.getElementById('main-area');
     var wrapper=document.createElement('div');
@@ -1108,9 +1128,9 @@ function mainScreenshot(){
     var clone=area.cloneNode(true);clone.style.cssText='display:flex;flex-wrap:wrap;gap:12px;align-content:start;overflow:visible;height:auto;max-height:none;';wrapper.appendChild(clone);
     document.body.appendChild(wrapper);
     html2canvas(wrapper,{scale:2,backgroundColor:'#F0EDE6',useCORS:true,width:wrapper.scrollWidth,height:wrapper.scrollHeight}).then(function(canvas){
-      document.body.removeChild(wrapper);btn.textContent='&#128248; 截圖';
+      document.body.removeChild(wrapper);btn.textContent='📸 截圖';
       _copyOrDl(canvas,'傳統購值_'+(curQ||'')+'_'+scopeLabel+'_'+_nowStr()+'.png',btn);
-    }).catch(function(err){document.body.removeChild(wrapper);btn.textContent='&#128248; 截圖';alert('截圖失敗：'+err);});
+    }).catch(function(err){document.body.removeChild(wrapper);btn.textContent='📸 截圖';alert('截圖失敗：'+err);});
   });
 }
 
@@ -1223,7 +1243,7 @@ function openSummaryTable(){
 function closeSummaryTable(){var m=document.getElementById('summary-modal');m.style.opacity='0';setTimeout(function(){m.style.display='none';},200);}
 function exportSummaryXLSX(){downloadXLSX();}
 function takeSummaryScreenshot(){
-  var btn=document.getElementById('btn-summary-shot');btn.textContent='&#9203; 截圖中...';
+  var btn=document.getElementById('btn-summary-shot');btn.textContent='⏳ 截圖中...';
   _loadH2C(function(){
     var body=document.getElementById('summary-body');
     var titleText=document.getElementById('summary-title').textContent+' '+document.getElementById('summary-subtitle').textContent;
@@ -1232,7 +1252,7 @@ function takeSummaryScreenshot(){
     var bc=body.cloneNode(true);bc.style.overflow='visible';bc.querySelectorAll('*').forEach(function(el){if(el.style)el.style.overflow='visible';});bc.querySelectorAll('th').forEach(function(el){el.style.position='static';});wrapper.appendChild(bc);
     var ts=document.createElement('div');ts.style.cssText='font-size:10px;color:#bbb;margin-top:10px;text-align:right;';ts.textContent='傳統通路購值進度　'+new Date().toLocaleString('zh-TW');wrapper.appendChild(ts);
     document.body.appendChild(wrapper);
-    html2canvas(wrapper,{scale:2,backgroundColor:'#ffffff',useCORS:true,width:wrapper.scrollWidth,height:wrapper.scrollHeight}).then(function(canvas){document.body.removeChild(wrapper);_copyOrDl(canvas,'彙整表_'+_unitLabel()+'_'+_nowStr()+'.png',btn);}).catch(function(err){document.body.removeChild(wrapper);btn.textContent='&#128248; 截圖';alert('截圖失敗：'+err);});
+    html2canvas(wrapper,{scale:2,backgroundColor:'#ffffff',useCORS:true,width:wrapper.scrollWidth,height:wrapper.scrollHeight}).then(function(canvas){document.body.removeChild(wrapper);_copyOrDl(canvas,'彙整表_'+_unitLabel()+'_'+_nowStr()+'.png',btn);}).catch(function(err){document.body.removeChild(wrapper);btn.textContent='📸 截圖';alert('截圖失敗：'+err);});
   });
 }
 
