@@ -423,6 +423,19 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .dlg-action-btn.loading { opacity:.6; pointer-events:none; }
 .dlg-body { flex:1; min-height:0; padding:0; overflow:hidden; }
 
+/* ── Dialog 內篩選列 ── */
+.dlg-filter-row {
+  display:flex; align-items:center; gap:6px;
+  padding:8px 20px 6px; flex-wrap:nowrap; overflow-x:auto;
+  border-bottom:1px solid var(--border); background:rgba(248,249,248,1);
+  scrollbar-width:none; flex-shrink:0;
+}
+.dlg-filter-row::-webkit-scrollbar { display:none; }
+.dlg-filter-label {
+  font-size:10px; color:var(--sub); font-weight:700; letter-spacing:.04em;
+  opacity:.6; white-space:nowrap; flex-shrink:0; margin-right:2px;
+}
+
 /* ── 店家明細表格 ── */
 /* detail-scroll 同時承擔水平+垂直捲動，讓 thead sticky 能正確定位 */
 .detail-scroll {
@@ -656,8 +669,9 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   </div>
   <span class="sync-note" id="tb-sync"></span>
   <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;" id="toolbar-actions">
-    <button class="tb-act-btn" id="tb-btn-line"       onclick="toolbarCopyLine()">💬 LINE</button>
-    <button class="tb-act-btn" id="tb-btn-csv"        onclick="toolbarDownloadCsv()">📥 CSV</button>
+    <button class="tb-act-btn" id="tb-btn-line"        onclick="toolbarCopyLine()">💬 LINE</button>
+    <button class="tb-act-btn" id="tb-btn-line-simple" onclick="toolbarCopyLineSimple()">💬 LINE精簡</button>
+    <button class="tb-act-btn" id="tb-btn-csv"         onclick="toolbarDownloadCsv()">📥 CSV</button>
     <button class="tb-act-btn" id="tb-btn-screenshot" onclick="toolbarScreenshot()">📸 截圖</button>
   </div>
 </div>
@@ -674,14 +688,16 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 <div id="detail-dialog" style="display:none" onclick="if(event.target===this)closeDialog()">
   <div class="dlg-box">
     <div class="dlg-header">
-      <span id="dlg-title"></span>
-      <div style="display:flex;align-items:center;gap:6px;">
-        <button class="dlg-action-btn" id="btn-copy-line"    onclick="copyLine()"><span class="btn-icon">💬</span><span class="btn-txt"> 複製 LINE</span></button>
-        <button class="dlg-action-btn" id="btn-copy-excel"   onclick="downloadCsv()"><span class="btn-icon">📥</span><span class="btn-txt"> 下載 CSV</span></button>
+      <span id="dlg-title" style="font-size:13px;line-height:1.5;flex:1;min-width:0;"></span>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+        <button class="dlg-action-btn" id="btn-copy-line"    onclick="copyLine()"><span class="btn-icon">💬</span><span class="btn-txt"> LINE</span></button>
+        <button class="dlg-action-btn" id="btn-copy-line-simple" onclick="copyLineSimple()"><span class="btn-icon">💬</span><span class="btn-txt"> LINE（精簡）</span></button>
+        <button class="dlg-action-btn" id="btn-copy-excel"   onclick="downloadCsv()"><span class="btn-icon">📥</span><span class="btn-txt"> CSV</span></button>
         <button class="dlg-action-btn" id="btn-screenshot"   onclick="takeScreenshot()"><span class="btn-icon">📸</span><span class="btn-txt"> 截圖</span></button>
         <button class="dlg-close"                            onclick="closeDialog()">✕</button>
       </div>
     </div>
+    <div class="dlg-filter-row" id="dlg-filter-row"></div>
     <div class="dlg-body" id="dlg-body"></div>
   </div>
 </div>
@@ -1525,10 +1541,12 @@ function dialogRows(rows, levelKey) {
       if (chips['unfill'] !== false) result.push({ r:r, grp:3, bi:-1, ci:-1 });
       return;
     }
+    /* rowBGroup / rowCGroup 已依 chips 判斷：燈關時該群回傳 -1 */
     var bi = rowBGroup(r);
     if (bi >= 0) { result.push({ r:r, grp:0, bi:bi, ci:-1 }); return; }
     var ci = rowCGroup(r);
     if (ci >= 0) { result.push({ r:r, grp:1, bi:-1, ci:ci }); return; }
+    /* B/C 燈皆關時，該店歸入「尚未執行」（grp:2），仍顯示 */
     result.push({ r:r, grp:2, bi:-1, ci:-1 });
   });
   /* \u6392\u5e8f\u6b04\u4f4d\u4f9d\u7576\u524d\u5c64\u7d1a\u52d5\u614b\u6c7a\u5b9a\uff08\u7d44\u7e54\u8996\u89d2\u7528\u71df\u696d\u6240/\u4eba\u54e1\uff0c\u901a\u8def\u8996\u89d2\u7528\u5c0d\u61c9\u6b04\uff09 */
@@ -1654,38 +1672,71 @@ function buildStoreTable(rows, levelKey){
   return html;
 }
 
-function openDialog(displayName, levelKey, rows){
-  _dialogTitle=displayName; _dialogRows=rows; _dialogLevel=levelKey;
-  /* 依 chips 算各狀態家數 */
-  var items    = dialogRows(rows, levelKey);
-  var unfillCnt= items.filter(function(d){ return d.grp===3; }).length;
-  var dispCnt  = items.filter(function(d){ return d.grp===0; }).length;
-  var noCnt    = items.filter(function(d){ return d.grp===1; }).length;
-  var total    = items.length;
-  /* 組合脈絡前綴（drillStack 路徑 + 目前名稱） */
-  var ctx = drillStack.map(function(d){ return d.key; });
-  ctx.push(displayName);
-  var titleParts = ['\u3010' + ctx.join(' \u203A ') + '\u3011\u5E97\u5BB6\u660E\u7D30'];
-  titleParts.push('\u5171 '+total+' \u5BB6');
+/* ── refreshDialogContent: 依目前 chips 動態重繪 dialog ── */
+function refreshDialogContent() {
+  var rows = _dialogRows, levelKey = _dialogLevel;
+  var items = dialogRows(rows, levelKey);
+  var total = items.length;
   var validTotal = items.filter(function(d){ return d.grp!==3; }).length;
   function pct(n, base){ var b = base||validTotal; return b>0 ? ' ('+Math.round(n/b*100)+'%)' : ''; }
-  if(chips['unfill']!==false && unfillCnt) titleParts.push('\u672A\u586B\u5BEB '+unfillCnt+pct(unfillCnt, total));
+
+  var ctx = drillStack.map(function(d){ return d.key; });
+  ctx.push(_dialogTitle);
+  var line1 = '\u3010' + ctx.join(' \u203A ') + '\u3011\u5E97\u5BB6\u660E\u7D30';
+  var parts = ['\u5171 ' + total + ' \u5BB6'];
+  var unfillCnt = items.filter(function(d){ return d.grp===3; }).length;
+  if(chips['unfill']!==false && unfillCnt) parts.push('\u672A\u586B\u5BEB ' + unfillCnt + pct(unfillCnt, total));
   BUCKETS_B.forEach(function(g,i){
     if(chips['b:'+i]!==false){
       var cnt = items.filter(function(d){ return d.grp===0 && d.bi===i; }).length;
-      titleParts.push(esc(g.label)+' '+cnt+pct(cnt, validTotal));
+      parts.push(esc(g.label)+' '+cnt+pct(cnt, validTotal));
     }
   });
   BUCKETS_C.forEach(function(g,j){
     if(chips['c:'+j]!==false){
       var cnt = items.filter(function(d){ return d.grp===1 && d.ci===j; }).length;
-      titleParts.push(esc(g.label)+' '+cnt+pct(cnt, validTotal));
+      parts.push(esc(g.label)+' '+cnt+pct(cnt, validTotal));
     }
   });
-  document.getElementById('dlg-title').textContent = titleParts.join('\u3000');
-  document.getElementById('dlg-body').innerHTML=buildStoreTable(rows,levelKey);
-  /* 重置按鈕狀態（不重置 innerHTML，靜態 HTML 已定義） */
-  ['btn-copy-line','btn-copy-excel','btn-screenshot'].forEach(function(id){
+  var titleEl = document.getElementById('dlg-title');
+  titleEl.innerHTML = '<div style="font-size:14px;font-weight:900;line-height:1.3;">' + line1 + '</div>'
+    + '<div style="font-size:12px;color:var(--sub);font-weight:500;margin-top:2px;">' + parts.join(' \u3000 ') + '</div>';
+
+  document.getElementById('dlg-body').innerHTML = buildStoreTable(rows, levelKey);
+}
+
+/* ── buildDlgFilterRow: 在 dialog 內建篩選列 ── */
+function buildDlgFilterRow() {
+  var bar = document.getElementById('dlg-filter-row');
+  if (!bar) return;
+  bar.innerHTML = '';
+  var lbl = document.createElement('span');
+  lbl.className = 'dlg-filter-label';
+  lbl.textContent = '\u7BE9\u9078';
+  bar.appendChild(lbl);
+
+  function makeChip(key, label, cls) {
+    var btn = document.createElement('button');
+    btn.className = 'lamp-chip ' + cls + (chips[key] !== false ? ' on' : '');
+    btn.innerHTML = '<span class="lamp-dot"></span>' + esc(label);
+    btn.addEventListener('click', function() {
+      toggleLamp(key);
+      buildDlgFilterRow();
+      refreshDialogContent();
+    });
+    bar.appendChild(btn);
+  }
+
+  BUCKETS_B.forEach(function(g, i){ makeChip('b:'+i, g.label, 'good'); });
+  BUCKETS_C.forEach(function(g, i){ makeChip('c:'+i, g.label, 'warn'); });
+  makeChip('unfill', '\u672A\u586B\u5BEB', 'neutral');
+}
+
+function openDialog(displayName, levelKey, rows){
+  _dialogTitle=displayName; _dialogRows=rows; _dialogLevel=levelKey;
+  buildDlgFilterRow();
+  refreshDialogContent();
+  ['btn-copy-line','btn-copy-line-simple','btn-copy-excel','btn-screenshot'].forEach(function(id){
     var b=document.getElementById(id); if(!b) return;
     b.classList.remove('done','loading');
   });
@@ -1720,7 +1771,7 @@ function _doCopy(text,btn){
 }
 
 /* ── LINE 格式（共用） ── */
-function buildLineText(dRows, lv, title) {
+function buildLineText(dRows, lv, title, simple) {
   var DIV = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
   var allD = dialogRows(dRows, lv);
   var unfill = allD.filter(function(d){return d.grp===3;}).map(function(d){return d.r;});
@@ -1775,25 +1826,57 @@ function buildLineText(dRows, lv, title) {
     var cur=null;
     unfill.forEach(function(r){var gk=gh(r);if(gk!==null&&gk!==cur){cur=gk;if(gk)lines.push('\u258C '+gk);}lines.push('  \u2022 '+ss(r));});
   }
-  /* 頁腳統計 */
-  lines.push('');lines.push(DIV);
-  BUCKETS_B.forEach(function(g){
-    lines.push('\u25A0 '+g.label);
-    g.cols.forEach(function(t){lines.push('  '+t+'\uff1a'+dRows.reduce(function(s,r){return s+(isOne(r[t])?1:0);},0)+' \u5BB6');});
-  });
-  BUCKETS_C.forEach(function(g){
-    lines.push('\u25A0 '+g.label);
-    g.cols.forEach(function(t){lines.push('  '+t+'\uff1a'+dRows.reduce(function(s,r){return s+(isOne(r[t])?1:0);},0)+' \u5BB6');});
-  });
+  /* 頁腳統計（精簡版略過） */
+  if(!simple){
+    var _footRows = allD.filter(function(d){return d.grp!==3;}).map(function(d){return d.r;});
+    lines.push('');lines.push(DIV);
+    BUCKETS_B.forEach(function(g){
+      lines.push('\u25A0 '+g.label);
+      g.cols.forEach(function(t){lines.push('  '+t+'\uff1a'+_footRows.reduce(function(s,r){return s+(isOne(r[t])?1:0);},0)+' \u5BB6');});
+    });
+    BUCKETS_C.forEach(function(g){
+      lines.push('\u25A0 '+g.label);
+      g.cols.forEach(function(t){lines.push('  '+t+'\uff1a'+_footRows.reduce(function(s,r){return s+(isOne(r[t])?1:0);},0)+' \u5BB6');});
+    });
+  }
   return lines.join('\n');
 }
 
 function copyLine(){
   var btn=document.getElementById('btn-copy-line');
   if(!_dialogRows.length){_flashBtn(btn,'\u26A0\uFE0F \u7121\u8CC7\u6599');return;}
-  _doCopy(buildLineText(_dialogRows,_dialogLevel,_dialogTitle),btn);
+  _doCopy(buildLineText(_dialogRows,_dialogLevel,_dialogTitle,false),btn);
 }
 
+function copyLineSimple(){
+  var btn=document.getElementById('btn-copy-line-simple');
+  if(!_dialogRows.length){_flashBtn(btn,'\u26A0\uFE0F \u7121\u8CC7\u6599');return;}
+  _doCopy(buildLineText(_dialogRows,_dialogLevel,_dialogTitle,true),btn);
+}
+
+
+/* ── Toolbar 整體概況功能按鈕 ── */
+function toolbarCopyLine(){
+  var btn=document.getElementById('tb-btn-line');
+  if(!_overallRows.length){_flashBtn(btn,'⚠️ 無資料');return;}
+  _doCopy(buildLineText(_overallRows,_overallLevel,_overallTitle,false),btn);
+}
+function toolbarCopyLineSimple(){
+  var btn=document.getElementById('tb-btn-line-simple');
+  if(!_overallRows.length){_flashBtn(btn,'⚠️ 無資料');return;}
+  _doCopy(buildLineText(_overallRows,_overallLevel,_overallTitle,true),btn);
+}
+function toolbarDownloadCsv(){
+  var btn=document.getElementById('tb-btn-csv');
+  if(!_overallRows.length){_flashBtn(btn,'⚠️ 無資料');return;}
+  _triggerCsvDownload(buildCsvContent(_overallRows,_overallLevel),_overallTitle);
+  _flashBtn(btn,'✅ 已下載');
+}
+function toolbarScreenshot(){
+  if(!_overallRows.length)return;
+  openDialog(_overallTitle,_overallLevel,_overallRows);
+  setTimeout(function(){takeScreenshot();},400);
+}
 
 /* ── CSV 下載（共用） ── */
 function buildCsvContent(dRows, lv) {
