@@ -126,12 +126,12 @@
     .dlg-action-btn{cursor:pointer;font-size:13px;color:var(--sub);padding:4px 11px;border-radius:7px;border:1px solid rgba(0,0,0,.12);background:#fff;font-family:inherit;font-weight:700;transition:all .14s;white-space:nowrap;}
     .dlg-action-btn:hover{border-color:var(--primary);color:var(--primary-d);}
     .dlg-action-btn.done{border-color:var(--green);color:var(--green);background:var(--green-bg);}
-    .dlg-body{overflow:auto;flex:1;min-height:0;padding:0;}
-    .detail-scroll{overflow-x:auto;}
+    .dlg-body{overflow:hidden;flex:1;min-height:0;padding:0;}
+    .detail-scroll{overflow:auto;height:100%;}
     .detail-scroll::-webkit-scrollbar{height:3px;}
     .detail-scroll::-webkit-scrollbar-thumb{background:rgba(0,0,0,.1);border-radius:3px;}
     .detail-tbl{width:max-content;min-width:100%;border-collapse:collapse;font-size:15px;}
-    .detail-tbl th{position:sticky;top:0;z-index:10;padding:9px 14px;text-align:right;font-weight:800;font-size:12px;color:var(--sub);border-bottom:2px solid rgba(139,166,144,.4);background:#f8faf8;white-space:nowrap;box-shadow:0 2px 4px rgba(0,0,0,.06);}
+    .detail-tbl th{position:sticky;top:0;z-index:10;padding:9px 14px;text-align:right;font-weight:800;font-size:12px;color:var(--sub);border-bottom:2px solid rgba(139,166,144,.4);background:#f8faf8;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.08);}
     .detail-tbl th:first-child,.detail-tbl th:nth-child(2){text-align:left;}
     .detail-tbl td{padding:8px 14px;text-align:right;border-bottom:1px solid rgba(0,0,0,.04);white-space:nowrap;}
     .detail-tbl td:first-child,.detail-tbl td:nth-child(2){text-align:left;color:var(--text);max-width:180px;overflow:hidden;text-overflow:ellipsis;}
@@ -177,7 +177,10 @@
     .rank-info{flex:1;min-width:0;}
     .rank-name{font-size:14px;font-weight:900;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .rank-sub{font-size:12px;color:var(--sub);margin-top:3px;}
-    .rank-eval-badge{font-size:10px;font-weight:900;color:#7a5500;background:rgba(255,215,0,.18);border:1px solid rgba(200,160,0,.35);border-radius:6px;padding:2px 7px;margin-top:4px;display:inline-block;}
+    .rank-eval-badge{font-size:12px;font-weight:900;color:#5a3000;background:linear-gradient(135deg,rgba(255,215,0,.35),rgba(255,160,0,.2));border:1.5px solid rgba(200,140,0,.5);border-radius:8px;padding:4px 10px;margin-top:5px;display:inline-flex;align-items:center;gap:4px;box-shadow:0 2px 8px rgba(200,140,0,.25);}
+    .rank-eval-badge .eval-amt{font-size:15px;font-weight:900;color:#a04000;letter-spacing:-.3px;}
+    .rank-eval-badge.max-badge{background:linear-gradient(135deg,rgba(255,100,0,.2),rgba(255,215,0,.35));border-color:rgba(220,80,0,.5);animation:evalPulse 2s ease-in-out infinite;}
+    @keyframes evalPulse{0%,100%{box-shadow:0 2px 8px rgba(200,100,0,.25);}50%{box-shadow:0 3px 14px rgba(220,100,0,.5);}}
     .rank-val{font-size:15px;font-weight:900;flex-shrink:0;text-align:right;line-height:1.4;}
     .rank-val.pos{color:var(--green);}
     .rank-val.neg{color:var(--red);}
@@ -615,8 +618,9 @@ function calcPersonQ(rows,q){
   var storeMap={};
   var excludedStoreMap={};
   var isExcluded=false;
+  var hasNormalRows=false;
   rows.forEach(function(r){
-    if(gv(r,'exclude').trim()){isExcluded=true;
+    if(gv(r,'exclude').trim()){
       /* 收集被排除的店家供明細顯示 */
       var m2=parseInt(gv(r,'month'),10);
       if((QUARTERS[q]||[]).includes(m2)){
@@ -625,6 +629,7 @@ function calcPersonQ(rows,q){
         excludedStoreMap[key2].cur+=gn(r,'cur'); excludedStoreMap[key2].last+=gn(r,'last');
       }
       return;}
+    hasNormalRows=true;
     var m=parseInt(gv(r,'month'),10);
     if(!months.includes(m)) return;
     var cur=gn(r,'cur'),last=gn(r,'last');
@@ -664,6 +669,8 @@ function calcPersonQ(rows,q){
   var totalPct=totalTgt>0&&totalGrowth!==null?(totalGrowth/totalTgt*100):null;
   /* 品評推廣額度：(成長%-5%) 整數部分 × 1000，上限20000，需≥5%才有 */
   var evalAmt=totalPct!==null&&totalPct>=5?Math.min(Math.floor(totalPct-5)*1000,20000):0;
+  /* 只有完全沒有正常資料列（全部都被排除）才算人員排除 */
+  isExcluded=!hasNormalRows&&Object.keys(excludedStoreMap).length>0;
   var identity=calcIdentity(monthData,months,isExcluded);
   var bonus=calcBonus(identity,totalGrowth!==null?totalGrowth:0,totalPct,roleM.length);
   var storeRows=Object.values(storeMap).sort(function(a,b){return a.month-b.month||(a.name>b.name?1:-1);});
@@ -950,7 +957,9 @@ function updateRank(){
       }
       var evalBadge='';
       if(_rankTab==='growth'&&x._rank===1&&x.evalAmt>0){
-        evalBadge='<div class="rank-eval-badge">🏅 品評額度 $'+x.evalAmt.toLocaleString()+'</div>';
+        var isMax=x.evalAmt>=20000;
+        var amtHtml='<span class="eval-amt">$'+x.evalAmt.toLocaleString()+'</span>';
+        evalBadge='<div class="rank-eval-badge'+(isMax?' max-badge':'')+'">'+(isMax?'🔥':'🏅')+' 品評額度 '+amtHtml+(isMax?' 🔥 滿額！':'')+'</div>';
       }
       var noClass='rank-no'+(x._rank===1?' top1':x._rank===2?' top2':x._rank===3?' top3':'');
       var mainValCls=x.growth>0?'pos':x.growth<0?'neg':'nil';
