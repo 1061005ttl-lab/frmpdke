@@ -76,7 +76,7 @@
     #main-area{flex:1;min-width:0;overflow-y:auto;overflow-x:auto;padding:14px 16px;display:flex;flex-wrap:wrap;gap:12px;align-content:start;}
     #main-area::-webkit-scrollbar{width:4px;}
     #main-area::-webkit-scrollbar-thumb{background:rgba(0,0,0,.1);border-radius:4px;}
-    .person-card{width:calc(20% - 10px);min-width:240px;flex-shrink:0;background:var(--card);border-radius:var(--r);border:1px solid var(--border);box-shadow:0 2px 10px var(--shadow);overflow:hidden;transition:box-shadow .2s,transform .2s;}
+    .person-card{width:calc(25% - 10px);min-width:240px;flex-shrink:0;background:var(--card);border-radius:var(--r);border:1px solid var(--border);box-shadow:0 2px 10px var(--shadow);overflow:hidden;transition:box-shadow .2s,transform .2s;}
     .person-card:hover{box-shadow:0 5px 20px rgba(80,100,85,.2);transform:translateY(-1px);}
     .pc-valid-tag{font-size:10px;font-weight:800;padding:2px 7px;border-radius:99px;border:1px solid;white-space:nowrap;flex-shrink:0;}
     .pc-valid-tag.ok{background:var(--green-bg);color:var(--green);border-color:var(--green-bd);}
@@ -104,6 +104,7 @@
     .pc-header{padding:11px 13px 9px;border-bottom:1px solid rgba(0,0,0,.06);}
     .pc-title-row{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;min-width:0;overflow:hidden;}
     .pc-name{font-size:15px;font-weight:900;color:var(--text);white-space:nowrap;flex-shrink:0;}
+    .pc-month-badge{font-size:10px;font-weight:900;padding:1px 6px;border-radius:99px;border:1.5px solid;flex-shrink:0;white-space:nowrap;background:rgba(139,166,144,.12);color:#3a6a45;border-color:rgba(139,166,144,.4);}
     .pc-unit{font-size:11px;color:var(--sub);white-space:nowrap;flex-shrink:0;}
     .pc-title-spacer{flex:1;min-width:4px;}
     .pc-q-label{font-size:10px;color:var(--sub);white-space:nowrap;flex-shrink:0;}
@@ -167,6 +168,7 @@
     .rank-info{flex:1;min-width:0;}
     .rank-name{font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .rank-sub{font-size:10px;color:var(--sub);margin-top:1px;}
+    .rank-eval-badge{font-size:10px;font-weight:900;color:#7a5500;background:rgba(255,215,0,.18);border:1px solid rgba(200,160,0,.35);border-radius:6px;padding:2px 7px;margin-top:4px;display:inline-block;}
     .rank-val{font-size:15px;font-weight:900;flex-shrink:0;}
     .rank-val.pos{color:var(--green);}
     .rank-val.neg{color:var(--red);}
@@ -279,7 +281,7 @@
     <h3>&#128203; 傳統通路購值進度 — 怎麼看這個畫面？（Ver. 1.0.0）</h3>
     <p><b>【追蹤目標】</b>追蹤傳統通路訪員每季業績達標狀況與激勵獎金。成長值 = 當期業績 - 目標門檻，正值（綠色）超標，負值（紅色）未達標。</p>
     <hr>
-    <p><b>【目標門檻計算】</b>以<b>月份</b>為單位：該訪員負責所有店家的去年同期業績加總，若加總 &lt; 10萬則以10萬為基礎，再 &times; 1.05 為當月目標門檻。成長值 = 當期合計 - 月目標門檻，成長% = 成長值 ÷ 目標門檻 &times; 100。</p>
+    <p><b>【目標門檻計算】</b>以<b>月份</b>為單位：該訪員負責所有店家的去年同期業績加總，若加總 &lt; 10萬則目標門檻為10萬；若 &ge; 10萬則目標門檻即為去年加總（不額外×1.05）。成長% = (當期 - 目標) ÷ 目標 &times; 100，季成長% &ge; 5% 即達標。</p>
     <hr>
     <p><b>【身分狀態說明】</b>&#x1F7E2; 審核通過：可正常發放｜&#x1F7E1; 等候審核：含暫估身分｜&#x274C; 暫鎖/不符資格：有效月份不足或身分別空白｜&#x26A0;&#xFE0F; 排除不發放：黑名單人員</p>
     <hr>
@@ -313,7 +315,7 @@
   <div class="rank-modal-box">
     <div class="rank-modal-header"><span>&#127942; 獎金排行</span><button class="dlg-close" onclick="closeRank()">&#10005;</button></div>
     <div class="rank-tabs">
-      <button class="rank-tab on" id="rank-tab-growth" onclick="setRankTab('growth')">&#x1F947; 卓越貢獻（成長值）</button>
+      <button class="rank-tab on" id="rank-tab-growth" onclick="setRankTab('growth')">&#x1F947; 卓越貢獻 &amp; 品評額度</button>
       <button class="rank-tab" id="rank-tab-rate" onclick="setRankTab('rate')">&#x1F680; 成長突破（成長率）</button>
     </div>
     <div class="rank-modal-body" id="rd-content"></div>
@@ -370,8 +372,8 @@ var SHEET_NAME = '店家名冊';
 var SYNC_SHEET = '輔助';
 var SYNC_CELL  = 'B1';
 var PROJ_NAME  = '傳統通路購值進度';
-var MIN_THR    = 105;   /* 千元：10萬×1.05 */
-var GR_RATE    = 1.05;
+var MIN_THR    = 100;   /* 千元：10萬，孰高基準 */
+var GR_RATE    = 1.0;   /* 目標門檻不×1.05，孰高後直接為目標 */
 var QUARTERS   = {Q1:[1,2,3],Q2:[4,5,6],Q3:[7,8,9],Q4:[10,11,12]};
 var AREA_ORDER = ['北部','桃園','台中','嘉義','台南','高雄','花蓮'];
 var MNAMES     = ['','1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
@@ -568,7 +570,7 @@ function _updateSortLabels(){
 /* ════════════════════════════════════════
    核心計算
    ════════════════════════════════════════ */
-function calcThr(last){ return Math.max(last*GR_RATE, MIN_THR); }
+function calcThr(last){ return Math.max(last, MIN_THR); } /* 孰高：去年加總 vs 10萬 */
 
 /* 身分審核 */
 function calcIdentity(monthData,months,isExcluded){
@@ -640,13 +642,15 @@ function calcPersonQ(rows,q){
   var totalGrowth=evalM.length>0?fmt2(evalM.reduce(function(s,m){return s+monthData[m].growth;},0)):null;
   var growthRate=totalTgt>0&&totalGrowth!==null?totalGrowth/totalTgt:0;
   var totalPct=totalTgt>0&&totalGrowth!==null?(totalGrowth/totalTgt*100):null;
+  /* 品評推廣額度：(成長%-5%) 整數部分 × 1000，上限20000，需≥5%才有 */
+  var evalAmt=totalPct!==null&&totalPct>=5?Math.min(Math.floor(totalPct-5)*1000,20000):0;
   var identity=calcIdentity(monthData,months,isExcluded);
   var bonus=calcBonus(identity,totalGrowth!==null?totalGrowth:0,totalPct,roleM.length);
   var storeRows=Object.values(storeMap).sort(function(a,b){return a.month-b.month||(a.name>b.name?1:-1);});
   storeRows.forEach(function(s){s.tgt=fmt2(s.tgt);s.growth=fmt2(s.cur-s.tgt);/* last 保留原始去年業績 */});
   return{monthData:monthData,months:months,evalMonths:evalM,validMonths:roleM,
     totalCur:totalCur,totalLast:totalLast,totalTgt:totalTgt,totalGrowth:totalGrowth,
-    growthRate:growthRate,totalPct:totalPct,totalStores:totalStores,identity:identity,bonus:bonus,
+    growthRate:growthRate,totalPct:totalPct,evalAmt:evalAmt,totalStores:totalStores,identity:identity,bonus:bonus,
     roleMonthCount:roleM.length,storeRows:storeRows};
 }
 
@@ -780,6 +784,7 @@ function makeCard(c){
   el.innerHTML=
     '<div class="pc-header"><div class="pc-title-row">'+
     '<span class="pc-name">'+esc(c.staff)+'</span>'+
+    '<span class="pc-month-badge">'+qd.roleMonthCount+'/3</span>'+
     '<span class="pc-unit">'+esc(c.area)+'&#183;'+esc(c.office)+'</span>'+
     '<span class="pc-title-spacer"></span>'+
     '<span class="pc-q-label">'+curQ+' 成長值</span>'+
@@ -884,7 +889,7 @@ function updateRank(pMap){
     var info=staffMap[staff];
     var qd=calcPersonQ(info.rows,curQ);
     if(qd.bonus!==1000) return null;
-    return{staff:staff,area:info.area,office:info.office,growth:qd.totalGrowth||0,growthRate:qd.growthRate||0};
+    return{staff:staff,area:info.area,office:info.office,growth:qd.totalGrowth||0,growthRate:qd.growthRate||0,totalPct:qd.totalPct||0,evalAmt:qd.evalAmt||0};
   }).filter(Boolean);
   if(!eligible.length){content.innerHTML='<div style="padding:16px;font-size:13px;color:var(--sub);text-align:center;">尚無 $1,000 達標人員</div>';return;}
   var byArea={};
@@ -901,9 +906,13 @@ function updateRank(pMap){
     top3.forEach(function(x){
       var valStr=_rankTab==='growth'?(x.growth>0?'+':'')+fmtN(x.growth):(x.growthRate>=0?'+':'')+fmtN(x.growthRate*100)+'%';
       var item=document.createElement('div');item.className='rank-item';
+      var evalBadge='';
+      if(_rankTab==='growth'&&x._rank===1&&x.evalAmt>0){
+        evalBadge='<div class="rank-eval-badge">&#x1F3C5; 品評額度 $'+x.evalAmt.toLocaleString()+'</div>';
+      }
       item.innerHTML=
         '<div class="rank-no'+(x._rank===1?' top1':x._rank===2?' top2':x._rank===3?' top3':'')+'">'+x._rank+'</div>'+
-        '<div class="rank-info"><div class="rank-name">'+esc(x.staff)+'</div><div class="rank-sub">'+esc(x.office)+'　'+valStr+'</div></div>'+
+        '<div class="rank-info"><div class="rank-name">'+esc(x.staff)+'</div><div class="rank-sub">'+esc(x.office)+'　'+valStr+'</div>'+evalBadge+'</div>'+
         '<div class="rank-val '+(x[sf]>0?'pos':x[sf]<0?'neg':'nil')+'">'+valStr+'</div>';
       sec.appendChild(item);
     });
