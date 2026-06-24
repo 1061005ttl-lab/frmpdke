@@ -1541,12 +1541,19 @@ function dialogRows(rows, levelKey) {
       if (chips['unfill'] !== false) result.push({ r:r, grp:3, bi:-1, ci:-1 });
       return;
     }
-    /* rowBGroup / rowCGroup 已依 chips 判斷：燈關時該群回傳 -1 */
-    var bi = rowBGroup(r);
-    if (bi >= 0) { result.push({ r:r, grp:0, bi:bi, ci:-1 }); return; }
+    var bi = rowBGroup(r);   /* -1 表示 chip 關或不符合 */
     var ci = rowCGroup(r);
+    /* 店家屬於某個 B 群且 chip 開啟 → 顯示為 grp:0 */
+    if (bi >= 0) { result.push({ r:r, grp:0, bi:bi, ci:-1 }); return; }
+    /* 店家屬於某個 C 群且 chip 開啟 → 顯示為 grp:1 */
     if (ci >= 0) { result.push({ r:r, grp:1, bi:-1, ci:ci }); return; }
-    /* B/C 燈皆關時，該店歸入「尚未執行」（grp:2），仍顯示 */
+    /* 確認此店家「原本」屬於哪個群，若那個群的 chip 已關 → 隱藏（不推入 result） */
+    var rawBi = -1, rawCi = -1;
+    BUCKETS_B.forEach(function(g,i){ if(rawBi<0 && g.cols.some(function(t){return isOne(r[t]);})) rawBi=i; });
+    if (rawBi >= 0 && chips['b:'+rawBi] === false) return; /* chip 關，隱藏 */
+    BUCKETS_C.forEach(function(g,j){ if(rawCi<0 && g.cols.some(function(t){return isOne(r[t])||isCText(r[t]);})) rawCi=j; });
+    if (rawCi >= 0 && chips['c:'+rawCi] === false) return; /* chip 關，隱藏 */
+    /* 所有 chip 都沒關，但此店不符合任何 B/C 群 → 尚未執行 */
     result.push({ r:r, grp:2, bi:-1, ci:-1 });
   });
   /* \u6392\u5e8f\u6b04\u4f4d\u4f9d\u7576\u524d\u5c64\u7d1a\u52d5\u614b\u6c7a\u5b9a\uff08\u7d44\u7e54\u8996\u89d2\u7528\u71df\u696d\u6240/\u4eba\u54e1\uff0c\u901a\u8def\u8996\u89d2\u7528\u5c0d\u61c9\u6b04\uff09 */
@@ -1678,7 +1685,8 @@ function refreshDialogContent() {
   var items = dialogRows(rows, levelKey);
   var total = items.length;
   var validTotal = items.filter(function(d){ return d.grp!==3; }).length;
-  function pct(n, base){ var b = base||validTotal; return b>0 ? ' ('+Math.round(n/b*100)+'%)' : ''; }
+  /* % 統一以 total（含未填寫）為分母，與卡片一致 */
+  function pct(n, base){ var b = base||total; return b>0 ? ' ('+Math.round(n/b*100)+'%)' : ''; }
 
   var ctx = drillStack.map(function(d){ return d.key; });
   ctx.push(_dialogTitle);
