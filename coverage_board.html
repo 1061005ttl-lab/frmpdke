@@ -1878,62 +1878,86 @@ function buildLineText(dRows, lv, title, simple) {
   var valid  = allD.filter(function(d){return d.grp!==3;}).map(function(d){return d.r;});
   var disp   = valid.filter(function(r){return isDispRow(r);});
   var no     = valid.filter(function(r){return isNoRow(r);});
-  var other  = valid.filter(function(r){return !isDispRow(r)&&!isNoRow(r);});
   var gcol   = getExtraCols(lv)[0]||null;
   function gh(r){return gcol?String(r[gcol]||''):null;}
-  function ss(r){var c=String(r[COL_CODE]||''),n=String(r[COL_NAME]||'\u2014');return n+(c?' ('+c+')':'');}
-  /* 摘要 */
-  var sp=['\u6709\u6548 '+valid.length+' \u5BB6'];
-  BUCKETS_B.forEach(function(g){sp.push(g.label+' '+valid.filter(function(r){return g.cols.some(function(t){return isOne(r[t]);});}).length+' \u5BB6');});
-  BUCKETS_C.forEach(function(g){sp.push(g.label+' '+valid.filter(function(r){return g.cols.some(function(t){return isOne(r[t])||isCText(r[t]);});}).length+' \u5BB6');});
-  if(unfill.length) sp.push('\u672A\u586B\u5BEB '+unfill.length+' \u5BB6');
-  var lines=['\u3010'+title+'\u3011\u5E97\u5BB6\u660E\u7D30',sp.join('\u3000'),DIV];
+  function ss(r){var c=String(r[COL_CODE]||''),n=String(r[COL_NAME]||'\u2014');return n+(c?' ('+c+')'':'');}
 
-  if(!simple){
+  /* 摘要行 */
+  var sp=['\u6709\u6548 '+valid.length+' \u5BB6'];
+  BUCKETS_B.forEach(function(g){
+    sp.push(g.label+' '+valid.filter(function(r){return g.cols.some(function(t){return isOne(r[t]);});}).length+' \u5BB6');
+  });
+  BUCKETS_C.forEach(function(g){
+    sp.push(g.label+' '+valid.filter(function(r){return g.cols.some(function(t){return isOne(r[t])||isCText(r[t]);});}).length+' \u5BB6');
+  });
+  if(unfill.length) sp.push('\u672A\u586B\u5BEB '+unfill.length+' \u5BB6');
+
+  var lines=['\u3010'+title+'\u3011\u5E97\u5BB6\u660E\u7D30', sp.join('\u3000'), DIV];
+
   /* B 群 */
   BUCKETS_B.forEach(function(g){
     var gr=disp.filter(function(r){return g.cols.some(function(t){return isOne(r[t]);});});
     if(!gr.length)return;
-    lines.push('');lines.push('\u2705 '+g.label+'\uff08'+gr.length+' \u5BB6\uff09');
+    lines.push('');
+    lines.push(' '+g.label+'\uff08'+gr.length+' \u5BB6\uff09');
     var cur=null;
     gr.forEach(function(r){
-      var gk=gh(r);if(gk!==null&&gk!==cur){cur=gk;if(gk)lines.push('\u258C '+gk);}
+      var gk=gh(r);
+      if(gk!==null&&gk!==cur){cur=gk;if(gk)lines.push('\u258C '+gk);}
       lines.push('  \u2022 '+ss(r));
       var at=g.cols.filter(function(t){return isOne(r[t]);});
       if(at.length)lines.push('     \u2514 '+at.join('\u3001'));
     });
   });
+
   /* C 群 */
   BUCKETS_C.forEach(function(g){
     var gr=no.filter(function(r){return g.cols.some(function(t){return isOne(r[t])||isCText(r[t]);});});
     if(!gr.length)return;
-    lines.push('');lines.push('\u274C '+g.label+'\uff08'+gr.length+' \u5BB6\uff09');
+    lines.push('');
+    lines.push(' '+g.label+'\uff08'+gr.length+' \u5BB6\uff09');
     var cur=null;
     gr.forEach(function(r){
-      var gk=gh(r);if(gk!==null&&gk!==cur){cur=gk;if(gk)lines.push('\u258C '+gk);}
+      var gk=gh(r);
+      if(gk!==null&&gk!==cur){cur=gk;if(gk)lines.push('\u258C '+gk);}
       lines.push('  \u2022 '+ss(r));
-      var rs=g.cols.filter(function(t){return isOne(r[t])||isCText(r[t]);}).map(function(t){return isCText(r[t])?t+'\uff1a'+r[t]:t;});
+      var rs=g.cols.filter(function(t){return isOne(r[t])||isCText(r[t]);})
+        .map(function(t){return isCText(r[t])?t+'\uff1a'+r[t]:t;});
       if(rs.length)lines.push('     \u2514 '+rs.join('\u3001'));
     });
   });
+
   /* 未填寫 */
   if(unfill.length){
-    lines.push('');lines.push('\u26A0\uFE0F \u672A\u586B\u5BEB\uff08'+unfill.length+' \u5BB6\uff09');
+    lines.push('');
+    lines.push(' \u672A\u586B\u5BEB\uff08'+unfill.length+' \u5BB6\uff09');
     var cur=null;
-    unfill.forEach(function(r){var gk=gh(r);if(gk!==null&&gk!==cur){cur=gk;if(gk)lines.push('\u258C '+gk);}lines.push('  \u2022 '+ss(r));});
+    unfill.forEach(function(r){
+      var gk=gh(r);
+      if(gk!==null&&gk!==cur){cur=gk;if(gk)lines.push('\u258C '+gk);}
+      lines.push('  \u2022 '+ss(r));
+    });
   }
-  /* 頁腳統計 */
-  var _footRows = allD.filter(function(d){return d.grp!==3;}).map(function(d){return d.r;});
-  lines.push('');lines.push(DIV);
-  BUCKETS_B.forEach(function(g){
-    lines.push('\u25A0 '+g.label);
-    g.cols.forEach(function(t){lines.push('  '+t+'\uff1a'+_footRows.reduce(function(s,r){return s+(isOne(r[t])?1:0);},0)+' \u5BB6');});
-  });
-  BUCKETS_C.forEach(function(g){
-    lines.push('\u25A0 '+g.label);
-    g.cols.forEach(function(t){lines.push('  '+t+'\uff1a'+_footRows.reduce(function(s,r){return s+(isOne(r[t])?1:0);},0)+' \u5BB6');});
-  });
-  } /* end !simple */
+
+  /* 完整版才加頁腳統計 */
+  if(!simple){
+    var _footRows = allD.filter(function(d){return d.grp!==3;}).map(function(d){return d.r;});
+    lines.push('');
+    lines.push(DIV);
+    BUCKETS_B.forEach(function(g){
+      lines.push('\u25A0 '+g.label);
+      g.cols.forEach(function(t){
+        lines.push('  '+t+'\uff1a'+_footRows.reduce(function(s,r){return s+(isOne(r[t])?1:0);},0)+' \u5BB6');
+      });
+    });
+    BUCKETS_C.forEach(function(g){
+      lines.push('\u25A0 '+g.label);
+      g.cols.forEach(function(t){
+        lines.push('  '+t+'\uff1a'+_footRows.reduce(function(s,r){return s+(isOne(r[t])?1:0);},0)+' \u5BB6');
+      });
+    });
+  }
+
   return lines.join('\n');
 }
 
