@@ -21,6 +21,7 @@
 
 【版本紀錄】
   2.7.0  2026-06-24  卡片層 LINE/CSV/截圖、LINE格式重構、CSV下載
+  2.8.0  2026-06-26  專案類型(計數/加總)、未知群組選填、截圖截viewport、欄位右移
          - 卡片右上角加 💬📥📸 三個動作按鈕（不需進 dialog 即可操作）
          - LINE 格式重構：分 B群✅/C群✖/尚未執行/未填寫 四大區塊，條列式直式排版
          - 頁腳統計由一大串改為分群條列（B群各欄、C群各欄各佔一行）
@@ -94,7 +95,9 @@
 【覆蓋率型專案管理分頁欄位（A～G）】
   A 專案名        僅供辨識，建議與「專案管理」B欄一致
   B 專案ID        Google Sheet ID，需與「專案管理」C欄一致
-  C 未知群組標題   通常填「未填寫」，目前僅供備註，程式以 C 欄第一欄為 COL_UNFILL
+  C 專案類型       填「計數」或「加總」（空白預設計數）
+  D 未知群組標題   選填，留空表示不顯示未填寫燈
+  E 未知欄位       選填，與 D 搭配使用
   D 未知欄位      逗號分隔，第一欄為未填寫判斷欄（如：未填寫）
   E 已有群組標題   顯示在 stat 卡上的標題（如：有二位、已上架）
   F 已有欄位      逗號分隔，所有算「已有」的欄位（如：堆箱,端架,冰箱 或 原貨架,冰箱）
@@ -735,7 +738,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
       <b>💬</b> 複製當前頁面的 LINE 完整版訊息（含全部店家分組明細）<br>
       <b>✉️</b> 複製 LINE 精簡版訊息（僅統計摘要，不列店家名）<br>
       <b>📥</b> 下載當前頁面資料的 CSV 檔（檔名含單位與時間戳）<br>
-      <b>📸</b> 截圖當前頁面的明細表
+      <b>📸</b> 截圖目前可見的整個頁面（含 topbar / 燈號 / 卡片）
     </p>
 
     <hr>
@@ -755,7 +758,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
       標題列顯示各狀態家數與佔比，隨燈號篩選動態更新<br>
       表格欄位依群組上色：<span style="background:rgba(52,199,89,.2);padding:0 5px;border-radius:3px;">綠 = B1 群</span>　<span style="background:rgba(0,122,255,.13);padding:0 5px;border-radius:3px;">藍 = B2 群</span>　<span style="background:rgba(255,59,48,.1);padding:0 5px;border-radius:3px;">紅 = C 群</span>（顏色數量依專案設定而異）<br>
       ✅ = 有值（已貼附）　✖ = 有值（已知無原因）　— = 無此狀態<br>
-      利用燈號可只顯示需要的類別，再操作截圖/LINE/CSV，輸出的內容只含當前可見資料
+      利用燈號可只顯示需要的類別，再操作 LINE/CSV，輸出的內容只含當前可見資料
     </p>
 
     <hr>
@@ -765,7 +768,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
       <b>💬 LINE 完整</b>：條列式訊息，分「已知有（各 B 群）→ 已知無（各 C 群）→ 未填寫」三大區塊，每家店占一行，尾端附各欄統計。貼到 LINE 群組直接發送<br>
       <b>✉️ LINE 精簡</b>（toolbar 專屬）：只輸出統計摘要數字，不列店家名稱，適合快速回報進度<br>
       <b>📥 CSV</b>：下載含狀態欄的完整資料，檔名格式「單位_YYYYMMDD_HHMM.csv」，以 Excel 開啟可進一步分析<br>
-      <b>📸 截圖</b>：自動開啟明細並截圖，方便存檔或在群組分享視覺化進度
+      <b>📸 截圖</b>（Topbar）：截整個目前可見頁面；明細視窗內的截圖按鈕則截明細表格
     </p>
   </div>
 </div>
@@ -902,7 +905,7 @@ function renderLampBar() {
   /* C 群組：每個獨立一顆紅燈 */
   BUCKETS_C.forEach(function(g, i) { makeChip('c:'+i, g.label, 'warn'); });
   /* 未填寫燈 */
-  makeChip('unfill', '\u672a\u586b\u5beb', 'neutral');
+  if(COL_UNFILL) makeChip('unfill', '\u672a\u586b\u5beb', 'neutral');
 }
 
 function toggleLamp(key) {
@@ -920,7 +923,9 @@ function toggleLamp(key) {
 function showLoading(){ document.getElementById('loading').classList.add('show'); }
 function hideLoading(){ document.getElementById('loading').classList.remove('show'); }
 function isOne(v){ var n=Number(v); return n>=1||v===true||v==='true'||v==='1'; }
+/* 取得欄位數值：計數模式 = 有/無 (0|1)；加總模式 = 實際值 */
 function numVal(v){ var n=Number(v); return (n>=1)?n:(v===true||v==='true'||v==='1'?1:0); }
+function isSum(){ return PROJECT_TYPE==='\u52A0\u7E3D'; }
 /* C 群欄位：判斷是否為業務文字敘述（非 0/1 的非空字串） */
 function isCText(v){ return v!==null && v!==undefined && v!=='' && v!==0 && v!=='0' && v!==false && !isOne(v) && typeof v==='string' && v.trim().length>0; }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -968,17 +973,25 @@ function init() {
         if (!sid || sid.length < 20) return; /* 跳過表頭列 */
         if (sid !== SHEET_ID) return;
         /* 欄位配置：
-           A=專案名 B=專案ID C=未知群組標題 D=未知欄位
-           E=B1標題 F=B1欄位 G=C1標題 H=C1欄位
-           I=B2標題 J=B2欄位 K=C2標題 L=C2欄位
-           M=B3標題 N=B3欄位 O=C3標題 P=C3欄位 ...（每4欄一組 B+C）*/
-        var colsA = parseCsv(cv(cells[3]));
-        if (colsA.length) COL_UNFILL = colsA[0];
+           A=專案名 B=專案ID C=專案類型 D=未知群組標題(選填) E=未知欄位(選填)
+           F=B1標題 G=B1欄位 H=C1標題 I=C1欄位
+           J=B2標題 K=B2欄位 L=C2標題 M=C2欄位 ...（每4欄一組 B+C）
+           專案類型值：「計數」= 家數統計(0/1)，「加總」= 數值加總(>=1 視為有) */
+        var projType = cv(cells[2]);
+        if (projType === '\u52A0\u7E3D') PROJECT_TYPE = '\u52A0\u7E3D';
+        else PROJECT_TYPE = '\u8A08\u6578';
+
+        /* D 欄 = 未知群組標題(選填)，E 欄 = 未知欄位(選填) */
+        var unfillTitle = cv(cells[3]);
+        var colsA = parseCsv(cv(cells[4]));
+        /* 只有 D/E 都填寫才啟用未填寫燈 */
+        if (unfillTitle && colsA.length) COL_UNFILL = colsA[0];
+        else COL_UNFILL = null; /* 不顯示未填寫 */
 
         BUCKETS_B = [];
         BUCKETS_C = [];
-        /* 從 E(index 4) 起，每 4 欄讀一對 B+C 群組 */
-        for (var gi = 4; gi < cells.length - 1; gi += 4) {
+        /* 從 F(index 5) 起，每 4 欄讀一對 B+C 群組 */
+        for (var gi = 5; gi < cells.length - 1; gi += 4) {
           var lb = cv(cells[gi]),   cb = parseCsv(cv(cells[gi+1] || {}));
           var lc = cv(cells[gi+2] || {}), cc = parseCsv(cv(cells[gi+3] || {}));
           if (!lb && !cb.length && !lc && !cc.length) break; /* 空白即停 */
@@ -1171,7 +1184,7 @@ function isNoRow(r){ return rowCGroup(r) >= 0; }
 /* 燈狀態篩選：關掉的燈所對應的店家排除 */
 function applyChips(rows) {
   return rows.filter(function(r) {
-    if (isOne(r[COL_UNFILL])) return chips['unfill'] !== false;
+    if (COL_UNFILL && isOne(r[COL_UNFILL])) return chips['unfill'] !== false;
     var bi = rowBGroup(r);
     if (bi >= 0) return chips['b:'+bi] !== false;
     var ci = rowCGroup(r);
@@ -1191,13 +1204,13 @@ function calcGroup(rows) {
   BUCKETS_C.forEach(function(g){ g.cols.forEach(function(t){ cColCounts[t] = 0; }); });
 
   filtered.forEach(function(r){
-    if (isOne(r[COL_UNFILL])) { unfilled++; return; }
+    if (COL_UNFILL && isOne(r[COL_UNFILL])) { unfilled++; return; }
     /* 每個 B 群獨立計算（一家店可同時符合多個 B 群，如同時貼開瓶和黃薑） */
     BUCKETS_B.forEach(function(g, i){
       if (chips['b:'+i] === false) return;
       if (g.cols.some(function(t){ return isOne(r[t]); })) {
         bGroupCounts[i]++;
-        g.cols.forEach(function(t){ if (isOne(r[t])) bColCounts[t]+= numVal(r[t]); });
+        g.cols.forEach(function(t){ if (isOne(r[t])) bColCounts[t]+= isSum()?numVal(r[t]):1; });
       }
     });
     /* 每個 C 群獨立計算 */
@@ -1205,7 +1218,7 @@ function calcGroup(rows) {
       if (chips['c:'+j] === false) return;
       if (g.cols.some(function(t){ return isOne(r[t]); })) {
         cGroupCounts[j]++;
-        g.cols.forEach(function(t){ if (isOne(r[t])) cColCounts[t]+= numVal(r[t]); });
+        g.cols.forEach(function(t){ if (isOne(r[t])) cColCounts[t]+= isSum()?numVal(r[t]):1; });
       }
     });
   });
@@ -1213,13 +1226,13 @@ function calcGroup(rows) {
   /* hasDisp = 至少符合一個 B 群的店家數（獨立去重）
      hasNo   = 至少符合一個 C 群的店家數（獨立去重）*/
   var hasDisp = filtered.filter(function(r){
-    if (isOne(r[COL_UNFILL])) return false;
+    if (COL_UNFILL && isOne(r[COL_UNFILL])) return false;
     return BUCKETS_B.some(function(g, i){
       return chips['b:'+i] !== false && g.cols.some(function(t){ return isOne(r[t]); });
     });
   }).length;
   var hasNo = filtered.filter(function(r){
-    if (isOne(r[COL_UNFILL])) return false;
+    if (COL_UNFILL && isOne(r[COL_UNFILL])) return false;
     return BUCKETS_C.some(function(g, j){
       return chips['c:'+j] !== false && g.cols.some(function(t){ return isOne(r[t]); });
     });
@@ -1435,7 +1448,7 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
   /* 動態產生 B 群格 + C 群格 */
   var statRowHtml = '<div class="stat-row">'+
     '<div class="stat-item"><div class="stat-label">\u7E3D\u5BB6\u6578</div><div class="stat-val">'+stat.total+'</div><div class="stat-pct hidden">&nbsp;</div></div>'+
-    '<div class="stat-item warn'+(chips['unfill']===false?' dim':'')+'"><div class="stat-label">\u672A\u586B\u5BEB</div><div class="stat-val">'+stat.unfilled+'</div><div class="stat-pct">'+fp(stat.unfilled)+'</div></div>';
+    (COL_UNFILL ? '<div class="stat-item warn'+(chips['unfill']===false?' dim':'')+'"><div class="stat-label">\u672A\u586B\u5BEB</div><div class="stat-val">'+stat.unfilled+'</div><div class="stat-pct">'+fp(stat.unfilled)+'</div></div>' : '')+
 
   BUCKETS_B.forEach(function(g, i){
     var cnt = stat.bGroupCounts[i] || 0;
@@ -1506,11 +1519,11 @@ function buildTooltipHTML(label, buckets, counts, total) {
   return '<div class="tt-title">'+esc(label)+'</div>'+
     buckets.map(function(t){
       var n = counts[t]||0;
-      /* n 可能是 sum（當欄位值 >=2 時加總），大於 total 時顯示 sum 標示而非家 */
-      var unit = (n > total) ? '' : ' \u5BB6';
-      var suffix = (n > total) ? ' <span class="tt-pct">(sum)</span>' : '';
-      var pct = (total>0 && n<=total) ? ' <span class="tt-pct">('+Math.round(n/total*100)+'%)</span>' : '';
-      return '<div class="tt-row"><span class="tt-label">'+esc(t)+'</span><span class="tt-val">'+n+unit+pct+suffix+'</span></div>';
+      var unit = (isSum() && n > total) ? '' : ' \u5BB6';
+      var pct  = (isSum() && n > total)
+        ? ' <span class="tt-pct">(sum)</span>'
+        : (total>0 ? ' <span class="tt-pct">('+Math.round(n/total*100)+'%)</span>' : '');
+      return '<div class="tt-row"><span class="tt-label">'+esc(t)+'</span><span class="tt-val">'+n+unit+pct+'</span></div>';
     }).join('');
 }
 
@@ -1641,7 +1654,7 @@ function buildQuicknav() {
 function dialogRows(rows, levelKey) {
   var result = [];
   rows.forEach(function(r) {
-    if (isOne(r[COL_UNFILL])) {
+    if (COL_UNFILL && isOne(r[COL_UNFILL])) {
       if (chips['unfill'] !== false) result.push({ r:r, grp:3, bi:-1, ci:-1 });
       return;
     }
@@ -1649,8 +1662,8 @@ function dialogRows(rows, levelKey) {
     if (bi >= 0) { result.push({ r:r, grp:0, bi:bi, ci:-1 }); return; }
     var ci = rowCGroup(r);
     if (ci >= 0) { result.push({ r:r, grp:1, bi:-1, ci:ci }); return; }
-    /* B/C 都沒有值 → 邏輯上不應存在，但若發生視同未填寫處理 */
-    if (chips['unfill'] !== false) result.push({ r:r, grp:3, bi:-1, ci:-1 });
+    /* B/C 都沒有值且設有未知群組 → 視同未填寫處理 */
+    if (COL_UNFILL && chips['unfill'] !== false) result.push({ r:r, grp:3, bi:-1, ci:-1 });
   });
   /* \u6392\u5e8f\u6b04\u4f4d\u4f9d\u7576\u524d\u5c64\u7d1a\u52d5\u614b\u6c7a\u5b9a\uff08\u7d44\u7e54\u8996\u89d2\u7528\u71df\u696d\u6240/\u4eba\u54e1\uff0c\u901a\u8def\u8996\u89d2\u7528\u5c0d\u61c9\u6b04\uff09 */
   var sortCols = levelKey ? getDisplayCols(levelKey) : [COL_OFFICE, COL_STAFF];
@@ -1833,7 +1846,7 @@ function buildDlgFilterRow() {
 
   BUCKETS_B.forEach(function(g, i){ makeChip('b:'+i, g.label, 'good'); });
   BUCKETS_C.forEach(function(g, i){ makeChip('c:'+i, g.label, 'warn'); });
-  makeChip('unfill', '\u672A\u586B\u5BEB', 'neutral');
+  if(COL_UNFILL) makeChip('unfill', '\u672A\u586B\u5BEB', 'neutral');
 }
 
 function openDialog(displayName, levelKey, rows){
@@ -1951,13 +1964,13 @@ function buildLineText(dRows, lv, title, simple) {
     BUCKETS_B.forEach(function(g){
       lines.push('\u25A0 '+g.label);
       g.cols.forEach(function(t){
-        lines.push('  '+t+'\uff1a'+_footRows.reduce(function(s,r){return s+numVal(r[t]);},0)+' \u5BB6');
+        lines.push('  '+t+'\uff1a'+_footRows.reduce(function(s,r){return s+(isSum()?numVal(r[t]):(isOne(r[t])?1:0));},0)+(isSum()?' (\u52A0\u7E3D)':' \u5BB6'));
       });
     });
     BUCKETS_C.forEach(function(g){
       lines.push('\u25A0 '+g.label);
       g.cols.forEach(function(t){
-        lines.push('  '+t+'\uff1a'+_footRows.reduce(function(s,r){return s+numVal(r[t]);},0)+' \u5BB6');
+        lines.push('  '+t+'\uff1a'+_footRows.reduce(function(s,r){return s+(isSum()?numVal(r[t]):(isOne(r[t])?1:0));},0)+(isSum()?' (\u52A0\u7E3D)':' \u5BB6'));
       });
     });
   }
@@ -1996,9 +2009,7 @@ function toolbarDownloadCsv(){
   _flashBtn(btn,'✅ 已下載');
 }
 function toolbarScreenshot(){
-  if(!_overallRows.length)return;
-  openDialog(_overallTitle,_overallLevel,_overallRows);
-  setTimeout(function(){takeScreenshot();},400);
+  takeScreenshotViewport();
 }
 
 /* ── CSV 下載（共用） ── */
@@ -2015,7 +2026,7 @@ function buildCsvContent(dRows, lv) {
     extraCols.forEach(function(c){row.push(String(r[c]||''));});
     row.push(String(r[COL_CODE]||''));row.push(String(r[COL_NAME]||''));
     row.push(d.grp===3?'\u672A\u586B\u5BEB':d.grp===0?'\u5DF2\u6709':d.grp===1?'\u672A\u6709':'\u2014');
-    BUCKETS_B.forEach(function(g){if(g.cols.length===1)row.push(numVal(r[g.cols[0]]));else g.cols.forEach(function(t){row.push(numVal(r[t]));});});
+    BUCKETS_B.forEach(function(g){if(g.cols.length===1)row.push(isSum()?numVal(r[g.cols[0]]):(isOne(r[g.cols[0]])?1:0));else g.cols.forEach(function(t){row.push(isSum()?numVal(r[t]):(isOne(r[t])?1:0));});});
     BUCKETS_C.forEach(function(g){if(g.cols.length===1){var v=r[g.cols[0]];row.push(isOne(v)?1:(isCText(v)?String(v):0));}else g.cols.forEach(function(t){var v=r[t];row.push(isOne(v)?1:(isCText(v)?String(v):0));});});
     rows.push(row);
   });
@@ -2070,6 +2081,49 @@ function cardScreenshot(btn,name,levelKey){
   setTimeout(function(){takeScreenshot();},400);
 }
 
+
+/* ── 截整個目前可見頁面（Topbar 按鈕用） ── */
+function takeScreenshotViewport(){
+  var btn = document.getElementById('tb-btn-screenshot');
+  if(btn){ btn.classList.add('loading'); btn.textContent='\u23F3 \u622A\u5716\u4E2D...'; }
+  function doCapture(){
+    html2canvas(document.body,{
+      scale: 2,
+      backgroundColor: '#ffffff',
+      useCORS: true,
+      width:  window.innerWidth,
+      height: window.innerHeight,
+      windowWidth:  window.innerWidth,
+      windowHeight: window.innerHeight,
+      x: window.scrollX,
+      y: window.scrollY
+    }).then(function(canvas){
+      var titleText = PROJ_NAME || '\u8986\u84CB\u7387';
+      if(navigator.clipboard && window.ClipboardItem){
+        canvas.toBlob(function(blob){
+          try{
+            navigator.clipboard.write([new ClipboardItem({'image/png':blob})])
+              .then(function(){
+                if(btn){ btn.classList.remove('loading'); _flashBtn(btn,'\u2705 \u5DF2\u8907\u88FD\uFF01'); }
+              })
+              .catch(function(){ _downloadCanvas(canvas, titleText, btn); });
+          }catch(e){ _downloadCanvas(canvas, titleText, btn); }
+        },'image/png');
+      } else _downloadCanvas(canvas, titleText, btn);
+    }).catch(function(err){
+      if(btn){ btn.classList.remove('loading'); btn.textContent='\uD83D\uDCF8 \u622A\u5716'; }
+      alert('\u622A\u5716\u5931\u6557\uFF1A'+err);
+    });
+  }
+  if(window.html2canvas) doCapture();
+  else {
+    var s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    s.onload=doCapture;
+    s.onerror=function(){ if(btn){ btn.classList.remove('loading'); btn.textContent='\uD83D\uDCF8 \u622A\u5716'; } alert('html2canvas \u8F09\u5165\u5931\u6557'); };
+    document.head.appendChild(s);
+  }
+}
 
 function takeScreenshot(){
   var btn=document.getElementById('btn-screenshot');
