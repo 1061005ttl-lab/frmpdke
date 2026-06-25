@@ -903,7 +903,7 @@ function renderLampBar() {
   /* B 群組：每個獨立一顆綠燈 */
   BUCKETS_B.forEach(function(g, i) { makeChip('b:'+i, g.label, 'good'); });
   /* C 群組：每個獨立一顆紅燈 */
-  BUCKETS_C.forEach(function(g, i) { makeChip('c:'+i, g.label, 'warn'); });
+  if (!isSum()) BUCKETS_C.forEach(function(g, i) { makeChip('c:'+i, g.label, 'warn'); });
   /* 未填寫燈 */
   if(COL_UNFILL) makeChip('unfill', UNFILL_LABEL, 'neutral');
 }
@@ -1453,27 +1453,38 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
     var hasMultiCols = g.cols.length > 1;
     var siId = 'sib'+i+'-'+ttId;
     var ttBId = hasMultiCols ? 'ttb'+i+'-'+ttId : '';
+    var valDisp, pctDisp;
+    if (isSum()) {
+      var stores = (stat.bGroupStores && stat.bGroupStores[i]) || 0;
+      valDisp = cnt;
+      pctDisp = cnt + '\u4efd/' + stores + '\u5bb6';  /* 份/家 */
+    } else {
+      valDisp = cnt;
+      pctDisp = fp(cnt);
+    }
     _bStatHtml += '<div class="stat-item good'+dim+'" id="'+siId+'" style="position:relative">'+
       '<div class="stat-label">'+esc(g.label)+'</div>'+
-      '<div class="stat-val">'+cnt+'</div>'+
-      '<div class="stat-pct">'+fp(cnt)+'</div>'+
+      '<div class="stat-val">'+valDisp+'</div>'+
+      '<div class="stat-pct">'+pctDisp+'</div>'+
       (hasMultiCols ? '<div class="tooltip" id="'+ttBId+'">'+buildTooltipHTML(g.label, g.cols, stat.bColCounts, cnt)+'</div>' : '')+
     '</div>';
   });
   var _cStatHtml = '';
-  BUCKETS_C.forEach(function(g, j){
-    var cnt = stat.cGroupCounts[j] || 0;
-    var dim = chips['c:'+j]===false ? ' dim' : '';
-    var hasMultiCols = g.cols.length > 1;
-    var siId = 'sic'+j+'-'+ttId;
-    var ttCId2 = hasMultiCols ? 'ttc'+j+'-'+ttId : '';
-    _cStatHtml += '<div class="stat-item warn'+dim+'" id="'+siId+'" style="position:relative">'+
-      '<div class="stat-label">'+esc(g.label)+'</div>'+
-      '<div class="stat-val">'+cnt+'</div>'+
-      '<div class="stat-pct">'+fp(cnt)+'</div>'+
-      (hasMultiCols ? '<div class="tooltip" id="'+ttCId2+'">'+buildTooltipHTML(g.label, g.cols, stat.cColCounts, cnt)+'</div>' : '')+
-    '</div>';
-  });
+  if (!isSum()) {
+    BUCKETS_C.forEach(function(g, j){
+      var cnt = stat.cGroupCounts[j] || 0;
+      var dim = chips['c:'+j]===false ? ' dim' : '';
+      var hasMultiCols = g.cols.length > 1;
+      var siId = 'sic'+j+'-'+ttId;
+      var ttCId2 = hasMultiCols ? 'ttc'+j+'-'+ttId : '';
+      _cStatHtml += '<div class="stat-item warn'+dim+'" id="'+siId+'" style="position:relative">'+
+        '<div class="stat-label">'+esc(g.label)+'</div>'+
+        '<div class="stat-val">'+cnt+'</div>'+
+        '<div class="stat-pct">'+fp(cnt)+'</div>'+
+        (hasMultiCols ? '<div class="tooltip" id="'+ttCId2+'">'+buildTooltipHTML(g.label, g.cols, stat.cColCounts, cnt)+'</div>' : '')+
+      '</div>';
+    });
+  }
   var statRowHtml = '<div class="stat-row">'+
     '<div class="stat-item"><div class="stat-label">\u7E3D\u5BB6\u6578</div><div class="stat-val">'+stat.total+'</div><div class="stat-pct hidden">&nbsp;</div></div>'+
     (COL_UNFILL ? '<div class="stat-item warn'+(chips['unfill']===false?' dim':'')+'"><div class="stat-label">'+esc(UNFILL_LABEL)+'</div><div class="stat-val">'+stat.unfilled+'</div><div class="stat-pct">'+fp(stat.unfilled)+'</div></div>' : '')+
@@ -1736,11 +1747,13 @@ function buildStoreTable(rows, levelKey){
     if(g.cols.length===1) html+='<th'+cls+'>'+esc(g.label)+'</th>';
     else g.cols.forEach(function(t){ html+='<th'+cls+'>'+esc(t)+'</th>'; });
   });
-  BUCKETS_C.forEach(function(g,gi){
-    var cls=' class="th-grp-c'+gi+'"';
-    if(g.cols.length===1) html+='<th'+cls+'>'+esc(g.label||'未有')+'</th>';
-    else g.cols.filter(function(t){ return t; }).forEach(function(t){ html+='<th'+cls+'>'+esc(t)+'</th>'; });
-  });
+  if (!isSum()) {
+    BUCKETS_C.forEach(function(g,gi){
+      var cls=' class="th-grp-c'+gi+'"';
+      if(g.cols.length===1) html+='<th'+cls+'>'+esc(g.label||'\u672A\u6709')+'</th>';
+      else g.cols.filter(function(t){ return t; }).forEach(function(t){ html+='<th'+cls+'>'+esc(t)+'</th>'; });
+    });
+  }
   html+='</tr></thead><tbody>';
 
   items.forEach(function(d){
@@ -1759,16 +1772,23 @@ function buildStoreTable(rows, levelKey){
     if (isUnfill) {
       html += '<td><span class="d-unfill">'+esc(UNFILL_LABEL)+'</span></td>';
       BUCKETS_B.forEach(function(g,gi){ g.cols.forEach(function(){ html+='<td class="td-grp-b'+gi+'"><span class="d-no">\u2014</span></td>'; }); });
-      BUCKETS_C.forEach(function(g,gi){ g.cols.filter(function(t){ return t; }).forEach(function(){ html+='<td class="td-grp-c'+gi+'"><span class="d-no">\u2014</span></td>'; }); });
+      if (!isSum()) BUCKETS_C.forEach(function(g,gi){ g.cols.filter(function(t){ return t; }).forEach(function(){ html+='<td class="td-grp-c'+gi+'"><span class="d-no">\u2014</span></td>'; }); });
     } else {
-      if (grp === 0)      html += '<td><span class="d-yes">\u2705</span></td>';
-      else if (grp === 1) { var _lc = (BUCKETS_C[d.ci] && BUCKETS_C[d.ci].label) || '\u672A\u6709'; html += '<td><span class="d-no-label">' + esc(_lc) + '</span></td>'; }
+      if (grp === 0) {
+        if (isSum()) {
+          /* 加總型狀態欄：顯示該店所有 B 群欄位的總份數 */
+          var _totalShares = BUCKETS_B.reduce(function(s,g){ return s + g.cols.reduce(function(s2,t){ return s2+numVal(r[t]); },0); }, 0);
+          html += '<td><span class="d-yes" style="font-weight:700">'+_totalShares+'\u4efd</span></td>';
+        } else {
+          html += '<td><span class="d-yes">\u2705</span></td>';
+        }
+      } else if (grp === 1) { var _lc = (BUCKETS_C[d.ci] && BUCKETS_C[d.ci].label) || '\u672A\u6709'; html += '<td><span class="d-no-label">' + esc(_lc) + '</span></td>'; }
       else                html += '<td><span class="d-no">\u2014</span></td>';
       BUCKETS_B.forEach(function(g,gi){
         var cls=' class="td-grp-b'+gi+'"';
         g.cols.forEach(function(t){ html+='<td'+cls+'>'+(isOne(r[t])?'<span class="d-yes">\u2705</span>':'<span class="d-no">\u2014</span>')+'</td>'; });
       });
-      BUCKETS_C.forEach(function(g,gi){
+      if (!isSum()) BUCKETS_C.forEach(function(g,gi){
         var cls=' class="td-grp-c'+gi+'"';
         var cols = g.cols.filter(function(t){ return t; });
         cols.forEach(function(t){
@@ -1845,7 +1865,7 @@ function buildDlgFilterRow() {
   }
 
   BUCKETS_B.forEach(function(g, i){ makeChip('b:'+i, g.label, 'good'); });
-  BUCKETS_C.forEach(function(g, i){ makeChip('c:'+i, g.label, 'warn'); });
+  if (!isSum()) BUCKETS_C.forEach(function(g, i){ makeChip('c:'+i, g.label, 'warn'); });
   if(COL_UNFILL) makeChip('unfill', UNFILL_LABEL, 'neutral');
 }
 
