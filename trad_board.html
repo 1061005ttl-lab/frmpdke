@@ -1,3 +1,60 @@
+<!--
+╔══════════════════════════════════════════════════════════════════════════════════╗
+║         傳統通路購值進度 — AI 交接說明書                                         ║
+║         VERSION: 1.1.0  UPDATED: 06/25 14:00                                    ║
+╠══════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                  ║
+║  【系統用途】                                                                    ║
+║  臺灣菸酒公司傳統通路訪員獎金達標追蹤系統。                                      ║
+║  每季（Q1~Q4）追蹤訪員每月業績，判定是否符合 $1,000 或 $500 獎金發放條件。      ║
+║                                                                                  ║
+║  【資料來源】                                                                    ║
+║  Google Sheets API（TSV 格式）。欄位對照表（MAP）在第 ~453 行。                  ║
+║  關鍵欄位：month（月份數字）、role（身分別）、cur（當期業績）、                  ║
+║            last（去年業績）、exclude（排除原由）、staff（人員姓名）              ║
+║                                                                                  ║
+║  【架構概覽】                                                                    ║
+║  1. 資料層：loadData() → 解析 TSV → allRows[]                                   ║
+║  2. 計算層：calcPersonQ(rows, q) → 回傳 monthData / bonus / identity             ║
+║             calcIdentity() → 判定身分別狀態（ok/pend/ng/excl）                  ║
+║             calcBonus()    → 判定獎金金額（1000/500/null）                       ║
+║  3. 視覺層：render() → makeCard() → 人員卡片                                    ║
+║             renderOrg()   → 組織視角                                             ║
+║             updateRank()  → 獎金排行榜 Modal                                    ║
+║                                                                                  ║
+║  【身分別判定邏輯】（calcIdentity）                                               ║
+║  - 有資料月份中，role 欄全空 → lock_all (ng)：暫鎖發放                          ║
+║  - 有資料月份中，部分 role 空 → lock_part (ng)：暫鎖發放                        ║
+║  - role 有效月份 < 2 → ineligible (ng)：不符資格                                ║
+║  - 任一月份 role 含「暫」→ pending (pend)：等候審核                              ║
+║  - 以上皆無 → ok：審核通過                                                       ║
+║                                                                                  ║
+║  【獎金判定邏輯】（calcBonus）                                                   ║
+║  條件：identity.status 必須是 ok 或 pend（非 ng/excl）                           ║
+║       AND 季成長值 > 0（不含等於 0）                                             ║
+║       AND 季成長% ≥ 5%                                                          ║
+║       AND 有效月份（roleMonthCnt） ≥ 2                                           ║
+║  金額：roleMonthCnt ≥ 3 → $1,000；roleMonthCnt = 2 → $500                       ║
+║                                                                                  ║
+║  【排除（exclude）的正確語意】                                                   ║
+║  exclude 是「店家層級」標記，代表此店業績不計入人員身上。                        ║
+║  ⚠️ 人員本身永遠不受 exclude 影響，isExcluded 在 calcPersonQ 中固定傳 false。   ║
+║  被排除店家仍在 Dialog 明細中顯示（灰色區塊），但不計入合計。                    ║
+║                                                                                  ║
+║  【已知 Bug / 注意事項】                                                         ║
+║  ① role 欄同月份有多筆資料時，只保留「最後一筆 role」→ 已修正為 role 優先保留   ║
+║     非空值（有值優先，暫估其次，正式最高優先）                                   ║
+║  ② calcBonus 傳入 growth 若為 0（初始值）會錯判 → 已修正為傳 totalGrowth|null   ║
+║  ③ 「暫」字判斷需同時涵蓋：(暫)、（暫）、暫估、暫 等寫法                       ║
+║  ④ 篩選「未達標」= identity ok/pend 且 bonus===null                             ║
+║     篩選「資格未滿」= identity.cls === 'ng'                                      ║
+║                                                                                  ║
+║  【版本紀錄】                                                                    ║
+║  v1.0.0  06/24  初版（另一 AI 交接）                                             ║
+║  v1.1.0  06/25  Bug 修正：role 覆蓋邏輯、bonus 判斷、exclude 語意修正、          ║
+║                           說明書加入、身分別欄位加入人員卡片                      ║
+╚══════════════════════════════════════════════════════════════════════════════════╝
+-->
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -168,10 +225,6 @@
     .d-neg{color:var(--red);font-weight:800;}
     .d-nil{color:var(--sub);}
     .d-cur{color:var(--blue);}
-    .role-cell{font-size:11px;font-weight:700;text-align:center;padding:0 6px;}
-    .role-cell.r-ok{color:#2a7a40;}
-    .role-cell.r-pend{color:#996600;}
-    .role-cell.r-none{color:#bbb;}
     .excl-tag{display:inline-block;font-size:9px;font-weight:900;color:#c0392b;background:rgba(192,57,43,.1);border:1px solid rgba(192,57,43,.3);border-radius:4px;padding:1px 5px;margin-right:5px;vertical-align:middle;letter-spacing:.3px;flex-shrink:0;}
     .excl-store-name{color:rgba(192,57,43,.7);text-decoration:line-through;font-size:12px;}
     .d-tgt{color:var(--purple);}
@@ -354,9 +407,8 @@
     <button class="status-chip on" data-sf="all"   onclick="setStatusFilter('all')">全部</button>
     <button class="status-chip"   data-sf="b1000"  onclick="setStatusFilter('b1000')">&#127885; $1,000</button>
     <button class="status-chip"   data-sf="b500"   onclick="setStatusFilter('b500')">&#9989; $500</button>
-    <button class="status-chip"   data-sf="miss"   onclick="setStatusFilter('miss')">未達標</button>
-    <button class="status-chip"   data-sf="ng"     onclick="setStatusFilter('ng')">不符資格</button>
-    <button class="status-chip"   data-sf="pend"   onclick="setStatusFilter('pend')">等候審核</button>
+    <button class="status-chip"   data-sf="miss"   onclick="setStatusFilter('miss')">&#x1F534; 未達標</button>
+    <button class="status-chip"   data-sf="inelig" onclick="setStatusFilter('inelig')">&#x26A0;&#xFE0F; 資格未滿</button>
   </div>
   <div style="display:flex;align-items:center;gap:6px;margin-left:6px;" id="gb-extra-btns">
     <button class="tb-btn" id="btn-summary" onclick="openSummaryTable()" style="display:none;background:rgba(74,122,85,.12);border-color:rgba(74,122,85,.35);color:#2d5a38;font-weight:800;">&#128202; 彙整表</button>
@@ -592,7 +644,7 @@ function setArea(a){fArea=a;fOffice='';refreshNavHL();appendOfficeChips(document
 function setOffice(o){fOffice=o;refreshNavHL();render();updateGbar();}
 function setSort(s){curSort=s;document.querySelectorAll('.sort-btn').forEach(function(b){b.classList.toggle('on',b.dataset.sort===s);});render();}
 var curStatusFilter='all';
-var STATUS_CHIP_CLS={all:'on',b1000:'on-gold',b500:'on-green',miss:'on-red',ng:'on-gray',pend:'on-gray'};
+var STATUS_CHIP_CLS={all:'on',b1000:'on-gold',b500:'on-green',miss:'on-red',inelig:'on-gray'};
 function setStatusFilter(sf){
   curStatusFilter=sf;
   document.querySelectorAll('.status-chip').forEach(function(b){
@@ -645,7 +697,8 @@ function calcIdentity(monthData,months,isExcluded){
   var dataM=months.filter(function(m){return monthData[m].hasData;});
   var blankDataM=dataM.filter(function(m){return monthData[m].hasData&&monthData[m].role==='';});
   var roleM=dataM.filter(function(m){return monthData[m].role!=='';});
-  var hasPend=roleM.some(function(m){var r=monthData[m].role;return r.indexOf('(暫)')>=0||r.indexOf('（暫）')>=0;});
+  /* 暫字判斷：涵蓋各種寫法 (暫)（暫）暫估 暫代 暫時 */
+  var hasPend=roleM.some(function(m){var r=monthData[m].role;return r.indexOf('暫')>=0;});
   if(dataM.length>0&&blankDataM.length===dataM.length) return{status:'lock_all',label:'&#x274C; 暫鎖發放（身分別全數空白）',cls:'ng'};
   if(blankDataM.length>0) return{status:'lock_part',label:'&#x274C; 暫鎖發放（仍有月份空白）',cls:'ng'};
   if(roleM.length<2) return{status:'ineligible',label:'&#x274C; 不符資格（有效月份'+roleM.length+'個月）',cls:'ng'};
@@ -657,7 +710,8 @@ function calcIdentity(monthData,months,isExcluded){
 function calcBonus(identity,growth,growthPct,roleMonthCnt){
   if(['excl','lock_all','lock_part','ineligible'].indexOf(identity.status)>=0) return null;
   /* 達標條件：成長值≥0 且 季成長%≥5% */
-  if(growth<0) return null;
+  /* growth===null 代表無業績資料，不給獎金 */
+  if(growth===null||growth<=0) return null;
   if(growthPct===null||growthPct<5) return null;
   if(roleMonthCnt<2) return null;
   return roleMonthCnt>=3?1000:500;
@@ -689,7 +743,15 @@ function calcPersonQ(rows,q){
     var role=gv(r,'role').trim();
     var code=gv(r,'code'),storeName=gv(r,'store');
     monthData[m].cur+=cur; monthData[m].last+=last; monthData[m].hasData=true;
-    if(role) monthData[m].role=role;
+    /* role 欄優先保留非空值；若已有正式 role，不被暫估或空值覆蓋 */
+    if(role){
+      var cur_role=monthData[m].role;
+      /* 尚無值 → 直接填入 */
+      if(!cur_role){ monthData[m].role=role; }
+      /* 已有暫估 → 若新值是正式（不含暫）則升級 */
+      else if((cur_role.indexOf('暫')>=0)&&role.indexOf('暫')<0){ monthData[m].role=role; }
+      /* 已有正式 → 不被暫估或其他值覆蓋 */
+    }
     var key=m+'-'+(code||storeName);
     if(!storeMap[key]){storeMap[key]={month:m,code:code,name:storeName,cur:0,last:0};monthData[m].stores++;}
     storeMap[key].cur+=cur; storeMap[key].last+=last;
@@ -722,10 +784,11 @@ function calcPersonQ(rows,q){
   var totalPct=totalTgt>0&&totalGrowth!==null?(totalGrowth/totalTgt*100):null;
   /* 品評推廣額度：(成長%-5%) 整數部分 × 1000，上限20000，需≥5%才有 */
   var evalAmt=totalPct!==null&&totalPct>=5?Math.min(Math.floor(totalPct-5)*1000,20000):0;
-  /* exclude 是「店家層級」排除，不影響人員本身的身分判定 */
-  /* isExcluded 永遠為 false，人員身分由 role 欄位決定 */
+  /* 只有完全沒有正常資料列（全部都被排除）才算人員排除 */
+  /* ⚠️ exclude 是「店家層級」，人員本身不因此被排除，固定傳 false */
   var identity=calcIdentity(monthData,months,false);
-  var bonus=calcBonus(identity,totalGrowth!==null?totalGrowth:0,totalPct,roleM.length);
+  /* totalGrowth===null 代表無任何業績資料，直接 null 傳入 calcBonus 讓它返回 null */
+  var bonus=calcBonus(identity,totalGrowth,totalPct,roleM.length);
   var storeRows=Object.values(storeMap).sort(function(a,b){return a.month-b.month||(a.name>b.name?1:-1);});
   storeRows.forEach(function(s){s.tgt=fmt2(s.tgt);s.growth=fmt2(s.cur-s.tgt);/* last 保留原始去年業績 */});
   var excludedStoreRows=Object.values(excludedStoreMap).sort(function(a,b){return a.month-b.month||(a.name>b.name?1:-1);});
@@ -829,13 +892,10 @@ function render(){
       var qd=c.qd,ident=qd.identity;
       if(curStatusFilter==='b1000') return qd.bonus===1000;
       if(curStatusFilter==='b500')  return qd.bonus===500;
-      /* 等候審核：身分別含「暫」字 */
+      if(curStatusFilter==='excl')  return ident.cls==='excl';
       if(curStatusFilter==='pend')  return ident.cls==='pend';
-      /* 未達標：有資格（ok 或 pend）但 bonus 為 null（未達成長條件） */
-      /* 包含：成長值<0、成長%<5%、有效月份<2 */
+      /* 未達標：有資格（ok 或 pend）但 bonus===null */
       if(curStatusFilter==='miss')  return (ident.cls==='ok'||ident.cls==='pend')&&qd.bonus===null;
-      /* 不符資格：身分別空白或有效月份不足 */
-      if(curStatusFilter==='ng')    return ident.cls==='ng';
       return true;
     });
   }
@@ -848,7 +908,14 @@ function render(){
   });
   cards.forEach(function(c){area.appendChild(makeCard(c));});
   updateRank();
-  var b1=0,b5=0; cards.forEach(function(c){if(c.qd.bonus===1000)b1++;else if(c.qd.bonus===500)b5++;});
+  var b1=0,b5=0,bMiss=0,bInelig=0;
+  cards.forEach(function(c){
+    var qd=c.qd,ident=qd.identity;
+    if(qd.bonus===1000) b1++;
+    else if(qd.bonus===500) b5++;
+    else if(ident.status==='ok'&&qd.roleMonthCount>=2&&(qd.totalPct===null||qd.totalPct<5)) bMiss++;
+    if(['lock_all','lock_part','ineligible'].indexOf(ident.status)>=0) bInelig++;
+  });
   var totPctDisp=cards.filter(function(c){return c.qd.bonus!==null;}).length;
 var totalAll=Object.keys(pMap).filter(function(s){var info=pMap[s];var qd=calcPersonQ(info.rows,curQ);return qd.evalMonths.length>0;}).length;
   var filterHint=curStatusFilter!=='all'?' (篩選中)':'';
@@ -875,23 +942,17 @@ function makeCard(c){
     var isForeign=(mA&&qd.personArea&&mA!==qd.personArea)||(mO&&qd.personOffice&&mO!==qd.personOffice);
     var mLabel=isForeign?MNAMES[m]+'<span style="font-size:9px;color:#c07000;margin-left:2px;vertical-align:super;">&#65290;</span>':MNAMES[m];
     var trCls=isForeign?' style="background:rgba(255,200,50,.13);"':'';
-    /* 身分別欄位 */
-    var roleStr,roleCls;
-    if(!d.hasData){roleStr='—';roleCls='r-none';}
-    else if(!d.role){roleStr='—';roleCls='r-none';}
-    else if(d.role.indexOf('暫')>=0){roleStr='暫';roleCls='r-pend';}
-    else{roleStr='✔';roleCls='r-ok';}
-    if(!d.hasData) return '<tr'+trCls+'><td>'+mLabel+'</td><td class="role-cell '+roleCls+'">'+roleStr+'</td><td class="ctn-stores">—</td><td class="ctn-cur">—</td><td class="ctn-tgt">—</td><td class="ctn-eval nil">—</td><td class="ctn-eval nil">—</td></tr>';
+    if(!d.hasData) return '<tr'+trCls+'><td>'+mLabel+'</td><td class="ctn-stores">—</td><td class="ctn-cur">—</td><td class="ctn-tgt">—</td><td class="ctn-eval nil">—</td><td class="ctn-eval nil">—</td></tr>';
     var gv2=fmt2(d.growth),gcls=gv2>0?'pos':gv2<0?'neg':'nil';
     var pct=d.growthPct!==null?d.growthPct.toFixed(1)+'%':'—';
     var pCls=d.growthPct!==null&&d.growthPct>=5?'pos':d.growthPct!==null&&d.growthPct<0?'neg':'nil';
-    return '<tr'+trCls+'><td>'+mLabel+'</td><td class="role-cell '+roleCls+'">'+roleStr+'</td><td class="ctn-stores">'+d.stores+'</td><td class="ctn-cur">'+fmtN(d.cur)+'</td><td class="ctn-tgt">'+fmtN(d.tgt)+'</td><td class="ctn-eval '+gcls+'">'+(gv2>0?'+':'')+fmtN(gv2)+'</td><td class="ctn-eval '+pCls+'">'+pct+'</td></tr>';
+    return '<tr'+trCls+'><td>'+mLabel+'</td><td class="ctn-stores">'+d.stores+'</td><td class="ctn-cur">'+fmtN(d.cur)+'</td><td class="ctn-tgt">'+fmtN(d.tgt)+'</td><td class="ctn-eval '+gcls+'">'+(gv2>0?'+':'')+fmtN(gv2)+'</td><td class="ctn-eval '+pCls+'">'+pct+'</td></tr>';
   }).join('');
   var tgDCls=tg===null?'nil':(tg>0?'pos':tg<0?'neg':'nil');
   var totPct=qd.totalPct;
   var totPctStr=totPct!==null?totPct.toFixed(1)+'%':'—';
   var totPCls=totPct!==null&&totPct>=5?'pos':totPct!==null&&totPct<0?'neg':'nil';
-  var totalRow='<tr class="total-row"><td>合計</td><td class="role-cell r-none">—</td><td class="ctn-stores">'+qd.totalStores+'</td><td class="ctn-cur">'+fmtN(qd.totalCur)+'</td><td class="ctn-tgt">'+fmtN(qd.totalTgt)+'</td><td class="ctn-eval '+tgDCls+'">'+(tg!==null?(tg>0?'+':'')+fmtN(tg):'—')+'</td><td class="ctn-eval '+totPCls+'">'+totPctStr+'</td></tr>';
+  var totalRow='<tr class="total-row"><td>合計</td><td class="ctn-stores">'+qd.totalStores+'</td><td class="ctn-cur">'+fmtN(qd.totalCur)+'</td><td class="ctn-tgt">'+fmtN(qd.totalTgt)+'</td><td class="ctn-eval '+tgDCls+'">'+(tg!==null?(tg>0?'+':'')+fmtN(tg):'—')+'</td><td class="ctn-eval '+totPCls+'">'+totPctStr+'</td></tr>';
   /* 人員卡片高光 class */
   var hlCls='person-card';
   if(ident.cls==='excl') hlCls+=' hl-excl';
@@ -907,7 +968,7 @@ function makeCard(c){
     '<span class="pc-q-label">'+curQ+' 成長值</span>'+
     '<span class="pc-total-num '+teCls+'">'+bigNum+'</span>'+
     '</div></div>'+
-    '<table class="pc-table"><thead><tr><th>月份</th><th style="text-align:center;">身分別</th><th>家數</th><th>當期業績</th><th>目標(孰高)</th><th>成長值</th><th>成長%</th></tr></thead>'+
+    '<table class="pc-table"><thead><tr><th>月份</th><th>家數</th><th>當期業績</th><th>目標(孰高)</th><th>成長值</th><th>成長%</th></tr></thead>'+
     '<tbody>'+rowsHtml+totalRow+'</tbody></table>'+
     '<div class="pc-identity-block"><span class="pc-valid-tag '+ident.cls+'">'+ident.label+'</span>'+(bonusHtml||'')+'</div>'+
     '<div class="pc-detail-btn-row"><button class="pc-open-detail-btn" onclick="openDetailDlg(event,this)" data-staff="'+esc(c.staff)+'" data-area="'+esc(c.area)+'" data-office="'+esc(c.office)+'">&#128203; 店家明細</button></div>';
