@@ -1455,9 +1455,8 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
     var ttBId = hasMultiCols ? 'ttb'+i+'-'+ttId : '';
     var valDisp, pctDisp;
     if (isSum()) {
-      var stores = (stat.bGroupStores && stat.bGroupStores[i]) || 0;
       valDisp = cnt;
-      pctDisp = cnt + '\u4efd/' + stores + '\u5bb6';  /* 份/家 */
+      pctDisp = cnt + '\u4efd/' + stat.hasDisp + '\u5bb6';  /* 份數/有效總家數 */
     } else {
       valDisp = cnt;
       pctDisp = fp(cnt);
@@ -1486,7 +1485,7 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
     });
   }
   var statRowHtml = '<div class="stat-row">'+
-    '<div class="stat-item"><div class="stat-label">\u7E3D\u5BB6\u6578</div><div class="stat-val">'+stat.total+'</div><div class="stat-pct hidden">&nbsp;</div></div>'+
+    '<div class="stat-item"><div class="stat-label">\u7E3D\u5BB6\u6578</div><div class="stat-val">'+(isSum()?stat.hasDisp:stat.total)+'</div><div class="stat-pct hidden">&nbsp;</div></div>'+
     (COL_UNFILL ? '<div class="stat-item warn'+(chips['unfill']===false?' dim':'')+'"><div class="stat-label">'+esc(UNFILL_LABEL)+'</div><div class="stat-val">'+stat.unfilled+'</div><div class="stat-pct">'+fp(stat.unfilled)+'</div></div>' : '')+
     _bStatHtml + _cStatHtml +
   '</div>';
