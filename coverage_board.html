@@ -194,18 +194,18 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .proj-sel:focus { border-color:var(--primary); }
 .sync-note { font-size:11px; color:var(--sub); }
 .tb-act-btn {
-  padding:5px 12px;
+  padding:5px 9px;
   border:1px solid var(--border);
   border-radius:8px;
-  font-size:13px;
-  font-weight:600;
+  font-size:15px;
   cursor:pointer;
-  color:var(--text);
+  color:var(--sub);
   background:#fff;
   font-family:inherit;
   white-space:nowrap;
   transition:all .15s;
   flex-shrink:0;
+  line-height:1;
 }
 .tb-act-btn:hover { background:var(--primary-bg); border-color:var(--primary); color:var(--primary); }
 .tb-act-btn.done  { border-color:var(--green); color:var(--green); background:var(--green-bg); }
@@ -559,6 +559,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   z-index:41;
 }
 .lamp-row::-webkit-scrollbar { display:none; }
+.lamp-sep { width:1px; height:16px; background:var(--border); flex-shrink:0; margin:0 4px; align-self:center; }
 .lamp-bar {
   display:flex; align-items:center; gap:6px; flex-shrink:0;
 }
@@ -654,18 +655,20 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   .stat-item.tt-active .tooltip { display:block !important; pointer-events:auto; }
 }
 /* ── 說明文件列 ── */
-#manual-bar {
-  background:#fffbe6; border-bottom:1px solid #f0e08a;
-  font-size:13px; line-height:1.7; color:#555;
-}
+/* manual-toggle 在 lamp-row 裡，樣式同 lamp-chip */
 #manual-toggle {
-  display:flex; align-items:center; gap:6px; padding:7px 16px;
-  cursor:pointer; font-size:12px; font-weight:600; color:#888;
+  display:inline-flex; align-items:center; gap:3px; padding:3px 9px;
+  cursor:pointer; font-size:11px; font-weight:600; color:#888;
   user-select:none; -webkit-user-select:none;
+  border:1px solid var(--border); border-radius:14px; background:#fff;
+  flex-shrink:0; white-space:nowrap;
 }
-#manual-toggle:hover { color:#555; }
+#manual-toggle:hover { color:#555; background:#f8f8f8; }
+/* manual-bar 只含 manual-inner，展開時出現在 lamp-row 正下方 */
+#manual-bar { font-size:13px; line-height:1.7; color:#555; }
 #manual-inner {
-  display:none; padding:12px 20px 16px; border-top:1px solid #f0e08a;
+  display:none; padding:12px 20px 16px;
+  background:#fffbe6; border-top:1px solid #f0e08a; border-bottom:1px solid #f0e08a;
 }
 #manual-inner h3 { font-size:14px; font-weight:800; color:#444; margin:0 0 10px; }
 #manual-inner p { margin:0 0 10px; }
@@ -690,77 +693,88 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <button class="vt-btn"        id="vt-channel" onclick="setViewMode('channel')">🏪 通路</button>
   </div>
   <span class="sync-note" id="tb-sync"></span>
-  <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;" id="toolbar-actions">
-    <button class="tb-act-btn" id="tb-btn-line"        onclick="toolbarCopyLine()">💬 LINE</button>
-    <button class="tb-act-btn" id="tb-btn-line-simple" onclick="toolbarCopyLineSimple()">💬 LINE精簡</button>
-    <button class="tb-act-btn" id="tb-btn-csv"         onclick="toolbarDownloadCsv()">📥 CSV</button>
-    <button class="tb-act-btn" id="tb-btn-screenshot" onclick="toolbarScreenshot()">📸 截圖</button>
+  <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;" id="toolbar-actions">
+    <button class="tb-act-btn" id="tb-btn-line"        onclick="toolbarCopyLine()"       title="複製 LINE 完整版">💬</button>
+    <button class="tb-act-btn" id="tb-btn-line-simple" onclick="toolbarCopyLineSimple()" title="複製 LINE 精簡版">✉️</button>
+    <button class="tb-act-btn" id="tb-btn-csv"         onclick="toolbarDownloadCsv()"   title="下載 CSV">📥</button>
+    <button class="tb-act-btn" id="tb-btn-screenshot"  onclick="toolbarScreenshot()"    title="截圖">📸</button>
   </div>
 </div>
 
-<!-- 說明文件（折疊列） -->
+<!-- 說明文件展開內容（lamp-row 下方） -->
 <div id="manual-bar">
-  <div id="manual-toggle" onclick="var i=document.getElementById('manual-inner');var t=document.getElementById('manual-toggle');if(i.style.display==='block'){i.style.display='none';t.innerHTML='📖 操作說明 ▶';}else{i.style.display='block';t.innerHTML='📖 操作說明 ▼';}">
-    📖 操作說明 ▶
-  </div>
   <div id="manual-inner">
-    <h3>📋 覆蓋率看板 — 怎麼看這個畫面？</h3>
+    <h3>📋 覆蓋率型看板 — 操作說明</h3>
 
-    <p><b>【這個看板在追蹤什麼？】</b>追蹤各店家的廣宣物料覆蓋狀況。每一筆資料代表一家店，狀態只有三種：<b>已知有</b>（業務已完成貼附）、<b>已知無</b>（業務確認無法執行，並填寫原因）、<b>未填寫</b>（業務尚未回報）。</p>
+    <p><b>【這是什麼看板？】</b>
+    這是一個從 Google 試算表即時讀取資料的覆蓋率追蹤看板。每一筆資料代表一家店，狀態分三類：
+    <b>已知有</b>（B 群，綠色）、<b>已知無</b>（C 群，紅色）、<b>未填寫</b>（紅色警示）。
+    看板的目的是讓管理者一眼掌握各層級的覆蓋進度，並快速輸出資料給現場業務。</p>
 
     <hr>
 
-    <p><b>【卡片上的數字怎麼看？】</b></p>
-    <p>每張卡片代表一個單位（營業處 / 營業所 / 業務人員）。卡片內的數字方塊含義如下：</p>
+    <p><b>【數字卡片怎麼讀？】</b>
+    每張卡片代表一個層級單位。卡片內有多個數字方塊：</p>
     <p>
-      <span class="m-icon">⬜</span> <b>總家數</b>：這個單位負責的店家總數<br>
-      <span class="m-icon">🟥</span> <b>未填寫</b>：業務尚未回報的店家數（紅色代表需要催填）<br>
-      <span class="m-icon">🟩</span> <b>已貼開瓶 / 已貼黃董</b>（B群）：已成功貼附對應廣宣物料的店家數<br>
-      <span class="m-icon">🟥</span> <b>未商化</b>（C群）：業務已確認無法貼附的店家數（含原因說明）<br>
+      <b>總家數</b>：這個單位負責的全部店家數<br>
+      <b>未填寫</b>（紅）：尚未回報的店家數，% = 未填寫 ÷ 總家數<br>
+      <b>B 群各項</b>（綠）：已知有的店家數，可有多個群組（如已貼 A 物料、已貼 B 物料）<br>
+      <b>C 群各項</b>（紅）：已知無的店家數，可有多個群組（如原因 X、原因 Y）<br>
+      所有 % 以<b>當前可見總家數</b>為分母，隨燈號篩選動態更新
     </p>
-    <p>數字下方的 <b>%</b> = 該狀態家數 ÷ 總家數，讓你快速掌握覆蓋率進度。</p>
-    <p>將滑鼠移到數字上（手機長按），可展開 <b>提示工具</b>，看到細項拆分（如：開瓶海報-店外 3 家、開瓶冰貼 5 家），以及在該群組內的佔比。</p>
+    <p>👉 將滑鼠移到數字上（<b>手機長按</b>），展開細項提示工具，看到每個子欄位的家數與群組內佔比。</p>
 
     <hr>
 
-    <p><b>【上方篩選列怎麼用？】</b></p>
+    <p><b>【頂部工具列】</b></p>
     <p>
-      <span class="m-icon">🏢</span><b> 組織 / 通路</b>：切換兩種視角。組織視角依「營業處 → 營業所 → 業務人員」逐層鑽取；通路視角依「通路別 → 營業處 → 營業所」鑽取。<br>
-      <b>等級 ▶</b>：展開後可選擇只看 A 級或 B 級店家，點「全選」回到全部。<br>
-      <b>全覽 / 北部 / 桃園…</b>：點擊直接跳到對應層級，點「全覽」回到最上層。<br>
-      <b>已貼開瓶 / 已貼黃董 / 未商化 / 未填寫</b>（燈號）：點擊可關閉某個狀態類別，讓卡片統計與明細只顯示你關心的那幾類。
-    </p>
-
-    <hr>
-
-    <p><b>【點進明細 Dialog 看什麼？】</b></p>
-    <p>點卡片右上角的 <b>📋 明細</b>，或直接點卡片本身（最末層），會開啟店家明細表。</p>
-    <p>
-      • 標題列顯示目前的篩選條件和各狀態家數及佔比<br>
-      • 表格欄位依群組上底色：<span style="background:rgba(52,199,89,.2);padding:1px 6px;border-radius:4px;">綠色 = B1 群（已貼開瓶）</span>、<span style="background:rgba(0,122,255,.15);padding:1px 6px;border-radius:4px;">藍色 = B2 群（已貼黃董）</span>、<span style="background:rgba(255,59,48,.1);padding:1px 6px;border-radius:4px;">紅色 = C 群（未商化）</span><br>
-      • ✅ = 該欄位有值（已貼附）；✖ = 該欄位有值（未商化原因）；— = 無此狀態<br>
-      • 利用燈號篩選器可只顯示特定群組後再截圖，截圖只含需要的資料
+      <b>← 返回</b>：回到專案選單<br>
+      <b>專案選單</b>（下拉）：切換不同覆蓋率專案，每個專案讀取獨立的試算表<br>
+      <b>🏢 組織 / 🏪 通路</b>：切換鑽取視角。組織視角依「營業處→所→人員」；通路視角依「通路別→處→所」<br>
+      <b>同步時間</b>：顯示資料最後更新時間（台灣時間）<br>
+      <b>💬</b> 複製當前頁面的 LINE 完整版訊息（含全部店家分組明細）<br>
+      <b>✉️</b> 複製 LINE 精簡版訊息（僅統計摘要，不列店家名）<br>
+      <b>📥</b> 下載當前頁面資料的 CSV 檔（檔名含單位與時間戳）<br>
+      <b>📸</b> 截圖當前頁面的明細表
     </p>
 
     <hr>
 
-    <p><b>【卡片右上角的小按鈕是什麼？】</b></p>
+    <p><b>【篩選列（toolbar 下方）】</b></p>
     <p>
-      <span class="m-icon">💬</span> <b>複製 LINE 訊息</b>：產生條列式文字，分已貼 / 未商化 / 未填寫三大區塊，貼到 LINE 群組直接發送<br>
-      <span class="m-icon">📥</span> <b>下載 CSV</b>：下載該單位的店家資料，檔名含單位名稱與時間戳，用 Excel 開啟可進一步分析<br>
-      <span class="m-icon">📸</span> <b>截圖</b>：自動開啟明細並截圖，方便存檔或分享<br>
+      <b>燈號</b>（已知有 / 已知無 / 未填寫）：點擊切換 ON/OFF，關掉的類別從卡片統計與明細中移除，% 跟著重算。可單獨只留某一類做截圖<br>
+      <b>等級 ▶/◀</b>：展開後選擇店家等級篩選（如 A 級、B 級），點「全選」回到全部<br>
+      <b>全覽 / 各區域名稱</b>：點擊直接跳到該層級，點「全覽」回最上層。點卡片可往下鑽一層
     </p>
-    <p>Dialog 內也有相同的三個按鈕，操作結果相同。</p>
 
     <hr>
 
-    <p><b>【資料更新時間】</b>看板右上角顯示最後同步時間（台灣時間），每次開啟頁面會自動從 Google 試算表讀取最新資料。</p>
+    <p><b>【店家明細 Dialog】</b></p>
+    <p>點卡片右上角 <b>📋 明細</b> 或直接點擊最末層卡片，開啟該單位的店家逐筆列表。</p>
+    <p>
+      標題列顯示各狀態家數與佔比，隨燈號篩選動態更新<br>
+      表格欄位依群組上色：<span style="background:rgba(52,199,89,.2);padding:0 5px;border-radius:3px;">綠 = B1 群</span>　<span style="background:rgba(0,122,255,.13);padding:0 5px;border-radius:3px;">藍 = B2 群</span>　<span style="background:rgba(255,59,48,.1);padding:0 5px;border-radius:3px;">紅 = C 群</span>（顏色數量依專案設定而異）<br>
+      ✅ = 有值（已貼附）　✖ = 有值（已知無原因）　— = 無此狀態<br>
+      利用燈號可只顯示需要的類別，再操作截圖/LINE/CSV，輸出的內容只含當前可見資料
+    </p>
+
+    <hr>
+
+    <p><b>【卡片與 Dialog 的輸出按鈕】</b></p>
+    <p>
+      <b>💬 LINE 完整</b>：條列式訊息，分「已知有（各 B 群）→ 已知無（各 C 群）→ 未填寫」三大區塊，每家店占一行，尾端附各欄統計。貼到 LINE 群組直接發送<br>
+      <b>✉️ LINE 精簡</b>（toolbar 專屬）：只輸出統計摘要數字，不列店家名稱，適合快速回報進度<br>
+      <b>📥 CSV</b>：下載含狀態欄的完整資料，檔名格式「單位_YYYYMMDD_HHMM.csv」，以 Excel 開啟可進一步分析<br>
+      <b>📸 截圖</b>：自動開啟明細並截圖，方便存檔或在群組分享視覺化進度
+    </p>
   </div>
 </div>
 
 <!-- 燈號列獨立在 toolbar 下方，與 quicknav 同層 sticky -->
 <div class="lamp-row" id="lamp-row" style="display:none">
   <div class="lamp-bar" id="lamp-bar"></div>
+  <span class="lamp-sep"></span>
+  <button id="manual-toggle" onclick="(function(){var i=document.getElementById('manual-inner');var open=i.style.display==='block';i.style.display=open?'none':'block';document.getElementById('manual-toggle').innerHTML=open?'📖 說明 ▶':'📖 說明 ▼';setTimeout(updateStickyTops,0);})()">📖 說明 ▶</button>
 </div>
 
 <div class="quicknav" id="quicknav"></div>
@@ -1874,6 +1888,8 @@ function buildLineText(dRows, lv, title, simple) {
   BUCKETS_C.forEach(function(g){sp.push(g.label+' '+valid.filter(function(r){return g.cols.some(function(t){return isOne(r[t])||isCText(r[t]);});}).length+' \u5BB6');});
   if(unfill.length) sp.push('\u672A\u586B\u5BEB '+unfill.length+' \u5BB6');
   var lines=['\u3010'+title+'\u3011\u5E97\u5BB6\u660E\u7D30',sp.join('\u3000'),DIV];
+
+  if(!simple){
   /* B 群 */
   BUCKETS_B.forEach(function(g){
     var gr=disp.filter(function(r){return g.cols.some(function(t){return isOne(r[t]);});});
@@ -1900,31 +1916,24 @@ function buildLineText(dRows, lv, title, simple) {
       if(rs.length)lines.push('     \u2514 '+rs.join('\u3001'));
     });
   });
-  /* 尚未執行 */
-  if(other.length){
-    lines.push('');lines.push('\u2014 \u5C1A\u672A\u57F7\u884C\uff08'+other.length+' \u5BB6\uff09');
-    var cur=null;
-    other.forEach(function(r){var gk=gh(r);if(gk!==null&&gk!==cur){cur=gk;if(gk)lines.push('\u258C '+gk);}lines.push('  \u2022 '+ss(r));});
-  }
   /* 未填寫 */
   if(unfill.length){
     lines.push('');lines.push('\u26A0\uFE0F \u672A\u586B\u5BEB\uff08'+unfill.length+' \u5BB6\uff09');
     var cur=null;
     unfill.forEach(function(r){var gk=gh(r);if(gk!==null&&gk!==cur){cur=gk;if(gk)lines.push('\u258C '+gk);}lines.push('  \u2022 '+ss(r));});
   }
-  /* 頁腳統計（精簡版略過） */
-  if(!simple){
-    var _footRows = allD.filter(function(d){return d.grp!==3;}).map(function(d){return d.r;});
-    lines.push('');lines.push(DIV);
-    BUCKETS_B.forEach(function(g){
-      lines.push('\u25A0 '+g.label);
-      g.cols.forEach(function(t){lines.push('  '+t+'\uff1a'+_footRows.reduce(function(s,r){return s+(isOne(r[t])?1:0);},0)+' \u5BB6');});
-    });
-    BUCKETS_C.forEach(function(g){
-      lines.push('\u25A0 '+g.label);
-      g.cols.forEach(function(t){lines.push('  '+t+'\uff1a'+_footRows.reduce(function(s,r){return s+(isOne(r[t])?1:0);},0)+' \u5BB6');});
-    });
-  }
+  /* 頁腳統計 */
+  var _footRows = allD.filter(function(d){return d.grp!==3;}).map(function(d){return d.r;});
+  lines.push('');lines.push(DIV);
+  BUCKETS_B.forEach(function(g){
+    lines.push('\u25A0 '+g.label);
+    g.cols.forEach(function(t){lines.push('  '+t+'\uff1a'+_footRows.reduce(function(s,r){return s+(isOne(r[t])?1:0);},0)+' \u5BB6');});
+  });
+  BUCKETS_C.forEach(function(g){
+    lines.push('\u25A0 '+g.label);
+    g.cols.forEach(function(t){lines.push('  '+t+'\uff1a'+_footRows.reduce(function(s,r){return s+(isOne(r[t])?1:0);},0)+' \u5BB6');});
+  });
+  } /* end !simple */
   return lines.join('\n');
 }
 
@@ -2004,14 +2013,16 @@ function downloadCsv(){
   _flashBtn(btn,'\u2705 \u5DF2\u4E0B\u8F09');
 }
 
-/* ── 卡片層輔助：取得對應列資料 ── */
+/* ── 卡片層輔助：取得對應列資料（套用等級篩選，chip 篩選由 buildLineText/buildCsvContent 內處理） ── */
 function _getCardRows(levelKey, name){
-  var colMap={area:'\u71DF\u696D\u8655\u540D\u7A31',office:'\u71DF\u696D\u6240/\u8AB2',staff:'\u57F7\u884C\u4EBA\u54E1',
-    'ch-type':'\u5E97\u5BB6\u578B\u614B','ch-area':'\u71DF\u696D\u8655\u540D\u7A31','ch-office':'\u71DF\u696D\u6240/\u8AB2'};
-  var col=colMap[levelKey];
-  var base=applyGradeFilter(allRows);
-  if(!col)return base;
-  return base.filter(function(r){return String(r[col]||'')===name;});
+  var colMap={
+    area:'\u71DF\u696D\u8655\u540D\u7A31', office:'\u71DF\u696D\u6240/\u8AB2', staff:'\u57F7\u884C\u4EBA\u54E1',
+    'ch-type':'\u5E97\u5BB6\u578B\u614B','ch-area':'\u71DF\u696D\u8655\u540D\u7A31','ch-office':'\u71DF\u696D\u6240/\u8AB2'
+  };
+  var col = colMap[levelKey];
+  var base = applyGradeFilter(allRows);
+  if(!col) return base;
+  return base.filter(function(r){ return String(r[col]||'')===name; });
 }
 
 function cardCopyLine(btn,name,levelKey){
