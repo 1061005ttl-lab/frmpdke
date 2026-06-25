@@ -1,7 +1,7 @@
 <!--
 ╔══════════════════════════════════════════════════════════════════════════════════╗
 ║         傳統通路購值進度 — AI 交接說明書                                         ║
-║         VERSION: 1.1.0  UPDATED: 06/25 14:00                                    ║
+║         VERSION: 1.2.0  UPDATED: 06/25 15:30                                    ║
 ╠══════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                  ║
 ║  【系統用途】                                                                    ║
@@ -51,8 +51,10 @@
 ║                                                                                  ║
 ║  【版本紀錄】                                                                    ║
 ║  v1.0.0  06/24  初版（另一 AI 交接）                                             ║
-║  v1.1.0  06/25  Bug 修正：role 覆蓋邏輯、bonus 判斷、exclude 語意修正、          ║
+║  v1.1.0  06/25  Bug 修正：role 覆蓋邏輯、bonus 判斷、exclude 語意修正            ║
 ║                           說明書加入、身分別欄位加入人員卡片                      ║
+║  v1.2.0  06/25  全站數字 1 位小數統一、按鈕統一 LINE/CSV/截圖、                   ║
+║                 CSV 下載功能（主頁/彙整表/明細）、彙整表按鈕對齊外部              ║
 ╚══════════════════════════════════════════════════════════════════════════════════╝
 -->
 <!DOCTYPE html>
@@ -341,6 +343,7 @@
   <div id="tb-right">
     <div id="ver-ts">Ver. 1.0.0 (2026-06-23)</div>
     <button class="tb-btn" onclick="mainCopyLine()" id="btn-main-line">&#128172; LINE</button>
+    <button class="tb-btn" onclick="downloadCSV()" id="btn-main-csv">&#128229; CSV</button>
     <button class="tb-btn" onclick="mainScreenshot()" id="btn-main-shot">&#128248; 截圖</button>
     <button class="tb-btn" onclick="downloadXLSX()">&#128229; XLSX</button>
   </div>
@@ -434,9 +437,9 @@
     <div class="dlg-header">
       <span id="dlg-title"></span>
       <div style="display:flex;align-items:center;gap:6px;">
-        <button class="dlg-action-btn" id="btn-copy-line" onclick="copyLine()">&#128172; 複製 LINE</button>
+        <button class="dlg-action-btn" id="btn-copy-line" onclick="copyLine()">&#128172; LINE</button>
+        <button class="dlg-action-btn" id="btn-dlg-csv" onclick="downloadDlgCSV()">&#128229; CSV</button>
         <button class="dlg-action-btn" id="btn-screenshot" onclick="takeScreenshot()">&#128248; 截圖</button>
-        <button class="dlg-action-btn" id="btn-dlg-xlsx" onclick="downloadDlgXLSX()">&#128229; XLSX</button>
         <button class="dlg-close" onclick="closeDetailDialog()">&#10005;</button>
       </div>
     </div>
@@ -452,7 +455,8 @@
         <span style="font-size:11px;color:var(--sub);" id="summary-subtitle"></span>
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
-        <button class="dlg-action-btn" onclick="exportSummaryXLSX()">&#128229; 下載 XLSX</button>
+        <button class="dlg-action-btn" onclick="summaryCopyLine()" id="btn-summary-line">&#128172; LINE</button>
+        <button class="dlg-action-btn" onclick="exportSummaryCSV()" id="btn-summary-csv">&#128229; CSV</button>
         <button class="dlg-action-btn" onclick="takeSummaryScreenshot()" id="btn-summary-shot">&#128248; 截圖</button>
         <button class="dlg-close" onclick="closeSummaryTable()">&#10005;</button>
       </div>
@@ -1186,7 +1190,7 @@ function buildDetailTbl(qd){
   });
   var gg=fmt2(qd.totalGrowth||0);
   var gCls=gg>0?'d-pos':gg<0?'d-neg':'d-nil';
-  tRow+='<td class="m-sep '+gCls+'" style="font-weight:900;">'+(gg>0?'+':'')+gg+'</td></tr>';
+  tRow+='<td class="m-sep '+gCls+'" style="font-weight:900;">'+(gg>0?'+':'') +fmtN(gg)+'</td></tr>';
   /* 排除店家列 */
   var excludedHtml='';
   if(qd.excludedStoreRows&&qd.excludedStoreRows.length){
@@ -1283,7 +1287,7 @@ function copyExcel(){
   var lines=[hdrs.join('\t')];
   Object.values(si).forEach(function(s){
     var cells=[s.code,s.name]; var sg=0;
-    months.forEach(function(m){var md=s.bm[m];if(!md){cells.push('','','');return;}sg+=md.growth;cells.push(md.cur,fmt2(md.tgt),md.growth);});
+    months.forEach(function(m){var md=s.bm[m];if(!md){cells.push('','','');return;}sg+=md.growth;cells.push(fmtN(md.cur),fmtN(md.tgt),fmtN(md.growth));});
     cells.push(fmt2(sg)); lines.push(cells.join('\t'));
   });
   _doCopy(lines.join('\n'),btn);
@@ -1367,7 +1371,7 @@ function _assembleRows(withQ){
     cards.sort(function(a,b){return (b.qd.totalGrowth||0)-(a.qd.totalGrowth||0);});
     cards.forEach(function(c){
       var qd=c.qd,row=[c.staff,c.info.area,c.info.office];if(withQ)row.push(curQ);
-      months.forEach(function(m){var d=qd.monthData[m];row.push(d.hasData?d.cur:'',d.hasData?fmt2(d.tgt):'',d.hasData?d.growth:'');});
+      months.forEach(function(m){var d=qd.monthData[m];row.push(d.hasData?fmtN(d.cur):'',d.hasData?fmtN(d.tgt):'',d.hasData?fmtN(d.growth):'');});
       row.push(qd.totalCur,fmt2(qd.totalTgt||0),qd.totalGrowth||0,qd.identity.label.replace(/&#[^;]+;/g,'').replace(/&[^;]+;/g,''),qd.bonus?('$'+qd.bonus):'');
       rows.push(row);
     });
@@ -1380,8 +1384,8 @@ function _assembleRows(withQ){
     scards.sort(function(a,b){return b.qd.totalDelta-a.qd.totalDelta;});
     scards.forEach(function(c){
       var s=c.s,qd=c.qd,row=[s.code,s.name,s.area,s.office];
-      months.forEach(function(m){var d=qd.monthData[m];row.push(d.hasData?d.cur:'',d.hasData?d.last:'',d.hasData?d.delta:'');});
-      row.push(qd.totalCur,qd.totalLast,qd.totalDelta);rows.push(row);
+      months.forEach(function(m){var d=qd.monthData[m];row.push(d.hasData?fmtN(d.cur):'',d.hasData?fmtN(d.last):'',d.hasData?fmtN(d.delta):'');});
+      row.push(fmtN(qd.totalCur),fmtN(qd.totalLast),fmtN(qd.totalDelta));rows.push(row);
     });
   }
   return{hdr:hdr,rows:rows};
@@ -1413,7 +1417,7 @@ function openSummaryTable(){
   var tdS='padding:6px 10px;font-size:12px;border-bottom:1px solid #eee;border-right:1px solid #f0f0f0;text-align:right;white-space:nowrap;';
   var tdSL=tdS+'text-align:left;';
   function dCl(v){return v>0?'color:#22a84c;font-weight:800;':v<0?'color:#d93025;font-weight:800;':'color:#aaa;';}
-  function ds(v){return(v>0?'+':'')+v;}
+  function ds(v){return(v>0?'+':'')+fmtN(v);}
   var cards=skys.map(function(k){var s=sm[k];return{s:s,qd:calcStoreQ(s.rows,curQ)};}).filter(function(c){return c.qd.evalMonths.length>0;});
   cards.sort(function(a,b){return b.qd.totalDelta-a.qd.totalDelta;});
   var groups={};
@@ -1460,6 +1464,88 @@ function openSummaryTable(){
 }
 function closeSummaryTable(){var m=document.getElementById('summary-modal');m.style.opacity='0';setTimeout(function(){m.style.display='none';},200);}
 function exportSummaryXLSX(){downloadXLSX();}
+/* ── CSV 下載通用函數 ── */
+function _downloadCSVStr(str,filename){
+  var BOM='\uFEFF'; /* UTF-8 BOM，確保 Excel 能正確顯示中文 */
+  var blob=new Blob([BOM+str],{type:'text/csv;charset=utf-8;'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a'); a.href=url; a.download=filename; a.click();
+  setTimeout(function(){URL.revokeObjectURL(url);},1000);
+}
+function _rowsToCSV(rows){
+  return rows.map(function(r){
+    return r.map(function(c){
+      var s=String(c===null||c===undefined?'':c);
+      /* 含逗號、引號、換行的欄位加引號 */
+      if(s.indexOf(',')>=0||s.indexOf('"')>=0||s.indexOf('\n')>=0)
+        s='"'+s.replace(/"/g,'""')+'"';
+      return s;
+    }).join(',');
+  }).join('\n');
+}
+
+/* 主頁面 CSV */
+function downloadCSV(){
+  var a=_assembleRows(true);
+  var rows=[a.hdr].concat(a.rows);
+  _downloadCSVStr(_rowsToCSV(rows),'傳統購值_'+(curQ||'')+'_'+_unitLabel()+'_'+_nowStr()+'.csv');
+}
+
+/* 彙整表 LINE 複製 */
+function summaryCopyLine(){
+  var btn=document.getElementById('btn-summary-line');
+  var a=_assembleRows(true);
+  var lines=[a.hdr.join('\t')];
+  a.rows.forEach(function(r){lines.push(r.join('\t'));});
+  _doCopy(lines.join('\n'),btn);
+}
+
+/* 彙整表 CSV */
+function exportSummaryCSV(){
+  var a=_assembleRows(true);
+  var rows=[a.hdr].concat(a.rows);
+  _downloadCSVStr(_rowsToCSV(rows),'彙整表_'+(curQ||'')+'_'+_unitLabel()+'_'+_nowStr()+'.csv');
+}
+
+/* 店家明細 CSV */
+function downloadDlgCSV(){
+  if(!_currentQd||!_currentStaff) return;
+  var qd=_currentQd, months=qd.months||[];
+  var hdr=['店碼','店名'];
+  months.forEach(function(m){hdr.push(MNAMES[m]+'當期',MNAMES[m]+'同期',MNAMES[m]+'成長值');});
+  hdr.push('單店成長值');
+  var rows=[hdr];
+  var storeMap={};
+  (qd.storeRows||[]).forEach(function(s){
+    var k=s.code||s.name;
+    if(!storeMap[k])storeMap[k]={code:s.code,name:s.name,bm:{}};
+    storeMap[k].bm[s.month]=s;
+  });
+  Object.values(storeMap).forEach(function(s){
+    var row=[s.code||'',s.name||''];
+    var tc=0,tl=0;
+    months.forEach(function(m){
+      var md=s.bm[m];
+      if(md){row.push(fmtN(md.cur),fmtN(md.last),fmtN(md.cur-md.last));tc+=md.cur;tl+=md.last;}
+      else{row.push('','','');}
+    });
+    row.push(fmtN(tc-tl));
+    rows.push(row);
+  });
+  /* 排除店家 */
+  if(qd.excludedStoreRows&&qd.excludedStoreRows.length){
+    rows.push(['--- 以下排除不計入 ---']);
+    var exMap={};
+    qd.excludedStoreRows.forEach(function(s){var k=s.code||s.name;if(!exMap[k])exMap[k]={code:s.code,name:s.name,bm:{}};exMap[k].bm[s.month]=s;});
+    Object.values(exMap).forEach(function(s){
+      var row=[s.code||'','[排除]'+(s.name||'')];
+      months.forEach(function(m){var md=s.bm[m];if(md){row.push(fmtN(md.cur),fmtN(md.last),'—');}else{row.push('','','');}});
+      row.push('—'); rows.push(row);
+    });
+  }
+  _downloadCSVStr(_rowsToCSV(rows),'店家明細_'+_currentStaff+'_'+(curQ||'')+'_'+_nowStr()+'.csv');
+}
+
 function downloadDlgXLSX(){
   if(!window.XLSX){alert('XLSX 套件載入中，請稍後再試');return;}
   if(!_currentQd||!_currentStaff) return;
