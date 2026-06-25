@@ -168,6 +168,10 @@
     .d-neg{color:var(--red);font-weight:800;}
     .d-nil{color:var(--sub);}
     .d-cur{color:var(--blue);}
+    .role-cell{font-size:11px;font-weight:700;text-align:center;padding:0 6px;}
+    .role-cell.r-ok{color:#2a7a40;}
+    .role-cell.r-pend{color:#996600;}
+    .role-cell.r-none{color:#bbb;}
     .excl-tag{display:inline-block;font-size:9px;font-weight:900;color:#c0392b;background:rgba(192,57,43,.1);border:1px solid rgba(192,57,43,.3);border-radius:4px;padding:1px 5px;margin-right:5px;vertical-align:middle;letter-spacing:.3px;flex-shrink:0;}
     .excl-store-name{color:rgba(192,57,43,.7);text-decoration:line-through;font-size:12px;}
     .d-tgt{color:var(--purple);}
@@ -350,8 +354,9 @@
     <button class="status-chip on" data-sf="all"   onclick="setStatusFilter('all')">全部</button>
     <button class="status-chip"   data-sf="b1000"  onclick="setStatusFilter('b1000')">&#127885; $1,000</button>
     <button class="status-chip"   data-sf="b500"   onclick="setStatusFilter('b500')">&#9989; $500</button>
-    <button class="status-chip"   data-sf="miss"   onclick="setStatusFilter('miss')">&#x1F534; 未達標</button>
-    <button class="status-chip"   data-sf="inelig" onclick="setStatusFilter('inelig')">&#x26A0;&#xFE0F; 資格未滿</button>
+    <button class="status-chip"   data-sf="miss"   onclick="setStatusFilter('miss')">未達標</button>
+    <button class="status-chip"   data-sf="ng"     onclick="setStatusFilter('ng')">不符資格</button>
+    <button class="status-chip"   data-sf="pend"   onclick="setStatusFilter('pend')">等候審核</button>
   </div>
   <div style="display:flex;align-items:center;gap:6px;margin-left:6px;" id="gb-extra-btns">
     <button class="tb-btn" id="btn-summary" onclick="openSummaryTable()" style="display:none;background:rgba(74,122,85,.12);border-color:rgba(74,122,85,.35);color:#2d5a38;font-weight:800;">&#128202; 彙整表</button>
@@ -587,7 +592,7 @@ function setArea(a){fArea=a;fOffice='';refreshNavHL();appendOfficeChips(document
 function setOffice(o){fOffice=o;refreshNavHL();render();updateGbar();}
 function setSort(s){curSort=s;document.querySelectorAll('.sort-btn').forEach(function(b){b.classList.toggle('on',b.dataset.sort===s);});render();}
 var curStatusFilter='all';
-var STATUS_CHIP_CLS={all:'on',b1000:'on-gold',b500:'on-green',miss:'on-red',inelig:'on-gray'};
+var STATUS_CHIP_CLS={all:'on',b1000:'on-gold',b500:'on-green',miss:'on-red',ng:'on-gray',pend:'on-gray'};
 function setStatusFilter(sf){
   curStatusFilter=sf;
   document.querySelectorAll('.status-chip').forEach(function(b){
@@ -717,9 +722,9 @@ function calcPersonQ(rows,q){
   var totalPct=totalTgt>0&&totalGrowth!==null?(totalGrowth/totalTgt*100):null;
   /* 品評推廣額度：(成長%-5%) 整數部分 × 1000，上限20000，需≥5%才有 */
   var evalAmt=totalPct!==null&&totalPct>=5?Math.min(Math.floor(totalPct-5)*1000,20000):0;
-  /* 只有完全沒有正常資料列（全部都被排除）才算人員排除 */
-  isExcluded=!hasNormalRows&&Object.keys(excludedStoreMap).length>0;
-  var identity=calcIdentity(monthData,months,isExcluded);
+  /* exclude 是「店家層級」排除，不影響人員本身的身分判定 */
+  /* isExcluded 永遠為 false，人員身分由 role 欄位決定 */
+  var identity=calcIdentity(monthData,months,false);
   var bonus=calcBonus(identity,totalGrowth!==null?totalGrowth:0,totalPct,roleM.length);
   var storeRows=Object.values(storeMap).sort(function(a,b){return a.month-b.month||(a.name>b.name?1:-1);});
   storeRows.forEach(function(s){s.tgt=fmt2(s.tgt);s.growth=fmt2(s.cur-s.tgt);/* last 保留原始去年業績 */});
@@ -824,9 +829,13 @@ function render(){
       var qd=c.qd,ident=qd.identity;
       if(curStatusFilter==='b1000') return qd.bonus===1000;
       if(curStatusFilter==='b500')  return qd.bonus===500;
-      if(curStatusFilter==='excl')  return ident.cls==='excl';
+      /* 等候審核：身分別含「暫」字 */
       if(curStatusFilter==='pend')  return ident.cls==='pend';
-      if(curStatusFilter==='miss')  return ident.cls==='ok'&&qd.bonus!==1000&&qd.bonus!==500;
+      /* 未達標：有資格（ok 或 pend）但 bonus 為 null（未達成長條件） */
+      /* 包含：成長值<0、成長%<5%、有效月份<2 */
+      if(curStatusFilter==='miss')  return (ident.cls==='ok'||ident.cls==='pend')&&qd.bonus===null;
+      /* 不符資格：身分別空白或有效月份不足 */
+      if(curStatusFilter==='ng')    return ident.cls==='ng';
       return true;
     });
   }
@@ -839,14 +848,7 @@ function render(){
   });
   cards.forEach(function(c){area.appendChild(makeCard(c));});
   updateRank();
-  var b1=0,b5=0,bMiss=0,bInelig=0;
-  cards.forEach(function(c){
-    var qd=c.qd,ident=qd.identity;
-    if(qd.bonus===1000) b1++;
-    else if(qd.bonus===500) b5++;
-    else if(ident.status==='ok'&&qd.roleMonthCount>=2&&(qd.totalPct===null||qd.totalPct<5)) bMiss++;
-    if(['lock_all','lock_part','ineligible'].indexOf(ident.status)>=0) bInelig++;
-  });
+  var b1=0,b5=0; cards.forEach(function(c){if(c.qd.bonus===1000)b1++;else if(c.qd.bonus===500)b5++;});
   var totPctDisp=cards.filter(function(c){return c.qd.bonus!==null;}).length;
 var totalAll=Object.keys(pMap).filter(function(s){var info=pMap[s];var qd=calcPersonQ(info.rows,curQ);return qd.evalMonths.length>0;}).length;
   var filterHint=curStatusFilter!=='all'?' (篩選中)':'';
@@ -873,17 +875,23 @@ function makeCard(c){
     var isForeign=(mA&&qd.personArea&&mA!==qd.personArea)||(mO&&qd.personOffice&&mO!==qd.personOffice);
     var mLabel=isForeign?MNAMES[m]+'<span style="font-size:9px;color:#c07000;margin-left:2px;vertical-align:super;">&#65290;</span>':MNAMES[m];
     var trCls=isForeign?' style="background:rgba(255,200,50,.13);"':'';
-    if(!d.hasData) return '<tr'+trCls+'><td>'+mLabel+'</td><td class="ctn-stores">—</td><td class="ctn-cur">—</td><td class="ctn-tgt">—</td><td class="ctn-eval nil">—</td><td class="ctn-eval nil">—</td></tr>';
+    /* 身分別欄位 */
+    var roleStr,roleCls;
+    if(!d.hasData){roleStr='—';roleCls='r-none';}
+    else if(!d.role){roleStr='—';roleCls='r-none';}
+    else if(d.role.indexOf('暫')>=0){roleStr='暫';roleCls='r-pend';}
+    else{roleStr='✔';roleCls='r-ok';}
+    if(!d.hasData) return '<tr'+trCls+'><td>'+mLabel+'</td><td class="role-cell '+roleCls+'">'+roleStr+'</td><td class="ctn-stores">—</td><td class="ctn-cur">—</td><td class="ctn-tgt">—</td><td class="ctn-eval nil">—</td><td class="ctn-eval nil">—</td></tr>';
     var gv2=fmt2(d.growth),gcls=gv2>0?'pos':gv2<0?'neg':'nil';
     var pct=d.growthPct!==null?d.growthPct.toFixed(1)+'%':'—';
     var pCls=d.growthPct!==null&&d.growthPct>=5?'pos':d.growthPct!==null&&d.growthPct<0?'neg':'nil';
-    return '<tr'+trCls+'><td>'+mLabel+'</td><td class="ctn-stores">'+d.stores+'</td><td class="ctn-cur">'+fmtN(d.cur)+'</td><td class="ctn-tgt">'+fmtN(d.tgt)+'</td><td class="ctn-eval '+gcls+'">'+(gv2>0?'+':'')+fmtN(gv2)+'</td><td class="ctn-eval '+pCls+'">'+pct+'</td></tr>';
+    return '<tr'+trCls+'><td>'+mLabel+'</td><td class="role-cell '+roleCls+'">'+roleStr+'</td><td class="ctn-stores">'+d.stores+'</td><td class="ctn-cur">'+fmtN(d.cur)+'</td><td class="ctn-tgt">'+fmtN(d.tgt)+'</td><td class="ctn-eval '+gcls+'">'+(gv2>0?'+':'')+fmtN(gv2)+'</td><td class="ctn-eval '+pCls+'">'+pct+'</td></tr>';
   }).join('');
   var tgDCls=tg===null?'nil':(tg>0?'pos':tg<0?'neg':'nil');
   var totPct=qd.totalPct;
   var totPctStr=totPct!==null?totPct.toFixed(1)+'%':'—';
   var totPCls=totPct!==null&&totPct>=5?'pos':totPct!==null&&totPct<0?'neg':'nil';
-  var totalRow='<tr class="total-row"><td>合計</td><td class="ctn-stores">'+qd.totalStores+'</td><td class="ctn-cur">'+fmtN(qd.totalCur)+'</td><td class="ctn-tgt">'+fmtN(qd.totalTgt)+'</td><td class="ctn-eval '+tgDCls+'">'+(tg!==null?(tg>0?'+':'')+fmtN(tg):'—')+'</td><td class="ctn-eval '+totPCls+'">'+totPctStr+'</td></tr>';
+  var totalRow='<tr class="total-row"><td>合計</td><td class="role-cell r-none">—</td><td class="ctn-stores">'+qd.totalStores+'</td><td class="ctn-cur">'+fmtN(qd.totalCur)+'</td><td class="ctn-tgt">'+fmtN(qd.totalTgt)+'</td><td class="ctn-eval '+tgDCls+'">'+(tg!==null?(tg>0?'+':'')+fmtN(tg):'—')+'</td><td class="ctn-eval '+totPCls+'">'+totPctStr+'</td></tr>';
   /* 人員卡片高光 class */
   var hlCls='person-card';
   if(ident.cls==='excl') hlCls+=' hl-excl';
@@ -899,7 +907,7 @@ function makeCard(c){
     '<span class="pc-q-label">'+curQ+' 成長值</span>'+
     '<span class="pc-total-num '+teCls+'">'+bigNum+'</span>'+
     '</div></div>'+
-    '<table class="pc-table"><thead><tr><th>月份</th><th>家數</th><th>當期業績</th><th>目標(孰高)</th><th>成長值</th><th>成長%</th></tr></thead>'+
+    '<table class="pc-table"><thead><tr><th>月份</th><th style="text-align:center;">身分別</th><th>家數</th><th>當期業績</th><th>目標(孰高)</th><th>成長值</th><th>成長%</th></tr></thead>'+
     '<tbody>'+rowsHtml+totalRow+'</tbody></table>'+
     '<div class="pc-identity-block"><span class="pc-valid-tag '+ident.cls+'">'+ident.label+'</span>'+(bonusHtml||'')+'</div>'+
     '<div class="pc-detail-btn-row"><button class="pc-open-detail-btn" onclick="openDetailDlg(event,this)" data-staff="'+esc(c.staff)+'" data-area="'+esc(c.area)+'" data-office="'+esc(c.office)+'">&#128203; 店家明細</button></div>';
