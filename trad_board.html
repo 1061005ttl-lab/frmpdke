@@ -1,7 +1,7 @@
 <!--
 ╔══════════════════════════════════════════════════════════════════════════════════╗
 ║         傳統通路購值進度 — AI 交接說明書                                         ║
-║         VERSION: 1.2.0  UPDATED: 06/25 15:30                                    ║
+║         VERSION: 1.3.0  UPDATED: 06/25 16:00                                    ║
 ╠══════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                  ║
 ║  【系統用途】                                                                    ║
@@ -178,6 +178,10 @@
     .pc-table tr.total-row td{font-weight:900;font-size:13px;background:rgba(0,0,0,.02);border-top:1.5px solid rgba(0,0,0,.08);border-bottom:none;padding:8px 11px;}
     .pc-table tr.total-row td:first-child{color:var(--text);}
     td.ctn-stores{color:var(--sub);font-weight:700;}
+    .role-cell{font-size:11px;font-weight:700;text-align:center;padding:0 6px;}
+    .role-cell.r-ok{color:#2a7a40;}
+    .role-cell.r-pend{color:#996600;}
+    .role-cell.r-none{color:#bbb;}
     td.ctn-cur{color:var(--blue);}
     td.ctn-tgt{color:var(--purple);}
     td.ctn-eval{font-weight:900;}
@@ -232,7 +236,7 @@
     .d-tgt{color:var(--purple);}
     #rank-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s;pointer-events:none;padding:12px;}
     #rank-modal.open{opacity:1;pointer-events:auto;}
-    .rank-modal-box{background:#fff;border-radius:14px;width:98vw;max-width:1600px;max-height:92vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 80px rgba(0,0,0,.35);transform:translateY(14px);transition:transform .22s;}
+    .rank-modal-box{background:#fff;border-radius:14px;width:99vw;max-width:1800px;max-height:94vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 80px rgba(0,0,0,.35);transform:translateY(14px);transition:transform .22s;}
     #rank-modal.open .rank-modal-box{transform:translateY(0);}
     .rank-modal-header{padding:13px 20px;border-bottom:1px solid rgba(0,0,0,.09);display:flex;align-items:center;justify-content:space-between;font-size:15px;font-weight:900;color:var(--text);flex-shrink:0;background:linear-gradient(135deg,rgba(248,250,248,1),rgba(240,248,240,1));}
     .rank-tabs{display:flex;gap:6px;margin:0 16px;padding:8px 0 4px;border-bottom:1px solid rgba(0,0,0,.07);flex-shrink:0;}
@@ -241,32 +245,32 @@
     .rank-modal-body{flex:1;overflow:auto;padding:0;}
     .rank-modal-body::-webkit-scrollbar{height:4px;width:4px;}
     .rank-modal-body::-webkit-scrollbar-thumb{background:rgba(0,0,0,.1);border-radius:4px;}
-    .rank-area-row{display:flex;gap:0;min-height:420px;}
-    .rank-area-col{min-width:160px;flex:1;border-right:1px solid rgba(0,0,0,.07);padding:0;transition:background .2s;}
+    .rank-area-row{display:flex;gap:0;min-height:560px;}
+    .rank-area-col{min-width:190px;flex:1;border-right:1px solid rgba(0,0,0,.07);padding:0;transition:background .2s;}
     .rank-area-col:last-child{border-right:none;}
     /* rank-area-title moved below */
     .rank-item-OLD{display:flex;align-items:flex-start;gap:8px;padding:9px 12px;border-bottom:1px solid rgba(0,0,0,.04);transition:background .12s;position:relative;}
     .rank-item:hover{background:rgba(139,166,144,.08);}
     .rank-item.rank-4th{background:rgba(0,0,0,.01);border-left:3px solid transparent;}
     .rank-item.rank-4th .rank-name{color:var(--sub);}
-    .rank-diff-badge{font-size:12px;font-weight:900;color:#c05000;background:rgba(220,100,0,.1);border-radius:6px;padding:3px 9px;margin-top:5px;display:inline-block;white-space:nowrap;border:1px solid rgba(200,80,0,.2);letter-spacing:-.2px;}
+    .rank-diff-badge{font-size:13px;font-weight:900;color:#c05000;background:rgba(220,100,0,.1);border-radius:6px;padding:4px 11px;margin-top:6px;display:inline-block;white-space:nowrap;border:1px solid rgba(200,80,0,.2);letter-spacing:-.2px;}
     .rd-section{padding:0;}
     .rd-sec-title{font-size:9px;font-weight:900;letter-spacing:.8px;color:#aaa;margin-bottom:6px;display:flex;align-items:center;gap:5px;}
     .rd-sec-title::after{content:'';flex:1;height:1px;background:rgba(0,0,0,.07);}
-    .rank-item{display:flex;align-items:flex-start;gap:8px;padding:12px 12px;border-radius:0;margin-bottom:0;border:none;border-bottom:1px solid rgba(0,0,0,.05);transition:all .15s;position:relative;}
+    .rank-item{display:flex;align-items:flex-start;gap:10px;padding:16px 14px;border-radius:0;margin-bottom:0;border:none;border-bottom:1px solid rgba(0,0,0,.05);transition:all .15s;position:relative;}
     .rank-item:hover{background:rgba(139,166,144,.12);}
-    .rank-no{width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.07);font-size:12px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--sub);margin-top:1px;}
-    .rank-no.top1{background:linear-gradient(135deg,#FFD700,#FFA500);color:#5a3800;box-shadow:0 2px 8px rgba(255,180,0,.5);width:28px;height:28px;font-size:13px;}
-    .rank-no.top2{background:linear-gradient(135deg,#E8E8E8,#A8A8A8);color:#444;box-shadow:0 2px 6px rgba(160,160,160,.4);width:26px;height:26px;}
-    .rank-no.top3{background:linear-gradient(135deg,#E8A060,#B05820);color:#fff;box-shadow:0 2px 6px rgba(180,100,40,.4);width:24px;height:24px;}
+    .rank-no{width:30px;height:30px;border-radius:50%;background:rgba(0,0,0,.07);font-size:14px;font-weight:900;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--sub);margin-top:1px;}
+    .rank-no.top1{background:linear-gradient(135deg,#FFD700,#FFA500);color:#5a3800;box-shadow:0 2px 8px rgba(255,180,0,.5);width:34px;height:34px;font-size:16px;}
+    .rank-no.top2{background:linear-gradient(135deg,#E8E8E8,#A8A8A8);color:#444;box-shadow:0 2px 6px rgba(160,160,160,.4);width:32px;height:32px;}
+    .rank-no.top3{background:linear-gradient(135deg,#E8A060,#B05820);color:#fff;box-shadow:0 2px 6px rgba(180,100,40,.4);width:30px;height:30px;}
     .rank-info{flex:1;min-width:0;}
-    .rank-name{font-size:15px;font-weight:900;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .rank-name{font-size:17px;font-weight:900;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .rank-sub{font-size:12px;color:var(--sub);margin-top:3px;}
-    .rank-eval-badge{font-size:12px;font-weight:900;color:#5a3000;background:linear-gradient(135deg,rgba(255,215,0,.35),rgba(255,160,0,.2));border:1.5px solid rgba(200,140,0,.5);border-radius:8px;padding:4px 10px;margin-top:5px;display:inline-flex;align-items:center;gap:4px;box-shadow:0 2px 8px rgba(200,140,0,.25);}
-    .rank-eval-badge .eval-amt{font-size:15px;font-weight:900;color:#a04000;letter-spacing:-.3px;}
+    .rank-eval-badge{font-size:13px;font-weight:900;color:#5a3000;background:linear-gradient(135deg,rgba(255,215,0,.35),rgba(255,160,0,.2));border:1.5px solid rgba(200,140,0,.5);border-radius:8px;padding:5px 12px;margin-top:6px;display:inline-flex;align-items:center;gap:4px;box-shadow:0 2px 8px rgba(200,140,0,.25);}
+    .rank-eval-badge .eval-amt{font-size:17px;font-weight:900;color:#a04000;letter-spacing:-.3px;}
     .rank-eval-badge.max-badge{background:linear-gradient(135deg,rgba(255,100,0,.2),rgba(255,215,0,.35));border-color:rgba(220,80,0,.5);animation:evalPulse 2s ease-in-out infinite;}
     @keyframes evalPulse{0%,100%{box-shadow:0 2px 8px rgba(200,100,0,.25);}50%{box-shadow:0 3px 14px rgba(220,100,0,.5);}}
-    .rank-val{font-size:16px;font-weight:900;flex-shrink:0;text-align:right;line-height:1.3;}
+    .rank-val{font-size:18px;font-weight:900;flex-shrink:0;text-align:right;line-height:1.3;}
     .rank-val.pos{color:var(--green);}
     .rank-val.neg{color:var(--red);}
     .rank-val.nil{color:var(--sub);}
@@ -274,7 +278,7 @@
     .rank-item.rank-2nd{background:linear-gradient(90deg,rgba(200,200,200,.12) 0%,rgba(240,240,240,.04) 100%);border-left:3px solid #A0A0A0;}
     .rank-item.rank-3rd{background:linear-gradient(90deg,rgba(200,120,50,.1) 0%,rgba(220,180,140,.04) 100%);border-left:3px solid #CD7F32;}
     .rank-item.rank-1st:hover{background:linear-gradient(90deg,rgba(255,215,0,.25) 0%,rgba(255,250,210,.1) 100%);}
-    .rank-area-title{font-size:12px;font-weight:900;letter-spacing:.6px;color:#fff;padding:12px 14px 10px;border-bottom:1px solid rgba(255,255,255,.15);background:linear-gradient(135deg,#2d6a38,#1e4d28);display:flex;align-items:center;gap:6px;}
+    .rank-area-title{font-size:14px;font-weight:900;letter-spacing:.6px;color:#fff;padding:16px 18px 14px;border-bottom:1px solid rgba(255,255,255,.15);background:linear-gradient(135deg,#2d6a38,#1e4d28);display:flex;align-items:center;gap:6px;}
     .org-section{width:100%;flex-basis:100%;}
     .org-section-title{font-size:11px;font-weight:900;color:var(--sub);letter-spacing:.6px;padding:4px 2px 6px;display:flex;align-items:center;gap:6px;}
     .org-section-title::after{content:'';flex:1;height:1px;background:rgba(0,0,0,.07);}
@@ -946,17 +950,22 @@ function makeCard(c){
     var isForeign=(mA&&qd.personArea&&mA!==qd.personArea)||(mO&&qd.personOffice&&mO!==qd.personOffice);
     var mLabel=isForeign?MNAMES[m]+'<span style="font-size:9px;color:#c07000;margin-left:2px;vertical-align:super;">&#65290;</span>':MNAMES[m];
     var trCls=isForeign?' style="background:rgba(255,200,50,.13);"':'';
-    if(!d.hasData) return '<tr'+trCls+'><td>'+mLabel+'</td><td class="ctn-stores">—</td><td class="ctn-cur">—</td><td class="ctn-tgt">—</td><td class="ctn-eval nil">—</td><td class="ctn-eval nil">—</td></tr>';
+    /* 身分別欄位：✔正式 / 暫暫估 / — 無資料 */
+    var roleStr,roleCls;
+    if(!d.hasData||!d.role){roleStr='—';roleCls='r-none';}
+    else if(d.role.indexOf('暫')>=0){roleStr='暫';roleCls='r-pend';}
+    else{roleStr='✔';roleCls='r-ok';}
+    if(!d.hasData) return '<tr'+trCls+'><td>'+mLabel+'</td><td class="role-cell r-none">—</td><td class="ctn-stores">—</td><td class="ctn-cur">—</td><td class="ctn-tgt">—</td><td class="ctn-eval nil">—</td><td class="ctn-eval nil">—</td></tr>';
     var gv2=fmt2(d.growth),gcls=gv2>0?'pos':gv2<0?'neg':'nil';
     var pct=d.growthPct!==null?d.growthPct.toFixed(1)+'%':'—';
     var pCls=d.growthPct!==null&&d.growthPct>=5?'pos':d.growthPct!==null&&d.growthPct<0?'neg':'nil';
-    return '<tr'+trCls+'><td>'+mLabel+'</td><td class="ctn-stores">'+d.stores+'</td><td class="ctn-cur">'+fmtN(d.cur)+'</td><td class="ctn-tgt">'+fmtN(d.tgt)+'</td><td class="ctn-eval '+gcls+'">'+(gv2>0?'+':'')+fmtN(gv2)+'</td><td class="ctn-eval '+pCls+'">'+pct+'</td></tr>';
+    return '<tr'+trCls+'><td>'+mLabel+'</td><td class="role-cell '+roleCls+'">'+roleStr+'</td><td class="ctn-stores">'+d.stores+'</td><td class="ctn-cur">'+fmtN(d.cur)+'</td><td class="ctn-tgt">'+fmtN(d.tgt)+'</td><td class="ctn-eval '+gcls+'">'+(gv2>0?'+':'')+fmtN(gv2)+'</td><td class="ctn-eval '+pCls+'">'+pct+'</td></tr>';
   }).join('');
   var tgDCls=tg===null?'nil':(tg>0?'pos':tg<0?'neg':'nil');
   var totPct=qd.totalPct;
   var totPctStr=totPct!==null?totPct.toFixed(1)+'%':'—';
   var totPCls=totPct!==null&&totPct>=5?'pos':totPct!==null&&totPct<0?'neg':'nil';
-  var totalRow='<tr class="total-row"><td>合計</td><td class="ctn-stores">'+qd.totalStores+'</td><td class="ctn-cur">'+fmtN(qd.totalCur)+'</td><td class="ctn-tgt">'+fmtN(qd.totalTgt)+'</td><td class="ctn-eval '+tgDCls+'">'+(tg!==null?(tg>0?'+':'')+fmtN(tg):'—')+'</td><td class="ctn-eval '+totPCls+'">'+totPctStr+'</td></tr>';
+  var totalRow='<tr class="total-row"><td>合計</td><td class="role-cell r-none">—</td><td class="ctn-stores">'+qd.totalStores+'</td><td class="ctn-cur">'+fmtN(qd.totalCur)+'</td><td class="ctn-tgt">'+fmtN(qd.totalTgt)+'</td><td class="ctn-eval '+tgDCls+'">'+(tg!==null?(tg>0?'+':'')+fmtN(tg):'—')+'</td><td class="ctn-eval '+totPCls+'">'+totPctStr+'</td></tr>';
   /* 人員卡片高光 class */
   var hlCls='person-card';
   if(ident.cls==='excl') hlCls+=' hl-excl';
@@ -972,7 +981,7 @@ function makeCard(c){
     '<span class="pc-q-label">'+curQ+' 成長值</span>'+
     '<span class="pc-total-num '+teCls+'">'+bigNum+'</span>'+
     '</div></div>'+
-    '<table class="pc-table"><thead><tr><th>月份</th><th>家數</th><th>當期業績</th><th>目標(孰高)</th><th>成長值</th><th>成長%</th></tr></thead>'+
+    '<table class="pc-table"><thead><tr><th>月份</th><th style="text-align:center">身分別</th><th>家數</th><th>當期業績</th><th>目標(孰高)</th><th>成長值</th><th>成長%</th></tr></thead>'+
     '<tbody>'+rowsHtml+totalRow+'</tbody></table>'+
     '<div class="pc-identity-block"><span class="pc-valid-tag '+ident.cls+'">'+ident.label+'</span>'+(bonusHtml||'')+'</div>'+
     '<div class="pc-detail-btn-row"><button class="pc-open-detail-btn" onclick="openDetailDlg(event,this)" data-staff="'+esc(c.staff)+'" data-area="'+esc(c.area)+'" data-office="'+esc(c.office)+'">&#128203; 店家明細</button></div>';
@@ -1012,7 +1021,7 @@ function renderOrg(){
     });
   }
   var totD=scards.reduce(function(s,c){return s+c.qd.totalDelta;},0);
-  document.getElementById('gb-count').innerHTML='顯示 <b>'+scards.length+'</b> 家店&emsp;增減合計 <b style="color:'+(totD>=0?'var(--green)':'var(--red)')+'">'+( totD>0?'+':'')+totD+'</b>';
+  document.getElementById('gb-count').innerHTML='顯示 <b>'+scards.length+'</b> 家店&emsp;增減合計 <b style="color:'+(totD>=0?'var(--green)':'var(--red)')+'">'+(totD>0?'+':'')+fmtN(totD)+'</b>';
 }
 
 function makeOrgCard(c){
@@ -1451,7 +1460,7 @@ function openSummaryTable(){
     gc.forEach(function(c){
       var s=c.s,qd=c.qd;
       var row='<tr class="sum-data-row"><td style="'+tdSL+'color:#777;font-size:11px;">'+s.code+'</td><td style="'+tdSL+'font-weight:700;">'+s.name+'</td><td style="'+tdSL+'color:#888;font-size:11px;">'+s.area+'</td><td style="'+tdSL+'color:#888;font-size:11px;">'+s.office+'</td>';
-      months.forEach(function(m,mi){var d=qd.monthData[m];var bl=mi===0?'border-left:2px solid #ddeedd;':'';if(!d.hasData){row+='<td style="'+tdS+bl+'color:#ddd;">—</td><td style="'+tdS+'color:#ddd;">—</td><td style="'+tdS+'color:#ddd;">—</td>';}else{row+='<td style="'+tdS+bl+'color:#1a73e8;">'+d.cur+'</td><td style="'+tdS+'color:#7c3aed;">'+d.last+'</td><td style="'+tdS+dCl(d.delta)+'">'+ds(d.delta)+'</td>';}});
+      months.forEach(function(m,mi){var d=qd.monthData[m];var bl=mi===0?'border-left:2px solid #ddeedd;':'';if(!d.hasData){row+='<td style="'+tdS+bl+'color:#ddd;">—</td><td style="'+tdS+'color:#ddd;">—</td><td style="'+tdS+'color:#ddd;">—</td>';}else{row+='<td style="'+tdS+bl+'color:#1a73e8;">'+fmtN(d.cur)+'</td><td style="'+tdS+'color:#7c3aed;">'+fmtN(d.last)+'</td><td style="'+tdS+dCl(d.delta)+'">'+ds(d.delta)+'</td>';}});
       row+='<td style="'+tdS+'border-left:2px solid #b0ccb0;background:#f4faf4;color:#1a73e8;font-weight:800;">'+fmtN(qd.totalCur)+'</td><td style="'+tdS+'background:#f4faf4;color:#7c3aed;font-weight:800;">'+fmtN(qd.totalLast)+'</td><td style="'+tdS+'background:#f4faf4;'+dCl(qd.totalDelta)+'">'+ds(fmt2(qd.totalDelta))+'</td></tr>';
       tbody+=row;
     });
