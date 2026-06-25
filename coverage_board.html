@@ -1446,39 +1446,39 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
     +'<button class="card-detail-btn" id="dbtn-'+ttId+'">📋 明細</button>'
     +'</div></div>';
   /* 動態產生 B 群格 + C 群格 */
-  var statRowHtml = '<div class="stat-row">'+
-    '<div class="stat-item"><div class="stat-label">\u7E3D\u5BB6\u6578</div><div class="stat-val">'+stat.total+'</div><div class="stat-pct hidden">&nbsp;</div></div>'+
-    (COL_UNFILL ? '<div class="stat-item warn'+(chips['unfill']===false?' dim':'')+'"><div class="stat-label">'+esc(UNFILL_LABEL)+'</div><div class="stat-val">'+stat.unfilled+'</div><div class="stat-pct">'+fp(stat.unfilled)+'</div></div>' : '')+
-
+  var _bStatHtml = '';
   BUCKETS_B.forEach(function(g, i){
     var cnt = stat.bGroupCounts[i] || 0;
     var dim = chips['b:'+i]===false ? ' dim' : '';
     var hasMultiCols = g.cols.length > 1;
     var siId = 'sib'+i+'-'+ttId;
     var ttBId = hasMultiCols ? 'ttb'+i+'-'+ttId : '';
-    statRowHtml += '<div class="stat-item good'+dim+'" id="'+siId+'" style="position:relative">'+
+    _bStatHtml += '<div class="stat-item good'+dim+'" id="'+siId+'" style="position:relative">'+
       '<div class="stat-label">'+esc(g.label)+'</div>'+
       '<div class="stat-val">'+cnt+'</div>'+
       '<div class="stat-pct">'+fp(cnt)+'</div>'+
       (hasMultiCols ? '<div class="tooltip" id="'+ttBId+'">'+buildTooltipHTML(g.label, g.cols, stat.bColCounts, cnt)+'</div>' : '')+
     '</div>';
   });
-
+  var _cStatHtml = '';
   BUCKETS_C.forEach(function(g, j){
     var cnt = stat.cGroupCounts[j] || 0;
     var dim = chips['c:'+j]===false ? ' dim' : '';
     var hasMultiCols = g.cols.length > 1;
     var siId = 'sic'+j+'-'+ttId;
     var ttCId2 = hasMultiCols ? 'ttc'+j+'-'+ttId : '';
-    statRowHtml += '<div class="stat-item warn'+dim+'" id="'+siId+'" style="position:relative">'+
+    _cStatHtml += '<div class="stat-item warn'+dim+'" id="'+siId+'" style="position:relative">'+
       '<div class="stat-label">'+esc(g.label)+'</div>'+
       '<div class="stat-val">'+cnt+'</div>'+
       '<div class="stat-pct">'+fp(cnt)+'</div>'+
       (hasMultiCols ? '<div class="tooltip" id="'+ttCId2+'">'+buildTooltipHTML(g.label, g.cols, stat.cColCounts, cnt)+'</div>' : '')+
     '</div>';
   });
-
-  statRowHtml += '</div>';
+  var statRowHtml = '<div class="stat-row">'+
+    '<div class="stat-item"><div class="stat-label">\u7E3D\u5BB6\u6578</div><div class="stat-val">'+stat.total+'</div><div class="stat-pct hidden">&nbsp;</div></div>'+
+    (COL_UNFILL ? '<div class="stat-item warn'+(chips['unfill']===false?' dim':'')+'"><div class="stat-label">'+esc(UNFILL_LABEL)+'</div><div class="stat-val">'+stat.unfilled+'</div><div class="stat-pct">'+fp(stat.unfilled)+'</div></div>' : '')+
+    _bStatHtml + _cStatHtml +
+  '</div>';
   card.innerHTML = topHtml + statRowHtml;
 
   /* 綁定所有 B 群 tooltip */
