@@ -92,10 +92,7 @@
     .person-card.hl-b500::before{content:'';display:block;height:3px;background:linear-gradient(90deg,#4a8a55,#7ab87a,#4a8a55);background-size:200% 100%;animation:shimmer 3s linear infinite;}
     @keyframes shimmer{0%{background-position:200% 0;}100%{background-position:-200% 0;}}
     /* 狀態角標 */
-    .pc-status-ribbon{position:absolute;top:8px;right:8px;font-size:9px;font-weight:900;padding:2px 7px;border-radius:99px;letter-spacing:.3px;}
-    .pc-status-ribbon.r-gold{background:rgba(255,215,0,.25);color:#7a4800;border:1px solid rgba(200,150,0,.4);}
-    .pc-status-ribbon.r-green{background:rgba(139,180,144,.2);color:#2a6a35;border:1px solid rgba(100,160,110,.35);}
-    .pc-status-ribbon.r-blue{background:rgba(26,115,232,.12);color:#1040a0;border:1px solid rgba(26,115,232,.3);}
+
     .person-card:hover{box-shadow:0 5px 20px rgba(80,100,85,.2);transform:translateY(-1px);}
     .pc-valid-tag{font-size:10px;font-weight:800;padding:2px 7px;border-radius:99px;border:1px solid;white-space:nowrap;flex-shrink:0;}
     .pc-valid-tag.ok{background:var(--green-bg);color:var(--green);border-color:var(--green-bd);}
@@ -339,6 +336,16 @@
     <button class="sort-btn" data-sort="cur" onclick="setSort('cur')">當期業績</button>
     <button class="sort-btn" data-sort="tgt" onclick="setSort('tgt')">目標門檻</button>
   </div>
+  <div class="filter-sep"></div>
+  <div style="display:flex;align-items:center;gap:5px;flex-shrink:0;" id="status-filter-row">
+    <span style="font-size:10px;color:var(--sub);font-weight:700;">狀態</span>
+    <button class="status-chip on" data-sf="all"   onclick="setStatusFilter('all')">全部</button>
+    <button class="status-chip"   data-sf="b1000"  onclick="setStatusFilter('b1000')">&#127885; $1,000</button>
+    <button class="status-chip"   data-sf="b500"   onclick="setStatusFilter('b500')">&#9989; $500</button>
+    <button class="status-chip"   data-sf="miss"   onclick="setStatusFilter('miss')">未達標</button>
+    <button class="status-chip"   data-sf="excl"   onclick="setStatusFilter('excl')">排除</button>
+    <button class="status-chip"   data-sf="pend"   onclick="setStatusFilter('pend')">等候審核</button>
+  </div>
   <div style="display:flex;align-items:center;gap:6px;margin-left:6px;" id="gb-extra-btns">
     <button class="tb-btn" id="btn-summary" onclick="openSummaryTable()" style="display:none;background:rgba(74,122,85,.12);border-color:rgba(74,122,85,.35);color:#2d5a38;font-weight:800;">&#128202; 彙整表</button>
   </div>
@@ -571,6 +578,16 @@ function refreshNavHL(){
 function setArea(a){fArea=a;fOffice='';refreshNavHL();appendOfficeChips(document.getElementById('nav-area-row'),a);refreshNavHL();render();updateGbar();}
 function setOffice(o){fOffice=o;refreshNavHL();render();updateGbar();}
 function setSort(s){curSort=s;document.querySelectorAll('.sort-btn').forEach(function(b){b.classList.toggle('on',b.dataset.sort===s);});render();}
+var curStatusFilter='all';
+var STATUS_CHIP_CLS={all:'on',b1000:'on-gold',b500:'on-green',miss:'on-red',excl:'on-gray',pend:'on-gray'};
+function setStatusFilter(sf){
+  curStatusFilter=sf;
+  document.querySelectorAll('.status-chip').forEach(function(b){
+    var active=b.dataset.sf===sf;
+    b.className='status-chip'+(active?' '+(STATUS_CHIP_CLS[sf]||'on'):'');
+  });
+  render();
+}
 function toggleManual(){document.getElementById('manual-bar').classList.toggle('open');}
 function toggleMobileDrawer(){
   var o=document.getElementById('mobile-drawer-overlay'),d=document.getElementById('mobile-drawer');
@@ -589,6 +606,8 @@ function setViewMode(mode){
   var sb=document.getElementById('btn-summary'),msb=document.getElementById('md-summary-btn');
   if(sb)sb.style.display=mode==='org'?'':'none';
   if(msb)msb.style.display=mode==='org'?'':'none';
+  var sfRow=document.getElementById('status-filter-row');
+  if(sfRow)sfRow.style.display=mode==='person'?'':'none';
   if(mode==='person')closeSummaryTable();
   _updateSortLabels(); render(); updateGbar(); updateRank();
 }
@@ -791,6 +810,18 @@ function render(){
   }).filter(function(c){return c.qd.evalMonths.length>0;});
   if(!cards.length){area.innerHTML='<div class="empty-msg"><div class="ei">&#128269;</div><div>沒有符合條件的資料</div></div>';return;}
   function getSV(c){var qd=c.qd;if(curSort==='stores')return qd.totalStores;if(curSort==='cur')return qd.totalCur;if(curSort==='tgt')return qd.totalTgt;return qd.totalGrowth;}
+  /* 狀態篩選 */
+  if(curStatusFilter!=='all'){
+    cards=cards.filter(function(c){
+      var qd=c.qd,ident=qd.identity;
+      if(curStatusFilter==='b1000') return qd.bonus===1000;
+      if(curStatusFilter==='b500')  return qd.bonus===500;
+      if(curStatusFilter==='excl')  return ident.cls==='excl';
+      if(curStatusFilter==='pend')  return ident.cls==='pend';
+      if(curStatusFilter==='miss')  return ident.cls==='ok'&&qd.bonus!==1000&&qd.bonus!==500;
+      return true;
+    });
+  }
   cards.sort(function(a,b){
     var aL=a.qd.evalMonths.length<2,bL=b.qd.evalMonths.length<2;
     if(aL!==bL) return aL?1:-1;
@@ -802,7 +833,9 @@ function render(){
   updateRank();
   var b1=0,b5=0; cards.forEach(function(c){if(c.qd.bonus===1000)b1++;else if(c.qd.bonus===500)b5++;});
   var totPctDisp=cards.filter(function(c){return c.qd.bonus!==null;}).length;
-document.getElementById('gb-count').innerHTML='顯示 <b>'+cards.length+'</b> 人&emsp;&#127885; $1,000&#215;<b style="color:#7a5500">'+b1+'</b> 人 / $500&#215;<b style="color:#3a6a45">'+b5+'</b> 人';
+var totalAll=Object.keys(pMap).filter(function(s){var info=pMap[s];var qd=calcPersonQ(info.rows,curQ);return qd.evalMonths.length>0;}).length;
+  var filterHint=curStatusFilter!=='all'?' (篩選中)':'';
+  document.getElementById('gb-count').innerHTML='顯示 <b>'+cards.length+'</b> 人'+(curStatusFilter!=='all'?' / 共'+totalAll+'人':'')+'&emsp;&#127885; $1,000&#215;<b style="color:#7a5500">'+b1+'</b> 人 / $500&#215;<b style="color:#3a6a45">'+b5+'</b> 人';
   updateRank(pMap);
 }
 
@@ -838,16 +871,9 @@ function makeCard(c){
   var totalRow='<tr class="total-row"><td>合計</td><td class="ctn-stores">'+qd.totalStores+'</td><td class="ctn-cur">'+fmtN(qd.totalCur)+'</td><td class="ctn-tgt">'+fmtN(qd.totalTgt)+'</td><td class="ctn-eval '+tgDCls+'">'+(tg!==null?(tg>0?'+':'')+fmtN(tg):'—')+'</td><td class="ctn-eval '+totPCls+'">'+totPctStr+'</td></tr>';
   /* 人員卡片高光 class */
   var hlCls='person-card';
-  var ribbonHtml='';
-  if(ident.cls==='excl'){
-    hlCls+=' hl-excl';
-  } else if(qd.bonus===1000){
-    hlCls+=' hl-b1000';
-    ribbonHtml='<span class="pc-status-ribbon r-gold">🥇 $1,000 達標</span>';
-  } else if(qd.bonus===500){
-    hlCls+=' hl-b500';
-    ribbonHtml='<span class="pc-status-ribbon r-green">✅ $500 達標</span>';
-  }
+  if(ident.cls==='excl') hlCls+=' hl-excl';
+  else if(qd.bonus===1000) hlCls+=' hl-b1000';
+  else if(qd.bonus===500) hlCls+=' hl-b500';
   var el=document.createElement('div'); el.className=hlCls; el.style.position='relative';
   el.innerHTML=
     '<div class="pc-header" style="position:relative;"><div class="pc-title-row">'+
@@ -857,7 +883,7 @@ function makeCard(c){
     '<span class="pc-title-spacer"></span>'+
     '<span class="pc-q-label">'+curQ+' 成長值</span>'+
     '<span class="pc-total-num '+teCls+'">'+bigNum+'</span>'+
-    '</div>'+ribbonHtml+'</div>'+
+    '</div></div>'+
     '<table class="pc-table"><thead><tr><th>月份</th><th>家數</th><th>當期業績</th><th>目標(孰高)</th><th>成長值</th><th>成長%</th></tr></thead>'+
     '<tbody>'+rowsHtml+totalRow+'</tbody></table>'+
     '<div class="pc-identity-block"><span class="pc-valid-tag '+ident.cls+'">'+ident.label+'</span>'+(bonusHtml||'')+'</div>'+
