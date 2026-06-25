@@ -919,7 +919,8 @@ function toggleLamp(key) {
 /* \u2500\u2500 \u5DE5\u5177 \u2500\u2500 */
 function showLoading(){ document.getElementById('loading').classList.add('show'); }
 function hideLoading(){ document.getElementById('loading').classList.remove('show'); }
-function isOne(v){ return Number(v)===1||v===true||v==='true'||v==='1'; }
+function isOne(v){ var n=Number(v); return n>=1||v===true||v==='true'||v==='1'; }
+function numVal(v){ var n=Number(v); return (n>=1)?n:(v===true||v==='true'||v==='1'?1:0); }
 /* C 群欄位：判斷是否為業務文字敘述（非 0/1 的非空字串） */
 function isCText(v){ return v!==null && v!==undefined && v!=='' && v!==0 && v!=='0' && v!==false && !isOne(v) && typeof v==='string' && v.trim().length>0; }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
@@ -1196,7 +1197,7 @@ function calcGroup(rows) {
       if (chips['b:'+i] === false) return;
       if (g.cols.some(function(t){ return isOne(r[t]); })) {
         bGroupCounts[i]++;
-        g.cols.forEach(function(t){ if (isOne(r[t])) bColCounts[t]++; });
+        g.cols.forEach(function(t){ if (isOne(r[t])) bColCounts[t]+= numVal(r[t]); });
       }
     });
     /* 每個 C 群獨立計算 */
@@ -1204,7 +1205,7 @@ function calcGroup(rows) {
       if (chips['c:'+j] === false) return;
       if (g.cols.some(function(t){ return isOne(r[t]); })) {
         cGroupCounts[j]++;
-        g.cols.forEach(function(t){ if (isOne(r[t])) cColCounts[t]++; });
+        g.cols.forEach(function(t){ if (isOne(r[t])) cColCounts[t]+= numVal(r[t]); });
       }
     });
   });
@@ -1505,8 +1506,11 @@ function buildTooltipHTML(label, buckets, counts, total) {
   return '<div class="tt-title">'+esc(label)+'</div>'+
     buckets.map(function(t){
       var n = counts[t]||0;
-      var pct = (total>0) ? ' <span class="tt-pct">('+Math.round(n/total*100)+'%)</span>' : '';
-      return '<div class="tt-row"><span class="tt-label">'+esc(t)+'</span><span class="tt-val">'+n+' \u5BB6'+pct+'</span></div>';
+      /* n 可能是 sum（當欄位值 >=2 時加總），大於 total 時顯示 sum 標示而非家 */
+      var unit = (n > total) ? '' : ' \u5BB6';
+      var suffix = (n > total) ? ' <span class="tt-pct">(sum)</span>' : '';
+      var pct = (total>0 && n<=total) ? ' <span class="tt-pct">('+Math.round(n/total*100)+'%)</span>' : '';
+      return '<div class="tt-row"><span class="tt-label">'+esc(t)+'</span><span class="tt-val">'+n+unit+pct+suffix+'</span></div>';
     }).join('');
 }
 
@@ -1878,62 +1882,86 @@ function buildLineText(dRows, lv, title, simple) {
   var valid  = allD.filter(function(d){return d.grp!==3;}).map(function(d){return d.r;});
   var disp   = valid.filter(function(r){return isDispRow(r);});
   var no     = valid.filter(function(r){return isNoRow(r);});
-  var other  = valid.filter(function(r){return !isDispRow(r)&&!isNoRow(r);});
   var gcol   = getExtraCols(lv)[0]||null;
   function gh(r){return gcol?String(r[gcol]||''):null;}
-  function ss(r){var c=String(r[COL_CODE]||''),n=String(r[COL_NAME]||'\u2014');return n+(c?' ('+c+')':'');}
-  /* 摘要 */
-  var sp=['\u6709\u6548 '+valid.length+' \u5BB6'];
-  BUCKETS_B.forEach(function(g){sp.push(g.label+' '+valid.filter(function(r){return g.cols.some(function(t){return isOne(r[t]);});}).length+' \u5BB6');});
-  BUCKETS_C.forEach(function(g){sp.push(g.label+' '+valid.filter(function(r){return g.cols.some(function(t){return isOne(r[t])||isCText(r[t]);});}).length+' \u5BB6');});
-  if(unfill.length) sp.push('\u672A\u586B\u5BEB '+unfill.length+' \u5BB6');
-  var lines=['\u3010'+title+'\u3011\u5E97\u5BB6\u660E\u7D30',sp.join('\u3000'),DIV];
+  function ss(r){var c=String(r[COL_CODE]||''),n=String(r[COL_NAME]||'\u2014');return n+(c?' ('+c+')' : '');}
 
-  if(!simple){
+  /* 摘要行 */
+  var sp=['\u6709\u6548 '+valid.length+' \u5BB6'];
+  BUCKETS_B.forEach(function(g){
+    sp.push(g.label+' '+valid.filter(function(r){return g.cols.some(function(t){return isOne(r[t]);});}).length+' \u5BB6');
+  });
+  BUCKETS_C.forEach(function(g){
+    sp.push(g.label+' '+valid.filter(function(r){return g.cols.some(function(t){return isOne(r[t])||isCText(r[t]);});}).length+' \u5BB6');
+  });
+  if(unfill.length) sp.push('\u672A\u586B\u5BEB '+unfill.length+' \u5BB6');
+
+  var lines=['\u3010'+title+'\u3011\u5E97\u5BB6\u660E\u7D30', sp.join('\u3000'), DIV];
+
   /* B 群 */
   BUCKETS_B.forEach(function(g){
     var gr=disp.filter(function(r){return g.cols.some(function(t){return isOne(r[t]);});});
     if(!gr.length)return;
-    lines.push('');lines.push('\u2705 '+g.label+'\uff08'+gr.length+' \u5BB6\uff09');
+    lines.push('');
+    lines.push(' '+g.label+'\uff08'+gr.length+' \u5BB6\uff09');
     var cur=null;
     gr.forEach(function(r){
-      var gk=gh(r);if(gk!==null&&gk!==cur){cur=gk;if(gk)lines.push('\u258C '+gk);}
+      var gk=gh(r);
+      if(gk!==null&&gk!==cur){cur=gk;if(gk)lines.push('\u258C '+gk);}
       lines.push('  \u2022 '+ss(r));
       var at=g.cols.filter(function(t){return isOne(r[t]);});
       if(at.length)lines.push('     \u2514 '+at.join('\u3001'));
     });
   });
+
   /* C 群 */
   BUCKETS_C.forEach(function(g){
     var gr=no.filter(function(r){return g.cols.some(function(t){return isOne(r[t])||isCText(r[t]);});});
     if(!gr.length)return;
-    lines.push('');lines.push('\u274C '+g.label+'\uff08'+gr.length+' \u5BB6\uff09');
+    lines.push('');
+    lines.push(' '+g.label+'\uff08'+gr.length+' \u5BB6\uff09');
     var cur=null;
     gr.forEach(function(r){
-      var gk=gh(r);if(gk!==null&&gk!==cur){cur=gk;if(gk)lines.push('\u258C '+gk);}
+      var gk=gh(r);
+      if(gk!==null&&gk!==cur){cur=gk;if(gk)lines.push('\u258C '+gk);}
       lines.push('  \u2022 '+ss(r));
-      var rs=g.cols.filter(function(t){return isOne(r[t])||isCText(r[t]);}).map(function(t){return isCText(r[t])?t+'\uff1a'+r[t]:t;});
+      var rs=g.cols.filter(function(t){return isOne(r[t])||isCText(r[t]);})
+        .map(function(t){return isCText(r[t])?t+'\uff1a'+r[t]:t;});
       if(rs.length)lines.push('     \u2514 '+rs.join('\u3001'));
     });
   });
+
   /* 未填寫 */
   if(unfill.length){
-    lines.push('');lines.push('\u26A0\uFE0F \u672A\u586B\u5BEB\uff08'+unfill.length+' \u5BB6\uff09');
+    lines.push('');
+    lines.push(' \u672A\u586B\u5BEB\uff08'+unfill.length+' \u5BB6\uff09');
     var cur=null;
-    unfill.forEach(function(r){var gk=gh(r);if(gk!==null&&gk!==cur){cur=gk;if(gk)lines.push('\u258C '+gk);}lines.push('  \u2022 '+ss(r));});
+    unfill.forEach(function(r){
+      var gk=gh(r);
+      if(gk!==null&&gk!==cur){cur=gk;if(gk)lines.push('\u258C '+gk);}
+      lines.push('  \u2022 '+ss(r));
+    });
   }
-  /* 頁腳統計 */
-  var _footRows = allD.filter(function(d){return d.grp!==3;}).map(function(d){return d.r;});
-  lines.push('');lines.push(DIV);
-  BUCKETS_B.forEach(function(g){
-    lines.push('\u25A0 '+g.label);
-    g.cols.forEach(function(t){lines.push('  '+t+'\uff1a'+_footRows.reduce(function(s,r){return s+(isOne(r[t])?1:0);},0)+' \u5BB6');});
-  });
-  BUCKETS_C.forEach(function(g){
-    lines.push('\u25A0 '+g.label);
-    g.cols.forEach(function(t){lines.push('  '+t+'\uff1a'+_footRows.reduce(function(s,r){return s+(isOne(r[t])?1:0);},0)+' \u5BB6');});
-  });
-  } /* end !simple */
+
+  /* 完整版才加頁腳統計 */
+  if(!simple){
+    var _footRows = allD.filter(function(d){return d.grp!==3;}).map(function(d){return d.r;});
+    lines.push('');
+    lines.push(DIV);
+    BUCKETS_B.forEach(function(g){
+      lines.push('\u25A0 '+g.label);
+      g.cols.forEach(function(t){
+        lines.push('  '+t+'\uff1a'+_footRows.reduce(function(s,r){return s+numVal(r[t]);},0)+' \u5BB6');
+      });
+    });
+    BUCKETS_C.forEach(function(g){
+      lines.push('\u25A0 '+g.label);
+      g.cols.forEach(function(t){
+        lines.push('  '+t+'\uff1a'+_footRows.reduce(function(s,r){return s+numVal(r[t]);},0)+' \u5BB6');
+      });
+    });
+  }
+
   return lines.join('\n');
 }
 
@@ -1987,7 +2015,7 @@ function buildCsvContent(dRows, lv) {
     extraCols.forEach(function(c){row.push(String(r[c]||''));});
     row.push(String(r[COL_CODE]||''));row.push(String(r[COL_NAME]||''));
     row.push(d.grp===3?'\u672A\u586B\u5BEB':d.grp===0?'\u5DF2\u6709':d.grp===1?'\u672A\u6709':'\u2014');
-    BUCKETS_B.forEach(function(g){if(g.cols.length===1)row.push(isOne(r[g.cols[0]])?1:0);else g.cols.forEach(function(t){row.push(isOne(r[t])?1:0);});});
+    BUCKETS_B.forEach(function(g){if(g.cols.length===1)row.push(numVal(r[g.cols[0]]));else g.cols.forEach(function(t){row.push(numVal(r[t]));});});
     BUCKETS_C.forEach(function(g){if(g.cols.length===1){var v=r[g.cols[0]];row.push(isOne(v)?1:(isCText(v)?String(v):0));}else g.cols.forEach(function(t){var v=r[t];row.push(isOne(v)?1:(isCText(v)?String(v):0));});});
     rows.push(row);
   });
