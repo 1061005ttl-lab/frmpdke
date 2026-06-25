@@ -355,7 +355,6 @@
     <button class="tb-btn" onclick="mainCopyLine()" id="btn-main-line">&#128172; LINE</button>
     <button class="tb-btn" onclick="downloadCSV()" id="btn-main-csv">&#128229; CSV</button>
     <button class="tb-btn" onclick="mainScreenshot()" id="btn-main-shot">&#128248; 截圖</button>
-    <button class="tb-btn" onclick="downloadXLSX()">&#128229; XLSX</button>
   </div>
   <button id="hamburger-btn" onclick="toggleMobileDrawer()">&#9776;</button>
 </div>
@@ -380,8 +379,8 @@
     <div class="drawer-section">
       <div class="drawer-section-title">分享 / 匯出</div>
       <button class="drawer-btn" onclick="mainCopyLine();closeMobileDrawer();"><span class="db-icon">&#128172;</span>複製 LINE</button>
+      <button class="drawer-btn" onclick="downloadCSV();closeMobileDrawer();"><span class="db-icon">&#128229;</span>下載 CSV</button>
       <button class="drawer-btn" onclick="mainScreenshot();closeMobileDrawer();"><span class="db-icon">&#128248;</span>截圖</button>
-      <button class="drawer-btn" onclick="downloadXLSX();closeMobileDrawer();"><span class="db-icon">&#128229;</span>下載 XLSX</button>
     </div>
   </div>
   <div style="padding:10px 16px;font-size:9px;color:#bbb;border-top:1px solid rgba(0,0,0,.06);">Ver. 1.0.0</div>
@@ -601,11 +600,22 @@ function loadData(){
 }
 
 /* ── Q Chips ── */
+function _currentQName(){
+  var m=new Date().getMonth()+1; /* 1-12 */
+  if(m<=3) return 'Q1';
+  if(m<=6) return 'Q2';
+  if(m<=9) return 'Q3';
+  return 'Q4';
+}
 function buildQChips(qs){
   var el=document.getElementById('q-chips');
   el.innerHTML='';
   var list=qs.length?qs:['Q1','Q2','Q3','Q4'];
-  if(!curQ&&list.length) curQ=list[0];
+  if(!curQ){
+    var cq=_currentQName();
+    /* 用當前季度，若資料中沒有則退回第一個 */
+    curQ=(list.indexOf(cq)>=0?cq:list[0]);
+  }
   list.forEach(function(q){
     var btn=document.createElement('button');
     btn.className='q-chip'+(q===curQ?' on':'');
@@ -906,10 +916,10 @@ function render(){
       var qd=c.qd,ident=qd.identity;
       if(curStatusFilter==='b1000') return qd.bonus===1000;
       if(curStatusFilter==='b500')  return qd.bonus===500;
-      if(curStatusFilter==='excl')  return ident.cls==='excl';
-      if(curStatusFilter==='pend')  return ident.cls==='pend';
-      /* 未達標：有資格（ok 或 pend）但 bonus===null */
-      if(curStatusFilter==='miss')  return (ident.cls==='ok'||ident.cls==='pend')&&qd.bonus===null;
+      /* 未達標：有身分（roleMonthCount>=2）且 bonus===null（業績未達5%） */
+      if(curStatusFilter==='miss')  return qd.roleMonthCount>=2 && qd.bonus===null;
+      /* 資格未滿：有效身分月份 <=1，不論業績 */
+      if(curStatusFilter==='inelig') return qd.roleMonthCount<=1;
       return true;
     });
   }
