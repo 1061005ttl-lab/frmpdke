@@ -284,7 +284,7 @@
       background:rgba(248,250,248,1);
     }
     .dlg-close {
-      cursor:pointer; font-size:14px; color:var(--sub); padding:4px 12px;
+      cursor:pointer; font-size:14px; color:#aaa; padding:5px 12px;
       border-radius:7px; border:1px solid rgba(0,0,0,.12); background:#fff;
       font-family:inherit; font-weight:700; transition:all .14s;
     }
@@ -378,7 +378,6 @@
     .drawer-close { color:#aaa !important; }
     .drawer-section-title { color:#bbb !important; }
     .rd-sec-title { color:#aaa !important; }
-    .dlg-close { color:#aaa !important; }
     #md-version { color:#bbb !important; }
     /* 0值和無資料符號保留中灰，讓使用者視覺上能區分「有值的0」和「真正無資料的—」 */
     td.ctn-eval.nil, .pc-total-num.nil, .d-nil, .rank-val.nil { color:#666 !important; }
@@ -448,7 +447,7 @@
       #topbar::-webkit-scrollbar { display:none; }
       #title { display:none !important; } /* 手機不需要顯示標題 */
       .sep { display:none; }
-      #q-chips { flex-shrink:0; display:flex; gap:5px; }
+      /* #q-chips deduped */
       #q-chips .q-chip { flex-shrink:0; }
       #q-chips-spacer { display:none !important; } /* 漢堡已在 flow 內，不需要 spacer */
       /* 隱藏桌面專用元素 */
@@ -468,7 +467,7 @@
 
       /* Navbar */
       #nav-area-row, #nav-office-row { padding:5px 8px; gap:5px; overflow-x:auto; flex-wrap:nowrap; }
-      .nav-chip { font-size:11px; padding:4px 10px; white-space:nowrap; flex-shrink:0; }
+      /* .nav-chip RWD props moved to @media */
 
       /* Gbar：同步時間與排序合併一行，省直向空間 */
       #gbar {
@@ -2351,19 +2350,22 @@ function takeScreenshot(){
     });
   }
 
-  if(window.html2canvas){
-    doCapture();
-  } else {
-    var s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-    s.onload=doCapture;
-    s.onerror=function(){
-      btn.classList.remove('loading');
-      btn.textContent='📸 截圖';
-      alert('html2canvas 載入失敗，請確認網路連線');
-    };
-    document.head.appendChild(s);
-  }
+  _withH2c(doCapture, btn);
+}
+
+/* ══ 共用：確保 html2canvas 已載入後執行回呼 ══
+   三個截圖函式（takeScreenshot / mainScreenshot / takeSummaryScreenshot）
+   原本各自內嵌相同的 CDN 動態載入邏輯，統一抽到這裡。 */
+function _withH2c(fn, btn){
+  if(window.html2canvas){ fn(); return; }
+  var s=document.createElement('script');
+  s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+  s.onload=fn;
+  s.onerror=function(){
+    if(btn){ btn.classList.remove('loading'); btn.textContent='📸 截圖'; }
+    alert('html2canvas 載入失敗，請確認網路連線');
+  };
+  document.head.appendChild(s);
 }
 
 function _downloadCanvas(canvas, titleText, btn){
@@ -2524,28 +2526,13 @@ function mainScreenshot(){
       alert('截圖失敗：'+err);
     });
   }
-  if(window.html2canvas){ doCapture(); }
-  else {
-    var s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-    s.onload=doCapture;
-    s.onerror=function(){ btn.textContent='📸 截圖'; alert('html2canvas 載入失敗'); };
-    document.head.appendChild(s);
-  }
+  _withH2c(doCapture, btn);
 }
 
 /* ══ 主頁複製 LINE ══ */
 function mainCopyLine(){
   var btn=document.getElementById('btn-main-line');
   var text=_buildMainText('line');
-  if(!text){ alert('目前無資料可複製'); return; }
-  _doCopy(text, btn);
-}
-
-/* ══ 主頁複製 Excel ══ */
-function mainCopyExcel(){
-  var btn=document.getElementById('btn-main-excel');
-  var text=_buildMainText('excel');
   if(!text){ alert('目前無資料可複製'); return; }
   _doCopy(text, btn);
 }
@@ -2915,14 +2902,7 @@ function takeSummaryScreenshot(){
     });
   }
 
-  if(window.html2canvas){ doCapture(); }
-  else {
-    var s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-    s.onload=doCapture;
-    s.onerror=function(){ btn.textContent='📸 截圖'; alert('html2canvas 載入失敗'); };
-    document.head.appendChild(s);
-  }
+  _withH2c(doCapture, btn);
 }
 
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
