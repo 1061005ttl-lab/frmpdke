@@ -69,6 +69,14 @@
     .sort-btn{padding:3px 11px;border-radius:99px;font-size:11px;font-weight:700;border:1.5px solid rgba(0,0,0,.1);cursor:pointer;white-space:nowrap;background:transparent;color:var(--sub);font-family:inherit;transition:all .14s;}
     .sort-btn:hover{border-color:var(--primary);color:var(--primary-d);}
     .sort-btn.on{background:var(--primary-d);border-color:var(--primary-d);color:#fff;}
+    .filter-sep{width:1px;height:18px;background:var(--border);margin:0 4px;flex-shrink:0;}
+    .status-chip{font-size:11px;padding:4px 11px;border-radius:99px;border:1.5px solid rgba(0,0,0,.12);background:transparent;color:var(--sub);cursor:pointer;font-family:inherit;font-weight:700;transition:all .13s;white-space:nowrap;line-height:1.4;}
+    .status-chip:hover{border-color:var(--primary);color:var(--primary-d);background:rgba(74,122,85,.06);}
+    .status-chip.on{background:var(--primary-d);color:#fff;border-color:var(--primary-d);box-shadow:0 1px 4px rgba(74,122,85,.3);}
+    .status-chip.on-gold{background:#fbbf24;color:#431407;border-color:#d97706;box-shadow:0 1px 4px rgba(217,119,6,.35);}
+    .status-chip.on-green{background:#22c55e;color:#052e16;border-color:#16a34a;box-shadow:0 1px 4px rgba(34,197,94,.3);}
+    .status-chip.on-red{background:#ef4444;color:#fff;border-color:#dc2626;box-shadow:0 1px 4px rgba(239,68,68,.3);}
+    .status-chip.on-gray{background:#64748b;color:#fff;border-color:#475569;box-shadow:0 1px 4px rgba(100,116,139,.3);}
     #gbar{flex-shrink:0;background:rgba(255,255,255,.4);border-bottom:1px solid rgba(0,0,0,.05);padding:3px 16px;display:flex;align-items:center;justify-content:space-between;min-height:26px;}
     #gb-sync{font-size:10px;color:var(--sub);}
     #gb-count{font-size:10px;color:var(--sub);}
@@ -182,7 +190,7 @@
     .rank-item:hover{background:rgba(139,166,144,.08);}
     .rank-item.rank-4th{background:rgba(0,0,0,.01);border-left:3px solid transparent;}
     .rank-item.rank-4th .rank-name{color:var(--sub);}
-    .rank-diff-badge{font-size:10px;color:#999;background:rgba(0,0,0,.04);border-radius:4px;padding:2px 6px;margin-top:4px;display:inline-block;white-space:nowrap;border:1px solid rgba(0,0,0,.06);}
+    .rank-diff-badge{font-size:12px;font-weight:900;color:#c05000;background:rgba(220,100,0,.1);border-radius:6px;padding:3px 9px;margin-top:5px;display:inline-block;white-space:nowrap;border:1px solid rgba(200,80,0,.2);letter-spacing:-.2px;}
     .rd-section{padding:0;}
     .rd-sec-title{font-size:9px;font-weight:900;letter-spacing:.8px;color:#aaa;margin-bottom:6px;display:flex;align-items:center;gap:5px;}
     .rd-sec-title::after{content:'';flex:1;height:1px;background:rgba(0,0,0,.07);}
@@ -372,6 +380,7 @@
       <div style="display:flex;align-items:center;gap:6px;">
         <button class="dlg-action-btn" id="btn-copy-line" onclick="copyLine()">&#128172; 複製 LINE</button>
         <button class="dlg-action-btn" id="btn-screenshot" onclick="takeScreenshot()">&#128248; 截圖</button>
+        <button class="dlg-action-btn" id="btn-dlg-xlsx" onclick="downloadDlgXLSX()">&#128229; XLSX</button>
         <button class="dlg-close" onclick="closeDetailDialog()">&#10005;</button>
       </div>
     </div>
@@ -989,7 +998,7 @@ function updateRank(){
   if(!eligible.length){content.innerHTML='<div style="padding:16px;font-size:13px;color:var(--sub);text-align:center;">尚無 $1,000 達標人員</div>';return;}
   var byArea={};
   eligible.forEach(function(x){var a=x.area||'（未知）';if(!byArea[a])byArea[a]=[];byArea[a].push(x);});
-  var sf=_rankTab==='growth'?'growth':'growthRate';
+  var sf=_rankTab==='growth'?'growth':'totalPct'; /* 統一用 totalPct（百分比）避免 growthRate 小數誤算 */
   /* 修正5+6：橫向排版，前4名，加差額 */
   var areaRow=document.createElement('div'); areaRow.className='rank-area-row';
   sortAreas(Object.keys(byArea)).forEach(function(areaName){
@@ -1015,8 +1024,8 @@ function updateRank(){
       if(i>0){
         var prev=topN[i-1];
         var diffVal=fmt2(Math.abs(x[sf]-prev[sf]));
-        var diffLabel=_rankTab==='growth'?fmtN(diffVal):(diffVal.toFixed(1)+'%');
-        diffHtml='<div class="rank-diff-badge">距上名差 '+diffLabel+'</div>';
+        var diffLabel=_rankTab==='growth'?fmtN(diffVal):('+'+diffVal.toFixed(1)+'%'); /* 成長率差額已是百分比單位，直接用 */
+        diffHtml='<div class="rank-diff-badge">↑ 距上差 '+diffLabel+'</div>';
       }
       var evalBadge='';
       if(_rankTab==='growth'&&x._rank===1&&x.evalAmt>0){
@@ -1376,6 +1385,59 @@ function openSummaryTable(){
 }
 function closeSummaryTable(){var m=document.getElementById('summary-modal');m.style.opacity='0';setTimeout(function(){m.style.display='none';},200);}
 function exportSummaryXLSX(){downloadXLSX();}
+function downloadDlgXLSX(){
+  if(!window.XLSX){alert('XLSX 套件載入中，請稍後再試');return;}
+  if(!_currentQd||!_currentStaff) return;
+  var qd=_currentQd, months=qd.months||[];
+  var hdr=['店碼','店名'];
+  months.forEach(function(m){hdr.push(MNAMES[m]+'當期',MNAMES[m]+'同期',MNAMES[m]+'成長值');});
+  hdr.push('單店成長值');
+  var rows=[hdr];
+  /* 正常店家 */
+  var storeMap={};
+  (qd.storeRows||[]).forEach(function(s){
+    var k=s.code||s.name;
+    if(!storeMap[k])storeMap[k]={code:s.code,name:s.name,bm:{}};
+    storeMap[k].bm[s.month]=s;
+  });
+  Object.values(storeMap).forEach(function(s){
+    var row=[s.code||'',s.name||''];
+    var totalCur=0,totalLast=0;
+    months.forEach(function(m){
+      var md=s.bm[m];
+      if(md){row.push(fmt2(md.cur),fmt2(md.last),fmt2(md.cur-md.last));totalCur+=md.cur;totalLast+=md.last;}
+      else{row.push('','','');}
+    });
+    row.push(fmt2(totalCur-totalLast));
+    rows.push(row);
+  });
+  /* 合計列 */
+  var totRow=['合計',''];
+  months.forEach(function(m){
+    var md=qd.monthData&&qd.monthData[m];
+    if(md){totRow.push(fmt2(md.cur),fmt2(md.last),fmt2(md.growth));}
+    else{totRow.push('','','');}
+  });
+  totRow.push(fmt2(qd.totalGrowth));
+  rows.push(totRow);
+  /* 排除店家 */
+  if(qd.excludedStoreRows&&qd.excludedStoreRows.length){
+    rows.push(['--- 以下排除不計入 ---']);
+    var exMap={};
+    qd.excludedStoreRows.forEach(function(s){var k=s.code||s.name;if(!exMap[k])exMap[k]={code:s.code,name:s.name,bm:{}};exMap[k].bm[s.month]=s;});
+    Object.values(exMap).forEach(function(s){
+      var row=[s.code||'','[排除]'+(s.name||'')];
+      months.forEach(function(m){var md=s.bm[m];if(md){row.push(fmt2(md.cur),fmt2(md.last),'—');}else{row.push('','','');}});
+      row.push('—'); rows.push(row);
+    });
+  }
+  var wb=XLSX.utils.book_new();
+  var ws=XLSX.utils.aoa_to_sheet(rows);
+  var cols=rows[0].map(function(_,i){var mx=rows.reduce(function(m,r){return Math.max(m,String(r[i]||'').length);},0);return{wch:Math.min(Math.max(mx+2,8),30)};});
+  ws['!cols']=cols;
+  XLSX.utils.book_append_sheet(wb,ws,'店家明細');
+  XLSX.writeFile(wb,'店家明細_'+_currentStaff+'_'+(curQ||'')+'_'+_nowStr()+'.xlsx');
+}
 function takeSummaryScreenshot(){
   var btn=document.getElementById('btn-summary-shot');btn.textContent='⏳ 截圖中...';
   _loadH2C(function(){
