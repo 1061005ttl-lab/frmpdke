@@ -905,7 +905,7 @@ function renderLampBar() {
   /* C 群組：每個獨立一顆紅燈 */
   BUCKETS_C.forEach(function(g, i) { makeChip('c:'+i, g.label, 'warn'); });
   /* 未填寫燈 */
-  if(COL_UNFILL) makeChip('unfill', '\u672a\u586b\u5beb', 'neutral');
+  if(COL_UNFILL) makeChip('unfill', UNFILL_LABEL, 'neutral');
 }
 
 function toggleLamp(key) {
@@ -1448,7 +1448,7 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
   /* 動態產生 B 群格 + C 群格 */
   var statRowHtml = '<div class="stat-row">'+
     '<div class="stat-item"><div class="stat-label">\u7E3D\u5BB6\u6578</div><div class="stat-val">'+stat.total+'</div><div class="stat-pct hidden">&nbsp;</div></div>'+
-    (COL_UNFILL ? '<div class="stat-item warn'+(chips['unfill']===false?' dim':'')+'"><div class="stat-label">\u672A\u586B\u5BEB</div><div class="stat-val">'+stat.unfilled+'</div><div class="stat-pct">'+fp(stat.unfilled)+'</div></div>' : '')+
+    (COL_UNFILL ? '<div class="stat-item warn'+(chips['unfill']===false?' dim':'')+'"><div class="stat-label">'+esc(UNFILL_LABEL)+'</div><div class="stat-val">'+stat.unfilled+'</div><div class="stat-pct">'+fp(stat.unfilled)+'</div></div>' : '')+
 
   BUCKETS_B.forEach(function(g, i){
     var cnt = stat.bGroupCounts[i] || 0;
@@ -1757,7 +1757,7 @@ function buildStoreTable(rows, levelKey){
 
     /* \u72c0\u614b\u6b04 */
     if (isUnfill) {
-      html += '<td><span class="d-unfill">\u672A\u586B\u5BEB</span></td>';
+      html += '<td><span class="d-unfill">'+esc(UNFILL_LABEL)+'</span></td>';
       BUCKETS_B.forEach(function(g,gi){ g.cols.forEach(function(){ html+='<td class="td-grp-b'+gi+'"><span class="d-no">\u2014</span></td>'; }); });
       BUCKETS_C.forEach(function(g,gi){ g.cols.filter(function(t){ return t; }).forEach(function(){ html+='<td class="td-grp-c'+gi+'"><span class="d-no">\u2014</span></td>'; }); });
     } else {
@@ -1846,7 +1846,7 @@ function buildDlgFilterRow() {
 
   BUCKETS_B.forEach(function(g, i){ makeChip('b:'+i, g.label, 'good'); });
   BUCKETS_C.forEach(function(g, i){ makeChip('c:'+i, g.label, 'warn'); });
-  if(COL_UNFILL) makeChip('unfill', '\u672A\u586B\u5BEB', 'neutral');
+  if(COL_UNFILL) makeChip('unfill', UNFILL_LABEL, 'neutral');
 }
 
 function openDialog(displayName, levelKey, rows){
@@ -1907,7 +1907,7 @@ function buildLineText(dRows, lv, title, simple) {
   BUCKETS_C.forEach(function(g){
     sp.push(g.label+' '+valid.filter(function(r){return g.cols.some(function(t){return isOne(r[t])||isCText(r[t]);});}).length+' \u5BB6');
   });
-  if(unfill.length) sp.push('\u672A\u586B\u5BEB '+unfill.length+' \u5BB6');
+  if(unfill.length) sp.push(UNFILL_LABEL+' '+unfill.length+' \u5BB6');
 
   var lines=['\u3010'+title+'\u3011\u5E97\u5BB6\u660E\u7D30', sp.join('\u3000'), DIV];
 
@@ -1947,7 +1947,7 @@ function buildLineText(dRows, lv, title, simple) {
   /* 未填寫 */
   if(unfill.length){
     lines.push('');
-    lines.push(' \u672A\u586B\u5BEB\uff08'+unfill.length+' \u5BB6\uff09');
+    lines.push(' '+UNFILL_LABEL+'\uff08'+unfill.length+' \u5BB6\uff09');
     var cur=null;
     unfill.forEach(function(r){
       var gk=gh(r);
@@ -2025,7 +2025,7 @@ function buildCsvContent(dRows, lv) {
     var r=d.r,row=[];
     extraCols.forEach(function(c){row.push(String(r[c]||''));});
     row.push(String(r[COL_CODE]||''));row.push(String(r[COL_NAME]||''));
-    row.push(d.grp===3?'\u672A\u586B\u5BEB':d.grp===0?'\u5DF2\u6709':d.grp===1?'\u672A\u6709':'\u2014');
+    row.push(d.grp===3?UNFILL_LABEL:d.grp===0?'\u5DF2\u6709':d.grp===1?'\u672A\u6709':'\u2014');
     BUCKETS_B.forEach(function(g){if(g.cols.length===1)row.push(isSum()?numVal(r[g.cols[0]]):(isOne(r[g.cols[0]])?1:0));else g.cols.forEach(function(t){row.push(isSum()?numVal(r[t]):(isOne(r[t])?1:0));});});
     BUCKETS_C.forEach(function(g){if(g.cols.length===1){var v=r[g.cols[0]];row.push(isOne(v)?1:(isCText(v)?String(v):0));}else g.cols.forEach(function(t){var v=r[t];row.push(isOne(v)?1:(isCText(v)?String(v):0));});});
     rows.push(row);
