@@ -1195,52 +1195,83 @@ function applyChips(rows) {
 
 function calcGroup(rows) {
   var filtered = applyChips(rows);
-  var total = filtered.length, unfilled = 0;
-  /* 每個 B 群和 C 群各自計數 */
-  var bGroupCounts = BUCKETS_B.map(function(){ return 0; });
-  var cGroupCounts = BUCKETS_C.map(function(){ return 0; });
   var bColCounts = {}, cColCounts = {};
   BUCKETS_B.forEach(function(g){ g.cols.forEach(function(t){ bColCounts[t] = 0; }); });
   BUCKETS_C.forEach(function(g){ g.cols.forEach(function(t){ cColCounts[t] = 0; }); });
 
-  filtered.forEach(function(r){
-    if (COL_UNFILL && isOne(r[COL_UNFILL])) { unfilled++; return; }
-    /* 每個 B 群獨立計算（一家店可同時符合多個 B 群，如同時貼開瓶和黃薑） */
-    BUCKETS_B.forEach(function(g, i){
-      if (chips['b:'+i] === false) return;
-      if (g.cols.some(function(t){ return isOne(r[t]); })) {
-        bGroupCounts[i]++;
-        g.cols.forEach(function(t){ if (isOne(r[t])) bColCounts[t]+= isSum()?numVal(r[t]):1; });
-      }
+  if (isSum()) {
+    /* ── 加總型 ──
+       total / hasDisp = 任一 B 群欄位 numVal>=1 的店家數（有效家數，去重）
+       bGroupCounts[i] = 該群所有欄位 numVal 加總（份數）
+       卡片只有一個 B 群格，顯示所有群組的總份數 → 用 bTotalSum
+       bColCounts[t]   = 各欄 numVal 加總（tooltip 用）
+       C 群在加總型無意義，略過                                           */
+    var bGroupCounts = BUCKETS_B.map(function(){ return 0; });
+    var validCount = 0;
+    filtered.forEach(function(r){
+      if (COL_UNFILL && isOne(r[COL_UNFILL])) return;
+      /* 有效家數：任一 B 欄 numVal>=1 */
+      var hasAny = ALL_B_COLS().some(function(t){ return numVal(r[t]) >= 1; });
+      if (hasAny) validCount++;
+      /* 各群份數加總 */
+      BUCKETS_B.forEach(function(g, i){
+        if (chips['b:'+i] === false) return;
+        g.cols.forEach(function(t){
+          var nv = numVal(r[t]);
+          if (nv >= 1) {
+            bGroupCounts[i] += nv;
+            bColCounts[t]   += nv;
+          }
+        });
+      });
     });
-    /* 每個 C 群獨立計算 */
-    BUCKETS_C.forEach(function(g, j){
-      if (chips['c:'+j] === false) return;
-      if (g.cols.some(function(t){ return isOne(r[t]); })) {
-        cGroupCounts[j]++;
-        g.cols.forEach(function(t){ if (isOne(r[t])) cColCounts[t]+= isSum()?numVal(r[t]):1; });
-      }
+    /* bTotalSum = 所有 B 群欄位的總份數（卡片 stat-val 用） */
+    var bTotalSum = bGroupCounts.reduce(function(s, n){ return s + n; }, 0);
+    return { total: validCount, unfilled: 0, valid: validCount,
+             hasDisp: validCount, hasNo: 0,
+             bGroupCounts: bGroupCounts, bTotalSum: bTotalSum, bGroupStores: null,
+             cGroupCounts: [], bColCounts: bColCounts, cColCounts: cColCounts };
+
+  } else {
+    /* ── 計數型（原邏輯）── */
+    var total = filtered.length, unfilled = 0;
+    var bGroupCounts = BUCKETS_B.map(function(){ return 0; });
+    var cGroupCounts = BUCKETS_C.map(function(){ return 0; });
+    filtered.forEach(function(r){
+      if (COL_UNFILL && isOne(r[COL_UNFILL])) { unfilled++; return; }
+      BUCKETS_B.forEach(function(g, i){
+        if (chips['b:'+i] === false) return;
+        if (g.cols.some(function(t){ return isOne(r[t]); })) {
+          bGroupCounts[i]++;
+          g.cols.forEach(function(t){ if (isOne(r[t])) bColCounts[t]++; });
+        }
+      });
+      BUCKETS_C.forEach(function(g, j){
+        if (chips['c:'+j] === false) return;
+        if (g.cols.some(function(t){ return isOne(r[t]); })) {
+          cGroupCounts[j]++;
+          g.cols.forEach(function(t){ if (isOne(r[t])) cColCounts[t]++; });
+        }
+      });
     });
-  });
-  var valid = total - unfilled;
-  /* hasDisp = 至少符合一個 B 群的店家數（獨立去重）
-     hasNo   = 至少符合一個 C 群的店家數（獨立去重）*/
-  var hasDisp = filtered.filter(function(r){
-    if (COL_UNFILL && isOne(r[COL_UNFILL])) return false;
-    return BUCKETS_B.some(function(g, i){
-      return chips['b:'+i] !== false && g.cols.some(function(t){ return isOne(r[t]); });
-    });
-  }).length;
-  var hasNo = filtered.filter(function(r){
-    if (COL_UNFILL && isOne(r[COL_UNFILL])) return false;
-    return BUCKETS_C.some(function(g, j){
-      return chips['c:'+j] !== false && g.cols.some(function(t){ return isOne(r[t]); });
-    });
-  }).length;
-  return { total:total, unfilled:unfilled, valid:valid,
-           hasDisp:hasDisp, hasNo:hasNo,
-           bGroupCounts:bGroupCounts, cGroupCounts:cGroupCounts,
-           bColCounts:bColCounts, cColCounts:cColCounts };
+    var valid = total - unfilled;
+    var hasDisp = filtered.filter(function(r){
+      if (COL_UNFILL && isOne(r[COL_UNFILL])) return false;
+      return BUCKETS_B.some(function(g, i){
+        return chips['b:'+i] !== false && g.cols.some(function(t){ return isOne(r[t]); });
+      });
+    }).length;
+    var hasNo = filtered.filter(function(r){
+      if (COL_UNFILL && isOne(r[COL_UNFILL])) return false;
+      return BUCKETS_C.some(function(g, j){
+        return chips['c:'+j] !== false && g.cols.some(function(t){ return isOne(r[t]); });
+      });
+    }).length;
+    return { total: total, unfilled: unfilled, valid: valid,
+             hasDisp: hasDisp, hasNo: hasNo,
+             bGroupCounts: bGroupCounts, bTotalSum: null, bGroupStores: null,
+             cGroupCounts: cGroupCounts, bColCounts: bColCounts, cColCounts: cColCounts };
+  }
 }
 
 /* \u2500\u2500 \u7BE9\u9078 \u2500\u2500 */
@@ -1447,27 +1478,34 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
     +'</div></div>';
   /* 動態產生 B 群格 + C 群格 */
   var _bStatHtml = '';
-  BUCKETS_B.forEach(function(g, i){
-    var cnt = stat.bGroupCounts[i] || 0;
-    var dim = chips['b:'+i]===false ? ' dim' : '';
-    var hasMultiCols = g.cols.length > 1;
-    var siId = 'sib'+i+'-'+ttId;
-    var ttBId = hasMultiCols ? 'ttb'+i+'-'+ttId : '';
-    var valDisp, pctDisp;
-    if (isSum()) {
-      valDisp = cnt;
-      pctDisp = cnt + '\u4efd/' + stat.hasDisp + '\u5bb6';  /* 份數/有效總家數 */
-    } else {
-      valDisp = cnt;
-      pctDisp = fp(cnt);
-    }
-    _bStatHtml += '<div class="stat-item good'+dim+'" id="'+siId+'" style="position:relative">'+
-      '<div class="stat-label">'+esc(g.label)+'</div>'+
-      '<div class="stat-val">'+valDisp+'</div>'+
-      '<div class="stat-pct">'+pctDisp+'</div>'+
-      (hasMultiCols ? '<div class="tooltip" id="'+ttBId+'">'+buildTooltipHTML(g.label, g.cols, stat.bColCounts, cnt)+'</div>' : '')+
+  if (isSum()) {
+    /* 加總型：合併成一格顯示總份數，tooltip 列各欄明細 */
+    var _sumTotal = stat.bTotalSum || 0;
+    var _allBCols = ALL_B_COLS();
+    var _allLabels = BUCKETS_B.length === 1 ? BUCKETS_B[0].label : '\u5DF2\u8DDF\u8A2A'; /* 已跟訪 */
+    var _ttSumId = 'ttbsum-'+ttId;
+    var _hasMulti = _allBCols.length > 1;
+    _bStatHtml = '<div class="stat-item good" id="sib0-'+ttId+'" style="position:relative">'+
+      '<div class="stat-label">'+esc(_allLabels)+'</div>'+
+      '<div class="stat-val">'+_sumTotal+'</div>'+
+      '<div class="stat-pct hidden">&nbsp;</div>'+
+      (_hasMulti ? '<div class="tooltip" id="'+_ttSumId+'">'+buildTooltipHTML(_allLabels, _allBCols, stat.bColCounts, _sumTotal)+'</div>' : '')+
     '</div>';
-  });
+  } else {
+    BUCKETS_B.forEach(function(g, i){
+      var cnt = stat.bGroupCounts[i] || 0;
+      var dim = chips['b:'+i]===false ? ' dim' : '';
+      var hasMultiCols = g.cols.length > 1;
+      var siId = 'sib'+i+'-'+ttId;
+      var ttBId = hasMultiCols ? 'ttb'+i+'-'+ttId : '';
+      _bStatHtml += '<div class="stat-item good'+dim+'" id="'+siId+'" style="position:relative">'+
+        '<div class="stat-label">'+esc(g.label)+'</div>'+
+        '<div class="stat-val">'+cnt+'</div>'+
+        '<div class="stat-pct">'+fp(cnt)+'</div>'+
+        (hasMultiCols ? '<div class="tooltip" id="'+ttBId+'">'+buildTooltipHTML(g.label, g.cols, stat.bColCounts, cnt)+'</div>' : '')+
+      '</div>';
+    });
+  }
   var _cStatHtml = '';
   if (!isSum()) {
     BUCKETS_C.forEach(function(g, j){
@@ -1491,13 +1529,19 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
   '</div>';
   card.innerHTML = topHtml + statRowHtml;
 
-  /* 綁定所有 B 群 tooltip */
-  BUCKETS_B.forEach(function(g, i){
-    if (g.cols.length <= 1) return;
-    var siEl = card.querySelector('#sib'+i+'-'+ttId);
-    var ttEl = card.querySelector('#ttb'+i+'-'+ttId);
-    if (siEl && ttEl) bindTooltip(siEl, ttEl, card);
-  });
+  /* 綁定 B 群 tooltip */
+  if (isSum()) {
+    var _siSum = card.querySelector('#sib0-'+ttId);
+    var _ttSum = card.querySelector('#ttbsum-'+ttId);
+    if (_siSum && _ttSum) bindTooltip(_siSum, _ttSum, card);
+  } else {
+    BUCKETS_B.forEach(function(g, i){
+      if (g.cols.length <= 1) return;
+      var siEl = card.querySelector('#sib'+i+'-'+ttId);
+      var ttEl = card.querySelector('#ttb'+i+'-'+ttId);
+      if (siEl && ttEl) bindTooltip(siEl, ttEl, card);
+    });
+  }
   /* 綁定所有 C 群 tooltip */
   BUCKETS_C.forEach(function(g, j){
     if (g.cols.length <= 1) return;
