@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 2.7.0 ｜ 最後更新：2026-06-24
+  版本：Ver. 2.9.0 ｜ 最後更新：2026-06-26
 ════════════════════════════════════════════════════════════
 
 【⚠ 版本更新作業流程】
@@ -18,10 +18,26 @@
     card click handler 600ms 內忽略，避免長按後意外鑽層
   · sticky 層疊順序：toolbar(z:50) → lamp-row(z:41) → quicknav(z:40)
     top 值由 updateStickyTops() 動態計算，每次 render/resize 後呼叫
+  · calcGroup 有兩條完全獨立路徑：isSum()=true 走加總型，false 走計數型
+    加總型不計算 C 群，bTotalSum 為所有 B 欄 numVal 加總（份數）
+    修改計算邏輯時兩條路徑都要確認，不要讓其中一條覆蓋另一條
 
 【版本紀錄】
+  2.9.0  2026-06-26  數字顯示修正、等級預設收納、LOG更新
+         - 加總型卡片總家數改顯示有效家數（有填 B 欄的店家數）
+         - 加總型 B 群格 stat-val 改顯示所有欄位總份數（bTotalSum），stat-pct 隱藏
+         - 加總型 Dialog 狀態欄顯示「N份」、B 欄顯示數字而非 ✅
+         - 加總型不顯示 C 群燈號、卡片格、Dialog 欄位
+         - 等級篩選預設收納（_gradeExpanded 預設 false），有需要才展開
+  2.8.0  2026-06-26  專案類型(計數/加總)、未知群組選填、截圖截viewport
+         - 管理分頁新增 C 欄「專案類型」（計數/加總），D/E 欄為可選填的未知群組
+         - 計數型：1/0 判斷家數；加總型：numVal>=1 視為有，欄位值加總為份數
+         - 未知群組（D+E 欄）選填，空白不顯示燈號與統計格
+         - UNFILL_LABEL 從管理分頁 D 欄動態讀取，不再寫死「未填寫」
+         - Topbar 📸 改截整個可見 viewport（含 toolbar/燈號/卡片）
+         - 修正 SyntaxError：ss() 函式多餘引號
+         - 修正 buildCard statRowHtml 字串拼接斷裂（BUCKETS_B.forEach 插入位置錯誤）
   2.7.0  2026-06-24  卡片層 LINE/CSV/截圖、LINE格式重構、CSV下載
-  2.8.0  2026-06-26  專案類型(計數/加總)、未知群組選填、截圖截viewport、欄位右移
          - 卡片右上角加 💬📥📸 三個動作按鈕（不需進 dialog 即可操作）
          - LINE 格式重構：分 B群✅/C群✖/尚未執行/未填寫 四大區塊，條列式直式排版
          - 頁腳統計由一大串改為分群條列（B群各欄、C群各欄各佔一行）
@@ -34,91 +50,57 @@
          - 手機隱藏 toolbar-title、燈號列移出 toolbar 獨立 sticky
          - 等級群組加折疊按鈕（▶/◀）省空間
          - stat-item 加 -webkit-touch-callout:none 阻止系統選單
-
   2.5.0  2026-06-22  Dialog統計%、C群欄位群組色、Tooltip群組內佔比
-         - Dialog 標題加各狀態家數及百分比
-         - C 群文字值以紅字顯示（isCText）；非文字值顯示紅 ✖
-         - Dialog 表格依 B/C 群組上底色便於閱讀
-         - Tooltip % 改以群組內家數為分母（B群/C群各自100%）
-         - 等級篩選整合進 quicknav 同一列
-
   2.4.x  2026-06-22  各項資料計算與顯示修正
-         - Dialog 表頭補「狀態」欄，修正所有欄右移問題
-         - calcGroup 改為各 bucket 獨立計算（一店可同 B1+B2）
-         - BUCKETS_C 過濾空字串，移除舊變數 LABEL_C/BUCKET_B 依賴
-         - 二次請求補回 gviz 丟失的文字值（parsedNumHeaders 問題）
-         - parseGvizDate 指定 Asia/Taipei 時區
-  1.2.2  2026-06-20  修正 Dialog 表頭滾動消失
-         - 根本原因：dlg-body(overflow:auto) + detail-scroll(overflow-x:auto) 雙層 overflow
-           打斷了 thead position:sticky 的 scroll container 定位鏈
-         - 解法：dlg-body 改 overflow:hidden，detail-scroll 改 overflow:auto + height:100%
-           單一 scroll container，thead sticky 正確固定於頂部
-  1.2.1  2026-06-20  Tooltip 智慧定位
-         - 改用 position:fixed + getBoundingClientRect 動態計算位置
-         - 空間夠則往上彈，不夠則往下彈
-         - 水平方向超出視窗邊界時自動夾住，避免被截切
+  1.2.x  2026-06-20  Dialog表頭sticky修正、Tooltip智慧定位
   1.2.0  2026-06-19  代碼深度清理
-         - 移除 8 個舊版殘留 CSS class（.card-top/.card-name/.cov-*/.tag-*/.valid-note/.toolbar-sync）
-         - 移除 .detail-tbl td:first-child / td:nth-child(2) 與 .td-code/.td-name 的重複 selector
-         - 移除未使用的 BUCKET_A 變數
-         - 移除 openDialog 多餘的按鈕 innerHTML 重置
-         - 修正版本紀錄重複行、重複註解
-         - COL_LABELS 改成物件字面量
-         - card-top 多餘 class 從 div 移除，統一只用 card-top-inline
   1.1.0  2026-06-19  UI 優化 + Dialog 店家型態欄
-         - 店家明細按鈕移至標題列右側，釋放卡片下方空間
-         - 組織視角 dialog 表格加入「店家型態」欄（staff/office/area 層）
-         - 新增 getDisplayCols（顯示欄）與 getExtraCols（匯出欄）分離，
-           匯出 Excel/LINE 時同步包含店家型態
   1.0.0  2026-06-19  初版正式發佈
-         - 覆蓋率型看板基礎功能
-         - 組織視角（營業處→營業所→業務人員）
-         - 通路視角（通路別→店家型態→營業處→營業所）
-         - 燈號切換：已有/未有/未填寫，子欄位燈（BUCKET_B 細項）
-         - 卡片 dim 反灰、% 顯示、hasDisp 排序、固定營業處順序
-         - 快速導航列（quicknav）、Dialog 脈絡標題
-         - 手機響應式（≤640px）、截圖標頭修正
-         - 代碼清理：移除死代碼、合併 getExtraCols、修正雙重 applyChips
 
 【這個檔案在做什麼】
   顯示「覆蓋率型」專案的店家陳列／上架覆蓋狀況。
-  支援多種欄位組合（有二位/已上架/未進貨…），
-  欄位定義由管理表「覆蓋率型專案管理」分頁動態載入，
-  不需修改此 HTML 即可支援不同專案。
+  支援兩種專案類型：
+  ・計數型：欄位值 1/0，統計「有/沒有」的店家數（家數）
+  ・加總型：欄位值為數字，統計有填資料的家數與所有欄位的份數合計
+  欄位定義由管理表「覆蓋率型專案管理」分頁動態載入，不需修改此 HTML。
 
 【啟動流程】
   1. 從 URL 取得 sheetId
-  2. 讀「覆蓋率型專案管理」→ 取得本專案的桶設定（BUCKET_A/B/C、LABEL_B/C）
+  2. 讀「覆蓋率型專案管理」→ 取得本專案桶設定與專案類型
   3. 讀「專案管理」→ 取得專案名稱、資料分頁、同步時間欄位
   4. 讀專案試算表主資料 → 渲染
 
-【覆蓋率型專案管理分頁欄位（A～G）】
-  A 專案名        僅供辨識，建議與「專案管理」B欄一致
-  B 專案ID        Google Sheet ID，需與「專案管理」C欄一致
-  C 專案類型       填「計數」或「加總」（空白預設計數）
-  D 未知群組標題   選填，留空表示不顯示未填寫燈
-  E 未知欄位       選填，與 D 搭配使用
-  D 未知欄位      逗號分隔，第一欄為未填寫判斷欄（如：未填寫）
-  E 已有群組標題   顯示在 stat 卡上的標題（如：有二位、已上架）
-  F 已有欄位      逗號分隔，所有算「已有」的欄位（如：堆箱,端架,冰箱 或 原貨架,冰箱）
-  G 未有群組標題   顯示在 stat 卡上的標題（如：未進貨、未上架），無則留空
-  H 未有欄位      逗號分隔，所有算「未有」的欄位，無則留空
+【覆蓋率型專案管理分頁欄位】
+  A 專案名          僅供辨識
+  B 專案ID          Google Sheet ID
+  C 專案類型        「計數」或「加總」（空白預設計數）
+  D 未知群組標題    選填，填任意名稱（如「未填寫」「待確認」），空白不顯示未知燈
+  E 未知欄位        選填，與 D 搭配；空白不啟用未知群組
+  F 起（每4欄一組）
+    B群標題         已有狀態標題（如「已跟訪」「已上架」）
+    B群欄位         逗號分隔（如「傳統通路,CVS通路」）
+    C群標題         已知無狀態標題（如「未進貨」），加總型留空
+    C群欄位         逗號分隔，加總型留空
 
-【範例設定】
-  CVS雲泡二位陳列：B=1ELDfc…  D=未填寫  E=有二位  F=堆箱,端架,冰箱  G=  H=
-  量全雲泡上架調查：B=1VO4Dh…  D=未填寫  E=已上架  F=原貨架,冰箱  G=未進貨  H=未進貨
-
-【卡片 stat 顯示邏輯】
-  總家數  = 全部列數
-  未填寫  = C欄第一欄為 1 的列數
-  已有    = BUCKET_B 任一欄為 1 的列數（標題由 D 欄決定）
-  未有    = BUCKET_C 任一欄為 1 的列數（標題由 F 欄決定，若 G 欄空則不顯示此卡）
-  Tooltip = BUCKET_B 超過一欄時才出現，逐欄顯示各類型數量
+【兩種類型的計算邏輯差異】
+  ┌──────────┬──────────────────────────┬──────────────────────────┐
+  │          │ 計數型                   │ 加總型                   │
+  ├──────────┼──────────────────────────┼──────────────────────────┤
+  │ 總家數   │ 所有列數                 │ 有填 B 欄（numVal>=1）家數│
+  │ B群格    │ 該群任一欄=1 的家數      │ 所有 B 欄 numVal 加總份數│
+  │ stat-pct │ 家數/總家數 %            │ 隱藏                     │
+  │ C群格    │ 顯示（已知無）           │ 不顯示                   │
+  │ Tooltip  │ 各欄家數 + %             │ 各欄份數                 │
+  │ Dialog B │ ✅ / —                   │ 數字 / —                 │
+  │ Dialog 狀│ ✅ 已有                  │ N份                      │
+  └──────────┴──────────────────────────┴──────────────────────────┘
 
 【常數位置（需改設定時看這裡）】
   MGMT_ID       → 管理表的 Google Sheets ID
   MGMT_SHEET    → 專案管理工作表名稱
   COV_CFG_SHEET → 覆蓋率型專案管理工作表名稱
+  PROJECT_TYPE  → 由管理分頁 C 欄動態設定（'計數'|'加總'）
+  UNFILL_LABEL  → 由管理分頁 D 欄動態設定（任意文字）
 
 ════════════════════════════════════════════════════════════
 -->
@@ -812,7 +794,11 @@ var SHEET_NAME_DEFAULT = '\u5E97\u5BB6\u540D\u518A';
 var COL_AREA    = '\u71DF\u696D\u8655\u540D\u7A31';
 var COL_OFFICE  = '\u71DF\u696D\u6240/\u8AB2';
 var COL_STAFF   = '\u57F7\u884C\u4EBA\u54E1';
-var COL_UNFILL  = '\u672A\u586B\u5BEB';
+var COL_UNFILL  = null; /* 由管理分頁動態設定，null=不顯示未填寫 */
+/* 專案類型：'計數'（預設，0/1 家數）| '加總'（numVal 份數） */
+var PROJECT_TYPE = '\u8A08\u6578';
+/* 未知群組顯示名稱，由管理分頁 D 欄決定 */
+var UNFILL_LABEL = '\u672A\u586B\u5BEB';
 var COL_CODE    = '\u5E97\u5BB6\u4EE3\u78BC';
 var COL_NAME    = '\u5E97\u5BB6\u540D\u7A31';
 /* 店家等級欄位（店家名冊 H 欄） */
@@ -985,8 +971,12 @@ function init() {
         var unfillTitle = cv(cells[3]);
         var colsA = parseCsv(cv(cells[4]));
         /* 只有 D/E 都填寫才啟用未填寫燈 */
-        if (unfillTitle && colsA.length) COL_UNFILL = colsA[0];
-        else COL_UNFILL = null; /* 不顯示未填寫 */
+        if (unfillTitle && colsA.length) {
+          COL_UNFILL   = colsA[0];
+          UNFILL_LABEL = unfillTitle;
+        } else {
+          COL_UNFILL   = null;
+        }
 
         BUCKETS_B = [];
         BUCKETS_C = [];
@@ -1631,7 +1621,7 @@ function buildQuicknav() {
   var html  = '';
   /* 等級群組（可折疊，預設展開） */
   if (_gradeList.length) {
-    var gradeExpanded = (window._gradeExpanded !== false);
+    var gradeExpanded = (window._gradeExpanded === true); /* 預設收納，點擊才展開 */
     var hasActiveGrade = selectedGrades !== null;
     var dot = hasActiveGrade ? '<span style="width:5px;height:5px;border-radius:50%;background:var(--primary);display:inline-block;margin-left:3px;vertical-align:middle;flex-shrink:0;"></span>' : '';
     html += '<div class="qn-group">';
