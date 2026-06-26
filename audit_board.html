@@ -1,34 +1,35 @@
 <!--
 ════════════════════════════════════════════════════════════
-  audit_board.html  ─  查核型看板
-  版本：Ver. 1.0.0 ｜ 最後更新：2026-06-26
+  audit_board.html  ─  查核型看板（店家名冊版）
+  版本：Ver. 2.0.0 ｜ 最後更新：2026-06-26
 ════════════════════════════════════════════════════════════
 
 【這個檔案在做什麼】
-  顯示「查核型」專案的執行份數概況。
-  資料格式：每列一筆查核紀錄，有「類型」欄與「問卷」欄。
-  依「查核類型管理」分頁設定（G欄=類型名, H欄=問卷名）分群統計份數。
-  層級視角：營業處 → 營業所/課 → 業務人員（同覆蓋率型組織視角）。
+  顯示「查核型」專案的店家名冊概況。
+  資料格式：每列一筆店家，固定讀取以下 10 個欄位。
+  依「督導類型」(I欄) 分大群統計家數；群內依「問卷類型」(J欄) 細分。
+  層級視角：營業處 → 營業所/課 → 業務人員。
 
-【管理分頁欄位 — 查核類型管理】
-  A 專案名
-  B 專案ID
-  C 專案類型 → 填「查核」
-  D 類型欄名 → 資料表中「類型」欄的欄位名稱（預設：類型）
-  E 問卷欄名 → 資料表中「問卷」欄的欄位名稱（預設：問卷）
-  F 份數欄名 → 資料表中「份數」欄的欄位名稱（預設：份數）
-  G 起（每兩欄一組）：
-    G = 查核類型值（對應資料「類型」欄）
-    H = 問卷名稱（對應資料「問卷」欄）
+【店家名冊固定欄位（A~J）】
+  A 營業處名稱
+  B 營業所/課
+  C 執行人員
+  D 通路別
+  E 店家型態
+  F 店家代碼
+  G 店家名稱
+  H 店家等級
+  I 督導類型   ← 大群分組鍵（ROSTER_GROUPS 由資料動態產生）
+  J 問卷類型   ← 群內子分類
 
 【計算邏輯】
-  每個 G/H 組 = 一個查核群（如「所督」+「傳統通路」）
-  份數 = 資料中 類型=G 且 問卷=H 的列，「份數」欄的 numVal 加總
-  家數 = 同一條件下 店家代碼去重計數
-  卡片顯示：各群組 N份 / N家（hover/長按 Tooltip 展開）
-  Dialog：逐列明細，含 執行人員、店家代碼、店家名稱、類型、問卷、份數
+  大群 = 唯一督導類型值（依資料首次出現順序）
+  家數 = 店家代碼去重計數
+  卡片：各督導類型群組 N 家（hover/長按 Tooltip 展開問卷類型明細）
+  Dialog：逐列明細，含通路別、店家型態、店家等級、督導類型、問卷類型
 
 【版本紀錄】
+  2.0.0  2026-06-26  改為店家名冊模式：固定10欄、督導類型分群、問卷類型子分類
   1.0.0  2026-06-26  初版
 
 ════════════════════════════════════════════════════════════
@@ -302,25 +303,24 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 /* ════ 設定（寫死，同 index 架構） ════ */
 var MGMT_ID        = '1PR9OR7BIGyTpcH8QSMRXkPhQTr4h3m0UK3gET29f19s';
 var MGMT_SHEET     = '專案管理';
-var AUDIT_CFG_SHEET = '查核類型管理';
 var SYNC_SHEET_DEFAULT = '輔助';
 var SYNC_CELL_DEFAULT  = 'B1';
 var SHEET_NAME_DEFAULT = '店家名冊';
 
-/* 組織欄位 */
-var COL_AREA   = '營業處名稱';
-var COL_OFFICE = '營業所/課';
-var COL_STAFF  = '執行人員';
-var COL_CODE   = '店家代碼';
-var COL_NAME   = '店家名稱';
+/* 店家名冊固定欄位（A~J） */
+var COL_AREA      = '營業處名稱';   /* A */
+var COL_OFFICE    = '營業所/課';    /* B */
+var COL_STAFF     = '執行人員';     /* C */
+var COL_CHANNEL   = '通路別';       /* D */
+var COL_STORETYPE = '店家型態';     /* E */
+var COL_CODE      = '店家代碼';     /* F */
+var COL_NAME      = '店家名稱';     /* G */
+var COL_GRADE     = '店家等級';     /* H */
+var COL_SUPTYPE   = '督導類型';     /* I — 大群分組鍵 */
+var COL_QUESTTYPE = '問卷類型';     /* J — 群內子分類 */
 
-/* 動態設定（由管理分頁讀入） */
-var COL_TYPE_FIELD = '類型';   /* 資料表中「類型」欄的欄位名 */
-var COL_QUEST      = '問卷';   /* 資料表中「問卷」欄的欄位名 */
-var COL_COUNT      = '份數';   /* 資料表中「份數」欄的欄位名 */
-
-/* AUDIT_GROUPS = [{label:'所督', quest:'傳統通路'}, {label:'高階', quest:'高階'}, ...] */
-var AUDIT_GROUPS = [];
+/* ROSTER_GROUPS: 由資料動態產生（唯一督導類型清單，依首次出現順序） */
+var ROSTER_GROUPS = [];
 
 /* URL 參數 */
 var params   = new URLSearchParams(location.search);
@@ -371,46 +371,12 @@ function init() {
     document.getElementById('stage').innerHTML = '<div class="empty">⚠️ 缺少 sheetId 參數</div>';
     return;
   }
-  function parseCsv(s){ return String(s||'').split(',').map(function(t){ return t.trim(); }).filter(Boolean); }
 
-  /* 讀「查核類型管理」分頁 */
-  var urlCfg = 'https://docs.google.com/spreadsheets/d/' + MGMT_ID +
-    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(AUDIT_CFG_SHEET);
-
-  fetch(urlCfg)
+  /* 讀「專案管理」分頁 */
+  var urlMgmt = 'https://docs.google.com/spreadsheets/d/' + MGMT_ID +
+    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(MGMT_SHEET);
+  fetch(urlMgmt)
     .then(function(r){ return r.text(); })
-    .then(function(txt){
-      var json = JSON.parse(txt.replace(/^[^\(]+\(/,'').replace(/\);?\s*$/,''));
-      var rows = (json.table && json.table.rows) || [];
-      rows.forEach(function(row){
-        var cells = row.c || [];
-        function cv(c){ return c ? String(c.v!==null&&c.v!==undefined?c.v:c.f||'').trim() : ''; }
-        var sid = cv(cells[1]);
-        if (!sid || sid.length < 20) return;
-        if (sid !== SHEET_ID) return;
-
-        /* D欄=類型欄名, E欄=問卷欄名, F欄=份數欄名 */
-        var d = cv(cells[3]); if (d) COL_TYPE_FIELD = d;
-        var e = cv(cells[4]); if (e) COL_QUEST      = e;
-        var f = cv(cells[5]); if (f) COL_COUNT       = f;
-
-        AUDIT_GROUPS = [];
-        /* G欄(6)起，每兩欄一組：G=類型名, H=問卷名 */
-        for (var gi = 6; gi + 1 < cells.length; gi += 2) {
-          var typeVal  = cv(cells[gi]);
-          var questVal = cv(cells[gi+1]);
-          if (!typeVal && !questVal) break;
-          if (typeVal || questVal) AUDIT_GROUPS.push({ label: typeVal, quest: questVal });
-        }
-      });
-    })
-    .catch(function(){})
-    .then(function(){
-      /* 讀「專案管理」分頁 */
-      var urlMgmt = 'https://docs.google.com/spreadsheets/d/' + MGMT_ID +
-        '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(MGMT_SHEET);
-      return fetch(urlMgmt).then(function(r){ return r.text(); });
-    })
     .then(function(txt){
       var json = JSON.parse(txt.replace(/^[^\(]+\(/,'').replace(/\);?\s*$/,''));
       var rows = (json.table && json.table.rows) || [];
@@ -459,6 +425,12 @@ function init() {
 }
 
 /* ════ 讀主資料 ════ */
+var FIXED_COLS = [
+  '營業處名稱','營業所/課','執行人員','通路別',
+  '店家型態','店家代碼','店家名稱','店家等級',
+  '督導類型','問卷類型'
+];
+
 function fetchSheet() {
   showLoading();
   var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
@@ -472,13 +444,27 @@ function fetchSheet() {
       allRows = (tbl.rows||[]).map(function(row){
         var obj = {};
         (row.c||[]).forEach(function(cell,i){
-          if (!cell) { obj[cols[i]]=''; return; }
+          var colName = cols[i];
+          if (FIXED_COLS.indexOf(colName) === -1) return; /* 只讀取指定欄位 */
+          if (!cell) { obj[colName]=''; return; }
           var v=(cell.v!==null&&cell.v!==undefined)?cell.v:'';
           var f=cell.f||'';
-          obj[cols[i]]=(v!==''&&v!==null&&v!==undefined)?v:f;
+          obj[colName]=(v!==''&&v!==null&&v!==undefined)?v:f;
         });
         return obj;
+      }).filter(function(r){
+        /* 過濾掉完全空白列 */
+        return FIXED_COLS.some(function(c){ return String(r[c]||'').trim(); });
       });
+
+      /* 由資料建立 ROSTER_GROUPS（唯一督導類型，依首次出現順序） */
+      var seen = {};
+      ROSTER_GROUPS = [];
+      allRows.forEach(function(r){
+        var st = String(r[COL_SUPTYPE]||'').trim();
+        if (st && !seen[st]) { seen[st]=true; ROSTER_GROUPS.push(st); }
+      });
+
       render();
     })
     .catch(function(err){
@@ -498,37 +484,42 @@ function fetchSyncTime() {
 }
 
 /* ════ 計算 ════ */
-/* 對一批 rows，依 AUDIT_GROUPS 計算各群份數與店數 */
+/* 對一批 rows，依 ROSTER_GROUPS（督導類型）統計店家數與問卷類型子分佈 */
 function calcAudit(rows) {
-  /* groups[i] = { label, quest, shares(份數總和), storeSet(去重店碼) } */
-  var groups = AUDIT_GROUPS.map(function(g){
-    return { label:g.label, quest:g.quest, shares:0, stores:new Set() };
+  /* groups[i] = { label:督導類型, stores:Set, questMap:{問卷類型:Set} } */
+  var groups = ROSTER_GROUPS.map(function(g){
+    return { label:g, stores:new Set(), questMap:{} };
   });
-  var totalShares = 0;
   var totalStores = new Set();
 
   rows.forEach(function(r){
-    var typeVal  = String(r[COL_TYPE_FIELD]||'').trim();
-    var questVal = String(r[COL_QUEST]||'').trim();
-    var nv       = numVal(r[COL_COUNT]);
-    if (!nv) return; /* 份數=0，跳過 */
+    var supType  = String(r[COL_SUPTYPE]||'').trim();
+    var questType= String(r[COL_QUESTTYPE]||'').trim();
+    var code     = String(r[COL_CODE]||'').trim();
+    if (!code) return;
+    if (!supType) return;
 
-    totalShares += nv;
-    var code = String(r[COL_CODE]||'').trim();
-    if (code) totalStores.add(code);
+    totalStores.add(code);
 
     groups.forEach(function(g){
-      if (g.label === typeVal && g.quest === questVal) {
-        g.shares += nv;
-        if (code) g.stores.add(code);
+      if (g.label !== supType) return;
+      g.stores.add(code);
+      if (questType) {
+        if (!g.questMap[questType]) g.questMap[questType] = new Set();
+        g.questMap[questType].add(code);
       }
     });
   });
 
   return {
-    totalShares: totalShares,
+    totalShares: totalStores.size, /* 語意上這裡是「家數」，重用 totalShares 欄位供 UI 相容 */
     totalStores: totalStores.size,
-    groups: groups.map(function(g){ return { label:g.label, quest:g.quest, shares:g.shares, stores:g.stores.size }; })
+    groups: groups.map(function(g){
+      var subItems = Object.keys(g.questMap).sort().map(function(qt){
+        return { label:qt, stores:g.questMap[qt].size };
+      });
+      return { label:g.label, shares:g.stores.size, stores:g.stores.size, subItems:subItems };
+    })
   };
 }
 
@@ -630,22 +621,25 @@ function buildCard(name,labelText,stat,levelKey,rows,isOverall){
   /* 總計格 */
   var statRowHtml='<div class="stat-row">'
     +'<div class="stat-item">'
-    +'<div class="stat-label">總份數</div>'
-    +'<div class="stat-val">'+stat.totalShares+'</div>'
-    +'<div class="stat-sub">'+stat.totalStores+' 家</div>'
+    +'<div class="stat-label">總家數</div>'
+    +'<div class="stat-val">'+stat.totalStores+'</div>'
+    +'<div class="stat-sub">家</div>'
     +'</div>';
 
-  /* 各群格 */
+  /* 各督導類型群格 */
   stat.groups.forEach(function(g,gi){
     var ttGId='ttg'+gi+'-'+ttId;
+    var subHtml='';
+    (g.subItems||[]).forEach(function(si){
+      subHtml+='<div class="tt-row"><span class="tt-label">'+esc(si.label)+'</span><span class="tt-val">'+si.stores+' 家</span></div>';
+    });
     statRowHtml+='<div class="stat-item grp" id="sig'+gi+'-'+ttId+'">'
-      +'<div class="stat-label">'+esc(g.label||g.quest)+'</div>'
-      +'<div class="stat-val">'+g.shares+'</div>'
-      +'<div class="stat-sub">'+g.stores+' 家</div>'
+      +'<div class="stat-label">'+esc(g.label)+'</div>'
+      +'<div class="stat-val">'+g.stores+'</div>'
+      +'<div class="stat-sub">家</div>'
       +'<div class="tooltip" id="'+ttGId+'">'
-        +'<div class="tt-title">'+esc(g.label+' · '+g.quest)+'</div>'
-        +'<div class="tt-row"><span class="tt-label">份數</span><span class="tt-val">'+g.shares+'</span></div>'
-        +'<div class="tt-row"><span class="tt-label">覆蓋店家數</span><span class="tt-val">'+g.stores+'</span></div>'
+        +'<div class="tt-title">'+esc(g.label)+'</div>'
+        +(subHtml||'<div class="tt-row"><span class="tt-label">店家數</span><span class="tt-val">'+g.stores+'</span></div>')
       +'</div>'
     +'</div>';
   });
@@ -777,8 +771,8 @@ function refreshDialogContent(){
   /* Header */
   var ctx=drillStack.map(function(d){ return d.key; });
   ctx.push(name);
-  var parts=['共 '+stat.totalShares+' 份 · '+stat.totalStores+' 家'];
-  stat.groups.forEach(function(g){ parts.push(esc(g.label)+'：'+g.shares+'份 / '+g.stores+'家'); });
+  var parts=['共 '+stat.totalStores+' 家'];
+  stat.groups.forEach(function(g){ parts.push(esc(g.label)+'：'+g.stores+' 家'); });
   document.getElementById('dlg-title').innerHTML=
     '<div style="font-size:14px;font-weight:900;line-height:1.3;">【'+ctx.join(' › ')+'】查核明細</div>'
     +'<div style="font-size:12px;color:var(--sub);font-weight:500;margin-top:2px;">'+parts.join('　')+'</div>';
@@ -787,9 +781,9 @@ function refreshDialogContent(){
 }
 
 function buildAuditTable(rows){
-  /* 依 COL_AREA → COL_OFFICE → COL_STAFF → COL_CODE 排序 */
+  /* 依 COL_AREA → COL_OFFICE → COL_STAFF → COL_SUPTYPE → COL_CODE 排序 */
   var sorted=rows.slice().sort(function(a,b){
-    var cols=[COL_AREA,COL_OFFICE,COL_STAFF,COL_CODE];
+    var cols=[COL_AREA,COL_OFFICE,COL_STAFF,COL_SUPTYPE,COL_CODE];
     for(var i=0;i<cols.length;i++){
       var va=String(a[cols[i]]||''), vb=String(b[cols[i]]||'');
       if(va!==vb) return va>vb?1:-1;
@@ -801,7 +795,6 @@ function buildAuditTable(rows){
   var extraCols=[];
   if(_dialogLevel==='area')   extraCols=[COL_OFFICE,COL_STAFF];
   else if(_dialogLevel==='office') extraCols=[COL_STAFF];
-  /* staff level: 不加 */
 
   var html='<div class="detail-scroll"><table class="detail-tbl"><thead><tr>';
   extraCols.forEach(function(c){
@@ -809,21 +802,25 @@ function buildAuditTable(rows){
     html+='<th class="th-left">'+esc(lbl)+'</th>';
   });
   html+='<th class="th-left">店碼</th><th class="th-left">店名</th>';
-  html+='<th>'+esc(COL_TYPE_FIELD)+'</th>';
-  html+='<th>'+esc(COL_QUEST)+'</th>';
-  html+='<th>份數</th>';
+  html+='<th class="th-left">通路別</th>';
+  html+='<th class="th-left">店家型態</th>';
+  html+='<th class="th-left">店家等級</th>';
+  html+='<th class="th-left">督導類型</th>';
+  html+='<th class="th-left">問卷類型</th>';
   html+='</tr></thead><tbody>';
 
   sorted.forEach(function(r){
-    var nv=numVal(r[COL_COUNT]);
-    if(!nv) return; /* 略過份數=0 */
+    var code=String(r[COL_CODE]||'').trim();
+    if(!code) return;
     html+='<tr>';
     extraCols.forEach(function(c){ html+='<td class="td-left">'+esc(String(r[c]||'—'))+'</td>'; });
     html+='<td class="td-left" style="color:#aaa;font-size:11px;">'+esc(String(r[COL_CODE]||'—'))+'</td>';
     html+='<td class="td-name">'+esc(String(r[COL_NAME]||'—'))+'</td>';
-    html+='<td>'+esc(String(r[COL_TYPE_FIELD]||'—'))+'</td>';
-    html+='<td>'+esc(String(r[COL_QUEST]||'—'))+'</td>';
-    html+='<td class="td-num">'+nv+'</td>';
+    html+='<td class="td-left">'+esc(String(r[COL_CHANNEL]||'—'))+'</td>';
+    html+='<td class="td-left">'+esc(String(r[COL_STORETYPE]||'—'))+'</td>';
+    html+='<td class="td-left">'+esc(String(r[COL_GRADE]||'—'))+'</td>';
+    html+='<td class="td-left">'+esc(String(r[COL_SUPTYPE]||'—'))+'</td>';
+    html+='<td class="td-left">'+esc(String(r[COL_QUESTTYPE]||'—'))+'</td>';
     html+='</tr>';
   });
   html+='</tbody></table></div>';
@@ -833,22 +830,18 @@ function buildAuditTable(rows){
 /* ════ CSV ════ */
 function buildCsvContent(rows){
   var sorted=rows.slice().sort(function(a,b){
-    var cols=[COL_AREA,COL_OFFICE,COL_STAFF,COL_CODE];
+    var cols=[COL_AREA,COL_OFFICE,COL_STAFF,COL_SUPTYPE,COL_CODE];
     for(var i=0;i<cols.length;i++){
       var va=String(a[cols[i]]||''), vb=String(b[cols[i]]||'');
       if(va!==vb) return va>vb?1:-1;
     }
     return 0;
   });
-  var headers=[COL_AREA,COL_OFFICE,COL_STAFF,'店家代碼','店家名稱',COL_TYPE_FIELD,COL_QUEST,'份數'];
+  var headers=[COL_AREA,COL_OFFICE,COL_STAFF,COL_CHANNEL,COL_STORETYPE,COL_CODE,COL_NAME,COL_GRADE,COL_SUPTYPE,COL_QUESTTYPE];
   var allR=[headers];
   sorted.forEach(function(r){
-    var nv=numVal(r[COL_COUNT]); if(!nv) return;
-    allR.push([
-      String(r[COL_AREA]||''),String(r[COL_OFFICE]||''),String(r[COL_STAFF]||''),
-      String(r[COL_CODE]||''),String(r[COL_NAME]||''),
-      String(r[COL_TYPE_FIELD]||''),String(r[COL_QUEST]||''),String(nv)
-    ]);
+    var code=String(r[COL_CODE]||'').trim(); if(!code) return;
+    allR.push(headers.map(function(h){ return String(r[h]||''); }));
   });
   return '\uFEFF'+allR.map(function(row){
     return row.map(function(c){ var s=String(c); return /[,"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join(',');
