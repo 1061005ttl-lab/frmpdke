@@ -488,7 +488,7 @@ function fetchSyncTime() {
 function calcAudit(rows) {
   /* groups[i] = { label:督導類型, stores:Set, questMap:{問卷類型:Set} } */
   var groups = ROSTER_GROUPS.map(function(g){
-    return { label:g, stores:new Set(), staffSet:new Set(), questMap:{} };
+    return { label:g, stores:new Set(), staffMap:{}, questMap:{} };
   });
   var totalStores = new Set();
 
@@ -505,7 +505,10 @@ function calcAudit(rows) {
     groups.forEach(function(g){
       if (g.label !== supType) return;
       g.stores.add(code);
-      if (staff) g.staffSet.add(staff);
+      if (staff) {
+        if (!g.staffMap[staff]) g.staffMap[staff] = new Set();
+        g.staffMap[staff].add(code);
+      }
       if (questType) {
         if (!g.questMap[questType]) g.questMap[questType] = new Set();
         g.questMap[questType].add(code);
@@ -520,7 +523,9 @@ function calcAudit(rows) {
       var subItems = Object.keys(g.questMap).sort().map(function(qt){
         return { label:qt, stores:g.questMap[qt].size };
       });
-      var staffList = Array.from(g.staffSet).sort();
+      var staffList = Object.keys(g.staffMap).map(function(s){
+        return { name:s, stores:g.staffMap[s].size };
+      }).sort(function(a,b){ return b.stores-a.stores || a.name.localeCompare(b.name); });
       return { label:g.label, shares:g.stores.size, stores:g.stores.size, subItems:subItems, staffList:staffList };
     })
   };
@@ -633,13 +638,9 @@ function buildCard(name,labelText,stat,levelKey,rows,isOverall){
   stat.groups.forEach(function(g,gi){
     var ttGId='ttg'+gi+'-'+ttId;
     var subHtml='';
-    if(g.label==='高階' && g.staffList && g.staffList.length){
+    if(g.staffList && g.staffList.length){
       g.staffList.forEach(function(s){
-        subHtml+='<div class="tt-row"><span class="tt-label">'+esc(s)+'</span></div>';
-      });
-    } else {
-      (g.subItems||[]).forEach(function(si){
-        subHtml+='<div class="tt-row"><span class="tt-label">'+esc(si.label)+'</span><span class="tt-val">'+si.stores+' 家</span></div>';
+        subHtml+='<div class="tt-row"><span class="tt-label">'+esc(s.name)+'</span><span class="tt-val">'+s.stores+' 家</span></div>';
       });
     }
     statRowHtml+='<div class="stat-item grp" id="sig'+gi+'-'+ttId+'">'
