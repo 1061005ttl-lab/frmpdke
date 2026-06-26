@@ -1,7 +1,7 @@
 <!--
 ╔══════════════════════════════════════════════════════════════════════════════════╗
 ║         傳統通路購值進度 — AI 交接說明書                                         ║
-║         VERSION: 1.5.4  UPDATED: 06/27 (高光B加最低成長值HL_B_MIN=10千元)          ║
+║         VERSION: 1.5.5  UPDATED: 06/27 (排除店家單店成長%正常顯示)                 ║
 ╠══════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                  ║
 ║  【系統用途】                                                                    ║
@@ -1383,7 +1383,12 @@ function buildDetailTbl(qd){
                '<td class="'+mCls(mi,2)+' '+mgCls+'" style="opacity:.6;">'+(mg>0?'+':'')+fmtN(mg)+'</td>';
         }
       });
-      row+='<td class="m-sep '+exGCls+'" style="font-weight:900;opacity:.65;">'+(exGrowth>0?'+':'')+fmtN(exGrowth)+'</td><td class="d-nil" style="opacity:.5;">—</td>';
+      /* 排除店家：單店成長%正常計算，同期=0 則顯示 — */
+      var exPct=exTotalLast>0?((exTotalCur-exTotalLast)/exTotalLast*100):null;
+      var exPctStr=exPct!==null?(exPct>0?'+':'')+exPct.toFixed(1)+'%':'—';
+      var exPCls=exPct===null?'d-nil':exPct>0?'d-pos':exPct<0?'d-neg':'d-nil';
+      row+='<td class="m-sep '+exGCls+'" style="font-weight:900;opacity:.65;">'+(exGrowth>0?'+':'')+fmtN(exGrowth)+'</td>'+
+           '<td class="'+exPCls+'" style="font-weight:900;opacity:.65;">'+exPctStr+'</td>';
       excludedHtml+='<tr style="background:rgba(217,48,37,.035);">'+row+'</tr>';
     });
   }
