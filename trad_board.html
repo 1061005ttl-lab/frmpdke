@@ -1,7 +1,7 @@
 <!--
 ╔══════════════════════════════════════════════════════════════════════════════════╗
 ║         傳統通路購值進度 — AI 交接說明書                                         ║
-║         VERSION: 1.5.1  UPDATED: 06/27 (高光A/B條件精修：新進萬元/異常500或200%)   ║
+║         VERSION: 1.5.2  UPDATED: 06/27 (高光參數置頂；單位修正千元；HL_A/B常數化)  ║
 ╠══════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                  ║
 ║  【系統用途】                                                                    ║
@@ -550,6 +550,15 @@ var SYNC_CELL  = 'B1';
 var PROJ_NAME  = '傳統通路購值進度';
 var MIN_THR    = 100;   /* 千元：10萬，孰高基準 */
 var GR_RATE    = 1.0;   /* 目標門檻不×1.05，孰高後直接為目標 */
+
+/* ── 高光條件參數（千元單位，與表格一致）──────────────────────
+   HL_A_MIN_CUR  : 高光A（新進客）當期合計門檻，千元。10 = 一萬元
+   HL_B_DELTA    : 高光B（異常值）增減絕對值門檻，千元。50 = 五萬元
+   HL_B_PCT      : 高光B（異常值）成長%門檻。200 = 三倍以上成長
+   ── 兩者任一成立即觸發高光B，且同期必須 > 0 ─────────────── */
+var HL_A_MIN_CUR = 10;   /* 千元：1萬（新進客當期門檻） */
+var HL_B_DELTA   = 50;   /* 千元：5萬（異常增減門檻） */
+var HL_B_PCT     = 200;  /* %：200% 三倍成長（異常比例門檻） */
 var QUARTERS   = {Q1:[1,2,3],Q2:[4,5,6],Q3:[7,8,9],Q4:[10,11,12]};
 var AREA_ORDER = ['北部','桃園','臺中','嘉義','臺南','高雄','花蓮','台中','台南']; /* 台/臺 兩種都支援 */
 var MNAMES     = ['','1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
@@ -1118,12 +1127,12 @@ function makeOrgCard(c){
   else{bigNum='0.0';teCls='nil';}
 
   /* 組織視角高光計算
-     高光A（新進客）：同期合計=0 且 當期合計>10000
+     高光A（新進客）：同期合計=0 且 當期合計>HL_A_MIN_CUR（千元）
      高光B（異常值）：同期>0 且 (增減絕對值>500 OR 成長%>200%) */
   var orgTotalLast=qd.totalLast,orgTotalCur=qd.totalCur,orgDelta=qd.totalDelta;
-  var orgHlA=(orgTotalLast===0)&&(orgTotalCur>10000)&&qd.evalMonths.length>0;
+  var orgHlA=(orgTotalLast===0)&&(orgTotalCur>HL_A_MIN_CUR)&&qd.evalMonths.length>0;
   var orgDeltaPct=orgTotalLast>0?(orgDelta/orgTotalLast*100):null;
-  var orgHlB=orgTotalLast>0&&(Math.abs(orgDelta)>500||orgDeltaPct>200);
+  var orgHlB=orgTotalLast>0&&(Math.abs(orgDelta)>HL_B_DELTA||orgDeltaPct>HL_B_PCT);
 
   var rowsHtml=qd.months.map(function(m){
     var d=qd.monthData[m];
@@ -1271,7 +1280,7 @@ function closeDetailDialog(){var dlg=document.getElementById('detail-dialog');dl
 document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeDetailDialog();closeRank();closeSummaryTable();closePersonTable();closeMobileDrawer();}});
 
 /* ── 單店高光計算 ──
-   高光A（新進客）：同期合計=0 且 當期合計>10000（一萬塊）
+   高光A（新進客）：同期合計=0 且 當期合計>HL_A_MIN_CUR（千元）
    高光B（異常值）：同期>0 且 ( 增減絕對值>500 OR 成長%>200% )
      → 抓的是「異常大增/大減」與「異常高比例成長」，非一般正常交易
 */
@@ -1281,12 +1290,12 @@ function _storeHighlight(s,months){
     var md=s.bm[m]; if(!md) return;
     anyData=true; totalCur+=md.cur; totalLast+=md.last;
   });
-  /* 高光A：同期=0 且 當期>10000 */
-  var hlA=anyData&&(totalLast===0)&&(totalCur>10000);
-  /* 高光B：同期>0，增減>500 或 成長%>200% */
+  /* 高光A：同期=0 且 當期>HL_A_MIN_CUR（千元） */
+  var hlA=anyData&&(totalLast===0)&&(totalCur>HL_A_MIN_CUR);
+  /* 高光B：同期>0，且（增減絕對值>HL_B_DELTA 或 成長%>HL_B_PCT） */
   var storePct=totalLast>0?((totalCur-totalLast)/totalLast*100):null;
   var delta=totalCur-totalLast;
-  var hlB=totalLast>0&&(Math.abs(delta)>500||storePct>200);
+  var hlB=totalLast>0&&(Math.abs(delta)>HL_B_DELTA||storePct>HL_B_PCT);
   return{hlA:hlA,hlB:hlB,storePct:storePct,delta:delta,totalCur:totalCur,totalLast:totalLast};
 }
 
