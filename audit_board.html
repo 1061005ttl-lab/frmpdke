@@ -488,7 +488,7 @@ function fetchSyncTime() {
 function calcAudit(rows) {
   /* groups[i] = { label:督導類型, stores:Set, questMap:{問卷類型:Set} } */
   var groups = ROSTER_GROUPS.map(function(g){
-    return { label:g, stores:new Set(), questMap:{} };
+    return { label:g, stores:new Set(), staffSet:new Set(), questMap:{} };
   });
   var totalStores = new Set();
 
@@ -501,9 +501,11 @@ function calcAudit(rows) {
 
     totalStores.add(code);
 
+    var staff = String(r[COL_STAFF]||'').trim();
     groups.forEach(function(g){
       if (g.label !== supType) return;
       g.stores.add(code);
+      if (staff) g.staffSet.add(staff);
       if (questType) {
         if (!g.questMap[questType]) g.questMap[questType] = new Set();
         g.questMap[questType].add(code);
@@ -518,7 +520,8 @@ function calcAudit(rows) {
       var subItems = Object.keys(g.questMap).sort().map(function(qt){
         return { label:qt, stores:g.questMap[qt].size };
       });
-      return { label:g.label, shares:g.stores.size, stores:g.stores.size, subItems:subItems };
+      var staffList = Array.from(g.staffSet).sort();
+      return { label:g.label, shares:g.stores.size, stores:g.stores.size, subItems:subItems, staffList:staffList };
     })
   };
 }
@@ -630,9 +633,15 @@ function buildCard(name,labelText,stat,levelKey,rows,isOverall){
   stat.groups.forEach(function(g,gi){
     var ttGId='ttg'+gi+'-'+ttId;
     var subHtml='';
-    (g.subItems||[]).forEach(function(si){
-      subHtml+='<div class="tt-row"><span class="tt-label">'+esc(si.label)+'</span><span class="tt-val">'+si.stores+' 家</span></div>';
-    });
+    if(g.label==='高階' && g.staffList && g.staffList.length){
+      g.staffList.forEach(function(s){
+        subHtml+='<div class="tt-row"><span class="tt-label">'+esc(s)+'</span></div>';
+      });
+    } else {
+      (g.subItems||[]).forEach(function(si){
+        subHtml+='<div class="tt-row"><span class="tt-label">'+esc(si.label)+'</span><span class="tt-val">'+si.stores+' 家</span></div>';
+      });
+    }
     statRowHtml+='<div class="stat-item grp" id="sig'+gi+'-'+ttId+'">'
       +'<div class="stat-label">'+esc(g.label)+'</div>'
       +'<div class="stat-val">'+g.stores+'</div>'
