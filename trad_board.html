@@ -1,7 +1,7 @@
 <!--
 ╔══════════════════════════════════════════════════════════════════════════════════╗
 ║         傳統通路購值進度 — AI 交接說明書                                         ║
-║         VERSION: 1.5.0  UPDATED: 06/27 (彙整表篩選/目標欄/高光優化/成長%修正)      ║
+║         VERSION: 1.5.1  UPDATED: 06/27 (高光A/B條件精修：新進萬元/異常500或200%)   ║
 ╠══════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                  ║
 ║  【系統用途】                                                                    ║
@@ -1118,16 +1118,12 @@ function makeOrgCard(c){
   else{bigNum='0.0';teCls='nil';}
 
   /* 組織視角高光計算
-     高光A：所有有資料月份 last===0 且任一月 cur>0（新客/活化）
-     高光B：(totalCur-totalLast)/totalLast*100 > 10（業績成長>10%）*/
-  var allLastZero=true,anyData=false,anyCur=false;
-  qd.evalMonths.forEach(function(m){
-    var d=qd.monthData[m];if(!d.hasData)return;
-    anyData=true;if(d.last!==0)allLastZero=false;if(d.cur>0)anyCur=true;
-  });
-  var orgHlA=anyData&&allLastZero&&anyCur;
-  var orgDeltaPct=qd.totalLast>0?(qd.totalDelta/qd.totalLast*100):null;
-  var orgHlB=orgDeltaPct!==null&&orgDeltaPct>10;
+     高光A（新進客）：同期合計=0 且 當期合計>10000
+     高光B（異常值）：同期>0 且 (增減絕對值>500 OR 成長%>200%) */
+  var orgTotalLast=qd.totalLast,orgTotalCur=qd.totalCur,orgDelta=qd.totalDelta;
+  var orgHlA=(orgTotalLast===0)&&(orgTotalCur>10000)&&qd.evalMonths.length>0;
+  var orgDeltaPct=orgTotalLast>0?(orgDelta/orgTotalLast*100):null;
+  var orgHlB=orgTotalLast>0&&(Math.abs(orgDelta)>500||orgDeltaPct>200);
 
   var rowsHtml=qd.months.map(function(m){
     var d=qd.monthData[m];
@@ -1143,7 +1139,13 @@ function makeOrgCard(c){
   /* 高光標籤 */
   var hlBadges='';
   if(orgHlA) hlBadges+='<span class="org-hl-badge a">新進</span>';
-  if(orgHlB) hlBadges+='<span class="org-hl-badge b">▲'+pctStr+'</span>';
+  if(orgHlB){
+    /* 成長%>200 顯示比例；否則顯示絕對增減（異常大值）*/
+    var bLabel=orgDeltaPct!==null&&orgDeltaPct>200
+      ?(orgDeltaPct>0?'▲':'▼')+Math.round(orgDeltaPct)+'%'
+      :(orgDelta>0?'▲+':orgDelta<0?'▼':'')+fmtN(Math.abs(orgDelta));
+    hlBadges+='<span class="org-hl-badge b">'+bLabel+'</span>';
+  }
 
   /* 卡片邊框 class */
   var cardCls='person-card'+(orgHlA&&orgHlB?' org-card-hl-ab':orgHlA?' org-card-hl-a':orgHlB?' org-card-hl-b':'');
@@ -1269,9 +1271,9 @@ function closeDetailDialog(){var dlg=document.getElementById('detail-dialog');dl
 document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeDetailDialog();closeRank();closeSummaryTable();closePersonTable();closeMobileDrawer();}});
 
 /* ── 單店高光計算 ──
-   高光A（新進客）：有效月份內，同期(last)合計=0 且 當期(cur)合計>10000
-   高光B（高成長）：同期>0 時，(cur-last)/last*100 > 20%
-   ✓ 同期=0 時 storePct 回傳 null，不做 div/0 計算（修正 +1608% 錯誤）
+   高光A（新進客）：同期合計=0 且 當期合計>10000（一萬塊）
+   高光B（異常值）：同期>0 且 ( 增減絕對值>500 OR 成長%>200% )
+     → 抓的是「異常大增/大減」與「異常高比例成長」，非一般正常交易
 */
 function _storeHighlight(s,months){
   var totalCur=0,totalLast=0,anyData=false;
@@ -1279,12 +1281,13 @@ function _storeHighlight(s,months){
     var md=s.bm[m]; if(!md) return;
     anyData=true; totalCur+=md.cur; totalLast+=md.last;
   });
-  /* 高光A：同期合計=0 且 當期合計>10000（新進客條件） */
+  /* 高光A：同期=0 且 當期>10000 */
   var hlA=anyData&&(totalLast===0)&&(totalCur>10000);
-  /* 高光B：同期>0 才計算成長%，避免 div/0 誤算 */
+  /* 高光B：同期>0，增減>500 或 成長%>200% */
   var storePct=totalLast>0?((totalCur-totalLast)/totalLast*100):null;
-  var hlB=storePct!==null&&storePct>20;
-  return{hlA:hlA,hlB:hlB,storePct:storePct,totalCur:totalCur,totalLast:totalLast};
+  var delta=totalCur-totalLast;
+  var hlB=totalLast>0&&(Math.abs(delta)>500||storePct>200);
+  return{hlA:hlA,hlB:hlB,storePct:storePct,delta:delta,totalCur:totalCur,totalLast:totalLast};
 }
 
 function buildDetailTbl(qd){
@@ -1316,14 +1319,14 @@ function buildDetailTbl(qd){
     /* storePct=null 代表同期=0，不顯示比率（避免 +1608% 之類的誤算） */
     var pctDisplay=hl.storePct!==null?((hl.storePct>0?'+':'')+hl.storePct.toFixed(1)+'%'):'—';
     var pctCls=hl.storePct===null?'d-nil':(hl.hlB?'d-pos':hl.storePct>0?'d-pos':hl.storePct<0?'d-neg':'d-nil');
-    var pctStyle='font-weight:900;'+(hl.hlB?'color:#5b21b6;':'');
+    var pctStyle='font-weight:900;'+(hl.hlB?'color:#5b21b6;outline:1.5px solid rgba(124,58,237,.5);outline-offset:-2px;border-radius:4px;':'');
     row+=hasAny?'<td style="'+pctStyle+'" class="'+pctCls+'">'+pctDisplay+'</td>':'<td class="d-nil">—</td>';
 
-    /* 行底色高光：A=淡青（新進客），B=淡紫（成長>20%）；無標籤文字 */
-    var trBg='';
-    if(hl.hlA)      trBg='background:rgba(6,182,212,.07);';
-    else if(hl.hlB) trBg='background:rgba(124,58,237,.05);';
-    tbody+='<tr style="'+trBg+'">'+row+'</tr>';
+    /* 行高光：A=左側青色邊框+淡底（新進客），B=左側紫色邊框+淡底（異常值） */
+    var trStyle='';
+    if(hl.hlA)      trStyle='background:rgba(6,182,212,.07);box-shadow:inset 3px 0 0 rgba(6,182,212,.7);';
+    else if(hl.hlB) trStyle='background:rgba(124,58,237,.05);box-shadow:inset 3px 0 0 rgba(124,58,237,.6);';
+    tbody+='<tr style="'+trStyle+'">'+row+'</tr>';
   });
   /* 合計列 */
   var tRow='<tr style="font-weight:900;background:rgba(0,0,0,.03);border-top:2px solid rgba(0,0,0,.1);"><td colspan="2" style="text-align:left;padding:7px 14px;color:var(--sub);font-size:11px;">合計</td>';
