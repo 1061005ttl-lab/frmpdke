@@ -182,12 +182,12 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .tt-val { font-size:12px; font-weight:700; color:var(--text); white-space:nowrap; }
 
 /* ── Dialog ── */
-#detail-dialog {
+#detail-dialog, #summary-dialog {
   position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:500;
   display:flex; align-items:center; justify-content:center;
   opacity:0; transition:opacity .2s;
 }
-#detail-dialog.open { opacity:1; }
+#detail-dialog.open, #summary-dialog.open { opacity:1; }
 .dlg-box {
   background:#fff; border-radius:14px; width:95vw; height:92vh;
   display:flex; flex-direction:column; overflow:hidden;
@@ -277,13 +277,29 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   <select class="proj-sel" id="proj-sel" style="display:none" onchange="switchProject(this.value)"></select>
   <span class="sync-note" id="tb-sync"></span>
   <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+    <button class="tb-act-btn" onclick="openSummaryDialog('staff')">👤 人員</button>
+    <button class="tb-act-btn" onclick="openSummaryDialog('office')">🏢 單位</button>
+    <button class="tb-act-btn" onclick="openSummaryDialog('suptype')">📋 督導</button>
     <button class="tb-act-btn" id="tb-btn-csv" onclick="toolbarDownloadCsv()">📥 CSV</button>
     <button class="tb-act-btn" id="tb-btn-screenshot" onclick="toolbarScreenshot()">📸 截圖</button>
   </div>
 </div>
 
-<div class="quicknav" id="quicknav"></div>
-<div class="stage"   id="stage"></div>
+<!-- Summary Dialog -->
+<div id="summary-dialog" style="display:none" onclick="if(event.target===this)closeSummaryDialog()">
+  <div class="dlg-box">
+    <div class="dlg-header">
+      <span id="sum-title" style="font-size:14px;font-weight:900;flex:1;min-width:0;"></span>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+        <button class="dlg-action-btn" id="btn-sum-csv" onclick="downloadSummaryCsv()"><span>📥</span><span class="btn-txt"> CSV</span></button>
+        <button class="dlg-close" onclick="closeSummaryDialog()">✕</button>
+      </div>
+    </div>
+    <div class="dlg-body" id="sum-body"></div>
+  </div>
+</div>
+
+
 
 <!-- Dialog -->
 <div id="detail-dialog" style="display:none" onclick="if(event.target===this)closeDialog()">
@@ -918,6 +934,156 @@ function _downloadCanvas(canvas,titleText,btn){
   link.download=titleText.replace(/\s+/g,'_')+'.png';
   link.href=canvas.toDataURL('image/png'); link.click();
   btn.classList.remove('loading'); _flashBtn(btn,'✅ 已下載！');
+}
+
+/* ════ 彙整表 ════ */
+var _summaryMode = 'staff';
+
+function openSummaryDialog(mode){
+  _summaryMode = mode;
+  var titles = { staff:'人員彙整', office:'單位彙整', suptype:'督導類型彙整' };
+  document.getElementById('sum-title').textContent = titles[mode] || '彙整表';
+  document.getElementById('sum-body').innerHTML = buildSummaryTable(mode, allRows);
+  var dlg = document.getElementById('summary-dialog');
+  dlg.style.display = 'flex';
+  setTimeout(function(){ dlg.classList.add('open'); }, 10);
+}
+function closeSummaryDialog(){
+  var dlg = document.getElementById('summary-dialog');
+  dlg.classList.remove('open');
+  setTimeout(function(){ dlg.style.display = 'none'; }, 220);
+}
+document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeSummaryDialog(); });
+
+function buildSummaryTable(mode, rows){
+  /* 共用：依 ROSTER_GROUPS 取得欄頭 */
+  var supTypes = ROSTER_GROUPS;
+
+  /* 依 mode 決定列鍵 */
+  var rowKey;
+  if(mode==='staff')   rowKey = COL_STAFF;
+  else if(mode==='office') rowKey = COL_OFFICE;
+  else                 rowKey = COL_SUPTYPE; /* suptype mode：列 = 督導類型，欄 = 問卷類型 */
+
+  if(mode === 'suptype'){
+    /* 督導類型 × 問卷類型 */
+    var questTypes = [];
+    var seenQ = {};
+    rows.forEach(function(r){
+      var q = String(r[COL_QUESTTYPE]||'').trim();
+      if(q && !seenQ[q]){ seenQ[q]=true; questTypes.push(q); }
+    });
+    questTypes.sort();
+
+    /* 計算：cell[督導類型][問卷類型] = Set(店碼) */
+    var matrix = {};
+    supTypes.forEach(function(st){ matrix[st]={}; questTypes.forEach(function(qt){ matrix[st][qt]=new Set(); }); });
+    var totalByQt = {}; questTypes.forEach(function(qt){ totalByQt[qt]=new Set(); });
+    var totalBySt = {}; supTypes.forEach(function(st){ totalBySt[st]=new Set(); });
+    var grandTotal = new Set();
+
+    rows.forEach(function(r){
+      var st  = String(r[COL_SUPTYPE]||'').trim();
+      var qt  = String(r[COL_QUESTTYPE]||'').trim();
+      var code= String(r[COL_CODE]||'').trim();
+      if(!code||!st) return;
+      grandTotal.add(code);
+      if(matrix[st]){ totalBySt[st].add(code); }
+      if(qt && matrix[st] && matrix[st][qt]!==undefined){ matrix[st][qt].add(code); totalByQt[qt].add(code); }
+    });
+
+    var html='<div class="detail-scroll"><table class="detail-tbl"><thead><tr>';
+    html+='<th class="th-left">督導類型</th>';
+    questTypes.forEach(function(qt){ html+='<th>'+esc(qt)+'</th>'; });
+    html+='<th>合計</th></tr></thead><tbody>';
+    supTypes.forEach(function(st){
+      html+='<tr><td class="td-left">'+esc(st)+'</td>';
+      questTypes.forEach(function(qt){ var n=matrix[st][qt].size; html+='<td class="td-num">'+(n||'—')+'</td>'; });
+      html+='<td class="td-num" style="font-weight:900;">'+totalBySt[st].size+'</td></tr>';
+    });
+    /* 合計列 */
+    html+='<tr style="border-top:2px solid #ddd;background:#f8f8f8;"><td class="td-left" style="font-weight:900;">合計</td>';
+    questTypes.forEach(function(qt){ html+='<td class="td-num" style="font-weight:900;">'+totalByQt[qt].size+'</td>'; });
+    html+='<td class="td-num" style="font-weight:900;color:var(--primary);">'+grandTotal.size+'</td></tr>';
+    html+='</tbody></table></div>';
+    return html;
+  }
+
+  /* staff / office 模式：列 = 人員or單位，欄 = 督導類型 */
+  /* 收集列鍵清單（有序） */
+  var rowKeys = [];
+  var seenR = {};
+  rows.forEach(function(r){
+    var k = String(r[rowKey]||'').trim();
+    if(k && !seenR[k]){ seenR[k]=true; rowKeys.push(k); }
+  });
+  rowKeys.sort();
+
+  /* 若是 staff，額外帶出所屬單位（取第一筆） */
+  var staffOffice = {};
+  if(mode==='staff'){
+    rows.forEach(function(r){
+      var s = String(r[COL_STAFF]||'').trim();
+      if(s && !staffOffice[s]) staffOffice[s] = String(r[COL_OFFICE]||'').trim();
+    });
+  }
+
+  /* matrix[列][督導類型] = Set(店碼) */
+  var matrix2 = {};
+  rowKeys.forEach(function(k){ matrix2[k]={}; supTypes.forEach(function(st){ matrix2[k][st]=new Set(); }); });
+  var totalBySt2 = {}; supTypes.forEach(function(st){ totalBySt2[st]=new Set(); });
+  var totalByRow = {}; rowKeys.forEach(function(k){ totalByRow[k]=new Set(); });
+  var grand2 = new Set();
+
+  rows.forEach(function(r){
+    var rk   = String(r[rowKey]||'').trim();
+    var st   = String(r[COL_SUPTYPE]||'').trim();
+    var code = String(r[COL_CODE]||'').trim();
+    if(!code||!rk||!st) return;
+    grand2.add(code);
+    totalByRow[rk].add(code);
+    if(matrix2[rk] && matrix2[rk][st]!==undefined){ matrix2[rk][st].add(code); totalBySt2[st].add(code); }
+  });
+
+  var colLabel = mode==='staff' ? '執行人員' : '營業所/課';
+  var html='<div class="detail-scroll"><table class="detail-tbl"><thead><tr>';
+  if(mode==='staff') html+='<th class="th-left">所/課</th>';
+  html+='<th class="th-left">'+esc(colLabel)+'</th>';
+  supTypes.forEach(function(st){ html+='<th>'+esc(st)+'</th>'; });
+  html+='<th>合計</th></tr></thead><tbody>';
+
+  rowKeys.forEach(function(k){
+    html+='<tr>';
+    if(mode==='staff') html+='<td class="td-left" style="color:#888;font-size:11px;">'+esc(staffOffice[k]||'')+'</td>';
+    html+='<td class="td-left">'+esc(k)+'</td>';
+    supTypes.forEach(function(st){ var n=matrix2[k][st].size; html+='<td class="td-num">'+(n||'—')+'</td>'; });
+    html+='<td class="td-num" style="font-weight:900;">'+totalByRow[k].size+'</td></tr>';
+  });
+  /* 合計列 */
+  html+='<tr style="border-top:2px solid #ddd;background:#f8f8f8;">';
+  if(mode==='staff') html+='<td></td>';
+  html+='<td class="td-left" style="font-weight:900;">合計</td>';
+  supTypes.forEach(function(st){ html+='<td class="td-num" style="font-weight:900;">'+totalBySt2[st].size+'</td>'; });
+  html+='<td class="td-num" style="font-weight:900;color:var(--primary);">'+grand2.size+'</td></tr>';
+  html+='</tbody></table></div>';
+  return html;
+}
+
+/* 彙整表 CSV */
+function downloadSummaryCsv(){
+  var btn = document.getElementById('btn-sum-csv');
+  var body = document.getElementById('sum-body');
+  var rows = body.querySelectorAll('table tr');
+  if(!rows.length){ _flashBtn(btn,'⚠️ 無資料'); return; }
+  var csv = Array.from(rows).map(function(tr){
+    return Array.from(tr.querySelectorAll('th,td')).map(function(td){
+      var s = td.textContent.trim();
+      return /[,"\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+    }).join(',');
+  }).join('\n');
+  var titles = { staff:'人員彙整', office:'單位彙整', suptype:'督導類型彙整' };
+  _downloadCsv('\uFEFF'+csv, titles[_summaryMode]||'彙整');
+  _flashBtn(btn,'✅ 已下載');
 }
 
 /* ════ 啟動 ════ */
