@@ -1,7 +1,7 @@
 <!--
 ╔══════════════════════════════════════════════════════════════════════════════════╗
 ║         傳統通路購值進度 — AI 交接說明書                                         ║
-║         VERSION: 1.3.0  UPDATED: 06/25 16:00                                    ║
+║         VERSION: 1.4.0  UPDATED: 06/26 (高光A/B新增)                               ║
 ╠══════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                  ║
 ║  【系統用途】                                                                    ║
@@ -237,6 +237,18 @@
     @keyframes exclPulse{0%,100%{box-shadow:0 0 0 0 rgba(192,57,43,0);background:rgba(192,57,43,.1);}50%{box-shadow:0 0 0 3px rgba(192,57,43,.15);background:rgba(192,57,43,.2);}}
     .excl-store-name{color:rgba(192,57,43,.8);font-size:12px;font-weight:600;}
     .d-tgt{color:var(--purple);}
+    /* 高光A：新客/活化（橘色邊框行）*/
+    .hl-row-a{background:rgba(255,140,0,.09)!important;outline:1.5px solid rgba(255,130,0,.4);outline-offset:-1px;}
+    /* 高光B：單店成長%>10%（藍紫欄色）*/
+    .hl-row-b .col-store-pct{color:#5b21b6!important;font-weight:900!important;}
+    .hl-b-badge{display:inline-block;font-size:9px;font-weight:900;color:#5b21b6;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.35);border-radius:4px;padding:1px 5px;margin-left:4px;vertical-align:middle;white-space:nowrap;}
+    /* 組織視角 store card 高光 */
+    .org-card-hl-a{border-color:rgba(255,130,0,.55)!important;background:rgba(255,140,0,.06)!important;}
+    .org-card-hl-b{border-color:rgba(124,58,237,.45)!important;background:rgba(124,58,237,.05)!important;}
+    .org-card-hl-ab{border-color:rgba(150,60,200,.5)!important;background:linear-gradient(135deg,rgba(255,140,0,.06),rgba(124,58,237,.05))!important;}
+    .org-hl-badge{display:inline-block;font-size:9px;font-weight:900;padding:1px 6px;border-radius:4px;white-space:nowrap;margin-left:4px;}
+    .org-hl-badge.a{color:#c05000;background:rgba(255,140,0,.15);border:1px solid rgba(255,130,0,.4);}
+    .org-hl-badge.b{color:#5b21b6;background:rgba(124,58,237,.12);border:1px solid rgba(124,58,237,.35);}
     #rank-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s;pointer-events:none;padding:12px;}
     #rank-modal.open{opacity:1;pointer-events:auto;}
     .rank-modal-box{background:#fff;border-radius:14px;width:99vw;max-width:1800px;max-height:94vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 80px rgba(0,0,0,.35);transform:translateY(14px);transition:transform .22s;}
@@ -1100,6 +1112,19 @@ function makeOrgCard(c){
   else if(delta>0){bigNum='+'+fmtN(delta);teCls='pos';}
   else if(delta<0){bigNum=fmtN(delta);teCls='neg';}
   else{bigNum='0.0';teCls='nil';}
+
+  /* 組織視角高光計算
+     高光A：所有有資料月份 last===0 且任一月 cur>0（新客/活化）
+     高光B：(totalCur-totalLast)/totalLast*100 > 10（業績成長>10%）*/
+  var allLastZero=true,anyData=false,anyCur=false;
+  qd.evalMonths.forEach(function(m){
+    var d=qd.monthData[m];if(!d.hasData)return;
+    anyData=true;if(d.last!==0)allLastZero=false;if(d.cur>0)anyCur=true;
+  });
+  var orgHlA=anyData&&allLastZero&&anyCur;
+  var orgDeltaPct=qd.totalLast>0?(qd.totalDelta/qd.totalLast*100):null;
+  var orgHlB=orgDeltaPct!==null&&orgDeltaPct>10;
+
   var rowsHtml=qd.months.map(function(m){
     var d=qd.monthData[m];
     var staffCell='<td style="color:var(--sub);font-size:11px;">'+esc(d.staffNames||'—')+'</td>';
@@ -1108,11 +1133,22 @@ function makeOrgCard(c){
     return '<tr><td>'+MNAMES[m]+'</td>'+staffCell+'<td class="ctn-cur">'+fmtN(d.cur)+'</td><td class="ctn-tgt">'+fmtN(d.last)+'</td><td class="ctn-eval '+dcls+'">'+(dv>0?'+':'')+fmtN(dv)+'</td></tr>';
   }).join('');
   var tdcls=delta>0?'pos':delta<0?'neg':'nil';
+  var pctStr=orgDeltaPct!==null?(orgDeltaPct>0?'+':'')+orgDeltaPct.toFixed(1)+'%':'—';
   var totalRow='<tr class="total-row"><td>合計</td><td></td><td class="ctn-cur">'+fmtN(qd.totalCur)+'</td><td class="ctn-tgt">'+fmtN(qd.totalLast)+'</td><td class="ctn-eval '+tdcls+'">'+(delta>0?'+':'')+fmtN(delta)+'</td></tr>';
-  var el=document.createElement('div');el.className='person-card';
+
+  /* 高光標籤 */
+  var hlBadges='';
+  if(orgHlA) hlBadges+='<span class="org-hl-badge a">🆕 新客/活化</span>';
+  if(orgHlB) hlBadges+='<span class="org-hl-badge b">▲'+pctStr+'</span>';
+
+  /* 卡片邊框 class */
+  var cardCls='person-card'+(orgHlA&&orgHlB?' org-card-hl-ab':orgHlA?' org-card-hl-a':orgHlB?' org-card-hl-b':'');
+
+  var el=document.createElement('div');el.className=cardCls;
   el.innerHTML=
     '<div class="pc-header"><div class="pc-title-row">'+
     '<span class="pc-name">'+esc(c.name)+'</span>'+
+    (hlBadges?hlBadges:'')+
     '<span class="pc-unit">'+esc(c.area)+'&#183;'+esc(c.office)+'</span>'+
     '<span class="pc-title-spacer"></span>'+
     '<span class="pc-q-label">'+curQ+' 增減業績</span>'+
@@ -1228,6 +1264,36 @@ function openDetailDlg(e,btn){
 function closeDetailDialog(){var dlg=document.getElementById('detail-dialog');dlg.classList.remove('open');setTimeout(function(){dlg.style.display='none';},220);}
 document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeDetailDialog();closeRank();closeSummaryTable();closePersonTable();closeMobileDrawer();}});
 
+/* ── 單店高光計算 ──
+   高光A：非排除店、連續3個月 last===0、且任一月 cur>0 → 新客/活化
+   高光B：(totalCur-totalTgt)/totalTgt*100 > 10 → 單店成長%>10%
+*/
+function _storeHighlight(s,months){
+  /* 高光A：所有有資料的月份 last===0 且至少一月 cur>0 */
+  var allLastZero=true, anyData=false, anyCur=false;
+  months.forEach(function(m){
+    var md=s.bm[m];
+    if(!md) return;
+    anyData=true;
+    if(md.last!==0) allLastZero=false;
+    if(md.cur>0) anyCur=true;
+  });
+  var hlA=anyData&&allLastZero&&anyCur;
+
+  /* 高光B：季度累計 (cur-tgt)/tgt*100 > 10 */
+  var totalCur=0,totalTgt=0,hasTgt=false;
+  months.forEach(function(m){
+    var md=s.bm[m];
+    if(!md) return;
+    totalCur+=md.cur;
+    if(md.tgt>0){totalTgt+=md.tgt;hasTgt=true;}
+  });
+  var storePct=hasTgt?(totalCur-totalTgt)/totalTgt*100:null;
+  var hlB=storePct!==null&&storePct>10;
+
+  return{hlA:hlA,hlB:hlB,storePct:storePct,totalCur:totalCur,totalTgt:totalTgt};
+}
+
 function buildDetailTbl(qd){
   if(!qd.storeRows.length) return '<div style="padding:10px 13px;font-size:10px;color:var(--sub);">無明細資料</div>';
   var months=qd.months;
@@ -1236,7 +1302,7 @@ function buildDetailTbl(qd){
   function mCls(mi,col){var bg=mi%2===0?'m-bg1':'m-bg2';return(col===0?'m-sep ':'')+bg;}
   var thCols='<th>店碼</th><th>店名</th>';
   months.forEach(function(m,mi){thCols+='<th class="'+mCls(mi,0)+'">'+MNAMES[m]+'<br>當期</th><th class="'+mCls(mi,1)+'">'+MNAMES[m]+'<br>同期</th><th class="'+mCls(mi,2)+'">'+MNAMES[m]+'<br>成長值</th>';});
-  thCols+='<th class="m-sep">單店<br>成長值</th>';
+  thCols+='<th class="m-sep">單店<br>成長值</th><th>單店<br>成長%</th>';
   var tbody='';
   Object.values(si).forEach(function(s){
     var row='<td>'+esc(s.code)+'</td><td>'+maskStoreName(esc(s.name))+'</td>';
@@ -1251,7 +1317,20 @@ function buildDetailTbl(qd){
     sg=fmt2(sg);
     var scls=sg>0?'d-pos':sg<0?'d-neg':'d-nil';
     row+=hasAny?'<td class="m-sep '+scls+'" style="font-weight:900;">'+(sg>0?'+':'')+fmtN(sg)+'</td>':'<td class="m-sep d-nil">—</td>';
-    tbody+='<tr>'+row+'</tr>';
+
+    /* 單店成長% + 高光計算 */
+    var hl=_storeHighlight(s,months);
+    var pctStr,pctCls;
+    if(hl.storePct!==null){
+      pctStr=(hl.storePct>0?'+':'')+hl.storePct.toFixed(1)+'%';
+      pctCls=hl.hlB?'col-store-pct':(hl.storePct>0?'d-pos':hl.storePct<0?'d-neg':'d-nil');
+    }else{pctStr='—';pctCls='d-nil';}
+    var bBadge=hl.hlB?'<span class="hl-b-badge">▲10%</span>':'';
+    row+='<td class="col-store-pct '+pctCls+'">'+(hasAny?pctStr+''+bBadge:'—')+'</td>';
+
+    /* 行高光 class */
+    var trCls=(hl.hlA?'hl-row-a':'')+(hl.hlB?' hl-row-b':'');
+    tbody+='<tr class="'+trCls.trim()+'">'+row+'</tr>';
   });
   /* 合計列 */
   var tRow='<tr style="font-weight:900;background:rgba(0,0,0,.03);border-top:2px solid rgba(0,0,0,.1);"><td colspan="2" style="text-align:left;padding:7px 14px;color:var(--sub);font-size:11px;">合計</td>';
@@ -1268,13 +1347,17 @@ function buildDetailTbl(qd){
   });
   var gg=fmt2(qd.totalGrowth||0);
   var gCls=gg>0?'d-pos':gg<0?'d-neg':'d-nil';
-  tRow+='<td class="m-sep '+gCls+'" style="font-weight:900;">'+(gg>0?'+':'') +fmtN(gg)+'</td></tr>';
+  /* 合計列：季成長% */
+  var totPct=qd.totalTgt>0&&gg!==null?(gg/qd.totalTgt*100):null;
+  var totPctStr=totPct!==null?(totPct>0?'+':'')+totPct.toFixed(1)+'%':'—';
+  var totPCls=totPct!==null&&totPct>0?'d-pos':totPct!==null&&totPct<0?'d-neg':'d-nil';
+  tRow+='<td class="m-sep '+gCls+'" style="font-weight:900;">'+(gg>0?'+':'') +fmtN(gg)+'</td><td class="'+totPCls+'" style="font-weight:900;">'+totPctStr+'</td></tr>';
   /* 排除店家列 */
   var excludedHtml='';
   if(qd.excludedStoreRows&&qd.excludedStoreRows.length){
     var exSi={};
     qd.excludedStoreRows.forEach(function(s){var k=s.code||s.name;if(!exSi[k])exSi[k]={code:s.code,name:s.name,bm:{}};exSi[k].bm[s.month]=s;});
-    excludedHtml+='<tr><td colspan="'+(2+months.length*3+1)+'" style="padding:6px 14px 4px;font-size:10px;font-weight:900;color:#d93025;background:rgba(217,48,37,.06);border-top:2px dashed rgba(217,48,37,.25);letter-spacing:.5px;animation:exclRowPulse 2.5s ease-in-out infinite;">⚠️ 以下店家標記排除，不計入業績合計</td></tr>';
+    excludedHtml+='<tr><td colspan="'+(2+months.length*3+2)+'" style="padding:6px 14px 4px;font-size:10px;font-weight:900;color:#d93025;background:rgba(217,48,37,.06);border-top:2px dashed rgba(217,48,37,.25);letter-spacing:.5px;animation:exclRowPulse 2.5s ease-in-out infinite;">⚠️ 以下店家標記排除，不計入業績合計</td></tr>';
     Object.values(exSi).forEach(function(s){
       /* 計算單店各月合計成長值 */
       var exTotalCur=0,exTotalLast=0;
@@ -1294,7 +1377,7 @@ function buildDetailTbl(qd){
                '<td class="'+mCls(mi,2)+' '+mgCls+'" style="opacity:.6;">'+(mg>0?'+':'')+fmtN(mg)+'</td>';
         }
       });
-      row+='<td class="m-sep '+exGCls+'" style="font-weight:900;opacity:.65;">'+(exGrowth>0?'+':'')+fmtN(exGrowth)+'</td>';
+      row+='<td class="m-sep '+exGCls+'" style="font-weight:900;opacity:.65;">'+(exGrowth>0?'+':'')+fmtN(exGrowth)+'</td><td class="d-nil" style="opacity:.5;">—</td>';
       excludedHtml+='<tr style="background:rgba(217,48,37,.035);">'+row+'</tr>';
     });
   }
@@ -1834,7 +1917,7 @@ function downloadDlgCSV(){
   var qd=_currentQd, months=qd.months||[];
   var hdr=['店碼','店名'];
   months.forEach(function(m){hdr.push(MNAMES[m]+'當期',MNAMES[m]+'同期',MNAMES[m]+'成長值');});
-  hdr.push('單店成長值');
+  hdr.push('單店成長值','單店成長%','標記');
   var rows=[hdr];
   var storeMap={};
   (qd.storeRows||[]).forEach(function(s){
@@ -1844,13 +1927,20 @@ function downloadDlgCSV(){
   });
   Object.values(storeMap).forEach(function(s){
     var row=[s.code||'',s.name||''];
-    var tc=0,tl=0;
+    var tc=0,tl=0,tt=0;
     months.forEach(function(m){
       var md=s.bm[m];
-      if(md){row.push(fmtN(md.cur),fmtN(md.last),fmtN(md.cur-md.last));tc+=md.cur;tl+=md.last;}
+      if(md){row.push(fmtN(md.cur),fmtN(md.last),fmtN(md.cur-md.last));tc+=md.cur;tl+=md.last;tt+=md.tgt||0;}
       else{row.push('','','');}
     });
-    row.push(fmtN(tc-tl));
+    var sg=fmt2(tc-tl);
+    var sp=tt>0?((tc-tt)/tt*100):null;
+    row.push(fmtN(sg));
+    row.push(sp!==null?(sp>0?'+':'')+sp.toFixed(1)+'%':'—');
+    /* 高光標記 */
+    var hl=_storeHighlight(s,months);
+    var tags=[];if(hl.hlA)tags.push('新客/活化');if(hl.hlB)tags.push('成長>10%');
+    row.push(tags.join('|')||'');
     rows.push(row);
   });
   /* 排除店家 */
@@ -1873,7 +1963,7 @@ function downloadDlgXLSX(){
   var qd=_currentQd, months=qd.months||[];
   var hdr=['店碼','店名'];
   months.forEach(function(m){hdr.push(MNAMES[m]+'當期',MNAMES[m]+'同期',MNAMES[m]+'成長值');});
-  hdr.push('單店成長值');
+  hdr.push('單店成長值','單店成長%','標記');
   var rows=[hdr];
   /* 正常店家 */
   var storeMap={};
@@ -1884,13 +1974,19 @@ function downloadDlgXLSX(){
   });
   Object.values(storeMap).forEach(function(s){
     var row=[s.code||'',s.name||''];
-    var totalCur=0,totalLast=0;
+    var totalCur=0,totalLast=0,totalTgt=0;
     months.forEach(function(m){
       var md=s.bm[m];
-      if(md){row.push(fmt2(md.cur),fmt2(md.last),fmt2(md.cur-md.last));totalCur+=md.cur;totalLast+=md.last;}
+      if(md){row.push(fmt2(md.cur),fmt2(md.last),fmt2(md.cur-md.last));totalCur+=md.cur;totalLast+=md.last;totalTgt+=md.tgt||0;}
       else{row.push('','','');}
     });
-    row.push(fmt2(totalCur-totalLast));
+    var sg=fmt2(totalCur-totalLast);
+    var sp=totalTgt>0?((totalCur-totalTgt)/totalTgt*100):null;
+    row.push(sg);
+    row.push(sp!==null?Math.round(sp*10)/10+'%':'—');
+    var hl=_storeHighlight(s,months);
+    var tags=[];if(hl.hlA)tags.push('新客/活化');if(hl.hlB)tags.push('成長>10%');
+    row.push(tags.join('|')||'');
     rows.push(row);
   });
   /* 合計列 */
@@ -1900,7 +1996,7 @@ function downloadDlgXLSX(){
     if(md){totRow.push(fmt2(md.cur),fmt2(md.last),fmt2(md.growth));}
     else{totRow.push('','','');}
   });
-  totRow.push(fmt2(qd.totalGrowth));
+  totRow.push(fmt2(qd.totalGrowth),'','');
   rows.push(totRow);
   /* 排除店家 */
   if(qd.excludedStoreRows&&qd.excludedStoreRows.length){
@@ -1910,7 +2006,7 @@ function downloadDlgXLSX(){
     Object.values(exMap).forEach(function(s){
       var row=[s.code||'','[排除]'+(s.name||'')];
       months.forEach(function(m){var md=s.bm[m];if(md){row.push(fmt2(md.cur),fmt2(md.last),'—');}else{row.push('','','');}});
-      row.push('—'); rows.push(row);
+      row.push('—','',''); rows.push(row);
     });
   }
   var wb=XLSX.utils.book_new();
