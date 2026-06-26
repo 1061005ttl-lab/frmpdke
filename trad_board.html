@@ -352,7 +352,7 @@
   <button class="tb-btn" onclick="toggleRank()" id="rank-btn" style="background:rgba(255,215,0,.15);border-color:rgba(200,160,0,.3);color:#7a5500;">&#127942; 獎金排行</button>
   <button class="tb-btn" onclick="openPersonTable()" id="ptbl-btn" style="background:rgba(74,122,85,.1);border-color:rgba(74,122,85,.3);color:#2d5a38;">&#128100; 人員表</button>
   <div id="tb-right">
-    <div id="ver-ts">Ver. 1.3.1 (2026-06-26)</div>
+    <div id="ver-ts">Ver. 1.3.2 (2026-06-26)</div>
     <button class="tb-btn" onclick="mainCopyLine()" id="btn-main-line">&#128172; LINE</button>
     <button class="tb-btn" onclick="downloadCSV()" id="btn-main-csv">&#128229; CSV</button>
     <button class="tb-btn" onclick="mainScreenshot()" id="btn-main-shot">&#128248; 截圖</button>
@@ -1545,45 +1545,78 @@ function closeSummaryTable(){var m=document.getElementById('summary-modal');m.st
 /* ══════════════════════════════════════════════
    人員彙整表
    ══════════════════════════════════════════════ */
+
+/* 解析各月 role 摘要：
+   傳回 { roleMonthCount, monthRoles, roleLabel, isVisitor }
+   - roleMonthCount : 有效身分月份數（role 非空）
+   - monthRoles     : { [month]: roleStr } 各月 role 原始值
+   - roleLabel      : 顯示用摘要字串，如「訪員×3」「暫估×2」「混合」
+   - isVisitor      : 是否至少有一個月是「正式訪員」（role 非空且不含暫）
+*/
+function _parseRoleDetail(qd){
+  var months=qd.months;
+  var monthRoles={};
+  var formalCnt=0, pendCnt=0;
+  months.forEach(function(m){
+    var d=qd.monthData[m];
+    if(!d.hasData||!d.role) return;
+    monthRoles[m]=d.role;
+    if(d.role.indexOf('暫')>=0) pendCnt++;
+    else formalCnt++;
+  });
+  var isVisitor=(formalCnt>0);
+  var total=formalCnt+pendCnt;
+  var label;
+  if(total===0){ label='—'; }
+  else if(formalCnt>0&&pendCnt===0){ label='訪員×'+formalCnt; }
+  else if(formalCnt===0&&pendCnt>0){ label='暫估×'+pendCnt; }
+  else{ label='正式×'+formalCnt+' 暫×'+pendCnt; }
+  return{roleMonthCount:total,monthRoles:monthRoles,roleLabel:label,isVisitor:isVisitor,formalCnt:formalCnt,pendCnt:pendCnt};
+}
+
 function _buildPersonTableData(){
-  /* 全區人員清單（不受 fArea/fOffice 過濾，方便顯示全體） */
-  var pMap={};
+  /* ① 全體人員清單 — 用來計算排名（不受篩選影響） */
+  var allPMap={};
   allRows.forEach(function(r){
     var rawStaff=gv(r,'staff')||'（未知）';
-    var area=gv(r,'area'), office=gv(r,'office');
+    var area=gv(r,'area'),office=gv(r,'office');
     var key=SPLIT_NAMES.indexOf(rawStaff)>=0?rawStaff+'||'+area+'||'+office:rawStaff;
-    if(!pMap[key])pMap[key]={rows:[],area:'',office:'',displayName:rawStaff,lastM:0,lastMAll:0};
-    pMap[key].rows.push(r);
+    if(!allPMap[key])allPMap[key]={rows:[],area:'',office:'',displayName:rawStaff,lastM:0,lastMAll:0};
+    allPMap[key].rows.push(r);
     var m=parseInt(gv(r,'month'))||0;
     var qM=QUARTERS[curQ]||[];
-    if(qM.indexOf(m)>=0&&m>pMap[key].lastM){pMap[key].lastM=m;pMap[key].area=area;pMap[key].office=office;}
-    if(m>pMap[key].lastMAll){pMap[key].lastMAll=m;if(!pMap[key].area)pMap[key].area=area;if(!pMap[key].office)pMap[key].office=office;}
+    if(qM.indexOf(m)>=0&&m>allPMap[key].lastM){allPMap[key].lastM=m;allPMap[key].area=area;allPMap[key].office=office;}
+    if(m>allPMap[key].lastMAll){allPMap[key].lastMAll=m;if(!allPMap[key].area)allPMap[key].area=area;if(!allPMap[key].office)allPMap[key].office=office;}
   });
-  /* 計算各人員季資料 */
-  var persons=Object.keys(pMap).map(function(key){
-    var info=pMap[key];
+  /* ② 計算全體季資料（排名基礎） */
+  var allPersons=Object.keys(allPMap).map(function(key){
+    var info=allPMap[key];
     var qd=calcPersonQ(info.rows,curQ);
     if(!qd.evalMonths.length) return null;
-    /* 成長突破獎 / 卓越貢獻獎：先計算全體後再賦予 */
     return{key:key,displayName:info.displayName,area:info.area,office:info.office,qd:qd};
   }).filter(Boolean);
-  /* 計算處別排名（僅 $1,000 達標者） */
-  var byArea={};
-  persons.forEach(function(p){
+  /* ③ 全體排名計算（僅 $1,000 達標者，依處別 dense rank） */
+  var byAreaAll={};
+  allPersons.forEach(function(p){
     if(p.qd.bonus!==1000) return;
     var a=p.area||'（未知）';
-    if(!byArea[a])byArea[a]=[];
-    byArea[a].push(p);
+    if(!byAreaAll[a])byAreaAll[a]=[];
+    byAreaAll[a].push(p);
   });
-  /* 依成長值排名（卓越貢獻）& 依成長率排名（成長突破） */
   function denseRank(arr,sf){
     var s=arr.slice().sort(function(a,b){return b.qd[sf]-a.qd[sf];});
     var rc=0;
     s.forEach(function(x,i){if(i===0||x.qd[sf]!==s[i-1].qd[sf])rc++;x['_rank_'+sf]=rc;});
   }
-  Object.values(byArea).forEach(function(arr){
+  Object.values(byAreaAll).forEach(function(arr){
     denseRank(arr,'totalGrowth');
     denseRank(arr,'growthRate');
+  });
+  /* ④ 套用外層篩選 — 只顯示符合 fArea / fOffice 的人員 */
+  var persons=allPersons.filter(function(p){
+    if(fArea&&p.area!==fArea) return false;
+    if(fOffice&&p.office!==fOffice) return false;
+    return true;
   });
   return persons;
 }
@@ -1596,12 +1629,15 @@ function _personTableHTML(persons){
     if(!groups[a])groups[a]=[];
     groups[a].push(p);
   });
+
+  var NCOLS=12; /* 總欄數（含身分別欄） */
   var thS='padding:7px 10px;font-size:11px;font-weight:800;color:#444;background:#f0f4f0;border-bottom:2px solid #ccd8cc;border-right:1px solid #dde8dd;white-space:nowrap;text-align:right;position:sticky;top:0;z-index:2;';
   var thSL=thS+'text-align:left;';
   var thead='<thead><tr>'+
     '<th style="'+thSL+'">營業處</th>'+
     '<th style="'+thSL+'">營業所</th>'+
     '<th style="'+thSL+'">人名</th>'+
+    '<th style="'+thSL+'">身分別</th>'+
     '<th style="'+thS+'">當期業績</th>'+
     '<th style="'+thS+'">同期業績</th>'+
     '<th style="'+thS+'">成長額度</th>'+
@@ -1611,45 +1647,65 @@ function _personTableHTML(persons){
     '<th style="'+thS+'">卓越貢獻獎</th>'+
     '<th style="'+thS+'">品評額度</th>'+
   '</tr></thead>';
+
   var tdS='padding:6px 10px;font-size:12px;border-bottom:1px solid #eee;border-right:1px solid #f0f0f0;text-align:right;white-space:nowrap;';
   var tdSL=tdS+'text-align:left;';
   function dCl(v){return v>0?'color:#22a84c;font-weight:800;':v<0?'color:#d93025;font-weight:800;':'color:#aaa;';}
-  function ds(v,isAmt){var n=isAmt?Math.round(v*10)/10:fmt2(v);return(v>0?'+':'')+fmtN(n);}
+  function ds(v){return(v>0?'+':'')+fmtN(fmt2(v));}
   function rankBadge(r){if(!r||r>3)return '—';var labels={1:'🥇 第1',2:'🥈 第2',3:'🥉 第3'};return labels[r]||'—';}
-  var tbody='<tbody>';
-  /* 小計函數 */
-  function makeSubtot(label,arr,colspan,trStyle){
+
+  /* 小計函數（欄數改為 NCOLS） */
+  function makeSubtot(label,arr,trStyle){
     var sC=arr.reduce(function(s,p){return s+p.qd.totalCur;},0);
     var sL=arr.reduce(function(s,p){return s+p.qd.totalLast;},0);
     var sD=sC-sL;
     return '<tr style="'+trStyle+'">'+
-      '<td colspan="'+colspan+'" style="'+tdSL+'font-size:11px;">'+label+'</td>'+
+      '<td colspan="4" style="'+tdSL+'font-size:11px;">'+label+'</td>'+
       '<td style="'+tdS+'color:#1a73e8;font-weight:900;">'+fmtN(sC)+'</td>'+
       '<td style="'+tdS+'color:#7c3aed;font-weight:900;">'+fmtN(sL)+'</td>'+
       '<td style="'+tdS+dCl(sD)+'font-weight:900;">'+ds(sD)+'</td>'+
       '<td colspan="5" style="'+tdS+'color:#aaa;">—</td>'+
     '</tr>';
   }
-  var allPersons=[];
+
+  /* 排序 helper：有效月份 ≤1 的沉底 */
+  function sortPersons(arr){
+    return arr.slice().sort(function(a,b){
+      var aRd=_parseRoleDetail(a.qd), bRd=_parseRoleDetail(b.qd);
+      var aLow=(aRd.roleMonthCount<=1)?1:0;
+      var bLow=(bRd.roleMonthCount<=1)?1:0;
+      if(aLow!==bLow) return aLow-bLow;
+      return(b.qd.totalGrowth||0)-(a.qd.totalGrowth||0);
+    });
+  }
+
+  var tbody='<tbody>';
+  var allShown=[];
   sortAreas(Object.keys(groups)).forEach(function(areaName){
-    var arr=groups[areaName];
-    arr.sort(function(a,b){return(b.qd.totalGrowth||0)-(a.qd.totalGrowth||0);});
-    /* 處別 header */
-    tbody+='<tr><td colspan="11" style="padding:6px 10px;font-size:11px;font-weight:900;color:#3a6a45;background:#edf5ed;border-top:2px solid #c0d8c0;border-bottom:1px solid #cce0cc;">&#127970; '+esc(areaName)+'　<span style="font-weight:500;color:#888;">'+arr.length+' 人</span></td></tr>';
+    var arr=sortPersons(groups[areaName]);
+    tbody+='<tr><td colspan="'+NCOLS+'" style="padding:6px 10px;font-size:11px;font-weight:900;color:#3a6a45;background:#edf5ed;border-top:2px solid #c0d8c0;border-bottom:1px solid #cce0cc;">&#127970; '+esc(areaName)+'　<span style="font-weight:500;color:#888;">'+arr.length+' 人</span></td></tr>';
     arr.forEach(function(p){
-      allPersons.push(p);
+      allShown.push(p);
       var qd=p.qd;
+      var rd=_parseRoleDetail(qd);
       var grow=qd.totalGrowth;
       var pct=qd.totalPct;
       var pctStr=pct!==null?(pct>=0?'+':'')+pct.toFixed(1)+'%':'—';
       var bonusStr=qd.bonus?'$'+qd.bonus:'—';
       var rankG=p['_rank_totalGrowth'];
       var rankR=p['_rank_growthRate'];
-      var evalStr=qd.evalAmt>0?('$'+qd.evalAmt.toLocaleString()+(qd.evalAmt>=20000?' ★':'')):'—';
-      tbody+='<tr>'+
+      /* 品評額度：只有卓越貢獻獎 第1名才顯示 */
+      var evalStr=(rankG===1&&qd.evalAmt>0)?('$'+qd.evalAmt.toLocaleString()+(qd.evalAmt>=20000?' ★':'')):'—';
+      /* 身分別欄樣式 */
+      var rdColor=rd.roleMonthCount<=1?'color:#d93025;font-weight:800;':(rd.formalCnt>0?'color:#22a84c;font-weight:700;':'color:#996600;font-weight:700;');
+      var rdLabel=rd.roleLabel+(rd.roleMonthCount>0?' ('+rd.roleMonthCount+'/3)':'');
+      /* 有效月份 ≤1 整列淡化 */
+      var rowBg=rd.roleMonthCount<=1?'background:rgba(0,0,0,.025);':'';
+      tbody+='<tr style="'+rowBg+'">'+
         '<td style="'+tdSL+'color:#555;font-size:11px;">'+esc(p.area)+'</td>'+
         '<td style="'+tdSL+'color:#555;font-size:11px;">'+esc(p.office)+'</td>'+
-        '<td style="'+tdSL+'font-weight:700;">'+esc(p.displayName)+'</td>'+
+        '<td style="'+tdSL+'font-weight:700;">'+(rd.roleMonthCount<=1?'<span style="color:#bbb;">':'')+''+esc(p.displayName)+(rd.roleMonthCount<=1?'</span>':'')+'</td>'+
+        '<td style="'+tdSL+rdColor+'font-size:11px;">'+rdLabel+'</td>'+
         '<td style="'+tdS+'color:#1a73e8;">'+fmtN(qd.totalCur)+'</td>'+
         '<td style="'+tdS+'color:#7c3aed;">'+fmtN(qd.totalLast)+'</td>'+
         '<td style="'+tdS+dCl(grow)+'">'+(grow!==null?ds(grow):'—')+'</td>'+
@@ -1657,14 +1713,12 @@ function _personTableHTML(persons){
         '<td style="'+tdS+(qd.bonus===1000?'color:#7a5500;font-weight:900;background:rgba(255,215,0,.08);':qd.bonus===500?'color:#3a6a45;font-weight:800;':'color:#aaa;')+'">'+bonusStr+'</td>'+
         '<td style="'+tdS+(rankR&&rankR<=3?'font-weight:900;':'color:#aaa;')+'">'+rankBadge(rankR)+'</td>'+
         '<td style="'+tdS+(rankG&&rankG<=3?'font-weight:900;':'color:#aaa;')+'">'+rankBadge(rankG)+'</td>'+
-        '<td style="'+tdS+(qd.evalAmt>=20000?'color:#a04000;font-weight:900;':qd.evalAmt>0?'color:#7a5500;font-weight:800;':'color:#aaa;')+'">'+evalStr+'</td>'+
+        '<td style="'+tdS+(rankG===1&&qd.evalAmt>=20000?'color:#a04000;font-weight:900;':rankG===1&&qd.evalAmt>0?'color:#7a5500;font-weight:800;':'color:#aaa;')+'">'+evalStr+'</td>'+
       '</tr>';
     });
-    /* 處別小計 */
-    tbody+=makeSubtot('　小計 '+arr.length+' 人',arr,3,'background:#edf5ed;font-weight:900;border-top:1.5px solid #c0d8c0;');
+    tbody+=makeSubtot('　小計 '+arr.length+' 人',arr,'background:#edf5ed;font-weight:900;border-top:1.5px solid #c0d8c0;');
   });
-  /* 總計 */
-  tbody+=makeSubtot('&#128290; 總計 '+allPersons.length+' 人',allPersons,3,'background:#c2dfc2;font-weight:900;border-top:3px solid #5a9a5a;');
+  tbody+=makeSubtot('&#128290; 總計 '+allShown.length+' 人',allShown,'background:#c2dfc2;font-weight:900;border-top:3px solid #5a9a5a;');
   tbody+='</tbody>';
   return '<table style="border-collapse:collapse;font-size:13px;min-width:100%;">'+thead+tbody+'</table>';
 }
@@ -1673,8 +1727,9 @@ function openPersonTable(){
   var modal=document.getElementById('person-table-modal');
   if(!allRows.length){alert('尚無資料');return;}
   var persons=_buildPersonTableData();
+  var scopeLabel=fOffice?fOffice:(fArea?fArea:'全體');
   document.getElementById('ptbl-title').textContent='👤 人員彙整表';
-  document.getElementById('ptbl-subtitle').textContent=curQ+'　共 '+persons.length+' 人';
+  document.getElementById('ptbl-subtitle').textContent=curQ+'　'+scopeLabel+'　共 '+persons.length+' 人';
   document.getElementById('ptbl-body').innerHTML=_personTableHTML(persons);
   modal.style.display='flex';requestAnimationFrame(function(){modal.style.opacity='1';});
 }
@@ -1682,22 +1737,26 @@ function closePersonTable(){var m=document.getElementById('person-table-modal');
 
 function _assemblePersonTableRows(){
   var persons=_buildPersonTableData();
-  var hdr=['營業處','營業所','人名','當期業績','同期業績','成長額度','成長%','達成獎勵','成長突破獎','卓越貢獻獎','品評額度'];
+  var hdr=['營業處','營業所','人名','身分別','有效月份','當期業績','同期業績','成長額度','成長%','達成獎勵','成長突破獎','卓越貢獻獎','品評額度'];
   var rows=[hdr];
   function rankLabel(r){if(!r||r>3)return '—';return '第'+r+'名';}
   persons.forEach(function(p){
     var qd=p.qd;
+    var rd=_parseRoleDetail(qd);
     var pct=qd.totalPct;
     var pctStr=pct!==null?(pct>=0?'+':'')+pct.toFixed(1)+'%':'—';
+    var rankG=p['_rank_totalGrowth'];
+    var evalStr=(rankG===1&&qd.evalAmt>0)?('$'+qd.evalAmt.toLocaleString()+(qd.evalAmt>=20000?' ★':'')):'—';
     rows.push([
       p.area,p.office,p.displayName,
+      rd.roleLabel,rd.roleMonthCount+'/3',
       fmtN(qd.totalCur),fmtN(qd.totalLast),
       qd.totalGrowth!==null?(qd.totalGrowth>0?'+':'')+fmtN(qd.totalGrowth):'—',
       pctStr,
       qd.bonus?'$'+qd.bonus:'—',
       rankLabel(p['_rank_growthRate']),
-      rankLabel(p['_rank_totalGrowth']),
-      qd.evalAmt>0?'$'+qd.evalAmt.toLocaleString()+(qd.evalAmt>=20000?' ★':''):'—'
+      rankLabel(rankG),
+      evalStr
     ]);
   });
   return rows;
@@ -1716,7 +1775,7 @@ function personTableScreenshot(){
   var btn=document.getElementById('btn-ptbl-shot');btn.textContent='⏳ 截圖中...';
   _loadH2C(function(){
     var body=document.getElementById('ptbl-body');
-    var titleText='人員彙整表 '+curQ;
+    var titleText=document.getElementById('ptbl-title').textContent+' '+document.getElementById('ptbl-subtitle').textContent;
     var wrapper=document.createElement('div');wrapper.style.cssText='background:#fff;padding:16px 20px;font-family:Microsoft JhengHei,Noto Sans TC,sans-serif;position:fixed;top:-9999px;left:-9999px;';
     var h=document.createElement('div');h.style.cssText='font-size:14px;font-weight:900;color:#1a2a1a;margin-bottom:12px;padding-bottom:10px;border-bottom:2px solid #c8dcc8;';h.textContent=titleText;wrapper.appendChild(h);
     var bc=body.cloneNode(true);bc.style.overflow='visible';bc.querySelectorAll('*').forEach(function(el){if(el.style)el.style.overflow='visible';});bc.querySelectorAll('th').forEach(function(el){el.style.position='static';});wrapper.appendChild(bc);
