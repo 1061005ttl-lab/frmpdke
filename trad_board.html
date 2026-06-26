@@ -1,7 +1,7 @@
 <!--
 ╔══════════════════════════════════════════════════════════════════════════════════╗
 ║         傳統通路購值進度 — AI 交接說明書                                         ║
-║         VERSION: 1.5.2  UPDATED: 06/27 (高光參數置頂；單位修正千元；HL_A/B常數化)  ║
+║         VERSION: 1.5.3  UPDATED: 06/27 (高光B改只抓正向異常成長，負數不觸發)       ║
 ╠══════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                  ║
 ║  【系統用途】                                                                    ║
@@ -553,7 +553,7 @@ var GR_RATE    = 1.0;   /* 目標門檻不×1.05，孰高後直接為目標 */
 
 /* ── 高光條件參數（千元單位，與表格一致）──────────────────────
    HL_A_MIN_CUR  : 高光A（新進客）當期合計門檻，千元。10 = 一萬元
-   HL_B_DELTA    : 高光B（異常值）增減絕對值門檻，千元。50 = 五萬元
+   HL_B_DELTA    : 高光B（異常成長）增減正向門檻，千元。50 = 五萬元（負數不觸發）
    HL_B_PCT      : 高光B（異常值）成長%門檻。200 = 三倍以上成長
    ── 兩者任一成立即觸發高光B，且同期必須 > 0 ─────────────── */
 var HL_A_MIN_CUR = 10;   /* 千元：1萬（新進客當期門檻） */
@@ -1132,7 +1132,7 @@ function makeOrgCard(c){
   var orgTotalLast=qd.totalLast,orgTotalCur=qd.totalCur,orgDelta=qd.totalDelta;
   var orgHlA=(orgTotalLast===0)&&(orgTotalCur>HL_A_MIN_CUR)&&qd.evalMonths.length>0;
   var orgDeltaPct=orgTotalLast>0?(orgDelta/orgTotalLast*100):null;
-  var orgHlB=orgTotalLast>0&&(Math.abs(orgDelta)>HL_B_DELTA||orgDeltaPct>HL_B_PCT);
+  var orgHlB=orgTotalLast>0&&orgDelta>0&&(orgDelta>HL_B_DELTA||orgDeltaPct>HL_B_PCT);
 
   var rowsHtml=qd.months.map(function(m){
     var d=qd.monthData[m];
@@ -1295,7 +1295,7 @@ function _storeHighlight(s,months){
   /* 高光B：同期>0，且（增減絕對值>HL_B_DELTA 或 成長%>HL_B_PCT） */
   var storePct=totalLast>0?((totalCur-totalLast)/totalLast*100):null;
   var delta=totalCur-totalLast;
-  var hlB=totalLast>0&&(Math.abs(delta)>HL_B_DELTA||storePct>HL_B_PCT);
+  var hlB=totalLast>0&&delta>0&&(delta>HL_B_DELTA||storePct>HL_B_PCT);
   return{hlA:hlA,hlB:hlB,storePct:storePct,delta:delta,totalCur:totalCur,totalLast:totalLast};
 }
 
