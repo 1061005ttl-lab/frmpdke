@@ -1,7 +1,7 @@
 <!--
 ╔══════════════════════════════════════════════════════════════════════════════════╗
 ║         傳統通路購值進度 — AI 交接說明書                                         ║
-║         VERSION: 1.5.3  UPDATED: 06/27 (高光B改只抓正向異常成長，負數不觸發)       ║
+║         VERSION: 1.5.4  UPDATED: 06/27 (高光B加最低成長值HL_B_MIN=10千元)          ║
 ╠══════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                  ║
 ║  【系統用途】                                                                    ║
@@ -558,6 +558,7 @@ var GR_RATE    = 1.0;   /* 目標門檻不×1.05，孰高後直接為目標 */
    ── 兩者任一成立即觸發高光B，且同期必須 > 0 ─────────────── */
 var HL_A_MIN_CUR = 10;   /* 千元：1萬（新進客當期門檻） */
 var HL_B_DELTA   = 50;   /* 千元：5萬（異常增減門檻） */
+var HL_B_MIN     = 10;   /* 千元：1萬（高光B最低成長值，低於此直接忽略） */
 var HL_B_PCT     = 200;  /* %：200% 三倍成長（異常比例門檻） */
 var QUARTERS   = {Q1:[1,2,3],Q2:[4,5,6],Q3:[7,8,9],Q4:[10,11,12]};
 var AREA_ORDER = ['北部','桃園','臺中','嘉義','臺南','高雄','花蓮','台中','台南']; /* 台/臺 兩種都支援 */
@@ -1132,7 +1133,7 @@ function makeOrgCard(c){
   var orgTotalLast=qd.totalLast,orgTotalCur=qd.totalCur,orgDelta=qd.totalDelta;
   var orgHlA=(orgTotalLast===0)&&(orgTotalCur>HL_A_MIN_CUR)&&qd.evalMonths.length>0;
   var orgDeltaPct=orgTotalLast>0?(orgDelta/orgTotalLast*100):null;
-  var orgHlB=orgTotalLast>0&&orgDelta>0&&(orgDelta>HL_B_DELTA||orgDeltaPct>HL_B_PCT);
+  var orgHlB=orgTotalLast>0&&orgDelta>HL_B_MIN&&(orgDelta>HL_B_DELTA||orgDeltaPct>HL_B_PCT);
 
   var rowsHtml=qd.months.map(function(m){
     var d=qd.monthData[m];
@@ -1295,7 +1296,7 @@ function _storeHighlight(s,months){
   /* 高光B：同期>0，且（增減絕對值>HL_B_DELTA 或 成長%>HL_B_PCT） */
   var storePct=totalLast>0?((totalCur-totalLast)/totalLast*100):null;
   var delta=totalCur-totalLast;
-  var hlB=totalLast>0&&delta>0&&(delta>HL_B_DELTA||storePct>HL_B_PCT);
+  var hlB=totalLast>0&&delta>HL_B_MIN&&(delta>HL_B_DELTA||storePct>HL_B_PCT);
   return{hlA:hlA,hlB:hlB,storePct:storePct,delta:delta,totalCur:totalCur,totalLast:totalLast};
 }
 
