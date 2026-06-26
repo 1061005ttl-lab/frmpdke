@@ -241,6 +241,19 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .td-grp-color-2 { background:rgba(255,149,0,.07); }
 .td-grp-color-3 { background:rgba(175,82,222,.05); }
 
+/* ── Summary table ── */
+.sum-tbl { min-width:500px; }
+.sum-th-key { text-align:left; min-width:120px; }
+.sum-th-val { min-width:80px; }
+.sum-th-total { min-width:70px; background:rgba(55,138,221,.08) !important; }
+.sum-td-key { font-size:13px; color:#333; padding-left:16px !important; }
+.sum-td-val { text-align:center; font-size:14px; font-weight:700; color:var(--green); }
+.sum-td-total { text-align:center; font-size:14px; font-weight:900; color:var(--primary); background:rgba(55,138,221,.05); }
+.sum-td-grand { text-align:center; font-size:15px; font-weight:900; color:var(--primary); background:rgba(55,138,221,.10); }
+.sum-footer { border-top:2px solid #ccc; background:#f4f4f2 !important; }
+.sum-footer .sum-td-key { font-weight:900; font-size:13px; color:#222; }
+.dash { color:#ccc; font-weight:400; }
+
 @media (max-width:640px) {
   .toolbar { padding:0 10px; gap:6px; flex-wrap:nowrap; }
   .toolbar-title { display:none; }
@@ -299,9 +312,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   </div>
 </div>
 
-
-
-<!-- Dialog -->
+<!-- Detail Dialog -->
 <div id="detail-dialog" style="display:none" onclick="if(event.target===this)closeDialog()">
   <div class="dlg-box">
     <div class="dlg-header">
@@ -314,6 +325,9 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <div class="dlg-body" id="dlg-body"></div>
   </div>
 </div>
+
+<div class="quicknav" id="quicknav"></div>
+<div class="stage"   id="stage"></div>
 
 <script>
 /* ════ 設定（寫死，同 index 架構） ════ */
@@ -956,17 +970,10 @@ function closeSummaryDialog(){
 document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeSummaryDialog(); });
 
 function buildSummaryTable(mode, rows){
-  /* 共用：依 ROSTER_GROUPS 取得欄頭 */
   var supTypes = ROSTER_GROUPS;
 
-  /* 依 mode 決定列鍵 */
-  var rowKey;
-  if(mode==='staff')   rowKey = COL_STAFF;
-  else if(mode==='office') rowKey = COL_OFFICE;
-  else                 rowKey = COL_SUPTYPE; /* suptype mode：列 = 督導類型，欄 = 問卷類型 */
-
+  /* ── 督導類型 × 問卷類型 ── */
   if(mode === 'suptype'){
-    /* 督導類型 × 問卷類型 */
     var questTypes = [];
     var seenQ = {};
     rows.forEach(function(r){
@@ -974,97 +981,115 @@ function buildSummaryTable(mode, rows){
       if(q && !seenQ[q]){ seenQ[q]=true; questTypes.push(q); }
     });
     questTypes.sort();
-
-    /* 計算：cell[督導類型][問卷類型] = Set(店碼) */
     var matrix = {};
     supTypes.forEach(function(st){ matrix[st]={}; questTypes.forEach(function(qt){ matrix[st][qt]=new Set(); }); });
     var totalByQt = {}; questTypes.forEach(function(qt){ totalByQt[qt]=new Set(); });
     var totalBySt = {}; supTypes.forEach(function(st){ totalBySt[st]=new Set(); });
     var grandTotal = new Set();
-
     rows.forEach(function(r){
-      var st  = String(r[COL_SUPTYPE]||'').trim();
-      var qt  = String(r[COL_QUESTTYPE]||'').trim();
-      var code= String(r[COL_CODE]||'').trim();
+      var st=String(r[COL_SUPTYPE]||'').trim(), qt=String(r[COL_QUESTTYPE]||'').trim(), code=String(r[COL_CODE]||'').trim();
       if(!code||!st) return;
       grandTotal.add(code);
       if(matrix[st]){ totalBySt[st].add(code); }
-      if(qt && matrix[st] && matrix[st][qt]!==undefined){ matrix[st][qt].add(code); totalByQt[qt].add(code); }
+      if(qt&&matrix[st]&&matrix[st][qt]!==undefined){ matrix[st][qt].add(code); totalByQt[qt].add(code); }
     });
-
-    var html='<div class="detail-scroll"><table class="detail-tbl"><thead><tr>';
-    html+='<th class="th-left">督導類型</th>';
-    questTypes.forEach(function(qt){ html+='<th>'+esc(qt)+'</th>'; });
-    html+='<th>合計</th></tr></thead><tbody>';
-    supTypes.forEach(function(st){
-      html+='<tr><td class="td-left">'+esc(st)+'</td>';
-      questTypes.forEach(function(qt){ var n=matrix[st][qt].size; html+='<td class="td-num">'+(n||'—')+'</td>'; });
-      html+='<td class="td-num" style="font-weight:900;">'+totalBySt[st].size+'</td></tr>';
+    var html='<div class="detail-scroll"><table class="detail-tbl sum-tbl"><thead><tr>'
+      +'<th class="th-left sum-th-key">督導類型</th>';
+    questTypes.forEach(function(qt){ html+='<th class="sum-th-val">'+esc(qt)+'</th>'; });
+    html+='<th class="sum-th-total">合計</th></tr></thead><tbody>';
+    supTypes.forEach(function(st,si){
+      html+='<tr style="'+(si%2?'background:#f9f9f7;':'')+'">'
+        +'<td class="td-left sum-td-key">'+esc(st)+'</td>';
+      questTypes.forEach(function(qt){ var n=matrix[st][qt].size; html+='<td class="sum-td-val">'+(n||'<span class="dash">—</span>')+'</td>'; });
+      html+='<td class="sum-td-total">'+totalBySt[st].size+'</td></tr>';
     });
-    /* 合計列 */
-    html+='<tr style="border-top:2px solid #ddd;background:#f8f8f8;"><td class="td-left" style="font-weight:900;">合計</td>';
-    questTypes.forEach(function(qt){ html+='<td class="td-num" style="font-weight:900;">'+totalByQt[qt].size+'</td>'; });
-    html+='<td class="td-num" style="font-weight:900;color:var(--primary);">'+grandTotal.size+'</td></tr>';
+    html+='<tr class="sum-footer"><td class="td-left sum-td-key">合計</td>';
+    questTypes.forEach(function(qt){ html+='<td class="sum-td-total">'+totalByQt[qt].size+'</td>'; });
+    html+='<td class="sum-td-grand">'+grandTotal.size+'</td></tr>';
     html+='</tbody></table></div>';
     return html;
   }
 
-  /* staff / office 模式：列 = 人員or單位，欄 = 督導類型 */
-  /* 收集列鍵清單（有序） */
-  var rowKeys = [];
-  var seenR = {};
-  rows.forEach(function(r){
-    var k = String(r[rowKey]||'').trim();
-    if(k && !seenR[k]){ seenR[k]=true; rowKeys.push(k); }
-  });
-  rowKeys.sort();
+  /* ── 人員 / 單位：依營業處分群 ── */
+  var rowKey = (mode==='staff') ? COL_STAFF : COL_OFFICE;
+  var AREA_COLORS = [
+    'rgba(55,138,221,.10)','rgba(59,109,17,.08)','rgba(255,149,0,.09)',
+    'rgba(175,82,222,.08)','rgba(255,59,48,.07)','rgba(90,200,250,.10)','rgba(255,204,0,.09)'
+  ];
 
-  /* 若是 staff，額外帶出所屬單位（取第一筆） */
-  var staffOffice = {};
-  if(mode==='staff'){
-    rows.forEach(function(r){
-      var s = String(r[COL_STAFF]||'').trim();
-      if(s && !staffOffice[s]) staffOffice[s] = String(r[COL_OFFICE]||'').trim();
+  /* 建立 areaMap[area][rk][supType] = Set(code) */
+  var areaMap = {}, areaOrder = [];
+  rows.forEach(function(r){
+    var area=String(r[COL_AREA]||'').trim(), rk=String(r[rowKey]||'').trim();
+    var st=String(r[COL_SUPTYPE]||'').trim(), code=String(r[COL_CODE]||'').trim();
+    if(!area||!rk||!st||!code) return;
+    if(!areaMap[area]){ areaMap[area]={}; areaOrder.push(area); }
+    if(!areaMap[area][rk]) areaMap[area][rk]={};
+    if(!areaMap[area][rk][st]) areaMap[area][rk][st]=new Set();
+    areaMap[area][rk][st].add(code);
+  });
+  areaOrder.sort(function(a,b){
+    var ia=AREA_ORDER.indexOf(a), ib=AREA_ORDER.indexOf(b);
+    if(ia===-1&&ib===-1) return a>b?1:-1;
+    if(ia===-1) return 1; if(ib===-1) return -1; return ia-ib;
+  });
+
+  /* 全域合計 */
+  var grandBySt={}, grandTotal2=new Set();
+  supTypes.forEach(function(st){ grandBySt[st]=new Set(); });
+  rows.forEach(function(r){
+    var st=String(r[COL_SUPTYPE]||'').trim(), code=String(r[COL_CODE]||'').trim();
+    if(!st||!code) return;
+    grandTotal2.add(code); if(grandBySt[st]) grandBySt[st].add(code);
+  });
+
+  var colLabel=(mode==='staff')?'執行人員':'營業所/課';
+  var html='<div class="detail-scroll"><table class="detail-tbl sum-tbl"><thead><tr>'
+    +'<th class="th-left sum-th-key">'+esc(colLabel)+'</th>';
+  supTypes.forEach(function(st){ html+='<th class="sum-th-val">'+esc(st)+'</th>'; });
+  html+='<th class="sum-th-total">合計</th></tr></thead><tbody>';
+
+  areaOrder.forEach(function(area, ai){
+    var bg = AREA_COLORS[ai % AREA_COLORS.length];
+    var rkMap = areaMap[area];
+    var rks = Object.keys(rkMap).sort();
+
+    /* 計算此營業處小計 */
+    var areaBySt={}, areaTotal=new Set();
+    supTypes.forEach(function(st){ areaBySt[st]=new Set(); });
+    rks.forEach(function(rk){
+      supTypes.forEach(function(st){
+        var s=rkMap[rk][st]; if(!s) return;
+        s.forEach(function(c){ areaBySt[st].add(c); areaTotal.add(c); });
+      });
     });
-  }
 
-  /* matrix[列][督導類型] = Set(店碼) */
-  var matrix2 = {};
-  rowKeys.forEach(function(k){ matrix2[k]={}; supTypes.forEach(function(st){ matrix2[k][st]=new Set(); }); });
-  var totalBySt2 = {}; supTypes.forEach(function(st){ totalBySt2[st]=new Set(); });
-  var totalByRow = {}; rowKeys.forEach(function(k){ totalByRow[k]=new Set(); });
-  var grand2 = new Set();
+    /* 分群標題列 */
+    html+='<tr style="background:'+bg+';border-top:2px solid rgba(0,0,0,.08);">'
+      +'<td class="sum-area-label" style="padding:7px 16px;font-size:12px;font-weight:900;color:#444;letter-spacing:.04em;" colspan="'+(supTypes.length+2)+'">'
+      +'▸ '+esc(area)+'　';
+    supTypes.forEach(function(st){ html+='<span style="font-weight:500;color:#666;margin-right:10px;">'+esc(st)+' <strong style="color:#333;">'+areaBySt[st].size+'</strong></span>'; });
+    html+='<span style="margin-left:4px;">合計 <strong style="color:var(--primary);">'+areaTotal.size+'</strong></span>'
+      +'</td></tr>';
 
-  rows.forEach(function(r){
-    var rk   = String(r[rowKey]||'').trim();
-    var st   = String(r[COL_SUPTYPE]||'').trim();
-    var code = String(r[COL_CODE]||'').trim();
-    if(!code||!rk||!st) return;
-    grand2.add(code);
-    totalByRow[rk].add(code);
-    if(matrix2[rk] && matrix2[rk][st]!==undefined){ matrix2[rk][st].add(code); totalBySt2[st].add(code); }
+    /* 各列 */
+    rks.forEach(function(rk, ri){
+      html+='<tr style="'+(ri%2?'background:rgba(0,0,0,.02);':'')+'">'
+        +'<td class="td-left sum-td-key" style="padding-left:22px;">'+esc(rk)+'</td>';
+      var rowTotal=new Set();
+      supTypes.forEach(function(st){
+        var s=rkMap[rk][st], n=s?s.size:0;
+        if(s) s.forEach(function(c){ rowTotal.add(c); });
+        html+='<td class="sum-td-val">'+(n||'<span class="dash">—</span>')+'</td>';
+      });
+      html+='<td class="sum-td-total">'+rowTotal.size+'</td></tr>';
+    });
   });
 
-  var colLabel = mode==='staff' ? '執行人員' : '營業所/課';
-  var html='<div class="detail-scroll"><table class="detail-tbl"><thead><tr>';
-  if(mode==='staff') html+='<th class="th-left">所/課</th>';
-  html+='<th class="th-left">'+esc(colLabel)+'</th>';
-  supTypes.forEach(function(st){ html+='<th>'+esc(st)+'</th>'; });
-  html+='<th>合計</th></tr></thead><tbody>';
-
-  rowKeys.forEach(function(k){
-    html+='<tr>';
-    if(mode==='staff') html+='<td class="td-left" style="color:#888;font-size:11px;">'+esc(staffOffice[k]||'')+'</td>';
-    html+='<td class="td-left">'+esc(k)+'</td>';
-    supTypes.forEach(function(st){ var n=matrix2[k][st].size; html+='<td class="td-num">'+(n||'—')+'</td>'; });
-    html+='<td class="td-num" style="font-weight:900;">'+totalByRow[k].size+'</td></tr>';
-  });
   /* 合計列 */
-  html+='<tr style="border-top:2px solid #ddd;background:#f8f8f8;">';
-  if(mode==='staff') html+='<td></td>';
-  html+='<td class="td-left" style="font-weight:900;">合計</td>';
-  supTypes.forEach(function(st){ html+='<td class="td-num" style="font-weight:900;">'+totalBySt2[st].size+'</td>'; });
-  html+='<td class="td-num" style="font-weight:900;color:var(--primary);">'+grand2.size+'</td></tr>';
+  html+='<tr class="sum-footer"><td class="td-left sum-td-key">合計</td>';
+  supTypes.forEach(function(st){ html+='<td class="sum-td-total">'+grandBySt[st].size+'</td>'; });
+  html+='<td class="sum-td-grand">'+grandTotal2.size+'</td></tr>';
   html+='</tbody></table></div>';
   return html;
 }
