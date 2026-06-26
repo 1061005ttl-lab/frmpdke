@@ -582,7 +582,7 @@ function parseCellVal(c){
 /* ── 同步時間 ── */
 function fetchSyncTime(id,sheet,cell){
   var url='https://docs.google.com/spreadsheets/d/'+id+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(sheet)+'&range='+cell;
-  return xhrGet(url).then(function(txt){
+  return fetch(url).then(function(r){return r.text();}).then(function(txt){
     var s=txt.indexOf('{'),e=txt.lastIndexOf('}');
     if(s<0) return '';
     var json=JSON.parse(txt.slice(s,e+1));
@@ -600,8 +600,8 @@ function loadData(){
   showLoading();
   var base='https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(SHEET_NAME);
   Promise.all([
-    xhrGet(base+'&headers=0&range=1:1'),
-    xhrGet(base+'&headers=0'),
+    fetch(base+'&headers=0&range=1:1').then(function(r){return r.text();}),
+    fetch(base+'&headers=0').then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.text();}),
     fetchSyncTime(SHEET_ID,SYNC_SHEET,SYNC_CELL)
   ]).then(function(res){
     _syncTime=res[2];
@@ -631,24 +631,12 @@ function loadData(){
     hideLoading();
     render(); updateGbar(); updateRank();
   }).catch(function(err){
-    console.error('[看板] loadData 失敗：',err);
     hideLoading();
-    document.getElementById('main-area').innerHTML='<div class="empty-msg"><div class="ei">&#9888;&#65039;</div><div style="font-size:13px;"><b>資料載入失敗</b><br><span style="color:#888;font-size:11px;">'+String(err)+'</span><br><br><button onclick="loadData()" style="margin-top:8px;padding:6px 18px;border-radius:8px;border:1.5px solid rgba(74,122,85,.5);background:rgba(74,122,85,.1);color:#2d5a38;font-weight:800;cursor:pointer;font-size:13px;">&#8635; 重新載入</button></div></div>';
+    document.getElementById('main-area').innerHTML='<div class="empty-msg"><div class="ei">&#9888;&#65039;</div><div>載入失敗：'+err+'</div></div>';
   });
 }
 
-/* ── XHR wrapper（取代 fetch，避免擴充套件 message channel 衝突） ── */
-function xhrGet(url,timeout){
-  return new Promise(function(resolve,reject){
-    var x=new XMLHttpRequest();
-    x.open('GET',url,true);
-    x.timeout=timeout||12000;
-    x.onload=function(){if(x.status>=200&&x.status<300){resolve(x.responseText);}else{reject(new Error('HTTP '+x.status));}};
-    x.onerror=function(){reject(new Error('網路錯誤'));};
-    x.ontimeout=function(){reject(new Error('請求逾時'));};
-    x.send();
-  });
-}
+/* ── Q Chips ── */
 function _currentQName(){
   var m=new Date().getMonth()+1; /* 1-12 */
   if(m<=3) return 'Q1';
@@ -1002,7 +990,7 @@ function render(){
     if(['lock_all','lock_part','ineligible'].indexOf(ident.status)>=0) bInelig++;
   });
   var totPctDisp=cards.filter(function(c){return c.qd.bonus!==null;}).length;
-  var totalAll=Object.keys(pMap).filter(function(s){var info=pMap[s];var qd=calcPersonQ(info.rows,curQ);return qd.evalMonths.length>0;}).length;
+var totalAll=Object.keys(pMap).filter(function(s){var info=pMap[s];var qd=calcPersonQ(info.rows,curQ);return qd.evalMonths.length>0;}).length;
   var filterHint=curStatusFilter!=='all'?' (篩選中)':'';
   document.getElementById('gb-count').innerHTML='顯示 <b>'+cards.length+'</b> 人'+(curStatusFilter!=='all'?' / 共'+totalAll+'人':'')+'&emsp;&#127881; 達獎&#215;<b style="color:#7a5500">'+(b1+b5)+'</b> 人（$1,000&#215;'+b1+' / $500&#215;'+b5+'）';
   updateRank(pMap);
@@ -1936,11 +1924,8 @@ function hideLoading(){
 /* ── 啟動 ── */
 document.addEventListener('DOMContentLoaded',function(){
   var url='https://docs.google.com/spreadsheets/d/'+MGMT_ID+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(MGMT_SHEET);
-  /* timeout wrapper：5 秒內若 MGMT fetch 未回應，直接略過跑 loadData */
-  var mgmtDone=false;
-  function runLoad(){if(!mgmtDone){mgmtDone=true;loadData();}}
-  var mgmtTimer=setTimeout(function(){console.warn('[看板] MGMT fetch timeout，直接載入資料');runLoad();},5000);
-  xhrGet(url,5000).then(function(txt){
+  fetch(url).then(function(r){return r.text();})
+    .then(function(txt){
       var json=JSON.parse(txt.replace(/^[^\(]+\(/,'').replace(/\);?\s*$/,''));
       var rows=(json.table&&json.table.rows)||[];
       rows.forEach(function(row){
@@ -1955,8 +1940,7 @@ document.addEventListener('DOMContentLoaded',function(){
           document.title=PROJ_NAME;
         }
       });
-    }).catch(function(e){console.warn('[看板] MGMT fetch 失敗，略過：',e);})
-    .then(function(){clearTimeout(mgmtTimer);runLoad();});
+    }).catch(function(){}).then(function(){loadData();});
 });
 </script>
 </body>
