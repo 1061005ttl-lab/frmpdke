@@ -582,7 +582,7 @@ function parseCellVal(c){
 /* ── 同步時間 ── */
 function fetchSyncTime(id,sheet,cell){
   var url='https://docs.google.com/spreadsheets/d/'+id+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(sheet)+'&range='+cell;
-  return fetch(url).then(function(r){return r.text();}).then(function(txt){
+  return xhrGet(url).then(function(txt){
     var s=txt.indexOf('{'),e=txt.lastIndexOf('}');
     if(s<0) return '';
     var json=JSON.parse(txt.slice(s,e+1));
@@ -600,8 +600,8 @@ function loadData(){
   showLoading();
   var base='https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(SHEET_NAME);
   Promise.all([
-    fetch(base+'&headers=0&range=1:1').then(function(r){return r.text();}),
-    fetch(base+'&headers=0').then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.text();}),
+    xhrGet(base+'&headers=0&range=1:1'),
+    xhrGet(base+'&headers=0'),
     fetchSyncTime(SHEET_ID,SYNC_SHEET,SYNC_CELL)
   ]).then(function(res){
     _syncTime=res[2];
@@ -637,7 +637,18 @@ function loadData(){
   });
 }
 
-/* ── Q Chips ── */
+/* ── XHR wrapper（取代 fetch，避免擴充套件 message channel 衝突） ── */
+function xhrGet(url,timeout){
+  return new Promise(function(resolve,reject){
+    var x=new XMLHttpRequest();
+    x.open('GET',url,true);
+    x.timeout=timeout||12000;
+    x.onload=function(){if(x.status>=200&&x.status<300){resolve(x.responseText);}else{reject(new Error('HTTP '+x.status));}};
+    x.onerror=function(){reject(new Error('網路錯誤'));};
+    x.ontimeout=function(){reject(new Error('請求逾時'));};
+    x.send();
+  });
+}
 function _currentQName(){
   var m=new Date().getMonth()+1; /* 1-12 */
   if(m<=3) return 'Q1';
@@ -1929,8 +1940,7 @@ document.addEventListener('DOMContentLoaded',function(){
   var mgmtDone=false;
   function runLoad(){if(!mgmtDone){mgmtDone=true;loadData();}}
   var mgmtTimer=setTimeout(function(){console.warn('[看板] MGMT fetch timeout，直接載入資料');runLoad();},5000);
-  fetch(url).then(function(r){return r.text();})
-    .then(function(txt){
+  xhrGet(url,5000).then(function(txt){
       var json=JSON.parse(txt.replace(/^[^\(]+\(/,'').replace(/\);?\s*$/,''));
       var rows=(json.table&&json.table.rows)||[];
       rows.forEach(function(row){
