@@ -1185,92 +1185,140 @@ function _sortedKeys(order, map, sortCol, sortDir){
   return arr;
 }
 
-/* ── 主產生函數：單欄縮排版 ── */
+/* ── 主產生函數：Tree View 縮排版 ── */
 function _buildNestedPivot(rows, dims){
-  /* fullDims = ['area'] + dims，問卷類型永遠在末層 */
   var fullDims = ['area'].concat(dims);
   var ss = _dlgSortState;
 
-  /* ── 表頭：只有「名稱」+「合計」兩欄 ── */
-  var html = '<table class="pivot-tbl"><thead><tr>'
-    + '<th class="th-left" style="min-width:260px;">層級 / 名稱</th>'
-    + '<th class="th-num th-total" style="min-width:80px;width:80px;">合計'+_sortBtns('total')+'</th>'
+  /* 層級設定表 */
+  var LEVEL_CFG = [
+    /* depth 0：營業處 */
+    { bg:'rgba(55,138,221,.08)', borderTop:'2px solid rgba(55,138,221,.2)',
+      fontSize:'15px', fontWeight:'900', color:'#1a1a1a', rowH:'44px' },
+    /* depth 1 */
+    { bg:'transparent', borderTop:'1px solid #eeebe6',
+      fontSize:'15px', fontWeight:'700', color:'#1a1a1a', rowH:'38px' },
+    /* depth 2 */
+    { bg:'transparent', borderTop:'1px solid #f2f0ec',
+      fontSize:'14px', fontWeight:'600', color:'#2a2a2a', rowH:'36px' },
+    /* depth 3 */
+    { bg:'transparent', borderTop:'1px solid #f5f4f1',
+      fontSize:'14px', fontWeight:'500', color:'#333', rowH:'34px' },
+    /* depth 4（問卷類型，葉節點） */
+    { bg:'rgba(0,0,0,.015)', borderTop:'1px solid #f7f6f3',
+      fontSize:'13px', fontWeight:'400', color:'#555', rowH:'32px' }
+  ];
+
+  var INDENT_BASE = 20;   /* 第0層左邊距 */
+  var INDENT_STEP = 32;   /* 每層縮排寬度 */
+
+  /* tree line 顏色 */
+  var LINE_COLOR = 'rgba(0,0,0,.12)';
+
+  var html = '<table class="pivot-tbl" style="min-width:320px;"><thead><tr>'
+    + '<th class="th-left" style="padding-left:20px;">層級 / 名稱</th>'
+    + '<th class="th-num th-total" style="width:72px;min-width:72px;">合計'+_sortBtns('total')+'</th>'
     + '</tr></thead><tbody>';
 
-  /* ── 遞迴渲染器 ── */
   function _sortCol(dimIdx){
     if(!ss.col||!ss.dir) return null;
-    if(ss.col==='dim'+dimIdx) return '__label__';
     if(ss.col==='total') return 'total';
     return null;
   }
 
-  /* 單層渲染 */
-  function renderLevel(levelRows, dimIdx, depth, parentRid){
+  /* ── 遞迴渲染 ── */
+  function renderLevel(levelRows, dimIdx, depth, parentRid, isLastArr){
     if(dimIdx >= fullDims.length) return;
-    var dim = fullDims[dimIdx];
+    var dim    = fullDims[dimIdx];
     var isLeaf = (dimIdx === fullDims.length - 1);
-    var meta = DIM_META[dim];
-    var indent = 16 + depth * 22;  /* px，每層縮 22px */
+    var meta   = DIM_META[dim];
+    var cfg    = LEVEL_CFG[Math.min(depth, LEVEL_CFG.length-1)];
 
-    /* 分群 */
-    var g = _groupBy(levelRows, dim);
+    var g      = _groupBy(levelRows, dim);
     var sorted = _sortedKeys(g.order, g.map, _sortCol(dimIdx), ss.dir||'desc');
+    var total  = sorted.length;
 
-    sorted.forEach(function(key){
+    sorted.forEach(function(key, ki){
       var childRows = g.map[key];
-      var total = _countCodes(childRows);
-      var rid = (parentRid||'r')+'-'+dimIdx+'-'+_rid(key);
+      var count = _countCodes(childRows);
+      var rid   = (parentRid||'r')+'-d'+dimIdx+'-'+_rid(key);
       var isOpen = !!_dlgExpandMap[rid];
+      var isLast = (ki === total - 1);
 
-      /* 層級樣式 */
-      var rowClass = 'pivot-child-row visible';
-      var tdStyle  = 'padding-left:'+indent+'px;';
-      var nameStyle = '';
-      var totalStyle = '';
-
-      if(dimIdx===0){
-        /* 營業處 Banner */
-        rowClass = 'pivot-area-row pivot-expand-row';
-        tdStyle  = 'padding-left:'+indent+'px;';
-        nameStyle = 'font-weight:900;font-size:15px;';
-        totalStyle= 'font-size:15px;';
-      } else if(dimIdx===1){
-        rowClass += ' pivot-expand-row';
-        nameStyle = 'font-weight:700;';
-      } else if(dimIdx===2){
-        rowClass += (isLeaf?'':' pivot-expand-row');
-        nameStyle = 'font-weight:600;color:#222;';
-      } else {
-        nameStyle = 'color:#333;';
+      /* ── tree line SVG ──
+         각 depth 마다 세로선 or 공백 그리기
+         isLastArr[i] = 해당 depth에서 마지막 아이템인지
+      */
+      var treePrefix = '';
+      if(depth > 0){
+        /* 배경 SVG로 vertical guide lines 그리기 */
+        for(var li=0; li<depth; li++){
+          var isLastAtThisLevel = isLastArr[li];
+          if(li === depth-1){
+            /* 현재 depth의 꺾임선 */
+            treePrefix += '<span style="display:inline-block;width:'+INDENT_STEP+'px;height:20px;position:relative;vertical-align:middle;flex-shrink:0;">'
+              + '<svg width="'+INDENT_STEP+'" height="20" style="position:absolute;top:50%;left:0;transform:translateY(-50%);">'
+              + (isLastAtThisLevel
+                  ? '<line x1="12" y1="0" x2="12" y2="10" stroke="'+LINE_COLOR+'" stroke-width="1.5"/>'
+                  : '<line x1="12" y1="0" x2="12" y2="20" stroke="'+LINE_COLOR+'" stroke-width="1.5"/>')
+              + '<line x1="12" y1="10" x2="'+INDENT_STEP+'" y2="10" stroke="'+LINE_COLOR+'" stroke-width="1.5"/>'
+              + '</svg></span>';
+          } else {
+            /* 상위 depth의 세로 연장선 또는 공백 */
+            treePrefix += '<span style="display:inline-block;width:'+INDENT_STEP+'px;height:20px;position:relative;vertical-align:middle;flex-shrink:0;">'
+              + (!isLastAtThisLevel
+                  ? '<svg width="'+INDENT_STEP+'" height="20" style="position:absolute;top:0;left:0;height:100%;">'
+                    + '<line x1="12" y1="0" x2="12" y2="20" stroke="'+LINE_COLOR+'" stroke-width="1.5"/>'
+                    + '</svg>'
+                  : '')
+              + '</span>';
+          }
+        }
       }
 
-      /* 圖示前綴 */
-      var icon = meta.icon ? '<span style="margin-right:5px;font-size:12px;opacity:.7;">'+meta.icon+'</span>' : '';
-
       /* 展開箭頭 */
-      var arrow = (!isLeaf)
-        ? '<span class="pivot-expand-icon'+(isOpen?' open':'')+'" id="ico-'+rid+'">▶</span>'
-        : '<span style="display:inline-block;width:14px;margin-right:4px;"></span>';
+      var arrow = '';
+      if(!isLeaf){
+        arrow = '<span class="pivot-expand-icon'+(isOpen?' open':'')+'" id="ico-'+rid+'" '
+          + 'style="font-size:10px;margin-right:5px;flex-shrink:0;">▶</span>';
+      } else {
+        arrow = '<span style="display:inline-block;width:18px;flex-shrink:0;"></span>';
+      }
 
-      html += '<tr class="'+rowClass+'" id="row-'+rid+'"'
+      /* 圖示 */
+      var icon = '<span style="margin-right:5px;font-size:13px;opacity:.75;flex-shrink:0;">'+meta.icon+'</span>';
+
+      var leftPad = INDENT_BASE + (depth===0 ? 0 : 0);  /* tree line 自帶縮排 */
+
+      html += '<tr id="row-'+rid+'" style="'
+        + 'background:'+cfg.bg+';'
+        + 'border-top:'+cfg.borderTop+';'
+        + 'height:'+cfg.rowH+';'
+        + (!isLeaf?'cursor:pointer;':'')
+        + '"'
         + (!isLeaf?' onclick="_dlgNestToggle(\''+rid+'\')"':'')+'>';
-      html += '<td class="td-left" style="'+tdStyle+nameStyle+'">'
-        + arrow + icon + esc(key) + '</td>';
-      html += '<td class="td-total" style="'+totalStyle+'">'+total+'</td>';
+
+      html += '<td class="td-left" style="padding:0 12px 0 '+leftPad+'px;">'
+        + '<div style="display:flex;align-items:center;'+(depth===0?'':'')+'min-width:0;">'
+        + (depth>0 ? treePrefix : '')
+        + arrow + icon
+        + '<span style="font-size:'+cfg.fontSize+';font-weight:'+cfg.fontWeight+';color:'+cfg.color+';white-space:nowrap;">'+esc(key)+'</span>'
+        + '</div></td>';
+
+      html += '<td class="td-total" style="font-size:'+cfg.fontSize+';font-weight:'+cfg.fontWeight+';width:72px;">'+count+'</td>';
       html += '</tr>';
 
       if(!isLeaf && isOpen){
-        renderLevel(childRows, dimIdx+1, depth+1, rid);
+        renderLevel(childRows, dimIdx+1, depth+1, rid, isLastArr.concat([isLast]));
       }
     });
   }
 
-  renderLevel(rows, 0, 0, '');
+  renderLevel(rows, 0, 0, '', []);
 
   /* 合計列 */
   html += '<tr class="sum-footer">'
-    + '<td class="td-left">合計</td>'
+    + '<td class="td-left" style="padding-left:20px;">合計</td>'
     + '<td class="td-total" style="font-size:17px;">'+_countCodes(rows)+'</td>'
     + '</tr></tbody></table>';
   return html;
