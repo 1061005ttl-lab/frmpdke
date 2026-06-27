@@ -1029,19 +1029,23 @@ function buildQuicknav(){
    模式二：處›人員›督導類型›所/課
 */
 
-var DIM_STORAGE_KEY = 'ttl_audit_dim_mode_v2';
-var DIM_MODES = { '1':['office','staff','suptype'], '2':['staff','suptype','office'] };
+var DIM_STORAGE_KEY = 'ttl_audit_dim_mode_v3';
+var DIM_MODES = {
+  '1': ['office','staff','suptype','questtype'],   /* 處›所›人›督›問 */
+  '2': ['staff','suptype','office','questtype']    /* 處›人›督›所›問 */
+};
 var DIM_META = {
-  area:    { icon:'🏢', label:'營業處' },
-  office:  { icon:'📁', label:'所/課'  },
-  suptype: { icon:'📋', label:'督導類型' },
-  staff:   { icon:'👤', label:'人員'   }
+  area:      { icon:'🏢', label:'營業處' },
+  office:    { icon:'📁', label:'所/課'  },
+  suptype:   { icon:'📋', label:'督導類型' },
+  staff:     { icon:'👤', label:'人員'   },
+  questtype: { icon:'📄', label:'問卷類型' }
 };
 var _dlgDimMode=_loadDimMode(), _dlgListMode=false, _dlgExpandMap={}, _dlgSortState={};
 
 function _loadDimMode(){
   try{ var v=localStorage.getItem(DIM_STORAGE_KEY); if(v==='1'||v==='2') return v; }catch(e){}
-  return '2';
+  return '1';  /* 預設模式一：處›所›人›督›問 */
 }
 function _saveDimMode(){ try{ localStorage.setItem(DIM_STORAGE_KEY,_dlgDimMode); }catch(e){} }
 function _getDimOrder(){ return DIM_MODES[_dlgDimMode]; }
@@ -1078,8 +1082,8 @@ function _renderDimBar(){
   dims.forEach(function(d){ var m=DIM_META[d]; p+='<span class="dim-sep">›</span><div class="dim-badge">'+m.icon+' '+m.label+'</div>'; });
   p+='</div>';
   var c='<div class="dim-mode-group">'
-    +'<button class="dim-mode-btn'+(_dlgDimMode==='1'?' active':'')+'" onclick="_setDimMode(\'1\')" title="處›所›人›督">模式一</button>'
-    +'<button class="dim-mode-btn'+(_dlgDimMode==='2'?' active':'')+'" onclick="_setDimMode(\'2\')" title="處›人›督›所">模式二</button>'
+    +'<button class="dim-mode-btn'+(_dlgDimMode==='1'?' active':'')+'" onclick="_setDimMode(\'1\')" title="處›所›人›督›問">模式一</button>'
+    +'<button class="dim-mode-btn'+(_dlgDimMode==='2'?' active':'')+'" onclick="_setDimMode(\'2\')" title="處›人›督›所›問">模式二</button>'
     +'<button class="dim-list-btn'+(_dlgListMode?' active':'')+'" onclick="_dlgToggleList()">📄 明細</button>'
     +'</div>';
   bar.innerHTML=p+c;
@@ -1129,10 +1133,11 @@ function escAttr(s){ return String(s).replace(/'/g,"\\'"); }
    ════════════════════════════════════════════════════════ */
 
 var DIM_COL = {
-  area:    function(){ return COL_AREA; },
-  office:  function(){ return COL_OFFICE; },
-  suptype: function(){ return COL_SUPTYPE; },
-  staff:   function(){ return COL_STAFF; }
+  area:      function(){ return COL_AREA; },
+  office:    function(){ return COL_OFFICE; },
+  suptype:   function(){ return COL_SUPTYPE; },
+  staff:     function(){ return COL_STAFF; },
+  questtype: function(){ return COL_QUESTTYPE; }
 };
 
 /* 分群：rows → { key: [row,...] }，依 AREA_ORDER / 字母順序 */
@@ -1165,173 +1170,109 @@ function _countCodes(rows){
   return s.size;
 }
 
-/* 排序 key：支援 label / total / sup_N 三種排序 */
+/* 排序 key：支援 label / total / dim_N */
 function _sortedKeys(order, map, sortCol, sortDir){
   if(!sortCol||!sortDir) return order;
-  var supTypes = ROSTER_GROUPS;
   var arr = order.slice();
   arr.sort(function(a,b){
     var va, vb;
-    if(sortCol==='__label__'){
-      va=a; vb=b;
-    } else if(sortCol==='total'){
-      va=_countCodes(map[a]||[]); vb=_countCodes(map[b]||[]);
-    } else if(sortCol.indexOf('sup_')===0){
-      var si=parseInt(sortCol.slice(4),10);
-      var st=supTypes[si]||'';
-      function _stCount(rows){ var s=new Set(); rows.forEach(function(r){ if(String(r[COL_SUPTYPE]||'').trim()===st){ var c=String(r[COL_CODE]||'').trim(); if(c) s.add(c); } }); return s.size; }
-      va=_stCount(map[a]||[]); vb=_stCount(map[b]||[]);
-    } else if(sortCol.indexOf('dim')===0){
-      va=a; vb=b;
-    } else {
-      return 0;
-    }
+    if(sortCol==='__label__'){ va=a; vb=b; }
+    else if(sortCol==='total'){ va=_countCodes(map[a]||[]); vb=_countCodes(map[b]||[]); }
+    else { return 0; }
     if(typeof va==='string') return sortDir==='asc'?va.localeCompare(vb,'zh-TW'):vb.localeCompare(va,'zh-TW');
     return sortDir==='asc'?va-vb:vb-va;
   });
   return arr;
 }
 
-/* ── 主產生函數 ── */
+/* ── 主產生函數：單欄縮排版 ── */
 function _buildNestedPivot(rows, dims){
+  /* fullDims = ['area'] + dims，問卷類型永遠在末層 */
   var fullDims = ['area'].concat(dims);
-  var totalDims = fullDims.length;
-  var supTypes = ROSTER_GROUPS;
-  var grandTotal = _countCodes(rows);
-  var ss = _dlgSortState;  /* { col, dir } */
+  var ss = _dlgSortState;
 
-  /* ── 表頭 ── */
-  function _thSortable(col, label, extraClass){
-    return '<th class="th-num'+(extraClass?' '+extraClass:'')+'">'
-      + esc(label) + _sortBtns(col) + '</th>';
-  }
+  /* ── 表頭：只有「名稱」+「合計」兩欄 ── */
+  var html = '<table class="pivot-tbl"><thead><tr>'
+    + '<th class="th-left" style="min-width:260px;">層級 / 名稱</th>'
+    + '<th class="th-num th-total" style="min-width:80px;width:80px;">合計'+_sortBtns('total')+'</th>'
+    + '</tr></thead><tbody>';
 
-  var html = '<table class="pivot-tbl"><thead><tr>';
-  fullDims.forEach(function(dim, di){
-    var meta = DIM_META[dim];
-    var isFirst = di===0;
-    if(isFirst){
-      html += '<th class="th-left" style="min-width:90px;">'+meta.icon+' '+meta.label+'</th>';
-    } else {
-      html += '<th class="th-left" style="min-width:80px;">'+meta.icon+' '+meta.label+_sortBtns('dim'+di)+'</th>';
-    }
-  });
-  supTypes.forEach(function(st, si){
-    html += _thSortable('sup_'+si, st, 'th-sup-'+(si%4));
-  });
-  html += _thSortable('total', '合計', 'th-total');
-  html += '</tr></thead><tbody>';
-
-  /* ── 遞迴渲染 ── */
-  var grandBySt = {};
-  supTypes.forEach(function(st){ grandBySt[st] = new Set(); });
-  rows.forEach(function(r){
-    var st=String(r[COL_SUPTYPE]||'').trim(), code=String(r[COL_CODE]||'').trim();
-    if(st&&code&&grandBySt[st]) grandBySt[st].add(code);
-  });
-
-  /* 計算某組 rows 的各督導類型家數 */
-  function _bySt(rr){
-    var m={};
-    supTypes.forEach(function(st){ var s=new Set(); rr.forEach(function(r){ if(String(r[COL_SUPTYPE]||'').trim()===st){ var c=String(r[COL_CODE]||'').trim(); if(c) s.add(c); } }); m[st]=s.size; });
-    return m;
-  }
-
-  /* 各層排序 col 轉換：dim0→label, dim1→label, ... total, sup_N 直接傳 */
+  /* ── 遞迴渲染器 ── */
   function _sortCol(dimIdx){
     if(!ss.col||!ss.dir) return null;
     if(ss.col==='dim'+dimIdx) return '__label__';
-    if(ss.col==='total'||ss.col.indexOf('sup_')===0) return ss.col;
+    if(ss.col==='total') return 'total';
     return null;
   }
 
-  /* 第0層：area */
-  var areaG = _groupBy(rows, 'area');
-  var areaSorted = _sortedKeys(areaG.order, areaG.map, _sortCol(0), ss.dir);
+  /* 單層渲染 */
+  function renderLevel(levelRows, dimIdx, depth, parentRid){
+    if(dimIdx >= fullDims.length) return;
+    var dim = fullDims[dimIdx];
+    var isLeaf = (dimIdx === fullDims.length - 1);
+    var meta = DIM_META[dim];
+    var indent = 16 + depth * 22;  /* px，每層縮 22px */
 
-  areaSorted.forEach(function(areaKey){
-    var areaRows = areaG.map[areaKey];
-    var areaTotal = _countCodes(areaRows);
-    var rid0 = 'n0-'+_rid(areaKey);
-    var isOpen0 = !!_dlgExpandMap[rid0];
-    var hasChild = dims.length > 0;
-    var areaBySt = _bySt(areaRows);
+    /* 分群 */
+    var g = _groupBy(levelRows, dim);
+    var sorted = _sortedKeys(g.order, g.map, _sortCol(dimIdx), ss.dir||'desc');
 
-    /* area Banner 列 */
-    html += '<tr class="pivot-area-row'+(hasChild?' pivot-expand-row':'')+'" '
-      + (hasChild?'onclick="_dlgNestToggle(\''+rid0+'\')" ':'')
-      + 'id="row-'+rid0+'">';
-    html += '<td class="td-left" style="font-weight:900;">'
-      + (hasChild?'<span class="pivot-expand-icon'+(isOpen0?' open':'')+'" id="ico-'+rid0+'">▶</span>':'')
-      + esc(areaKey) + '</td>';
-    for(var di=1; di<totalDims; di++) html += '<td></td>';
-    supTypes.forEach(function(st,si){
-      html += '<td class="td-num td-sup-'+(si%4)+'">'+(areaBySt[st]||'<span class="pivot-dash">—</span>')+'</td>';
+    sorted.forEach(function(key){
+      var childRows = g.map[key];
+      var total = _countCodes(childRows);
+      var rid = (parentRid||'r')+'-'+dimIdx+'-'+_rid(key);
+      var isOpen = !!_dlgExpandMap[rid];
+
+      /* 層級樣式 */
+      var rowClass = 'pivot-child-row visible';
+      var tdStyle  = 'padding-left:'+indent+'px;';
+      var nameStyle = '';
+      var totalStyle = '';
+
+      if(dimIdx===0){
+        /* 營業處 Banner */
+        rowClass = 'pivot-area-row pivot-expand-row';
+        tdStyle  = 'padding-left:'+indent+'px;';
+        nameStyle = 'font-weight:900;font-size:15px;';
+        totalStyle= 'font-size:15px;';
+      } else if(dimIdx===1){
+        rowClass += ' pivot-expand-row';
+        nameStyle = 'font-weight:700;';
+      } else if(dimIdx===2){
+        rowClass += (isLeaf?'':' pivot-expand-row');
+        nameStyle = 'font-weight:600;color:#222;';
+      } else {
+        nameStyle = 'color:#333;';
+      }
+
+      /* 圖示前綴 */
+      var icon = meta.icon ? '<span style="margin-right:5px;font-size:12px;opacity:.7;">'+meta.icon+'</span>' : '';
+
+      /* 展開箭頭 */
+      var arrow = (!isLeaf)
+        ? '<span class="pivot-expand-icon'+(isOpen?' open':'')+'" id="ico-'+rid+'">▶</span>'
+        : '<span style="display:inline-block;width:14px;margin-right:4px;"></span>';
+
+      html += '<tr class="'+rowClass+'" id="row-'+rid+'"'
+        + (!isLeaf?' onclick="_dlgNestToggle(\''+rid+'\')"':'')+'>';
+      html += '<td class="td-left" style="'+tdStyle+nameStyle+'">'
+        + arrow + icon + esc(key) + '</td>';
+      html += '<td class="td-total" style="'+totalStyle+'">'+total+'</td>';
+      html += '</tr>';
+
+      if(!isLeaf && isOpen){
+        renderLevel(childRows, dimIdx+1, depth+1, rid);
+      }
     });
-    html += '<td class="td-total">'+areaTotal+'</td></tr>';
+  }
 
-    if(!hasChild || !isOpen0) return;
-
-    /* 第1層 */
-    var g1 = _groupBy(areaRows, dims[0]);
-    _sortedKeys(g1.order, g1.map, _sortCol(1), ss.dir).forEach(function(key1){
-      var rows1=g1.map[key1], total1=_countCodes(rows1);
-      var rid1=rid0+'-1-'+_rid(key1), isOpen1=!!_dlgExpandMap[rid1];
-      var hasChild1=dims.length>1, bySt1=_bySt(rows1);
-
-      html += '<tr class="pivot-child-row'+(hasChild1?' pivot-expand-row':'')+' visible" '
-        +(hasChild1?'onclick="_dlgNestToggle(\''+rid1+'\')" ':'')+' id="row-'+rid1+'" data-parent="'+rid0+'">';
-      html += '<td class="td-left" style="padding-left:30px;color:#bbb;font-size:13px;"></td>';
-      html += '<td class="td-left" style="font-weight:700;">'
-        +(hasChild1?'<span class="pivot-expand-icon'+(isOpen1?' open':'')+'" id="ico-'+rid1+'">▶</span>':'')+esc(key1)+'</td>';
-      for(var d2=2;d2<totalDims;d2++) html+='<td></td>';
-      supTypes.forEach(function(st,si){ html+='<td class="td-num td-sup-'+(si%4)+'">'+(bySt1[st]||'<span class="pivot-dash">—</span>')+'</td>'; });
-      html+='<td class="td-total">'+total1+'</td></tr>';
-
-      if(!hasChild1||!isOpen1) return;
-
-      /* 第2層 */
-      var g2=_groupBy(rows1,dims[1]);
-      _sortedKeys(g2.order,g2.map,_sortCol(2),ss.dir).forEach(function(key2){
-        var rows2=g2.map[key2], total2=_countCodes(rows2);
-        var rid2=rid1+'-2-'+_rid(key2), isOpen2=!!_dlgExpandMap[rid2];
-        var hasChild2=dims.length>2, bySt2=_bySt(rows2);
-
-        html+='<tr class="pivot-child-row'+(hasChild2?' pivot-expand-row':'')+' visible" '
-          +(hasChild2?'onclick="_dlgNestToggle(\''+rid2+'\')" ':'')+' id="row-'+rid2+'" data-parent="'+rid1+'">';
-        html+='<td style="padding-left:30px;color:#bbb;"></td>';
-        html+='<td style="padding-left:30px;color:#bbb;"></td>';
-        html+='<td class="td-left" style="font-weight:600;">'
-          +(hasChild2?'<span class="pivot-expand-icon'+(isOpen2?' open':'')+'" id="ico-'+rid2+'">▶</span>':'')+esc(key2)+'</td>';
-        for(var d3=3;d3<totalDims;d3++) html+='<td></td>';
-        supTypes.forEach(function(st,si){ html+='<td class="td-num td-sup-'+(si%4)+'">'+(bySt2[st]||'<span class="pivot-dash">—</span>')+'</td>'; });
-        html+='<td class="td-total">'+total2+'</td></tr>';
-
-        if(!hasChild2||!isOpen2) return;
-
-        /* 第3層（葉節點） */
-        var g3=_groupBy(rows2,dims[2]);
-        _sortedKeys(g3.order,g3.map,_sortCol(3),ss.dir).forEach(function(key3){
-          var rows3=g3.map[key3], total3=_countCodes(rows3), bySt3=_bySt(rows3);
-          html+='<tr class="pivot-child-row visible" id="row-'+rid2+'-3-'+_rid(key3)+'" data-parent="'+rid2+'">';
-          html+='<td style="padding-left:30px;color:#bbb;"></td>';
-          html+='<td style="padding-left:30px;color:#bbb;"></td>';
-          html+='<td style="padding-left:30px;color:#bbb;"></td>';
-          html+='<td class="td-left">'+esc(key3)+'</td>';
-          supTypes.forEach(function(st,si){ html+='<td class="td-num td-sup-'+(si%4)+'">'+(bySt3[st]||'<span class="pivot-dash">—</span>')+'</td>'; });
-          html+='<td class="td-total">'+total3+'</td></tr>';
-        });
-      });
-    });
-  });
+  renderLevel(rows, 0, 0, '');
 
   /* 合計列 */
-  html += '<tr class="sum-footer"><td class="td-left" colspan="'+totalDims+'">合計</td>';
-  supTypes.forEach(function(st){
-    html += '<td class="td-total">'+grandBySt[st].size+'</td>';
-  });
-  html += '<td class="td-total" style="font-size:17px;">'+grandTotal+'</td></tr>';
-  html += '</tbody></table>';
+  html += '<tr class="sum-footer">'
+    + '<td class="td-left">合計</td>'
+    + '<td class="td-total" style="font-size:17px;">'+_countCodes(rows)+'</td>'
+    + '</tr></tbody></table>';
   return html;
 }
 
