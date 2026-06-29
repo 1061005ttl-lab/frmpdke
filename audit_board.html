@@ -1,8 +1,17 @@
 <!--
 ════════════════════════════════════════════════════════════
   audit_board.html  ─  查核型看板（店家名冊版）
-  版本：Ver. 2.0.0 ｜ 最後更新：2026-06-26
+  版本：Ver. 2.1.0 ｜ 最後更新：2026-06-29
 ════════════════════════════════════════════════════════════
+
+【需求更新 2.1.0】
+  1. 模式一改名「所→人」：處›督›所›人›問卷類型→店家
+     模式二改名「人→所」：處›督›人›所›問卷類型→店家
+  2. 問卷類型節點可展開，下方顯示店家名稱 + 查核時間並列
+     明細表新增「查核時間」欄位（資料欄：查核時間 K欄，選填）
+  3. 主看板 / Detail Dialog / Summary Dialog 均有
+     「💬 LINE / 📥 CSV / 📸 截圖」三鍵
+     LINE 分享依模式文字摘要複製至剪貼簿並開啟 LINE
 
 【這個檔案在做什麼】
   顯示「查核型」專案的店家名冊概況。
@@ -507,6 +516,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <button class="tb-act-btn" onclick="openSummaryDialog('staff')">👤 人員</button>
     <button class="tb-act-btn" onclick="openSummaryDialog('office')">🏢 單位</button>
     <button class="tb-act-btn" onclick="openSummaryDialog('suptype')">📋 督導</button>
+    <button class="tb-act-btn" id="tb-btn-line" onclick="toolbarShareLine()">💬 LINE</button>
     <button class="tb-act-btn" id="tb-btn-csv" onclick="toolbarDownloadCsv()">📥 CSV</button>
     <button class="tb-act-btn" id="tb-btn-screenshot" onclick="toolbarScreenshot()">📸 截圖</button>
   </div>
@@ -518,7 +528,9 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <div class="dlg-header">
       <span id="sum-title" style="font-size:14px;font-weight:900;flex:1;min-width:0;"></span>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+        <button class="dlg-action-btn" id="btn-sum-line" onclick="summaryShareLine()"><span>💬</span><span class="btn-txt"> LINE</span></button>
         <button class="dlg-action-btn" id="btn-sum-csv" onclick="downloadSummaryCsv()"><span>📥</span><span class="btn-txt"> CSV</span></button>
+        <button class="dlg-action-btn" id="btn-sum-screenshot" onclick="summaryScreenshot()"><span>📸</span><span class="btn-txt"> 截圖</span></button>
         <button class="dlg-close" onclick="closeSummaryDialog()">✕</button>
       </div>
     </div>
@@ -545,7 +557,9 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <div class="dlg-header">
       <span id="dlg-title" style="font-size:13px;line-height:1.5;flex:1;min-width:0;"></span>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+        <button class="dlg-action-btn" id="btn-dlg-line" onclick="dialogShareLine()"><span>💬</span><span class="btn-txt"> LINE</span></button>
         <button class="dlg-action-btn" id="btn-dlg-csv" onclick="downloadDialogCsv()"><span>📥</span><span class="btn-txt"> CSV</span></button>
+        <button class="dlg-action-btn" id="btn-dlg-screenshot" onclick="dialogScreenshot()"><span>📸</span><span class="btn-txt"> 截圖</span></button>
         <button class="dlg-close" onclick="closeDialog()">✕</button>
       </div>
     </div>
@@ -582,6 +596,7 @@ var COL_NAME      = '店家名稱';     /* G */
 var COL_GRADE     = '店家等級';     /* H */
 var COL_SUPTYPE   = '督導類型';     /* I — 大群分組鍵 */
 var COL_QUESTTYPE = '問卷類型';     /* J — 群內子分類 */
+var COL_DATE      = '查核時間';     /* K — 店家查核時間（選填）*/
 
 /* ROSTER_GROUPS: 由資料動態產生（唯一督導類型清單，依首次出現順序） */
 var ROSTER_GROUPS = [];
@@ -619,10 +634,10 @@ function parseGvizDate(v) {
 }
 
 function _flashBtn(btn, txt) {
-  var orig = btn.textContent;
-  btn.textContent = txt;
+  var orig = btn.innerHTML;
+  btn.innerHTML = txt;
   btn.classList.add('done');
-  setTimeout(function(){ btn.textContent = orig; btn.classList.remove('done'); }, 2000);
+  setTimeout(function(){ btn.innerHTML = orig; btn.classList.remove('done'); }, 2000);
 }
 
 function goBack(){ window.location.href = 'index.html'; }
@@ -692,7 +707,7 @@ function init() {
 var FIXED_COLS = [
   '營業處名稱','營業所/課','執行人員','通路別',
   '店家型態','店家代碼','店家名稱','店家等級',
-  '督導類型','問卷類型'
+  '督導類型','問卷類型','查核時間'
 ];
 
 function fetchSheet() {
@@ -1029,10 +1044,10 @@ function buildQuicknav(){
    模式二：處›人員›督導類型›所/課
 */
 
-var DIM_STORAGE_KEY = 'ttl_audit_dim_mode_v3';
+var DIM_STORAGE_KEY = 'ttl_audit_dim_mode_v4';
 var DIM_MODES = {
-  '1': ['suptype','staff','office','questtype'],   /* 處›督›人›所›問（預設） */
-  '2': ['staff','suptype','office','questtype']    /* 處›人›督›所›問 */
+  '1': ['suptype','office','staff','questtype'],   /* 所→人：處›督›所›人›問 */
+  '2': ['suptype','staff','office','questtype']    /* 人→所：處›督›人›所›問 */
 };
 var DIM_META = {
   area:      { icon:'🏢', label:'營業處' },
@@ -1082,8 +1097,8 @@ function _renderDimBar(){
   dims.forEach(function(d){ var m=DIM_META[d]; p+='<span class="dim-sep">›</span><div class="dim-badge">'+m.icon+' '+m.label+'</div>'; });
   p+='</div>';
   var c='<div class="dim-mode-group">'
-    +'<button class="dim-mode-btn'+(_dlgDimMode==='1'?' active':'')+'" onclick="_setDimMode(\'1\')" title="處›督›人›所›問">模式一</button>'
-    +'<button class="dim-mode-btn'+(_dlgDimMode==='2'?' active':'')+'" onclick="_setDimMode(\'2\')" title="處›人›督›所›問">模式二</button>'
+    +'<button class="dim-mode-btn'+(_dlgDimMode==='1'?' active':'')+'" onclick="_setDimMode(\'1\')" title="處›督›所›人›問">所→人</button>'
+    +'<button class="dim-mode-btn'+(_dlgDimMode==='2'?' active':'')+'" onclick="_setDimMode(\'2\')" title="處›督›人›所›問">人→所</button>'
     +'<button class="dim-list-btn'+(_dlgListMode?' active':'')+'" onclick="_dlgToggleList()">📄 明細</button>'
     +'</div>';
   bar.innerHTML=p+c;
@@ -1245,17 +1260,11 @@ function _buildNestedPivot(rows, dims){
       var isOpen = !!_dlgExpandMap[rid];
       var isLast = (ki === total - 1);
 
-      /* ── tree line SVG ──
-         각 depth 마다 세로선 or 공백 그리기
-         isLastArr[i] = 해당 depth에서 마지막 아이템인지
-      */
       var treePrefix = '';
       if(depth > 0){
-        /* 배경 SVG로 vertical guide lines 그리기 */
         for(var li=0; li<depth; li++){
           var isLastAtThisLevel = isLastArr[li];
           if(li === depth-1){
-            /* 현재 depth의 꺾임선 */
             treePrefix += '<span style="display:inline-block;width:'+INDENT_STEP+'px;height:20px;position:relative;vertical-align:middle;flex-shrink:0;">'
               + '<svg width="'+INDENT_STEP+'" height="20" style="position:absolute;top:50%;left:0;transform:translateY(-50%);">'
               + (isLastAtThisLevel
@@ -1264,7 +1273,6 @@ function _buildNestedPivot(rows, dims){
               + '<line x1="12" y1="10" x2="'+INDENT_STEP+'" y2="10" stroke="'+LINE_COLOR+'" stroke-width="1.5"/>'
               + '</svg></span>';
           } else {
-            /* 상위 depth의 세로 연장선 또는 공백 */
             treePrefix += '<span style="display:inline-block;width:'+INDENT_STEP+'px;height:20px;position:relative;vertical-align:middle;flex-shrink:0;">'
               + (!isLastAtThisLevel
                   ? '<svg width="'+INDENT_STEP+'" height="20" style="position:absolute;top:0;left:0;height:100%;">'
@@ -1276,30 +1284,25 @@ function _buildNestedPivot(rows, dims){
         }
       }
 
-      /* 展開箭頭 */
+      /* 展開箭頭：leaf（questtype）也可展開店家 */
       var arrow = '';
-      if(!isLeaf){
-        arrow = '<span class="pivot-expand-icon'+(isOpen?' open':'')+'" id="ico-'+rid+'" '
-          + 'style="font-size:10px;margin-right:5px;flex-shrink:0;">▶</span>';
-      } else {
-        arrow = '<span style="display:inline-block;width:18px;flex-shrink:0;"></span>';
-      }
+      arrow = '<span class="pivot-expand-icon'+(isOpen?' open':'')+'" id="ico-'+rid+'" '
+        + 'style="font-size:10px;margin-right:5px;flex-shrink:0;">▶</span>';
 
       /* 圖示 */
       var icon = '<span style="margin-right:5px;font-size:13px;opacity:.75;flex-shrink:0;">'+meta.icon+'</span>';
 
-      var leftPad = INDENT_BASE + (depth===0 ? 0 : 0);  /* tree line 自帶縮排 */
+      var leftPad = INDENT_BASE + (depth===0 ? 0 : 0);
 
       html += '<tr id="row-'+rid+'" style="'
         + 'background:'+cfg.bg+';'
         + 'border-top:'+cfg.borderTop+';'
         + 'height:'+cfg.rowH+';'
-        + (!isLeaf?'cursor:pointer;':'')
-        + '"'
-        + (!isLeaf?' onclick="_dlgNestToggle(\''+rid+'\')"':'')+'>';
+        + 'cursor:pointer;'
+        + '" onclick="_dlgNestToggle(\''+rid+'\')">';
 
       html += '<td class="td-left" style="padding:0 12px 0 '+leftPad+'px;">'
-        + '<div style="display:flex;align-items:center;'+(depth===0?'':'')+'min-width:0;">'
+        + '<div style="display:flex;align-items:center;min-width:0;">'
         + (depth>0 ? treePrefix : '')
         + arrow + icon
         + '<span style="font-size:'+cfg.fontSize+';font-weight:'+cfg.fontWeight+';color:'+cfg.color+';white-space:nowrap;">'+esc(key)+'</span>'
@@ -1310,6 +1313,89 @@ function _buildNestedPivot(rows, dims){
 
       if(!isLeaf && isOpen){
         renderLevel(childRows, dimIdx+1, depth+1, rid, isLastArr.concat([isLast]));
+      }
+
+      /* 葉節點（questtype）展開時顯示店家列表（店家名稱 + 查核時間） */
+      if(isLeaf && isOpen){
+        /* 去重：依 code，取最後一筆 */
+        var codeMap = {};
+        childRows.forEach(function(r){
+          var code = String(r[COL_CODE]||'').trim();
+          if(code) codeMap[code] = r;
+        });
+        var storeList = Object.keys(codeMap).sort();
+        var storeCfg = LEVEL_CFG[Math.min(depth+1, LEVEL_CFG.length-1)];
+        var storeTreePrefix = '';
+        /* tree line for store depth */
+        for(var sli=0; sli<=depth; sli++){
+          var sIsLast = sli===depth ? isLast : isLastArr[sli];
+          if(sli===depth){
+            storeTreePrefix += '<span style="display:inline-block;width:'+INDENT_STEP+'px;height:20px;position:relative;vertical-align:middle;flex-shrink:0;">'
+              + '<svg width="'+INDENT_STEP+'" height="20" style="position:absolute;top:50%;left:0;transform:translateY(-50%);">'
+              + (sIsLast
+                  ? '<line x1="12" y1="0" x2="12" y2="10" stroke="'+LINE_COLOR+'" stroke-width="1.5"/>'
+                  : '<line x1="12" y1="0" x2="12" y2="20" stroke="'+LINE_COLOR+'" stroke-width="1.5"/>')
+              + '<line x1="12" y1="10" x2="'+INDENT_STEP+'" y2="10" stroke="'+LINE_COLOR+'" stroke-width="1.5"/>'
+              + '</svg></span>';
+          } else {
+            storeTreePrefix += '<span style="display:inline-block;width:'+INDENT_STEP+'px;height:20px;position:relative;vertical-align:middle;flex-shrink:0;">'
+              + (!sIsLast
+                  ? '<svg width="'+INDENT_STEP+'" height="20" style="position:absolute;top:0;left:0;height:100%;">'
+                    + '<line x1="12" y1="0" x2="12" y2="20" stroke="'+LINE_COLOR+'" stroke-width="1.5"/>'
+                    + '</svg>'
+                  : '')
+              + '</span>';
+          }
+        }
+        storeList.forEach(function(code, sti){
+          var r = codeMap[code];
+          var storeName = String(r[COL_NAME]||'').trim();
+          var storeDate = String(r[COL_DATE]||'').trim();
+          var isStoreLast = (sti === storeList.length - 1);
+          /* last-item tree line for store row */
+          var stPrefix = '';
+          for(var tli=0; tli<=depth; tli++){
+            var tIsLast = tli===depth ? isLast : isLastArr[tli];
+            if(tli===depth){
+              stPrefix += '<span style="display:inline-block;width:'+INDENT_STEP+'px;height:20px;position:relative;vertical-align:middle;flex-shrink:0;">'
+                + '<svg width="'+INDENT_STEP+'" height="20" style="position:absolute;top:50%;left:0;transform:translateY(-50%);">'
+                + (!isLast
+                    ? '<line x1="12" y1="0" x2="12" y2="20" stroke="'+LINE_COLOR+'" stroke-width="1.5"/>'
+                    : '<line x1="12" y1="0" x2="12" y2="10" stroke="'+LINE_COLOR+'" stroke-width="1.5"/>')
+                + '</svg></span>';
+            } else {
+              stPrefix += '<span style="display:inline-block;width:'+INDENT_STEP+'px;height:20px;position:relative;vertical-align:middle;flex-shrink:0;">'
+                + (!tIsLast
+                    ? '<svg width="'+INDENT_STEP+'" height="20" style="position:absolute;top:0;left:0;height:100%;">'
+                      + '<line x1="12" y1="0" x2="12" y2="20" stroke="'+LINE_COLOR+'" stroke-width="1.5"/>'
+                      + '</svg>'
+                    : '')
+                + '</span>';
+            }
+          }
+          /* final leg for this store */
+          stPrefix += '<span style="display:inline-block;width:'+INDENT_STEP+'px;height:20px;position:relative;vertical-align:middle;flex-shrink:0;">'
+            + '<svg width="'+INDENT_STEP+'" height="20" style="position:absolute;top:50%;left:0;transform:translateY(-50%);">'
+            + (isStoreLast
+                ? '<line x1="12" y1="0" x2="12" y2="10" stroke="'+LINE_COLOR+'" stroke-width="1.5"/>'
+                : '<line x1="12" y1="0" x2="12" y2="20" stroke="'+LINE_COLOR+'" stroke-width="1.5"/>')
+            + '<line x1="12" y1="10" x2="'+INDENT_STEP+'" y2="10" stroke="'+LINE_COLOR+'" stroke-width="1.5"/>'
+            + '</svg></span>';
+
+          html += '<tr style="background:rgba(0,0,0,.012);border-top:1px solid #f7f6f3;height:30px;">';
+          html += '<td class="td-left" style="padding:0 12px 0 '+INDENT_BASE+'px;">'
+            + '<div style="display:flex;align-items:center;min-width:0;">'
+            + stPrefix
+            + '<span style="display:inline-block;width:18px;flex-shrink:0;"></span>'
+            + '<span style="font-size:12px;opacity:.7;margin-right:5px;flex-shrink:0;">🏪</span>'
+            + '<span style="font-size:12px;font-weight:500;color:#333;white-space:nowrap;">'
+              + esc(storeName)
+              + (storeDate ? '<span style="margin-left:8px;font-size:11px;color:#aaa;font-weight:400;">'+esc(storeDate)+'</span>' : '')
+            + '</span>'
+            + '</div></td>';
+          html += '<td class="td-total" style="font-size:11px;color:#aaa;font-weight:400;">—</td>';
+          html += '</tr>';
+        });
       }
     });
   }
@@ -1372,6 +1458,7 @@ function buildAuditTable(rows){
   html+='<th class="th-left">店家等級</th>';
   html+='<th class="th-left">督導類型</th>';
   html+='<th class="th-left">問卷類型</th>';
+  html+='<th class="th-left">查核時間</th>';
   html+='</tr></thead><tbody>';
 
   sorted.forEach(function(r){
@@ -1386,6 +1473,7 @@ function buildAuditTable(rows){
     html+='<td class="td-left">'+esc(String(r[COL_GRADE]||'—'))+'</td>';
     html+='<td class="td-left">'+esc(String(r[COL_SUPTYPE]||'—'))+'</td>';
     html+='<td class="td-left">'+esc(String(r[COL_QUESTTYPE]||'—'))+'</td>';
+    html+='<td class="td-left" style="color:#888;font-size:12px;">'+esc(String(r[COL_DATE]||'—'))+'</td>';
     html+='</tr>';
   });
   html+='</tbody></table>';
@@ -1402,7 +1490,7 @@ function buildCsvContent(rows){
     }
     return 0;
   });
-  var headers=[COL_AREA,COL_OFFICE,COL_STAFF,COL_CHANNEL,COL_STORETYPE,COL_CODE,COL_NAME,COL_GRADE,COL_SUPTYPE,COL_QUESTTYPE];
+  var headers=[COL_AREA,COL_OFFICE,COL_STAFF,COL_CHANNEL,COL_STORETYPE,COL_CODE,COL_NAME,COL_GRADE,COL_SUPTYPE,COL_QUESTTYPE,COL_DATE];
   var allR=[headers];
   sorted.forEach(function(r){
     var code=String(r[COL_CODE]||'').trim(); if(!code) return;
@@ -1943,6 +2031,130 @@ function downloadSummaryCsv(){
   _flashBtn(btn,'✅ 已下載');
 }
 
+
+
+/* ════ LINE 分享 ════ */
+
+/* 產生主看板摘要文字 */
+function _buildBoardLineSummary(){
+  var rows = getCurrentRows();
+  var stat = calcAudit(rows);
+  var ctx = drillStack.length ? drillStack.map(function(d){ return d.key; }).join(' › ') : '全台';
+  var lines = ['📋 查核型看板 ─ '+PROJ_NAME, '📍 範圍：'+ctx, '🏪 總家數：'+stat.totalStores+' 家', ''];
+  stat.groups.forEach(function(g){
+    lines.push('【'+g.label+'】'+g.stores+' 家');
+    if(g.subItems && g.subItems.length){
+      g.subItems.forEach(function(s){ lines.push('  ▸ '+s.label+'：'+s.stores+' 家'); });
+    }
+  });
+  lines.push('');
+  lines.push('📅 '+new Date().toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}));
+  return lines.join('\n');
+}
+
+/* 產生 Dialog 明細摘要 */
+function _buildDialogLineSummary(){
+  var stat = calcAudit(_dialogRows);
+  var ctx = drillStack.map(function(d){ return d.key; });
+  ctx.push(_dialogTitle);
+  var mode = _dlgDimMode === '1' ? '所→人' : '人→所';
+  var lines = ['📋 查核明細 ─ '+PROJ_NAME, '📍 '+ctx.join(' › '), '🔀 模式：'+mode, '🏪 合計：'+stat.totalStores+' 家', ''];
+  stat.groups.forEach(function(g){
+    lines.push('【'+g.label+'】'+g.stores+' 家');
+  });
+  lines.push('');
+  lines.push('📅 '+new Date().toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}));
+  return lines.join('\n');
+}
+
+/* 產生彙整 Dialog 摘要 */
+function _buildSummaryLineSummary(){
+  var rows = _pivotRows || allRows;
+  var stat = calcAudit(rows);
+  var modeNames = {staff:'業務王 × 督導類型', office:'單位 × 督導類型', suptype:'督導類型 × 問卷類型'};
+  var lines = ['📊 彙整看板 ─ '+PROJ_NAME, '📑 維度：'+modeNames[_pivotMode], '🏪 總家數：'+stat.totalStores+' 家', ''];
+  stat.groups.forEach(function(g){
+    lines.push('【'+g.label+'】'+g.stores+' 家');
+  });
+  lines.push('');
+  lines.push('📅 '+new Date().toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}));
+  return lines.join('\n');
+}
+
+function _shareToLine(text, btn){
+  /* 嘗試複製到剪貼簿，再開 LINE */
+  var url = 'https://line.me/R/msg/text/?' + encodeURIComponent(text);
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(function(){
+      _flashBtn(btn, '✅ 已複製！');
+      window.open(url, '_blank');
+    }).catch(function(){
+      window.open(url, '_blank');
+      _flashBtn(btn, '💬 已開啟');
+    });
+  } else {
+    window.open(url, '_blank');
+    _flashBtn(btn, '💬 已開啟');
+  }
+}
+
+function toolbarShareLine(){
+  var btn = document.getElementById('tb-btn-line');
+  _shareToLine(_buildBoardLineSummary(), btn);
+}
+
+function dialogShareLine(){
+  var btn = document.getElementById('btn-dlg-line');
+  _shareToLine(_buildDialogLineSummary(), btn);
+}
+
+function summaryShareLine(){
+  var btn = document.getElementById('btn-sum-line');
+  _shareToLine(_buildSummaryLineSummary(), btn);
+}
+
+/* ════ Dialog 截圖 ════ */
+function _captureElement(el, btn, filename){
+  btn.classList.add('loading'); btn.innerHTML='<span>⏳</span>';
+  function doCapture(){
+    html2canvas(el, {
+      scale:2, backgroundColor:'#ffffff', useCORS:true,
+      width:el.scrollWidth, height:el.scrollHeight
+    }).then(function(canvas){
+      if(navigator.clipboard && window.ClipboardItem){
+        canvas.toBlob(function(blob){
+          try{
+            navigator.clipboard.write([new ClipboardItem({'image/png':blob})])
+              .then(function(){ btn.classList.remove('loading'); _flashBtn(btn,'✅ 已複製！'); })
+              .catch(function(){ _downloadCanvas(canvas, filename, btn); });
+          }catch(e){ _downloadCanvas(canvas, filename, btn); }
+        },'image/png');
+      } else { _downloadCanvas(canvas, filename, btn); }
+    }).catch(function(err){ btn.classList.remove('loading'); btn.innerHTML='<span>📸</span>'; });
+  }
+  if(window.html2canvas) doCapture();
+  else {
+    var s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    s.onload=doCapture;
+    s.onerror=function(){ btn.classList.remove('loading'); btn.innerHTML='<span>📸</span>'; };
+    document.head.appendChild(s);
+  }
+}
+
+function dialogScreenshot(){
+  var btn = document.getElementById('btn-dlg-screenshot');
+  var el = document.querySelector('#detail-dialog .dlg-box');
+  if(!el){ _flashBtn(btn,'⚠️ 無畫面'); return; }
+  _captureElement(el, btn, _dialogTitle+'_明細');
+}
+
+function summaryScreenshot(){
+  var btn = document.getElementById('btn-sum-screenshot');
+  var el = document.querySelector('#summary-dialog .dlg-box');
+  if(!el){ _flashBtn(btn,'⚠️ 無畫面'); return; }
+  _captureElement(el, btn, PROJ_NAME+'_彙整');
+}
 
 
 /* ════ 啟動 ════ */
