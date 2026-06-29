@@ -38,7 +38,7 @@
   Dialog：逐列明細，含通路別、店家型態、店家等級、督導類型、問卷類型
 
 【版本紀錄】
-  2.2.0  2026-06-29  新增單位名冊骨架（MGMT_ID「單位名冊」tab）；月初無資料時營業處/所仍顯示
+  2.2.0  2026-06-29  讀 MGMT_ID「單位名冊」建骨架；月初無資料仍顯示完整營業處/所
   2.0.0  2026-06-26  改為店家名冊模式：固定10欄、督導類型分群、問卷類型子分類
   1.0.0  2026-06-26  初版
 
@@ -602,11 +602,6 @@ var COL_DATE      = '日期';         /* K — 店家查核日期 */
 /* ROSTER_GROUPS: 由資料動態產生（唯一督導類型清單，依首次出現順序） */
 var ROSTER_GROUPS = [];
 
-/* 單位名冊骨架（從 MGMT_ID 的「單位名冊」tab 載入）
-   ORG_SKELETON = { areaKeys:['北部','桃園',...], officeMap:{'北部':['中和','蘆洲',...],...} } */
-var ORG_SKELETON = null;
-var ORG_SHEET = '單位名冊';
-
 /* URL 參數 */
 var params   = new URLSearchParams(location.search);
 var SHEET_ID = params.get('sheetId') || '';
@@ -618,7 +613,7 @@ var SYNC_CELL  = SYNC_CELL_DEFAULT;
 var SHEET_NAME = SHEET_NAME_DEFAULT;
 
 /* 狀態 */
-var allRows    = null;
+var allRows    = [];
 var drillStack = [];
 var _dialogTitle = '';
 var _dialogRows  = [];
@@ -699,40 +694,38 @@ function init() {
         sel.style.display = '';
       }
 
-      fetchSheet();
+      fetchOrgSkeleton(fetchSheet);
       fetchSyncTime();
     })
     .catch(function(){
       document.getElementById('tb-title').textContent = PROJ_NAME;
-      fetchSheet();
+      fetchOrgSkeleton(fetchSheet);
       fetchSyncTime();
     });
-  fetchOrgSkeleton();
 }
 
-/* ════ 讀單位名冊骨架（MGMT_ID 的「單位名冊」tab）════ */
-function fetchOrgSkeleton() {
+/* ════ 讀單位名冊骨架 ════ */
+function fetchOrgSkeleton(callback) {
   var url = 'https://docs.google.com/spreadsheets/d/' + MGMT_ID +
-    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(ORG_SHEET);
+    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent('單位名冊');
   fetch(url)
     .then(function(r){ return r.text(); })
     .then(function(txt){
       var json = JSON.parse(txt.replace(/^[^\(]+\(/,'').replace(/\);?\s*$/,''));
       var rows = (json.table && json.table.rows) || [];
-      var areaKeys = [], officeMap = {};
+      var skeleton = {}; /* { '北部': ['中和','蘆洲',...], ... } */
       rows.forEach(function(row){
-        var cells = row.c || [];
-        var area   = cells[0] ? String(cells[0].v||cells[0].f||'').trim() : '';
-        var office = cells[1] ? String(cells[1].v||cells[1].f||'').trim() : '';
-        if (!area || !office) return;
-        if (!officeMap[area]) { officeMap[area] = []; areaKeys.push(area); }
-        if (officeMap[area].indexOf(office) === -1) officeMap[area].push(office);
+        var c = row.c || [];
+        var area   = c[0] ? String(c[0].v||c[0].f||'').trim() : '';
+        var office = c[1] ? String(c[1].v||c[1].f||'').trim() : '';
+        if(!area || !office) return;
+        if(!skeleton[area]) skeleton[area] = [];
+        if(skeleton[area].indexOf(office)===-1) skeleton[area].push(office);
       });
-      ORG_SKELETON = { areaKeys: areaKeys, officeMap: officeMap };
-      /* 若主資料已載完，重繪一次 */
-      if (allRows !== null) render();
+      ORG_SKELETON = skeleton;
     })
-    .catch(function(){ /* 失敗不影響主流程 */ });
+    .catch(function(){ ORG_SKELETON = {}; })
+    .then(function(){ callback(); });
 }
 
 /* ════ 讀主資料 ════ */
@@ -783,9 +776,7 @@ function fetchSheet() {
         if (st && !seen[st]) { seen[st]=true; ROSTER_GROUPS.push(st); }
       });
 
-      /* 若骨架已載完（或不需等），直接 render；否則 fetchOrgSkeleton 回來後會補 render */
-      if (ORG_SKELETON !== null) render();
-      /* 若骨架尚未回來，fetchOrgSkeleton 完成後發現 allRows 非 null 會自行 render */
+      render();
     })
     .catch(function(err){
       hideLoading();
@@ -853,8 +844,8 @@ function calcAudit(rows) {
 
 /* ════ 篩選 ════ */
 function getCurrentRows(){
-  if(!drillStack.length) return allRows || [];
-  var rows=allRows || [];
+  if(!drillStack.length) return allRows;
+  var rows=allRows;
   drillStack.forEach(function(d){
     var col;
     if(d.level==='area')   col=COL_AREA;
@@ -875,10 +866,12 @@ function getNextGroups(rows,col){
 }
 
 /* ════ 渲染 ════ */
-var AREA_ORDER = ['北部','桃園','台中','嘉義','台南','高雄','花蓮'];
+var AREA_ORDER = ['北部','桃園','臺中','嘉義','臺南','高雄','花蓮'];
+
+/* 組織骨架：從「單位名冊」讀入後填充 */
+var ORG_SKELETON = null; /* null = 尚未載入 */
 
 function render() {
-  if (allRows === null) return; /* 主資料尚未載完，等 fetchSheet 完成後再 render */
   hideLoading();
   buildQuicknav();
   var stage=document.getElementById('stage');
@@ -904,56 +897,39 @@ window.addEventListener('resize',updateStickyTops);
 
 function renderLevel(stage,rows,col,levelKey,labelText,overallName){
   var groups=getNextGroups(rows,col);
-
-  /* ── 取得 keys：area/office 層優先用骨架，確保月初無資料也能顯示 ── */
   var keys;
-  if (levelKey === 'area' && ORG_SKELETON && ORG_SKELETON.areaKeys.length) {
-    /* 骨架 keys + 資料裡有但骨架沒有的（兜底） */
-    var extra = Object.keys(groups).filter(function(k){ return ORG_SKELETON.areaKeys.indexOf(k) === -1; });
-    keys = ORG_SKELETON.areaKeys.concat(extra);
-  } else if (levelKey === 'office' && ORG_SKELETON && drillStack.length >= 1) {
-    var currentArea = drillStack[drillStack.length - 1].key;
-    var skeletonOffices = (ORG_SKELETON.officeMap[currentArea] || []);
-    var extraO = Object.keys(groups).filter(function(k){ return skeletonOffices.indexOf(k) === -1; });
-    keys = skeletonOffices.concat(extraO);
-  } else {
-    keys = Object.keys(groups);
-  }
-
-  if (!keys.length) { stage.innerHTML='<div class="empty">無資料</div>'; return; }
-
-  /* 快取 calcAudit；骨架補入的空 key 給空陣列 */
-  var statCache={};
-  keys.forEach(function(k){
-    statCache[k] = calcAudit(groups[k] || []);
-  });
 
   if(levelKey==='area'){
-    keys.sort(function(a,b){
+    /* 骨架 keys（AREA_ORDER 順序）+ 資料多出的補後面 */
+    var skAreas = ORG_SKELETON ? Object.keys(ORG_SKELETON) : [];
+    /* 依 AREA_ORDER 排骨架 */
+    skAreas.sort(function(a,b){
       var ia=AREA_ORDER.indexOf(a), ib=AREA_ORDER.indexOf(b);
-      /* 若骨架存在，骨架順序優先，不依 AREA_ORDER 做二次排序 */
-      if (ORG_SKELETON && ORG_SKELETON.areaKeys.length) {
-        var sa=ORG_SKELETON.areaKeys.indexOf(a), sb=ORG_SKELETON.areaKeys.indexOf(b);
-        if(sa===-1&&sb===-1) return statCache[b].totalShares-statCache[a].totalShares;
-        if(sa===-1) return 1; if(sb===-1) return -1;
-        return sa-sb;
-      }
-      if(ia===-1&&ib===-1) return statCache[b].totalShares-statCache[a].totalShares;
+      if(ia===-1&&ib===-1) return 0;
       if(ia===-1) return 1; if(ib===-1) return -1;
       return ia-ib;
     });
-  } else if (levelKey === 'office' && ORG_SKELETON) {
-    /* office 層：骨架順序固定，不依家數排序 */
-    /* keys 已按骨架順序 concat，不再重排 */
+    var extra=Object.keys(groups).filter(function(k){ return skAreas.indexOf(k)===-1; });
+    keys=skAreas.concat(extra);
+  } else if(levelKey==='office' && drillStack.length>=1){
+    var currentArea=drillStack[drillStack.length-1].key;
+    var skOffices=(ORG_SKELETON && ORG_SKELETON[currentArea]) || [];
+    var extraO=Object.keys(groups).filter(function(k){ return skOffices.indexOf(k)===-1; });
+    keys=skOffices.concat(extraO);
   } else {
-    keys.sort(function(a,b){ return statCache[b].totalShares-statCache[a].totalShares; });
+    keys=Object.keys(groups);
+    keys.sort(function(a,b){ return calcAudit(groups[b]||[]).totalShares-calcAudit(groups[a]||[]).totalShares; });
   }
+
+  if(!keys.length){ stage.innerHTML='<div class="empty">無資料</div>'; return; }
+
+  var statCache={};
+  keys.forEach(function(k){ statCache[k]=calcAudit(groups[k]||[]); });
 
   var div=document.createElement('div');
   div.innerHTML='<div class="level-label">'+esc(labelText)+'</div>';
   var grid=document.createElement('div'); grid.className='grid';
 
-  /* 整體卡片 */
   _overallRows=rows; _overallLevel=levelKey;
   var overallStat=calcAudit(rows);
   var overallCard=buildCard(overallName,labelText,overallStat,levelKey,rows,true);
