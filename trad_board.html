@@ -895,13 +895,19 @@ function calcPersonQ(rows,q){
   var identity=calcIdentity(monthData,months,false);
   /* totalGrowth===null 代表無任何業績資料，直接 null 傳入 calcBonus 讓它返回 null */
   var bonus=calcBonus(identity,totalGrowth,totalPct,roleM.length);
+  /* monthArea：記錄每個月份對應的營業處（供跨單位判斷用） */
+  var monthArea={};
+  rows.forEach(function(r){
+    var m=parseInt(gv(r,'month'),10);
+    if(!monthArea[m]) monthArea[m]=gv(r,'area');
+  });
   var storeRows=Object.values(storeMap).sort(function(a,b){return a.month-b.month||(a.name>b.name?1:-1);});
   storeRows.forEach(function(s){s.tgt=fmt2(s.tgt);s.growth=fmt2(s.cur-s.tgt);/* last 保留原始去年業績 */});
   var excludedStoreRows=Object.values(excludedStoreMap).sort(function(a,b){return a.month-b.month||(a.name>b.name?1:-1);});
   return{monthData:monthData,months:months,evalMonths:evalM,validMonths:roleM,
     totalCur:totalCur,totalLast:totalLast,totalTgt:totalTgt,totalGrowth:totalGrowth,
     growthRate:growthRate,totalPct:totalPct,evalAmt:evalAmt,totalStores:totalStores,identity:identity,bonus:bonus,
-    roleMonthCount:roleM.length,storeRows:storeRows,excludedStoreRows:excludedStoreRows};
+    roleMonthCount:roleM.length,storeRows:storeRows,excludedStoreRows:excludedStoreRows,monthArea:monthArea};
 }
 
 /* 店家×季（組織視角） */
@@ -1037,7 +1043,13 @@ function makeCard(c){
   else{bigNum='0.0';teCls='nil';}
   var ident=qd.identity;
   var bonusHtml='';
-  if(qd.bonus===1000) bonusHtml='<span class="pc-bonus-badge b1000">&#127885; $1,000 達標獎金</span>';
+  /* 跨單位判斷：evalMonths 的 area 是否全部相同 */
+  var _evalAreas=qd.evalMonths.map(function(m){return qd.monthArea[m]||'';});
+  var _crossUnit=!(_evalAreas.length===3&&_evalAreas.every(function(a){return a===_evalAreas[0]&&a!=='';}));
+  if(qd.bonus===1000){
+    bonusHtml='<span class="pc-bonus-badge b1000">&#127885; $1,000 達標獎金</span>';
+    if(_crossUnit) bonusHtml+='<span style="font-size:10px;color:#996600;background:rgba(200,150,0,.08);border:1px solid rgba(200,150,0,.25);border-radius:6px;padding:2px 8px;margin-left:4px;">&#9888;&#65039; 本季含跨單位月份，不計入處內排行</span>';
+  }
   else if(qd.bonus===500) bonusHtml='<span class="pc-bonus-badge b500">&#9989; $500 達標獎金</span>';
   var rowsHtml=qd.months.map(function(m){
     var d=qd.monthData[m];
@@ -1202,6 +1214,10 @@ function updateRank(){
     var info=staffMap[staff];
     var qd=calcPersonQ(info.rows,curQ);
     if(qd.bonus!==1000) return null;
+    /* 跨單位排除：3個月 area 必須全部相同才能參與處內排行 */
+    var evalAreas=qd.evalMonths.map(function(m){return qd.monthArea[m]||'';});
+    var allSameArea=evalAreas.length===3&&evalAreas.every(function(a){return a===evalAreas[0]&&a!=='';});
+    if(!allSameArea) return null;
     return{staff:info.displayName||staff,area:info.area,office:info.office,growth:qd.totalGrowth||0,growthRate:qd.growthRate||0,totalPct:qd.totalPct||0,evalAmt:qd.evalAmt||0};
   }).filter(Boolean);
   if(!eligible.length){content.innerHTML='<div style="padding:16px;font-size:13px;color:var(--sub);text-align:center;">尚無 $1,000 達標人員</div>';return;}
