@@ -596,7 +596,7 @@ var COL_NAME      = '店家名稱';     /* G */
 var COL_GRADE     = '店家等級';     /* H */
 var COL_SUPTYPE   = '督導類型';     /* I — 大群分組鍵 */
 var COL_QUESTTYPE = '問卷類型';     /* J — 群內子分類 */
-var COL_DATE      = '查核時間';     /* K — 店家查核時間（選填）*/
+var COL_DATE      = '日期';         /* K — 店家查核日期 */
 
 /* ROSTER_GROUPS: 由資料動態產生（唯一督導類型清單，依首次出現順序） */
 var ROSTER_GROUPS = [];
@@ -707,7 +707,7 @@ function init() {
 var FIXED_COLS = [
   '營業處名稱','營業所/課','執行人員','通路別',
   '店家型態','店家代碼','店家名稱','店家等級',
-  '督導類型','問卷類型','查核時間'
+  '督導類型','問卷類型','日期'
 ];
 
 function fetchSheet() {
@@ -728,7 +728,14 @@ function fetchSheet() {
           if (!cell) { obj[colName]=''; return; }
           var v=(cell.v!==null&&cell.v!==undefined)?cell.v:'';
           var f=cell.f||'';
-          obj[colName]=(v!==''&&v!==null&&v!==undefined)?v:f;
+          /* 日期欄位：優先用 formatted value（f），再 fallback parseGvizDate(v) */
+          if(colName === '日期'){
+            if(f) obj[colName]=f;
+            else if(v) obj[colName]=parseGvizDate(String(v));
+            else obj[colName]='';
+          } else {
+            obj[colName]=(v!==''&&v!==null&&v!==undefined)?v:f;
+          }
         });
         return obj;
       }).filter(function(r){
