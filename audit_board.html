@@ -10,16 +10,17 @@
   2. 問卷類型節點可展開，下方顯示店家名稱 + 查核時間並列
      明細表新增「查核時間」欄位（資料欄：查核時間 K欄，選填）
   3. 主看板 / Detail Dialog / Summary Dialog 均有
-     「💬 LINE / 📥 CSV / 📸 截圖」三鍵
-     LINE 分享依模式文字摘要複製至剪貼簿並開啟 LINE
+     「📋 複製 / 📥 CSV / 📸 截圖」
+     Detail Dialog 複製分「摘要」（家數概覽）與「詳細」（展開到所/人層）
+     複製純文字到剪貼簿，方便貼到 LINE 或任何通訊軟體
 
 【這個檔案在做什麼】
   顯示「查核型」專案的店家名冊概況。
-  資料格式：每列一筆店家，固定讀取以下 10 個欄位。
+  資料格式：每列一筆店家，固定讀取以下 11 個欄位。
   依「督導類型」(I欄) 分大群統計家數；群內依「問卷類型」(J欄) 細分。
   層級視角：營業處 → 營業所/課 → 業務人員。
 
-【店家名冊固定欄位（A~J）】
+【店家名冊固定欄位（A~K）】
   A 營業處名稱
   B 營業所/課
   C 執行人員
@@ -30,6 +31,7 @@
   H 店家等級
   I 督導類型   ← 大群分組鍵（ROSTER_GROUPS 由資料動態產生）
   J 問卷類型   ← 群內子分類
+  K 日期       ← 查核日期（選填）
 
 【計算邏輯】
   大群 = 唯一督導類型值（依資料首次出現順序）
@@ -478,16 +480,6 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 
 /* ══ END PIVOT ══ */
 
-/* 複製下拉選單選項 */
-.dlg-copy-item {
-  display:block; width:100%; padding:10px 16px;
-  font-size:13px; font-weight:600; font-family:inherit;
-  text-align:left; background:none; border:none; cursor:pointer;
-  color:var(--text); white-space:nowrap; transition:background .12s;
-}
-.dlg-copy-item + .dlg-copy-item { border-top:1px solid rgba(0,0,0,.07); }
-.dlg-copy-item:hover { background:var(--primary-bg); color:var(--primary); }
-
 @media (max-width:640px) {
   .toolbar { padding:0 10px; gap:6px; flex-wrap:nowrap; }
   .toolbar-title { display:none; }
@@ -839,7 +831,6 @@ function calcAudit(rows) {
   });
 
   return {
-    totalShares: totalStores.size, /* 語意上這裡是「家數」，重用 totalShares 欄位供 UI 相容 */
     totalStores: totalStores.size,
     groups: groups.map(function(g){
       var subItems = Object.keys(g.questMap).sort().map(function(qt){
@@ -848,7 +839,7 @@ function calcAudit(rows) {
       var staffList = Object.keys(g.staffMap).map(function(s){
         return { name:s, stores:g.staffMap[s].size };
       }).sort(function(a,b){ return b.stores-a.stores || a.name.localeCompare(b.name); });
-      return { label:g.label, shares:g.stores.size, stores:g.stores.size, subItems:subItems, staffList:staffList };
+      return { label:g.label, stores:g.stores.size, subItems:subItems, staffList:staffList };
     })
   };
 }
@@ -927,7 +918,7 @@ function renderLevel(stage,rows,col,levelKey,labelText,overallName){
     keys=skOffices.concat(extraO);
   } else {
     keys=Object.keys(groups);
-    keys.sort(function(a,b){ return calcAudit(groups[b]||[]).totalShares-calcAudit(groups[a]||[]).totalShares; });
+    keys.sort(function(a,b){ return calcAudit(groups[b]||[]).totalStores-calcAudit(groups[a]||[]).totalStores; });
   }
 
   if(!keys.length){ stage.innerHTML='<div class="empty">無資料</div>'; return; }
@@ -1438,14 +1429,13 @@ function _buildNestedPivot(rows, dims){
       }
 
       /* 展開箭頭：leaf（questtype）也可展開店家 */
-      var arrow = '';
-      arrow = '<span class="pivot-expand-icon'+(isOpen?' open':'')+'" id="ico-'+rid+'" '
+      var arrow = '<span class="pivot-expand-icon'+(isOpen?' open':'')+'" id="ico-'+rid+'" '
         + 'style="font-size:10px;margin-right:5px;flex-shrink:0;">▶</span>';
 
       /* 圖示 */
       var icon = '<span style="margin-right:5px;font-size:13px;opacity:.75;flex-shrink:0;">'+meta.icon+'</span>';
 
-      var leftPad = INDENT_BASE + (depth===0 ? 0 : 0);
+      var leftPad = INDENT_BASE;
 
       html += '<tr id="row-'+rid+'" style="'
         + 'background:'+cfg.bg+';'
@@ -1477,29 +1467,7 @@ function _buildNestedPivot(rows, dims){
           if(code) codeMap[code] = r;
         });
         var storeList = Object.keys(codeMap).sort();
-        var storeCfg = LEVEL_CFG[Math.min(depth+1, LEVEL_CFG.length-1)];
-        var storeTreePrefix = '';
         /* tree line for store depth */
-        for(var sli=0; sli<=depth; sli++){
-          var sIsLast = sli===depth ? isLast : isLastArr[sli];
-          if(sli===depth){
-            storeTreePrefix += '<span style="display:inline-block;width:'+INDENT_STEP+'px;height:20px;position:relative;vertical-align:middle;flex-shrink:0;">'
-              + '<svg width="'+INDENT_STEP+'" height="20" style="position:absolute;top:50%;left:0;transform:translateY(-50%);">'
-              + (sIsLast
-                  ? '<line x1="12" y1="0" x2="12" y2="10" stroke="'+LINE_COLOR+'" stroke-width="1.5"/>'
-                  : '<line x1="12" y1="0" x2="12" y2="20" stroke="'+LINE_COLOR+'" stroke-width="1.5"/>')
-              + '<line x1="12" y1="10" x2="'+INDENT_STEP+'" y2="10" stroke="'+LINE_COLOR+'" stroke-width="1.5"/>'
-              + '</svg></span>';
-          } else {
-            storeTreePrefix += '<span style="display:inline-block;width:'+INDENT_STEP+'px;height:20px;position:relative;vertical-align:middle;flex-shrink:0;">'
-              + (!sIsLast
-                  ? '<svg width="'+INDENT_STEP+'" height="20" style="position:absolute;top:0;left:0;height:100%;">'
-                    + '<line x1="12" y1="0" x2="12" y2="20" stroke="'+LINE_COLOR+'" stroke-width="1.5"/>'
-                    + '</svg>'
-                  : '')
-              + '</span>';
-          }
-        }
         storeList.forEach(function(code, sti){
           var r = codeMap[code];
           var storeName = String(r[COL_NAME]||'').trim();
@@ -1750,7 +1718,6 @@ function closeSummaryDialog(){
   dlg.classList.remove('open');
   setTimeout(function(){ dlg.style.display='none'; }, 220);
 }
-document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeSummaryDialog(); });
 
 /* ── Tab 切換 ── */
 function switchPivotTab(mode, tabEl){
