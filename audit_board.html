@@ -478,6 +478,16 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 
 /* ══ END PIVOT ══ */
 
+/* 複製下拉選單選項 */
+.dlg-copy-item {
+  display:block; width:100%; padding:10px 16px;
+  font-size:13px; font-weight:600; font-family:inherit;
+  text-align:left; background:none; border:none; cursor:pointer;
+  color:var(--text); white-space:nowrap; transition:background .12s;
+}
+.dlg-copy-item + .dlg-copy-item { border-top:1px solid rgba(0,0,0,.07); }
+.dlg-copy-item:hover { background:var(--primary-bg); color:var(--primary); }
+
 @media (max-width:640px) {
   .toolbar { padding:0 10px; gap:6px; flex-wrap:nowrap; }
   .toolbar-title { display:none; }
@@ -1100,7 +1110,7 @@ var DIM_META = {
   staff:     { icon:'👤', label:'人員'   },
   questtype: { icon:'📄', label:'問卷類型' }
 };
-var _dlgDimMode=_loadDimMode(), _dlgListMode=false, _dlgExpandMap={}, _dlgSortState={};
+var _dlgDimMode=_loadDimMode(), _dlgListMode=false, _dlgExpandMap={}, _dlgSortState={}, _dlgAllExpanded=false;
 
 function _loadDimMode(){
   try{ var v=localStorage.getItem(DIM_STORAGE_KEY); if(v==='1'||v==='2') return v; }catch(e){}
@@ -1111,7 +1121,7 @@ function _getDimOrder(){ return DIM_MODES[_dlgDimMode]; }
 
 function openDialog(name,levelKey,rows){
   _dialogTitle=name; _dialogLevel=levelKey; _dialogRows=rows;
-  _dlgListMode=false; _dlgExpandMap={}; _dlgSortState={};
+  _dlgListMode=false; _dlgExpandMap={}; _dlgSortState={}; _dlgAllExpanded=false;
   var stat=calcAudit(rows);
   var ctx=drillStack.map(function(d){ return d.key; });
   ctx.push(name);
@@ -1140,20 +1150,153 @@ function _renderDimBar(){
   var p='<div class="dim-path"><div class="dim-tag-locked"><span class="lock-icon">🔒</span>🏢 營業處</div>';
   dims.forEach(function(d){ var m=DIM_META[d]; p+='<span class="dim-sep">›</span><div class="dim-badge">'+m.icon+' '+m.label+'</div>'; });
   p+='</div>';
+  var expandLabel = _dlgAllExpanded ? '⊟ 全摺疊' : '⊞ 全展開';
   var c='<div class="dim-mode-group">'
     +'<button class="dim-mode-btn'+(_dlgDimMode==='1'?' active':'')+'" onclick="_setDimMode(\'1\')" title="處›督›所›人›問">所→人</button>'
     +'<button class="dim-mode-btn'+(_dlgDimMode==='2'?' active':'')+'" onclick="_setDimMode(\'2\')" title="處›督›人›所›問">人→所</button>'
+    +'<button class="dim-list-btn" onclick="_dlgToggleExpandAll()">'+expandLabel+'</button>'
     +'<button class="dim-list-btn'+(_dlgListMode?' active':'')+'" onclick="_dlgToggleList()">📄 明細</button>'
+    /* 複製下拉包裝 */
+    +'<div style="position:relative;display:inline-block;">'
+      +'<button class="dim-list-btn" onclick="_toggleDlgCopyMenu(event)">📋 複製 ▾</button>'
+      +'<div id="dlg-copy-menu" style="display:none;position:absolute;right:0;top:calc(100% + 4px);'
+        +'background:#fff;border:1px solid rgba(0,0,0,.12);border-radius:10px;'
+        +'box-shadow:0 4px 16px rgba(0,0,0,.13);min-width:150px;z-index:600;overflow:hidden;">'
+        +'<button class="dlg-copy-item" onclick="_dlgCopyAction(\'summary\')">📌 摘要（家數）</button>'
+        +'<button class="dlg-copy-item" onclick="_dlgCopyAction(\'detail\')">📝 詳細（展開所/人）</button>'
+      +'</div>'
+    +'</div>'
     +'</div>';
   bar.innerHTML=p+c;
 }
 function _setDimMode(m){
   _dlgDimMode=m; _saveDimMode();
-  _dlgExpandMap={}; _dlgSortState={}; _dlgListMode=false;
+  _dlgExpandMap={}; _dlgSortState={}; _dlgListMode=false; _dlgAllExpanded=false;
   _renderDimBar(); _renderDlgContent();
 }
 function _dlgToggleList(){
   _dlgListMode=!_dlgListMode; _renderDimBar(); _renderDlgContent();
+}
+
+/* ── 全展開 / 全摺疊 ── */
+function _dlgToggleExpandAll(){
+  _dlgAllExpanded = !_dlgAllExpanded;
+  if(_dlgAllExpanded){
+    /* 遞迴走資料樹，產生所有節點的 rid */
+    _dlgExpandMap = {};
+    var fullDims = ['area'].concat(_getDimOrder());
+    function _collectRids(rows, dimIdx, parentRid){
+      if(dimIdx >= fullDims.length) return;
+      var dim = fullDims[dimIdx];
+      var col = DIM_COL[dim]();
+      var seen = {}, order = [];
+      rows.forEach(function(r){
+        var k = String(r[col]||'').trim();
+        if(!k) return;
+        if(!seen[k]){ seen[k]=[]; order.push(k); }
+        seen[k].push(r);
+      });
+      order.forEach(function(key){
+        var rid = (parentRid||'r')+'-d'+dimIdx+'-'+_rid(key);
+        _dlgExpandMap[rid] = true;
+        _collectRids(seen[key], dimIdx+1, rid);
+      });
+    }
+    _collectRids(_dialogRows, 0, '');
+  } else {
+    _dlgExpandMap = {};
+  }
+  _renderDimBar(); _renderDlgContent();
+}
+
+/* ── 複製下拉選單 ── */
+function _toggleDlgCopyMenu(e){
+  e.stopPropagation();
+  var menu = document.getElementById('dlg-copy-menu');
+  if(!menu) return;
+  var isOpen = menu.style.display !== 'none';
+  menu.style.display = isOpen ? 'none' : 'block';
+  if(!isOpen){
+    function _close(ev){
+      if(!menu.contains(ev.target)){ menu.style.display='none'; document.removeEventListener('click',_close); }
+    }
+    setTimeout(function(){ document.addEventListener('click',_close); }, 0);
+  }
+}
+
+function _dlgCopyAction(type){
+  var menu = document.getElementById('dlg-copy-menu');
+  if(menu) menu.style.display='none';
+  /* 找到最後渲染的按鈕（▾ 按鈕），用它來 flash */
+  var btn = document.querySelector('#dlg-dim-bar .dim-mode-group div button:first-child') ||
+            document.getElementById('btn-dlg-line');
+  var text = (type==='detail') ? _buildDialogLineDetail() : _buildDialogLineSummary();
+  _shareToLine(text, btn);
+}
+
+/* ── 詳細文字：依模式展開到所/人 ── */
+function _buildDialogLineDetail(){
+  var ctx = drillStack.map(function(d){ return d.key; });
+  ctx.push(_dialogTitle);
+  var mode = _dlgDimMode === '1' ? '所→人' : '人→所';
+  var lines = [
+    '📋 查核明細（詳細）─ '+PROJ_NAME,
+    '📍 '+ctx.join(' › '),
+    '🔀 模式：'+mode,
+    '🏪 合計：'+_countCodes(_dialogRows)+' 家',
+    ''
+  ];
+
+  /* 依模式決定第一、二維度 key（處固定為第0層，跳過） */
+  /* 模式1：所→人  dims=[suptype,office,staff,questtype]  → 先所後人
+     模式2：人→所  dims=[suptype,staff,office,questtype]  → 先人後所
+     文字只展開到第2層（含）：處›[督]›[所|人] */
+  var fullDims = ['area'].concat(_getDimOrder());
+  /* 第0=area，第1=suptype，第2=office|staff，第3=staff|office */
+  /* 逐層 groupBy */
+  function grpBy(rows, dim){
+    var col=DIM_COL[dim](), map={}, order=[];
+    rows.forEach(function(r){
+      var k=String(r[col]||'').trim(); if(!k) return;
+      if(!map[k]){ map[k]=[]; order.push(k); }
+      map[k].push(r);
+    });
+    order.sort(function(a,b){ return a.localeCompare(b,'zh-TW'); });
+    return {map:map, order:order};
+  }
+
+  var areaG = grpBy(_dialogRows, 'area');
+  areaG.order.forEach(function(area){
+    var areaRows = areaG.map[area];
+    lines.push('🏢 '+area+'（'+_countCodes(areaRows)+' 家）');
+
+    /* 第1維：督導類型 */
+    var g1 = grpBy(areaRows, fullDims[1]);
+    g1.order.forEach(function(k1){
+      var rows1 = g1.map[k1];
+      lines.push('  【'+k1+'】'+_countCodes(rows1)+' 家');
+
+      /* 第2維：所 or 人 */
+      var g2 = grpBy(rows1, fullDims[2]);
+      g2.order.forEach(function(k2){
+        var rows2 = g2.map[k2];
+        var meta2 = DIM_META[fullDims[2]];
+        lines.push('    '+meta2.icon+' '+k2+'（'+_countCodes(rows2)+' 家）');
+
+        /* 第3維：人 or 所 */
+        var g3 = grpBy(rows2, fullDims[3]);
+        g3.order.forEach(function(k3){
+          var rows3 = g3.map[k3];
+          var meta3 = DIM_META[fullDims[3]];
+          lines.push('      '+meta3.icon+' '+k3+'（'+_countCodes(rows3)+' 家）');
+        });
+      });
+    });
+    lines.push('');
+  });
+
+  lines.push('📅 '+new Date().toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}));
+  return lines.join('\n');
 }
 function _renderDlgContent(){
   var el=document.getElementById('dlg-pivot-content');
@@ -2168,8 +2311,22 @@ function toolbarShareLine(){
 }
 
 function dialogShareLine(){
-  var btn = document.getElementById('btn-dlg-line');
-  _shareToLine(_buildDialogLineSummary(), btn);
+  /* header 的 📋 複製按鈕 → 打開下拉選單 */
+  var menu = document.getElementById('dlg-copy-menu');
+  if(menu){
+    var isOpen = menu.style.display !== 'none';
+    menu.style.display = isOpen ? 'none' : 'block';
+    if(!isOpen){
+      function _close(ev){
+        if(!menu.contains(ev.target)){ menu.style.display='none'; document.removeEventListener('click',_close); }
+      }
+      setTimeout(function(){ document.addEventListener('click',_close); }, 0);
+    }
+  } else {
+    /* fallback: 直接摘要 */
+    var btn = document.getElementById('btn-dlg-line');
+    _shareToLine(_buildDialogLineSummary(), btn);
+  }
 }
 
 function summaryShareLine(){
