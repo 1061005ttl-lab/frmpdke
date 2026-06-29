@@ -1,7 +1,7 @@
 <!--
 ================================================================================
   業務王同步中心 - 桌面版同步控制台 (sync0616_desktop.html)
-  版本：Ver. 1.5.1 ｜ 最後更新：2026-06-20 10:36
+  版本：Ver. 1.5.2 ｜ 最後更新：2026-06-29
 ================================================================================
 
 【這份檔案在做什麼】
@@ -21,54 +21,73 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
   此陣列的索引順序＝畫面顯示順序＝按鈕/進度條等 DOM id 使用的索引 i。
 
 【畫面結構（桌面版重點）】
-- 上方 Header：標題 + 動態副標（顯示任務總數與訪頻分組數量）+「📊 看板
-  中心」外部連結（開新分頁連到 https://1061005ttl-lab.github.io/frmpdke/
-  ，跟個別任務卡片上的 📈 看板按鈕是不同東西，這個是整體看板入口）+
-  重新載入按鈕。
+- 上方 Header：標題 + 動態副標（顯示任務總數與訪頻/查核分組數量）+
+  「📊 看板中心」外部連結（開新分頁連到
+  https://1061005ttl-lab.github.io/frmpdke/，跟個別任務卡片上的 📈
+  看板按鈕是不同東西，這個是整體看板入口）+ 重新載入按鈕。
 - 主內容區（.main-col，置中、左右留白，適合寬螢幕）：
-  - 「訪頻專用」分組框（.freq-group）：固定把 tasks[] 陣列「最前面
-    FREQ_GROUP_COUNT 筆」（目前 = 6，常數定義在 <script> 內）框起來，
-    標籤為「📅 訪頻專用」。此分組純粹依「資料順序」決定，不是依名稱
-    判斷，若後端回傳的順序改變，框起來的項目也會跟著變動。
-  - 「簽約查核」分組框：在 FREQ_GROUP_COUNT 筆之後的任務裡，凡是
-    task.name 第一個字元是「查」的，都會被歸進這個分組框（標籤
-    「🔍 簽約查核」），判斷邏輯集中在 isQueryTask(task) 這個函式。
-    這是「依名稱」分組，跟訪頻專用「依順序」分組是兩種不同邏輯，
-    兩者不會衝突，因為簽約查核只從「訪頻專用以外」的任務裡篩選。
-  - 其他任務（.task-grid）：扣掉前面兩個分組後剩下的任務，以多欄
-    網格排列，卡片含起訖日期(dateText)與更新時間(updatedAt)。
-  - 上面三個分組（訪頻專用／簽約查核／其他任務）的標籤旁都各有一顆
-    專屬的「⚡ 一鍵同步」按鈕，會一次觸發「本分組內」所有尚未在同步中
-    的卡片。三顆按鈕共用同一套 syncAllByIndices(indices, btnId) 邏輯，
-    差別只在傳入的卡片索引陣列與按鈕 id 不同；render() 每次重繪畫面時
-    會重新計算三個分組各自的索引陣列，存在全域變數 groupIndices 裡
-    （{ freq:[...], query:[...], rest:[...] }），新增分組或改變篩選
-    規則時，只要讓 render() 把正確的索引塞進 groupIndices 對應的欄位
-    即可，不需要更動 syncAllByIndices() 本身。
-  - 「專屬群組」（訪頻專用／簽約查核，即有自己邊框+一鍵同步按鈕的
-    分組，其他任務不算）預設為「摺疊」狀態以節省畫面空間，只露出
-    標籤與一鍵同步按鈕，點擊標籤可展開/收合（toggleGroupCollapse()）。
-    一鍵同步按鈕本身不在可摺疊範圍內，摺起來時仍可直接點擊觸發整批
-    同步，不需要先展開。摺疊狀態存在全域變數 collapsedGroups（例如
-    { freq:true, query:true }），切換時只是對既有 DOM 加減 collapsed
-    這個 class，不會重新整理整頁，所以使用者展開過的分組在下次按
-    「重新載入」時會維持原狀，不會被打回預設摺疊。日後若新增其他
-    專屬群組，記得在 collapsedGroups 補一個對應 key（預設 true），
-    否則該分組會以展開狀態渲染。
-  - 看板按鈕（📈 橘色）：僅當 task.dataType === '問卷' 且 task.boardType
-    存在於 BOARD_FILE 對照表時才會顯示，連到 BOARD_BASE 對應的外部看板
-    頁面（達成率型 / 覆蓋率型 / 獎勵達成型）。
+  目前共有四個分組，依序顯示如下：
+
+  ① 「訪頻專用」分組框（.freq-group，groupKey='freq'）
+    固定把 tasks[] 陣列「最前面 FREQ_GROUP_COUNT 筆」（目前 = 6，常數
+    定義在 <script> 內）框起來，標籤為「📅 訪頻專用」。此分組純粹依
+    「資料順序」決定，與名稱無關，若後端回傳的順序改變，框起來的項目
+    也會跟著變動。
+
+  ② 「簽約查核」分組框（.freq-group，groupKey='query'）
+    在訪頻專用以外的任務裡，凡是 task.name 第一個字元是「查」的，都會
+    被歸進這個分組框（標籤「🔍 簽約查核」），判斷邏輯集中在
+    isQueryTask(task) 這個函式。這是「依名稱」分組，與訪頻專用「依順序」
+    分組是兩種不同邏輯，兩者不會衝突，因為此分組只從訪頻專用以外的任務
+    裡篩選。
+
+  ③ 「各級督導」分組框（.freq-group，groupKey='super'）
+    在訪頻專用以外、且非簽約查核的任務裡，凡是 task.name 開頭為「督-」
+    的，都會被歸進這個分組框（標籤「👥 各級督導」）。篩選邏輯直接寫在
+    render() 內（name.startsWith('督-')），無獨立函式。優先順序低於訪頻
+    專用與簽約查核，只從兩者都排除後的剩餘任務裡篩選。
+
+  ④ 「其他任務」區塊（.task-section，無邊框）
+    扣掉以上三個分組後剩下的任務，以多欄網格（.task-grid）排列，卡片
+    含起訖日期(dateText)與更新時間(updatedAt)。這個區塊沒有邊框，不屬於
+    「專屬群組」，無摺疊功能。
+
+- 四個分組各有一顆專屬「⚡ 一鍵同步」按鈕，會一次觸發本分組內所有尚未
+  在同步中的卡片。四顆按鈕共用同一套 syncAllByIndices(indices, btnId)
+  邏輯，對應的呼叫函式分別為：
+    syncAllFreq()  → groupIndices.freq  / 'freq-sync-all-btn'
+    syncAllQuery() → groupIndices.query / 'query-sync-all-btn'
+    syncAllSuper() → groupIndices.super / 'super-sync-all-btn'
+    syncAllRest()  → groupIndices.rest  / 'rest-sync-all-btn'
+  render() 每次重繪畫面時會重新計算四個分組各自的索引陣列，存在全域
+  變數 groupIndices（{ freq:[...], query:[...], super:[...], rest:[...] }）
+  裡。新增分組或改變篩選規則時，只要讓 render() 把正確的索引塞進
+  groupIndices 對應欄位即可，不需要更動 syncAllByIndices() 本身。
+
+- 「專屬群組」（①②③，即有自己邊框+一鍵同步按鈕的分組，④其他任務不算）
+  預設為「摺疊」狀態，只露出標籤與一鍵同步按鈕，點擊標籤可展開/收合
+  （toggleGroupCollapse()）。一鍵同步按鈕不在可摺疊範圍內，摺起來時
+  仍可直接點擊觸發整批同步，不需要先展開。摺疊狀態存在全域變數
+  collapsedGroups（{ freq:true, query:true, super:true }），切換時只是
+  對既有 DOM 加減 collapsed class，不會重新整理整頁，所以使用者展開過
+  的分組在下次按「重新載入」時會維持原狀。日後若再新增專屬群組，記得
+  在 collapsedGroups 補一個對應 key（預設 true），否則該分組會以展開
+  狀態渲染。
+
+- 看板按鈕（📈 橘色）：僅當 task.dataType === '問卷' 且 task.boardType
+  存在於 BOARD_FILE 對照表時才會顯示，連到 BOARD_BASE 對應的外部看板
+  頁面（達成率型 / 覆蓋率型 / 獎勵達成型）。
+
 - 右側「執行紀錄」側欄（.log-sidebar，id="log-sidebar"）：
-  - 預設為「收合」狀態（窄條，僅顯示直立標籤圖示與未讀紅點），點擊側欄
-    即可展開/收合（toggleLog()），與舊版手機介面「預設收合」的行為
-    一致，避免長期佔用桌面版的水平空間。
-  - 每次同步開始/成功/失敗都會呼叫 addLog() 在此處插入一筆紀錄；側欄
-    收合時新紀錄會在收合條上顯示紅點提示，展開後紅點自動消失。
+  預設為「收合」狀態（窄條，僅顯示直立標籤圖示與未讀紅點），點擊側欄
+  即可展開/收合（toggleLog()）。每次同步開始/成功/失敗都會呼叫 addLog()
+  插入一筆紀錄；側欄收合時新紀錄會在收合條上顯示紅點提示，展開後紅點
+  自動消失。
 
 【維護注意事項】
 - 「⚡ 一鍵同步」按鈕（.sync-all-btn）的任何狀態（預設/hover/active/
   disabled）都必須用完全不透明的顏色，不能用半透明色（rgba 低 alpha）
-  或 opacity 屬性做效果。因為訪頻專用的那顆會疊在分組框的邊框線上，
+  或 opacity 屬性做效果。因為專屬群組的那顆會疊在分組框的邊框線上，
   半透明會讓邊框線穿透顯示，看起來像介面壞掉。其他會疊在邊框/分隔線
   上的元件也適用同樣原則。
 - 全站文字一律禁止使用灰色（--text-secondary 直接等同 --text-main），
@@ -79,19 +98,22 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
   拼接（btn-sync-i / progress-i / bar-i / progress-msg-i /
   progress-time-i），這組查詢邏輯集中寫在 getCardEls(i) 一個函式裡，
   startSync() / resetCard() 都呼叫它，不要再各自用 getElementById 重查。
-- 訪頻專用與其他任務的卡片共用同一套 HTML/CSS（taskCardHtml() 與
-  .task-card / .card-name / .card-date / .card-meta / .card-btns），
-  只有外層的 .freq-grid / .task-grid 容器寬度設定不同，修改卡片外觀時
-  改這一份共用樣式即可，不需要也不應該再分別維護兩套。
+- 所有分組的卡片共用同一套 HTML/CSS（taskCardHtml() 與 .task-card /
+  .card-name / .card-date / .card-meta / .card-btns），只有外層容器的
+  .freq-grid / .task-grid 寬度設定不同，修改卡片外觀時改這一份共用樣式
+  即可，不需要也不應該分別維護多套。
 - 狀態色（成功/失敗/進行中）統一定義在 CSS 的 --success / --danger /
   --warning，JS 端對應的 STATUS_COLOR 常數要手動保持一致（因為部分顏色
   是直接寫進 inline style，沒有讀取 CSS 變數）。
-- 若要調整「訪頻專用」涵蓋的筆數，改 FREQ_GROUP_COUNT 常數即可；若要
-  調整「簽約查核」的篩選條件（目前是「名稱第一個字＝查」），改
-  isQueryTask() 這個函式即可，兩者都不需要更動 render() 的其餘邏輯。
-  注意分組優先順序：一個任務若同時符合「在前 FREQ_GROUP_COUNT 筆內」
-  且「名稱以查開頭」，會被歸進訪頻專用（位置分組優先），不會出現在
-  簽約查核裡，因為簽約查核只從訪頻專用以外的任務裡篩選。
+- 各分組的篩選條件與調整方式：
+  ・訪頻專用：改 FREQ_GROUP_COUNT 常數（筆數）即可。
+  ・簽約查核：改 isQueryTask() 函式（目前條件：名稱第一個字＝「查」）。
+  ・各級督導：改 render() 內 superItems 的篩選邏輯（目前條件：名稱開頭
+    為「督-」），無獨立函式。
+  以上調整都不需要更動 render() 的其餘架構或 syncAllByIndices()。
+  注意分組優先順序（由高到低）：訪頻專用（位置）> 簽約查核（名稱）>
+  各級督導（名稱）> 其他任務。一個任務只會出現在優先順序最高的那個
+  分組，不會重複。
 - 這是「桌面版」介面；可能還有對應的「手機版」（單欄列表、底部收合式
   執行紀錄抽屜）版本，兩者為各自獨立的檔案，修改其中一個不會影響另一個，
   如需同步調整請另外處理手機版檔案。
@@ -630,14 +652,14 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
     let tasks = [];
     // 三個分組目前實際渲染出的卡片索引陣列，供「⚡ 一鍵同步」使用，
     // 每次 render() 都會重新計算覆蓋掉舊值。
-    let groupIndices = { freq: [], query: [], rest: [] };
+    let groupIndices = { freq: [], query: [], super: [], rest: [] };
 
     // 「專屬群組」（有自己邊框+一鍵同步按鈕的分組）預設摺疊狀態，
     // true＝預設摺疊。日後新增同類型分組，記得在這裡補一個 key，
     // 否則該分組會直接以展開狀態渲染。摺疊/展開只是切換 CSS class，
     // 不會重新整理畫面，所以使用者切換過的狀態會一路保留到下次
     // render()（例如按了「重新載入」），不會每次都被打回預設摺疊。
-    let collapsedGroups = { freq: true, query: true };
+    let collapsedGroups = { freq: true, query: true, super: true };
 
     function toggleGroupCollapse(key) {
       collapsedGroups[key] = !collapsedGroups[key];
@@ -824,11 +846,20 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
         .slice(FREQ_GROUP_COUNT)
         .map((t, idx) => ({ task: t, i: idx + FREQ_GROUP_COUNT }));
       const queryItems = remainingItems.filter(x => isQueryTask(x.task));
-      const restItems  = remainingItems.filter(x => !isQueryTask(x.task));
+      const nonQueryItems = remainingItems.filter(x => !isQueryTask(x.task));
+      const superItems = nonQueryItems.filter(x => {
+        const name = (x.task && x.task.name) ? String(x.task.name).trim() : '';
+        return name.startsWith('督-');
+      });
+      const restItems  = nonQueryItems.filter(x => {
+        const name = (x.task && x.task.name) ? String(x.task.name).trim() : '';
+        return !name.startsWith('督-');
+      });
 
       groupIndices = {
         freq:  freqItems.map(x => x.i),
         query: queryItems.map(x => x.i),
+        super: superItems.map(x => x.i),
         rest:  restItems.map(x => x.i)
       };
 
@@ -848,6 +879,13 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
           boxed: true, label: '🔍 簽約查核', items: queryItems,
           btnId: 'query-sync-all-btn', syncFn: 'syncAllQuery', gridClass: 'freq-grid',
           groupKey: 'query'
+        });
+      }
+      if (superItems.length) {
+        html += groupSectionHtml({
+          boxed: true, label: '👥 各級督導', items: superItems,
+          btnId: 'super-sync-all-btn', syncFn: 'syncAllSuper', gridClass: 'freq-grid',
+          groupKey: 'super'
         });
       }
       if (restItems.length) {
@@ -959,6 +997,7 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
 
     function syncAllFreq()  { syncAllByIndices(groupIndices.freq,  'freq-sync-all-btn'); }
     function syncAllQuery() { syncAllByIndices(groupIndices.query, 'query-sync-all-btn'); }
+    function syncAllSuper() { syncAllByIndices(groupIndices.super, 'super-sync-all-btn'); }
     function syncAllRest()  { syncAllByIndices(groupIndices.rest,  'rest-sync-all-btn'); }
 
     loadTasks();
