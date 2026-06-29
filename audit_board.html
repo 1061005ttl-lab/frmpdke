@@ -516,7 +516,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <button class="tb-act-btn" onclick="openSummaryDialog('staff')">👤 人員</button>
     <button class="tb-act-btn" onclick="openSummaryDialog('office')">🏢 單位</button>
     <button class="tb-act-btn" onclick="openSummaryDialog('suptype')">📋 督導</button>
-    <button class="tb-act-btn" id="tb-btn-line" onclick="toolbarShareLine()">💬 LINE</button>
+    <button class="tb-act-btn" id="tb-btn-line" onclick="toolbarShareLine()">📋 複製</button>
     <button class="tb-act-btn" id="tb-btn-csv" onclick="toolbarDownloadCsv()">📥 CSV</button>
     <button class="tb-act-btn" id="tb-btn-screenshot" onclick="toolbarScreenshot()">📸 截圖</button>
   </div>
@@ -528,7 +528,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <div class="dlg-header">
       <span id="sum-title" style="font-size:14px;font-weight:900;flex:1;min-width:0;"></span>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-        <button class="dlg-action-btn" id="btn-sum-line" onclick="summaryShareLine()"><span>💬</span><span class="btn-txt"> LINE</span></button>
+        <button class="dlg-action-btn" id="btn-sum-line" onclick="summaryShareLine()"><span>📋</span><span class="btn-txt"> 複製</span></button>
         <button class="dlg-action-btn" id="btn-sum-csv" onclick="downloadSummaryCsv()"><span>📥</span><span class="btn-txt"> CSV</span></button>
         <button class="dlg-action-btn" id="btn-sum-screenshot" onclick="summaryScreenshot()"><span>📸</span><span class="btn-txt"> 截圖</span></button>
         <button class="dlg-close" onclick="closeSummaryDialog()">✕</button>
@@ -557,7 +557,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <div class="dlg-header">
       <span id="dlg-title" style="font-size:13px;line-height:1.5;flex:1;min-width:0;"></span>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-        <button class="dlg-action-btn" id="btn-dlg-line" onclick="dialogShareLine()"><span>💬</span><span class="btn-txt"> LINE</span></button>
+        <button class="dlg-action-btn" id="btn-dlg-line" onclick="dialogShareLine()"><span>📋</span><span class="btn-txt"> 複製</span></button>
         <button class="dlg-action-btn" id="btn-dlg-csv" onclick="downloadDialogCsv()"><span>📥</span><span class="btn-txt"> CSV</span></button>
         <button class="dlg-action-btn" id="btn-dlg-screenshot" onclick="dialogScreenshot()"><span>📸</span><span class="btn-txt"> 截圖</span></button>
         <button class="dlg-close" onclick="closeDialog()">✕</button>
@@ -1396,8 +1396,8 @@ function _buildNestedPivot(rows, dims){
             + '<span style="display:inline-block;width:18px;flex-shrink:0;"></span>'
             + '<span style="font-size:12px;opacity:.7;margin-right:5px;flex-shrink:0;">🏪</span>'
             + '<span style="font-size:12px;font-weight:500;color:#333;white-space:nowrap;">'
+              + (storeDate ? '<span style="font-size:11px;color:#aaa;font-weight:400;margin-right:8px;font-variant-numeric:tabular-nums;">'+esc(storeDate)+'</span>' : '')
               + esc(storeName)
-              + (storeDate ? '<span style="margin-left:8px;font-size:11px;color:#aaa;font-weight:400;">'+esc(storeDate)+'</span>' : '')
             + '</span>'
             + '</div></td>';
           html += '<td class="td-total" style="font-size:11px;color:#aaa;font-weight:400;">—</td>';
@@ -2089,20 +2089,27 @@ function _buildSummaryLineSummary(){
 }
 
 function _shareToLine(text, btn){
-  /* 嘗試複製到剪貼簿，再開 LINE */
-  var url = 'https://line.me/R/msg/text/?' + encodeURIComponent(text);
+  /* 純複製純文字摘要到剪貼簿，方便貼到 LINE 或任何通訊軟體 */
   if(navigator.clipboard && navigator.clipboard.writeText){
     navigator.clipboard.writeText(text).then(function(){
       _flashBtn(btn, '✅ 已複製！');
-      window.open(url, '_blank');
     }).catch(function(){
-      window.open(url, '_blank');
-      _flashBtn(btn, '💬 已開啟');
+      _fallbackCopy(text, btn);
     });
   } else {
-    window.open(url, '_blank');
-    _flashBtn(btn, '💬 已開啟');
+    _fallbackCopy(text, btn);
   }
+}
+
+function _fallbackCopy(text, btn){
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0;';
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  try { document.execCommand('copy'); _flashBtn(btn,'✅ 已複製！'); }
+  catch(e){ _flashBtn(btn,'⚠️ 請手動複製'); }
+  document.body.removeChild(ta);
 }
 
 function toolbarShareLine(){
