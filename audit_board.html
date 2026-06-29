@@ -568,7 +568,8 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <div class="dlg-header">
       <span id="dlg-title" style="font-size:13px;line-height:1.5;flex:1;min-width:0;"></span>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-        <button class="dlg-action-btn" id="btn-dlg-line" onclick="dialogShareLine()"><span>📋</span><span class="btn-txt"> 複製</span></button>
+        <button class="dlg-action-btn" id="btn-dlg-summary" onclick="dialogCopySummary()"><span>📋</span><span class="btn-txt"> 摘要</span></button>
+        <button class="dlg-action-btn" id="btn-dlg-detail" onclick="dialogCopyDetail()"><span>📝</span><span class="btn-txt"> 詳細</span></button>
         <button class="dlg-action-btn" id="btn-dlg-csv" onclick="downloadDialogCsv()"><span>📥</span><span class="btn-txt"> CSV</span></button>
         <button class="dlg-action-btn" id="btn-dlg-screenshot" onclick="dialogScreenshot()"><span>📸</span><span class="btn-txt"> 截圖</span></button>
         <button class="dlg-close" onclick="closeDialog()">✕</button>
@@ -1156,16 +1157,6 @@ function _renderDimBar(){
     +'<button class="dim-mode-btn'+(_dlgDimMode==='2'?' active':'')+'" onclick="_setDimMode(\'2\')" title="處›督›人›所›問">人→所</button>'
     +'<button class="dim-list-btn" onclick="_dlgToggleExpandAll()">'+expandLabel+'</button>'
     +'<button class="dim-list-btn'+(_dlgListMode?' active':'')+'" onclick="_dlgToggleList()">📄 明細</button>'
-    /* 複製下拉包裝 */
-    +'<div style="position:relative;display:inline-block;">'
-      +'<button class="dim-list-btn" onclick="_toggleDlgCopyMenu(event)">📋 複製 ▾</button>'
-      +'<div id="dlg-copy-menu" style="display:none;position:absolute;right:0;top:calc(100% + 4px);'
-        +'background:#fff;border:1px solid rgba(0,0,0,.12);border-radius:10px;'
-        +'box-shadow:0 4px 16px rgba(0,0,0,.13);min-width:150px;z-index:600;overflow:hidden;">'
-        +'<button class="dlg-copy-item" onclick="_dlgCopyAction(\'summary\')">📌 摘要（家數）</button>'
-        +'<button class="dlg-copy-item" onclick="_dlgCopyAction(\'detail\')">📝 詳細（展開所/人）</button>'
-      +'</div>'
-    +'</div>'
     +'</div>';
   bar.innerHTML=p+c;
 }
@@ -1207,31 +1198,6 @@ function _dlgToggleExpandAll(){
     _dlgExpandMap = {};
   }
   _renderDimBar(); _renderDlgContent();
-}
-
-/* ── 複製下拉選單 ── */
-function _toggleDlgCopyMenu(e){
-  e.stopPropagation();
-  var menu = document.getElementById('dlg-copy-menu');
-  if(!menu) return;
-  var isOpen = menu.style.display !== 'none';
-  menu.style.display = isOpen ? 'none' : 'block';
-  if(!isOpen){
-    function _close(ev){
-      if(!menu.contains(ev.target)){ menu.style.display='none'; document.removeEventListener('click',_close); }
-    }
-    setTimeout(function(){ document.addEventListener('click',_close); }, 0);
-  }
-}
-
-function _dlgCopyAction(type){
-  var menu = document.getElementById('dlg-copy-menu');
-  if(menu) menu.style.display='none';
-  /* 找到最後渲染的按鈕（▾ 按鈕），用它來 flash */
-  var btn = document.querySelector('#dlg-dim-bar .dim-mode-group div button:first-child') ||
-            document.getElementById('btn-dlg-line');
-  var text = (type==='detail') ? _buildDialogLineDetail() : _buildDialogLineSummary();
-  _shareToLine(text, btn);
 }
 
 /* ── 詳細文字：依模式展開到所/人 ── */
@@ -2310,23 +2276,14 @@ function toolbarShareLine(){
   _shareToLine(_buildBoardLineSummary(), btn);
 }
 
-function dialogShareLine(){
-  /* header 的 📋 複製按鈕 → 打開下拉選單 */
-  var menu = document.getElementById('dlg-copy-menu');
-  if(menu){
-    var isOpen = menu.style.display !== 'none';
-    menu.style.display = isOpen ? 'none' : 'block';
-    if(!isOpen){
-      function _close(ev){
-        if(!menu.contains(ev.target)){ menu.style.display='none'; document.removeEventListener('click',_close); }
-      }
-      setTimeout(function(){ document.addEventListener('click',_close); }, 0);
-    }
-  } else {
-    /* fallback: 直接摘要 */
-    var btn = document.getElementById('btn-dlg-line');
-    _shareToLine(_buildDialogLineSummary(), btn);
-  }
+function dialogCopySummary(){
+  var btn = document.getElementById('btn-dlg-summary');
+  _shareToLine(_buildDialogLineSummary(), btn);
+}
+
+function dialogCopyDetail(){
+  var btn = document.getElementById('btn-dlg-detail');
+  _shareToLine(_buildDialogLineDetail(), btn);
 }
 
 function summaryShareLine(){
