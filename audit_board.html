@@ -907,10 +907,13 @@ function renderLevel(stage,rows,col,levelKey,labelText,overallName){
       if(ia===-1) return 1; if(ib===-1) return -1;
       return ia-ib;
     });
-    keys=skAreas;
+    var extra=Object.keys(groups).filter(function(k){ return skAreas.indexOf(k)===-1; });
+    keys=skAreas.concat(extra);
   } else if(levelKey==='office' && drillStack.length>=1){
     var currentArea=drillStack[drillStack.length-1].key;
-    keys=(ORG_SKELETON && ORG_SKELETON[currentArea]) || [];
+    var skOffices=(ORG_SKELETON && ORG_SKELETON[currentArea]) || [];
+    var extraO=Object.keys(groups).filter(function(k){ return skOffices.indexOf(k)===-1; });
+    keys=skOffices.concat(extraO);
   } else {
     keys=Object.keys(groups);
     keys.sort(function(a,b){ return calcAudit(groups[b]||[]).totalShares-calcAudit(groups[a]||[]).totalShares; });
