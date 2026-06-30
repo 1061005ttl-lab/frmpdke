@@ -802,9 +802,10 @@ function fetchSyncTime() {
 function calcAudit(rows) {
   /* groups[i] = { label:督導類型, stores:Set, questMap:{問卷類型:Set} } */
   var groups = ROSTER_GROUPS.map(function(g){
-    return { label:g, stores:new Set(), staffMap:{}, questMap:{} };
+    return { label:g, stores:new Set(), records:0, staffMap:{}, staffRecMap:{}, questMap:{}, questRecMap:{} };
   });
   var totalStores = new Set();
+  var totalRecords = 0;
 
   rows.forEach(function(r){
     var supType  = String(r[COL_SUPTYPE]||'').trim();
@@ -814,32 +815,37 @@ function calcAudit(rows) {
     if (!supType) return;
 
     totalStores.add(code);
+    totalRecords++;
 
     var staff = String(r[COL_STAFF]||'').trim();
     groups.forEach(function(g){
       if (g.label !== supType) return;
       g.stores.add(code);
+      g.records++;
       if (staff) {
-        if (!g.staffMap[staff]) g.staffMap[staff] = new Set();
+        if (!g.staffMap[staff]) { g.staffMap[staff] = new Set(); g.staffRecMap[staff] = 0; }
         g.staffMap[staff].add(code);
+        g.staffRecMap[staff]++;
       }
       if (questType) {
-        if (!g.questMap[questType]) g.questMap[questType] = new Set();
+        if (!g.questMap[questType]) { g.questMap[questType] = new Set(); g.questRecMap[questType] = 0; }
         g.questMap[questType].add(code);
+        g.questRecMap[questType]++;
       }
     });
   });
 
   return {
     totalStores: totalStores.size,
+    totalRecords: totalRecords,
     groups: groups.map(function(g){
       var subItems = Object.keys(g.questMap).sort().map(function(qt){
-        return { label:qt, stores:g.questMap[qt].size };
+        return { label:qt, stores:g.questMap[qt].size, records:g.questRecMap[qt] };
       });
       var staffList = Object.keys(g.staffMap).map(function(s){
-        return { name:s, stores:g.staffMap[s].size };
+        return { name:s, stores:g.staffMap[s].size, records:g.staffRecMap[s] };
       }).sort(function(a,b){ return b.stores-a.stores || a.name.localeCompare(b.name); });
-      return { label:g.label, stores:g.stores.size, subItems:subItems, staffList:staffList };
+      return { label:g.label, stores:g.stores.size, records:g.records, subItems:subItems, staffList:staffList };
     })
   };
 }
@@ -956,7 +962,7 @@ function buildCard(name,labelText,stat,levelKey,rows,isOverall){
     +'<div class="stat-item">'
     +'<div class="stat-label">總家數</div>'
     +'<div class="stat-val">'+stat.totalStores+'</div>'
-    +'<div class="stat-sub">家</div>'
+    +'<div class="stat-sub">家　<span style="color:#aaa;font-size:10px;">共'+stat.totalRecords+'份</span></div>'
     +'</div>';
 
   /* 各督導類型群格 */
@@ -965,16 +971,16 @@ function buildCard(name,labelText,stat,levelKey,rows,isOverall){
     var subHtml='';
     if(g.staffList && g.staffList.length){
       g.staffList.forEach(function(s){
-        subHtml+='<div class="tt-row"><span class="tt-label">'+esc(s.name)+'</span><span class="tt-val">'+s.stores+' 家</span></div>';
+        subHtml+='<div class="tt-row"><span class="tt-label">'+esc(s.name)+'</span><span class="tt-val">'+s.stores+' 家／'+s.records+' 份</span></div>';
       });
     }
     statRowHtml+='<div class="stat-item grp" id="sig'+gi+'-'+ttId+'">'
       +'<div class="stat-label">'+esc(g.label)+'</div>'
       +'<div class="stat-val">'+g.stores+'</div>'
-      +'<div class="stat-sub">家</div>'
+      +'<div class="stat-sub">家　<span style="color:#5a8a30;font-size:10px;">共'+g.records+'份</span></div>'
       +'<div class="tooltip" id="'+ttGId+'">'
         +'<div class="tt-title">'+esc(g.label)+'</div>'
-        +(subHtml||'<div class="tt-row"><span class="tt-label">店家數</span><span class="tt-val">'+g.stores+'</span></div>')
+        +(subHtml||'<div class="tt-row"><span class="tt-label">家數／份數</span><span class="tt-val">'+g.stores+' 家／'+g.records+' 份</span></div>')
       +'</div>'
     +'</div>';
   });
@@ -1117,8 +1123,8 @@ function openDialog(name,levelKey,rows){
   var stat=calcAudit(rows);
   var ctx=drillStack.map(function(d){ return d.key; });
   ctx.push(name);
-  var parts=['共 '+stat.totalStores+' 家'];
-  stat.groups.forEach(function(g){ parts.push(esc(g.label)+'：'+g.stores+' 家'); });
+  var parts=['共 '+stat.totalStores+' 家／'+stat.totalRecords+' 份'];
+  stat.groups.forEach(function(g){ parts.push(esc(g.label)+'：'+g.stores+' 家／'+g.records+' 份'); });
   document.getElementById('dlg-title').innerHTML=
     '<div style="font-size:14px;font-weight:900;line-height:1.3;">【'+ctx.join(' › ')+'】查核明細</div>'
     +'<div style="font-size:12px;color:var(--sub);font-weight:500;margin-top:2px;">'+parts.join('　')+'</div>';
@@ -1200,7 +1206,7 @@ function _buildDialogLineDetail(){
     '📋 查核明細（詳細）─ '+PROJ_NAME,
     '📍 '+ctx.join(' › '),
     '🔀 模式：'+mode,
-    '🏪 合計：'+_countCodes(_dialogRows)+' 家',
+    '🏪 合計：'+_countCodes(_dialogRows)+' 家／'+_countRows(_dialogRows)+' 份',
     ''
   ];
 
@@ -1225,27 +1231,27 @@ function _buildDialogLineDetail(){
   var areaG = grpBy(_dialogRows, 'area');
   areaG.order.forEach(function(area){
     var areaRows = areaG.map[area];
-    lines.push('🏢 '+area+'（'+_countCodes(areaRows)+' 家）');
+    lines.push('🏢 '+area+'（'+_countCodes(areaRows)+' 家／'+_countRows(areaRows)+' 份）');
 
     /* 第1維：督導類型 */
     var g1 = grpBy(areaRows, fullDims[1]);
     g1.order.forEach(function(k1){
       var rows1 = g1.map[k1];
-      lines.push('  【'+k1+'】'+_countCodes(rows1)+' 家');
+      lines.push('  【'+k1+'】'+_countCodes(rows1)+' 家／'+_countRows(rows1)+' 份');
 
       /* 第2維：所 or 人 */
       var g2 = grpBy(rows1, fullDims[2]);
       g2.order.forEach(function(k2){
         var rows2 = g2.map[k2];
         var meta2 = DIM_META[fullDims[2]];
-        lines.push('    '+meta2.icon+' '+k2+'（'+_countCodes(rows2)+' 家）');
+        lines.push('    '+meta2.icon+' '+k2+'（'+_countCodes(rows2)+' 家／'+_countRows(rows2)+' 份）');
 
         /* 第3維：人 or 所 */
         var g3 = grpBy(rows2, fullDims[3]);
         g3.order.forEach(function(k3){
           var rows3 = g3.map[k3];
           var meta3 = DIM_META[fullDims[3]];
-          lines.push('      '+meta3.icon+' '+k3+'（'+_countCodes(rows3)+' 家）');
+          lines.push('      '+meta3.icon+' '+k3+'（'+_countCodes(rows3)+' 家／'+_countRows(rows3)+' 份）');
         });
       });
     });
@@ -1328,6 +1334,12 @@ function _countCodes(rows){
   rows.forEach(function(r){ var c=String(r[COL_CODE]||'').trim(); if(c) s.add(c); });
   return s.size;
 }
+/* 計算 rows 中有效筆數（有 code 的列） */
+function _countRows(rows){
+  var n=0;
+  rows.forEach(function(r){ if(String(r[COL_CODE]||'').trim()) n++; });
+  return n;
+}
 
 /* 排序 key：支援 label / total / dim_N */
 function _sortedKeys(order, map, sortCol, sortDir){
@@ -1376,7 +1388,7 @@ function _buildNestedPivot(rows, dims){
 
   var html = '<table class="pivot-tbl" style="min-width:320px;"><thead><tr>'
     + '<th class="th-left" style="padding-left:20px;">層級 / 名稱</th>'
-    + '<th class="th-num th-total" style="width:72px;min-width:72px;">合計'+_sortBtns('total')+'</th>'
+    + '<th class="th-num th-total" style="width:120px;min-width:120px;text-align:right;">家數／份數'+_sortBtns('total')+'</th>'
     + '</tr></thead><tbody>';
 
   function _sortCol(dimIdx){
@@ -1400,6 +1412,7 @@ function _buildNestedPivot(rows, dims){
     sorted.forEach(function(key, ki){
       var childRows = g.map[key];
       var count = _countCodes(childRows);
+      var recs  = _countRows(childRows);
       var rid   = (parentRid||'r')+'-d'+dimIdx+'-'+_rid(key);
       var isOpen = !!_dlgExpandMap[rid];
       var isLast = (ki === total - 1);
@@ -1451,28 +1464,30 @@ function _buildNestedPivot(rows, dims){
         + '<span style="font-size:'+cfg.fontSize+';font-weight:'+cfg.fontWeight+';color:'+cfg.color+';white-space:nowrap;">'+esc(key)+'</span>'
         + '</div></td>';
 
-      html += '<td class="td-total" style="font-size:'+cfg.fontSize+';font-weight:'+cfg.fontWeight+';width:72px;">'+count+'</td>';
+      html += '<td class="td-total" style="font-size:'+cfg.fontSize+';font-weight:'+cfg.fontWeight+';width:120px;text-align:right;white-space:nowrap;">'
+        + count
+        + (recs !== count ? '<span style="font-size:11px;font-weight:400;color:#aaa;margin-left:4px;">／'+recs+'份</span>' : '')
+        + '</td>';
       html += '</tr>';
 
       if(!isLeaf && isOpen){
         renderLevel(childRows, dimIdx+1, depth+1, rid, isLastArr.concat([isLast]));
       }
 
-      /* 葉節點（questtype）展開時顯示店家列表（店家名稱 + 查核時間） */
+      /* 葉節點（questtype）展開時顯示店家列表（全部份數，日期由新至舊） */
       if(isLeaf && isOpen){
-        /* 去重：依 code，取最後一筆 */
-        var codeMap = {};
-        childRows.forEach(function(r){
-          var code = String(r[COL_CODE]||'').trim();
-          if(code) codeMap[code] = r;
-        });
-        var storeList = Object.keys(codeMap).sort();
+        /* 全部顯示，不去重，依日期新→舊 */
+        var storeRows = childRows.filter(function(r){ return String(r[COL_CODE]||'').trim(); })
+          .slice().sort(function(a,b){
+            var da=String(a[COL_DATE]||''), db=String(b[COL_DATE]||'');
+            if(da!==db) return da>db?-1:1;
+            return String(a[COL_NAME]||'').localeCompare(String(b[COL_NAME]||''),'zh-TW');
+          });
         /* tree line for store depth */
-        storeList.forEach(function(code, sti){
-          var r = codeMap[code];
+        storeRows.forEach(function(r, sti){
           var storeName = String(r[COL_NAME]||'').trim();
           var storeDate = String(r[COL_DATE]||'').trim();
-          var isStoreLast = (sti === storeList.length - 1);
+          var isStoreLast = (sti === storeRows.length - 1);
           /* last-item tree line for store row */
           var stPrefix = '';
           for(var tli=0; tli<=depth; tli++){
@@ -1524,9 +1539,14 @@ function _buildNestedPivot(rows, dims){
   renderLevel(rows, 0, 0, '', []);
 
   /* 合計列 */
+  var totalC = _countCodes(rows);
+  var totalR = _countRows(rows);
   html += '<tr class="sum-footer">'
     + '<td class="td-left" style="padding-left:20px;">合計</td>'
-    + '<td class="td-total" style="font-size:17px;">'+_countCodes(rows)+'</td>'
+    + '<td class="td-total" style="font-size:17px;text-align:right;white-space:nowrap;">'
+      + totalC
+      + (totalR !== totalC ? '<span style="font-size:12px;font-weight:400;color:#888;margin-left:4px;">／'+totalR+'份</span>' : '')
+    + '</td>'
     + '</tr></tbody></table>';
   return html;
 }
@@ -1553,15 +1573,20 @@ function downloadDialogCsv(){
 
 
 function buildAuditTable(rows){
-  /* 依 COL_AREA → COL_OFFICE → COL_STAFF → COL_SUPTYPE → COL_CODE 排序 */
-  var sorted=rows.slice().sort(function(a,b){
-    var cols=[COL_AREA,COL_OFFICE,COL_STAFF,COL_SUPTYPE,COL_CODE];
-    for(var i=0;i<cols.length;i++){
-      var va=String(a[cols[i]]||''), vb=String(b[cols[i]]||'');
-      if(va!==vb) return va>vb?1:-1;
-    }
-    return 0;
-  });
+  /* 依「日期」新→舊，同日再依 area→office→staff→code 排序，顯示所有份數（不去重） */
+  var sorted=rows.slice().filter(function(r){ return String(r[COL_CODE]||'').trim(); })
+    .sort(function(a,b){
+      /* 日期由新至舊 */
+      var da=String(a[COL_DATE]||''), db=String(b[COL_DATE]||'');
+      if(da!==db) return da>db?-1:1;
+      /* 同日再依 area/office/staff/code */
+      var cols=[COL_AREA,COL_OFFICE,COL_STAFF,COL_CODE];
+      for(var i=0;i<cols.length;i++){
+        var va=String(a[cols[i]]||''), vb=String(b[cols[i]]||'');
+        if(va!==vb) return va>vb?1:-1;
+      }
+      return 0;
+    });
 
   /* 要顯示的欄位：根據 level */
   var extraCols=[];
@@ -1583,8 +1608,6 @@ function buildAuditTable(rows){
   html+='</tr></thead><tbody>';
 
   sorted.forEach(function(r){
-    var code=String(r[COL_CODE]||'').trim();
-    if(!code) return;
     html+='<tr>';
     extraCols.forEach(function(c){ html+='<td class="td-left">'+esc(String(r[c]||'—'))+'</td>'; });
     html+='<td class="td-left" style="color:#aaa;font-size:11px;">'+esc(String(r[COL_CODE]||'—'))+'</td>';
@@ -1597,6 +1620,13 @@ function buildAuditTable(rows){
     html+='<td class="td-left" style="color:#888;font-size:12px;">'+esc(String(r[COL_DATE]||'—'))+'</td>';
     html+='</tr>';
   });
+  var footerCols = extraCols.length + 8; /* extra + 店碼+店名+通路+型態+等級+督導+問卷+日期 */
+  var footerStores = _countCodes(rows);
+  var footerRecs = sorted.length;
+  html+='<tr class="sum-footer"><td class="td-left" colspan="'+footerCols+'" style="font-size:13px;">'
+    +'合計：<strong style="color:var(--primary);">'+footerStores+' 家</strong>'
+    +'<span style="color:#888;margin-left:8px;">共 '+footerRecs+' 份</span>'
+    +'</td></tr>';
   html+='</tbody></table>';
   return html;
 }
