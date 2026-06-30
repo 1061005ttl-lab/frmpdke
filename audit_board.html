@@ -1,8 +1,29 @@
 <!--
 ════════════════════════════════════════════════════════════
   audit_board.html  ─  大督導時代（店家名冊版）
-  版本：Ver. 2.5.1 ｜ 最後更新：2026-06-30
+  版本：Ver. 2.6.0 ｜ 最後更新：2026-06-30
 ════════════════════════════════════════════════════════════
+
+【架構優化 2.6.0】基本資料改由店家名冊直接提供，不再依賴來源分頁
+  店家明細展開面板拆成兩個獨立資料來源：
+  ‧ 基本資料區塊：不再從來源分頁（問卷資料XX）解析取得，
+    改成直接用 __rid 從已經載入記憶體的 allRows（店家名冊）裡
+    找回被點擊的那一列，欄位固定為 COL_AREA / COL_OFFICE /
+    COL_STAFF / COL_CHANNEL / COL_STORETYPE / COL_CODE / COL_NAME /
+    COL_GRADE / COL_SUPTYPE / COL_QUESTTYPE / COL_DATE，
+    用詞與主表格完全一致，不會因來源分頁欄位差異（增減欄位、
+    欄名不同）而顯示不一致或錯位的標籤。
+  ‧ 用 __rid（而非店家代碼字串）回頭比對 allRows，避免同一店家
+    代碼若有多筆查核記錄時，誤抓到非當前這筆的基本資料。
+  ‧ 因此基本資料一定能正確且即時顯示（甚至在來源分頁讀取中／
+    讀取失敗時也能先行呈現），只有「問卷大題內容」（督導意見、
+    拍照備存等）才需要額外向來源分頁發請求查詢。
+  ‧ _buildRawDetailPanel 新增 basicRow 參數，渲染邏輯拆成
+    「基本資料卡片（來自店家名冊）」＋「問卷大題區塊（來自來源
+    分頁的兩層表頭解析，維持原邏輯不變）」兩個獨立部分。
+  ‧ _fetchSourceSheet 解析出的 baseColNames / baseData 目前
+    保留但不再用於畫面顯示（僅供內部防呆比對大題名稱用），
+    待後續確認穩定後可考慮移除以簡化請求內容。
 
 【修正 2.5.1】解析錯位問題排查與防呆
   上一版（2.5.0）實測發現部分分頁解析結果錯亂（把人名、日期等
@@ -1576,26 +1597,34 @@ function _toggleStoreDetail(rid, sourceRef){
 
   if(_storeDetailLoaded[rid]) return; /* 已經抓過，DOM 內容還在，不重抓 */
 
+  /* 基本資料：直接用 __rid 從 allRows 找回這一筆完整物件，不用再回頭比對店家代碼
+     （同一店家代碼可能因多次查核在店家名冊出現多筆，用 __rid 才能保證拿到的
+     正是被點擊的那一列，不會選錯）。問卷內容（大題/選項）才需要另外向來源分頁查詢。 */
+  var basicRow = allRows.find(function(x){ return x.__rid === rid; }) || null;
+
   var ref = _parseSourceRef(sourceRef);
   var bodyEl = document.getElementById('storedetailbody-'+rid);
   if(!bodyEl) return;
 
   if(!ref){
-    bodyEl.innerHTML = '<div style="padding:10px 16px;font-size:12px;color:#B23A3A;">⚠️ 此筆店家沒有「來源分頁+行數」資料，無法回溯問卷內容</div>';
+    bodyEl.innerHTML = _buildRawDetailPanel(null, null, null, basicRow)
+      + '<div style="padding:0 16px 10px;font-size:12px;color:#B23A3A;">⚠️ 此筆店家沒有「來源分頁+行數」資料，無法回溯問卷內容</div>';
     _storeDetailLoaded[rid] = true;
     return;
   }
 
-  bodyEl.innerHTML = '<div style="padding:10px 16px;font-size:12px;color:#2D2D2D;">⏳ 讀取「'+esc(ref.sheet)+'」第 '+ref.row+' 列…</div>';
+  bodyEl.innerHTML = _buildRawDetailPanel(null, ref, null, basicRow)
+    + '<div style="padding:0 16px 10px;font-size:12px;color:#2D2D2D;">⏳ 讀取「'+esc(ref.sheet)+'」第 '+ref.row+' 列問卷內容…</div>';
 
   _fetchSourceRowDetail(sourceRef, function(rowData, parsedRef, err, sheetData){
+    _storeDetailLoaded[rid] = true;
     if(err){
       var dbgHtml = sheetData && sheetData._debugRows ? _renderDebugRowsHtml(sheetData) : '';
-      bodyEl.innerHTML = '<div style="padding:10px 16px;font-size:12px;color:#B23A3A;">⚠️ '+esc(err)+'</div>' + dbgHtml;
+      bodyEl.innerHTML = _buildRawDetailPanel(null, parsedRef, null, basicRow)
+        + '<div style="padding:0 16px 10px;font-size:12px;color:#B23A3A;">⚠️ '+esc(err)+'</div>' + dbgHtml;
       return;
     }
-    _storeDetailLoaded[rid] = true;
-    bodyEl.innerHTML = _buildRawDetailPanel(rowData, parsedRef, sheetData);
+    bodyEl.innerHTML = _buildRawDetailPanel(rowData, parsedRef, sheetData, basicRow);
   });
 }
 
@@ -1620,35 +1649,46 @@ function _renderDebugRowsHtml(sheetData){
   return html;
 }
 
-/* 渲染：基本資料區（卡片 grid）＋ 問卷大題區（逐題列出已勾選的選項） */
-function _buildRawDetailPanel(rowData, ref, sheetData){
+/* 基本資料卡片要顯示的欄位（依店家名冊欄名，與主表格用詞一致），依序顯示 */
+var BASIC_DETAIL_FIELDS = [
+  COL_AREA, COL_OFFICE, COL_STAFF, COL_CHANNEL, COL_STORETYPE,
+  COL_CODE, COL_NAME, COL_GRADE, COL_SUPTYPE, COL_QUESTTYPE, COL_DATE
+];
+
+/* 渲染：基本資料區（卡片 grid，直接取自店家名冊 basicRow）＋ 問卷大題區（來源分頁，逐題列出已勾選的選項） */
+function _buildRawDetailPanel(rowData, ref, sheetData, basicRow){
   var srcTag = ref ? '<div style="font-size:10px;font-weight:700;color:var(--primary);margin-bottom:10px;">📄 來源：'+esc(ref.sheet)+'　第 '+ref.row+' 列</div>' : '';
   var wrapOpen = '<div style="padding:10px 16px 14px 18px;background:#FAFAF8;border-left:3px solid var(--primary-bg,rgba(55,138,221,.3));margin:2px 12px 6px 0;border-radius:0 8px 8px 0;">';
   var dbgHtml = _renderDebugRowsHtml(sheetData);
 
-  if(!rowData){
-    return wrapOpen + srcTag + '<div style="font-size:12px;color:#2D2D2D;">（查無資料）</div>' + dbgHtml + '</div>';
-  }
-
-  var base = rowData.base || {};
-  var sections = rowData.sections || [];
-
-  /* 基本資料卡片 grid（跳過空值） */
-  var baseKeys = Object.keys(base).filter(function(k){
-    var v = base[k];
-    return v !== '' && v !== null && v !== undefined;
-  });
+  /* 基本資料：一律直接從店家名冊（basicRow，即被點擊的那一列）取得，
+     不再依賴來源分頁解析出的 base —— 即使來源分頁讀取失敗，
+     基本資料依然能正確顯示（因為這本來就是已經載入記憶體的資料）。 */
   var baseHtml = '';
-  if(baseKeys.length){
-    baseHtml += '<div class="raw-detail-grid">';
-    baseKeys.forEach(function(k){
-      baseHtml += '<div class="raw-detail-item">'
-        + '<div class="raw-detail-label">'+esc(k)+'</div>'
-        + '<div class="raw-detail-val">'+esc(String(base[k]))+'</div>'
-        + '</div>';
-    });
-    baseHtml += '</div>';
+  if(basicRow){
+    var items = BASIC_DETAIL_FIELDS
+      .map(function(k){ return { k:k, v:basicRow[k] }; })
+      .filter(function(it){ return it.v !== '' && it.v !== null && it.v !== undefined; });
+    if(items.length){
+      baseHtml += '<div class="raw-detail-grid">';
+      items.forEach(function(it){
+        baseHtml += '<div class="raw-detail-item">'
+          + '<div class="raw-detail-label">'+esc(it.k)+'</div>'
+          + '<div class="raw-detail-val">'+esc(String(it.v))+'</div>'
+          + '</div>';
+      });
+      baseHtml += '</div>';
+    }
   }
+
+  if(!rowData){
+    /* 問卷內容尚未抓到（讀取中／失敗／無來源連結），但基本資料已經可以先顯示。
+       這裡正常關閉容器；呼叫端（_toggleStoreDetail）會把「讀取中／錯誤」訊息
+       接在這個區塊的後面，視覺上呈現為同一塊卡片下方的提示文字。 */
+    return wrapOpen + srcTag + baseHtml + '</div>';
+  }
+
+  var sections = rowData.sections || [];
 
   /* 問卷大題區：每題一個區塊，顯示已勾選的選項（可能複選） */
   var quizHtml = '';
@@ -1670,8 +1710,8 @@ function _buildRawDetailPanel(rowData, ref, sheetData){
     quizHtml = '<div style="font-size:12px;color:#2D2D2D;margin-top:4px;">（此筆問卷未填寫任何題目）</div>';
   }
 
-  if(!baseKeys.length && !sections.length){
-    return wrapOpen + srcTag + '<div style="font-size:12px;color:#2D2D2D;">（此來源分頁查無欄位資料）</div>' + dbgHtml + '</div>';
+  if(!baseHtml && !sections.length){
+    return wrapOpen + srcTag + '<div style="font-size:12px;color:#2D2D2D;">（查無資料）</div>' + dbgHtml + '</div>';
   }
 
   var html = wrapOpen + srcTag;
