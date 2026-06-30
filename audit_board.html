@@ -454,6 +454,20 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .pivot-child-row td.td-num  { color:var(--green) !important; }
 .pivot-child-row td.td-total{ color:var(--primary) !important; background:rgba(55,138,221,.03) !important; }
 
+/* 同日且同店 高光標示（店家明細用） */
+.pivot-dup-row td {
+  background:#FFF4D6 !important;
+  border-top:1px solid #F0C84A;
+  border-bottom:1px solid #F0C84A;
+}
+.pivot-dup-row td.td-total{ background:#FFF4D6 !important; }
+.pivot-dup-row td:first-child { border-left:4px solid #E8A800; }
+.pivot-dup-badge {
+  display:inline-block; font-size:11px; font-weight:700; color:#7A4A00;
+  background:#FFE2A0; border-radius:6px; padding:1px 6px; margin-left:6px;
+  white-space:nowrap; vertical-align:middle;
+}
+
 /* 督導類型色帶 */
 .th-sup-0 { background:rgba(52,199,89,.15) !important; color:#1a5c10 !important; }
 .th-sup-1 { background:rgba(0,122,255,.12) !important; color:#003d99 !important; }
@@ -521,6 +535,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <button class="tb-act-btn" onclick="openSummaryDialog('staff')">👤 人員</button>
     <button class="tb-act-btn" onclick="openSummaryDialog('office')">🏢 單位</button>
     <button class="tb-act-btn" onclick="openSummaryDialog('suptype')">📋 督導</button>
+    <button class="tb-act-btn" onclick="openSummaryDialog('store')">🏪 店家</button>
     <button class="tb-act-btn" id="tb-btn-line" onclick="toolbarShareLine()">📋 複製</button>
     <button class="tb-act-btn" id="tb-btn-csv" onclick="toolbarDownloadCsv()">📥 CSV</button>
     <button class="tb-act-btn" id="tb-btn-screenshot" onclick="toolbarScreenshot()">📸 截圖</button>
@@ -2202,6 +2217,14 @@ function _buildStorePivot(rows){
 
       /* 店家逐筆明細子列：日期新→舊 → 代碼 → 店名 → 人員 → 督導類型 */
       var storeRows=_sortStoreRows(o.rows);
+
+      /* 偵測「同日且同店」：日期+代碼 出現次數 > 1 即標記高光 */
+      var dupKeyCount={};
+      storeRows.forEach(function(r){
+        var k=String(r[COL_DATE]||'').trim()+'|'+String(r[COL_CODE]||'').trim();
+        dupKeyCount[k]=(dupKeyCount[k]||0)+1;
+      });
+
       storeRows.forEach(function(r, ri){
         var dateStr=String(r[COL_DATE]||'').trim();
         var code=String(r[COL_CODE]||'').trim();
@@ -2209,11 +2232,14 @@ function _buildStorePivot(rows){
         var staff=String(r[COL_STAFF]||'').trim();
         var st=String(r[COL_SUPTYPE]||'').trim();
         var qt=String(r[COL_QUESTTYPE]||'').trim();
-        html+='<tr class="pivot-child-row" id="child-'+rid+'-'+ri+'" data-parent="'+rid+'">'
+        var dupKey=dateStr+'|'+code;
+        var isDup=dateStr&&code&&dupKeyCount[dupKey]>1;
+        var rowClass='pivot-child-row'+(isDup?' pivot-dup-row':'');
+        html+='<tr class="'+rowClass+'" id="child-'+rid+'-'+ri+'" data-parent="'+rid+'"'+(isDup?' title="同一天同一家店有多筆查核紀錄"':'')+'>'
           +'<td class="td-left" style="padding-left:36px;"></td>'
           +'<td class="td-left" style="font-size:12px;font-weight:700;color:#2D2D2D;font-variant-numeric:tabular-nums;">'+(dateStr||'—')+'</td>'
           +'<td class="td-left" style="font-size:11px;font-weight:600;color:#2D2D2D;">'+esc(code||'—')+'</td>'
-          +'<td class="td-left" style="font-size:13px;font-weight:700;color:#1a1a1a;">'+esc(name||'—')+'</td>'
+          +'<td class="td-left" style="font-size:13px;font-weight:700;color:#1a1a1a;">'+esc(name||'—')+(isDup?' <span class="pivot-dup-badge">⚠ 同日重複</span>':'')+'</td>'
           +'<td class="td-left" style="font-size:12px;font-weight:600;color:#1a1a1a;">'+esc(staff||'—')+'</td>'
           +'<td class="td-total" style="font-size:12px;font-weight:600;color:var(--green);">'+esc(st||'—')+(qt?'　<span style="color:#2D2D2D;font-weight:500;">'+esc(qt)+'</span>':'')+'</td>'
           +'</tr>';
