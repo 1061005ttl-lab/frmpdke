@@ -1,7 +1,7 @@
 <!--
 ╔══════════════════════════════════════════════════════════════════════════════════╗
 ║         傳統通路購值進度 — AI 交接說明書                                         ║
-║         VERSION: 1.5.9  UPDATED: 06/30 (人員彙整表篩選改兩層：處→所)        ║
+║         VERSION: 1.5.10  UPDATED: 06/30 (人員彙整表篩選邏輯統一，修正跨月切處後人員消失問題)        ║
 ╠══════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                  ║
 ║  【系統用途】                                                                    ║
@@ -58,6 +58,12 @@
 ║  v1.5.8  06/30  跨單位人員統一排除處內排行、卓越貢獻、成長突破、品評額度          ║
 ║                 彙整表/排行榜/人員卡片三處標準一致，跨單位欄顯示「跨單位」         ║
 ║  v1.5.9  06/30  人員彙整表篩選改兩層（處→所），比照工具列結構                     ║
+║  v1.5.10 06/30  修正人員彙整表篩選邏輯不一致：原本切換處別時是先依目前選取的       ║
+║                 處篩掉部分月份的原始資料列，再彙總成人員，導致跨單位人員（如某     ║
+║                 員早月在外處、季末月份才回到本處）在「全部」模式看得到、但選定     ║
+║                 本處後卻反而消失。現已統一改為：先用完整資料彙總出每個人「本季     ║
+║                 最終所屬處所」（與人員卡片邏輯一致），再依此最終單位篩選顯示，     ║
+║                 全部/處/所三種篩選層級顯示同一套標準，不再互相矛盾。               ║
 ╚══════════════════════════════════════════════════════════════════════════════════╝
 -->
 <!DOCTYPE html>
@@ -367,7 +373,7 @@
   <button class="tb-btn" onclick="toggleRank()" id="rank-btn" style="background:rgba(255,215,0,.15);border-color:rgba(200,160,0,.3);color:#7a5500;">&#127942; 獎金排行</button>
   <button class="tb-btn" onclick="openPersonTable()" id="ptbl-btn" style="background:rgba(74,122,85,.1);border-color:rgba(74,122,85,.3);color:#2d5a38;">&#128100; 人員表</button>
   <div id="tb-right">
-    <div id="ver-ts">Ver. 1.5.9 (2026-06-30)</div>
+    <div id="ver-ts">Ver. 1.5.10 (2026-06-30)</div>
     <button class="tb-btn" onclick="mainCopyLine()" id="btn-main-line">&#128172; LINE</button>
     <button class="tb-btn" onclick="downloadCSV()" id="btn-main-csv">&#128229; CSV</button>
     <button class="tb-btn" onclick="mainScreenshot()" id="btn-main-shot">&#128248; 截圖</button>
@@ -400,7 +406,7 @@
       <button class="drawer-btn" onclick="mainScreenshot();closeMobileDrawer();"><span class="db-icon">&#128248;</span>截圖</button>
     </div>
   </div>
-  <div style="padding:10px 16px;font-size:9px;color:#bbb;border-top:1px solid rgba(0,0,0,.06);">Ver. 1.5.9</div>
+  <div style="padding:10px 16px;font-size:9px;color:#bbb;border-top:1px solid rgba(0,0,0,.06);">Ver. 1.5.10</div>
 </div>
 
 <div id="manual-bar">
@@ -1690,7 +1696,11 @@ function _parseRoleDetail(qd){
 }
 
 function _buildPersonTableData(){
-  /* ① 全體人員清單 — 用來計算排名（不受篩選影響） */
+  /* ① 全體人員清單 — 用「全部 row」彙總，不在這一步做任何處/所篩選。
+     ⚠️ 核心原則（與人員卡片 getPersonList 完全一致）：
+        一個人本季的 area/office 一律以「最終月份（lastM）」為準，
+        絕不能在彙總前就依照目前選取的處/所去丟棄他的部分月份資料，
+        否則會出現「全部模式看得到、選定某處後卻消失」的不一致現象。 */
   var allPMap={};
   allRows.forEach(function(r){
     var rawStaff=gv(r,'staff')||'（未知）';
@@ -1703,7 +1713,7 @@ function _buildPersonTableData(){
     if(qM.indexOf(m)>=0&&m>allPMap[key].lastM){allPMap[key].lastM=m;allPMap[key].area=area;allPMap[key].office=office;}
     if(m>allPMap[key].lastMAll){allPMap[key].lastMAll=m;if(!allPMap[key].area)allPMap[key].area=area;if(!allPMap[key].office)allPMap[key].office=office;}
   });
-  /* ② 計算全體季資料（排名基礎） */
+  /* ② 計算全體季資料（排名基礎，使用完整 rows，不受篩選影響） */
   var allPersons=Object.keys(allPMap).map(function(key){
     var info=allPMap[key];
     var qd=calcPersonQ(info.rows,curQ);
@@ -1733,10 +1743,14 @@ function _buildPersonTableData(){
     denseRank(arr,'totalGrowth');
     denseRank(arr,'growthRate');
   });
-  /* ④ 套用外層篩選 — 只顯示符合 fArea / fOffice 的人員 */
+  /* ④ 套用顯示篩選 — 一律用「最終 area/office」過濾，與卡片顯示邏輯完全一致。
+     優先順序：人員彙整表自己的兩層篩選（_ptAreaFilter/_ptOfficeFilter）> 主頁篩選（fArea/fOffice）
+     兩者擇一生效，不疊加判斷不同來源，避免互相打架。 */
+  var useArea=_ptAreaFilter||fArea;
+  var useOffice=_ptOfficeFilter||fOffice;
   var persons=allPersons.filter(function(p){
-    if(fArea&&p.area!==fArea) return false;
-    if(fOffice&&p.office!==fOffice) return false;
+    if(useArea&&p.area!==useArea) return false;
+    if(useOffice&&p.office!==useOffice) return false;
     return true;
   });
   return persons;
@@ -1933,29 +1947,11 @@ function _ptBuildOfficeChips(){
 }
 function _ptRefresh(){
   _ptBuildOfficeChips();
-  /* 重新套用 area/office 篩選後更新表格 */
-  var allPMap={};
-  allRows.forEach(function(r){
-    var rawStaff=gv(r,'staff')||'（未知）';
-    var area=gv(r,'area'),office=gv(r,'office');
-    if(fArea&&area!==fArea) return;
-    if(_ptAreaFilter&&area!==_ptAreaFilter) return; /* 兩層篩選：處 */
-    if(_ptOfficeFilter&&office!==_ptOfficeFilter) return;
-    var key=SPLIT_NAMES.indexOf(rawStaff)>=0?rawStaff+'||'+area+'||'+office:rawStaff;
-    if(!allPMap[key])allPMap[key]={rows:[],area:area,office:office,displayName:rawStaff,lastM:0,lastMAll:0};
-    allPMap[key].rows.push(r);
-    var m=parseInt(gv(r,'month'))||0;
-    var qM=QUARTERS[curQ]||[];
-    if(qM.indexOf(m)>=0&&m>allPMap[key].lastM){allPMap[key].lastM=m;allPMap[key].area=area;allPMap[key].office=office;}
-    if(m>allPMap[key].lastMAll){allPMap[key].lastMAll=m;if(!allPMap[key].area)allPMap[key].area=area;if(!allPMap[key].office)allPMap[key].office=office;}
-  });
-  var persons=Object.keys(allPMap).map(function(key){
-    var info=allPMap[key];
-    var qd=calcPersonQ(info.rows,curQ);
-    if(!qd.evalMonths.length) return null;
-    return{key:key,displayName:info.displayName,area:info.area,office:info.office,qd:qd};
-  }).filter(Boolean);
-  var scopeLabel=_ptOfficeFilter||(_ptAreaFilter&&_ptAreaFilter!==fArea?_ptAreaFilter+' ':'')+fOffice||(fArea||_ptAreaFilter||'全體');
+  /* ⚠️ 統一改為呼叫 _buildPersonTableData()，不再另外用一套邏輯重新彙總。
+     避免「全部模式看得到、選定處之後人就消失」的標準不一致問題：
+     一個人是否屬於某處，永遠以他「最終月份所在處」判斷，與人員卡片一致。 */
+  var persons=_buildPersonTableData();
+  var scopeLabel=_ptOfficeFilter||_ptAreaFilter||fOffice||fArea||'全體';
   document.getElementById('ptbl-subtitle').textContent=curQ+'　'+scopeLabel+'　共 '+persons.length+' 人';
   document.getElementById('ptbl-body').innerHTML=_personTableHTML(persons);
   /* 同步 office chip 高光 */
