@@ -1,7 +1,7 @@
 <!--
 ╔══════════════════════════════════════════════════════════════════════════════════╗
 ║         傳統通路購值進度 — AI 交接說明書                                         ║
-║         VERSION: 1.5.8  UPDATED: 06/30 (跨單位排除處內排行/品評/彙整表一致)        ║
+║         VERSION: 1.5.9  UPDATED: 06/30 (人員彙整表篩選改兩層：處→所)        ║
 ╠══════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                  ║
 ║  【系統用途】                                                                    ║
@@ -57,6 +57,7 @@
 ║                 CSV 下載功能（主頁/彙整表/明細）、彙整表按鈕對齊外部              ║
 ║  v1.5.8  06/30  跨單位人員統一排除處內排行、卓越貢獻、成長突破、品評額度          ║
 ║                 彙整表/排行榜/人員卡片三處標準一致，跨單位欄顯示「跨單位」         ║
+║  v1.5.9  06/30  人員彙整表篩選改兩層（處→所），比照工具列結構                     ║
 ╚══════════════════════════════════════════════════════════════════════════════════╝
 -->
 <!DOCTYPE html>
@@ -366,7 +367,7 @@
   <button class="tb-btn" onclick="toggleRank()" id="rank-btn" style="background:rgba(255,215,0,.15);border-color:rgba(200,160,0,.3);color:#7a5500;">&#127942; 獎金排行</button>
   <button class="tb-btn" onclick="openPersonTable()" id="ptbl-btn" style="background:rgba(74,122,85,.1);border-color:rgba(74,122,85,.3);color:#2d5a38;">&#128100; 人員表</button>
   <div id="tb-right">
-    <div id="ver-ts">Ver. 1.5.8 (2026-06-30)</div>
+    <div id="ver-ts">Ver. 1.5.9 (2026-06-30)</div>
     <button class="tb-btn" onclick="mainCopyLine()" id="btn-main-line">&#128172; LINE</button>
     <button class="tb-btn" onclick="downloadCSV()" id="btn-main-csv">&#128229; CSV</button>
     <button class="tb-btn" onclick="mainScreenshot()" id="btn-main-shot">&#128248; 截圖</button>
@@ -399,7 +400,7 @@
       <button class="drawer-btn" onclick="mainScreenshot();closeMobileDrawer();"><span class="db-icon">&#128248;</span>截圖</button>
     </div>
   </div>
-  <div style="padding:10px 16px;font-size:9px;color:#bbb;border-top:1px solid rgba(0,0,0,.06);">Ver. 1.5.8</div>
+  <div style="padding:10px 16px;font-size:9px;color:#bbb;border-top:1px solid rgba(0,0,0,.06);">Ver. 1.5.9</div>
 </div>
 
 <div id="manual-bar">
@@ -487,7 +488,8 @@
           <span style="font-size:14px;font-weight:900;color:var(--text);" id="ptbl-title">&#128100; 人員彙整表</span>
           <span style="font-size:11px;color:var(--sub);" id="ptbl-subtitle"></span>
         </div>
-        <div id="ptbl-office-row" style="display:none;flex-wrap:wrap;gap:4px;margin-top:6px;"></div>
+        <div id="ptbl-area-row" style="display:none;flex-wrap:wrap;gap:4px;margin-top:6px;align-items:center;"></div>
+        <div id="ptbl-office-row" style="display:none;flex-wrap:wrap;gap:4px;margin-top:4px;padding-top:4px;border-top:1px solid rgba(0,0,0,.06);align-items:center;"></div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
         <button class="dlg-action-btn" onclick="personTableCopyLine()" id="btn-ptbl-line">&#128172; LINE</button>
@@ -1868,37 +1870,76 @@ function __ptToggleSort(col){
 }
 /* 人員彙整表：當前選取的「營業所」篩選（獨立於主頁 fOffice） */
 var _ptOfficeFilter='';
+var _ptAreaFilter='';
 function _ptBuildOfficeChips(){
-  var row=document.getElementById('ptbl-office-row');
-  if(!row) return;
-  row.innerHTML='';
-  /* 從當前篩選區域收集所有營業所 */
-  var offices=new Set();
+  /* ── 兩層篩選：處 → 所，比照工具列結構 ── */
+  var aRow=document.getElementById('ptbl-area-row');
+  var oRow=document.getElementById('ptbl-office-row');
+  if(!aRow||!oRow) return;
+  aRow.innerHTML=''; oRow.innerHTML='';
+
+  /* 收集處/所資料（若主頁已選處，只顯示該處的所） */
+  var areaOfficeMap={}; /* { area: Set<office> } */
   allRows.forEach(function(r){
-    if(fArea&&gv(r,'area')!==fArea) return;
-    var o=gv(r,'office'); if(o) offices.add(o);
+    var a=gv(r,'area'),o=gv(r,'office');
+    if(!a) return;
+    if(fArea&&a!==fArea) return; /* 主頁已選處，只保留該處 */
+    if(!areaOfficeMap[a])areaOfficeMap[a]=new Set();
+    if(o)areaOfficeMap[a].add(o);
   });
-  if(!offices.size){row.style.display='none';return;}
-  row.style.display='flex';
-  function chip(label,val){
+  var areas=sortAreas(Object.keys(areaOfficeMap));
+  if(!areas.length){aRow.style.display='none';oRow.style.display='none';return;}
+
+  /* 若主頁已鎖定單一處，處列不需要顯示（直接展所） */
+  if(fArea){
+    aRow.style.display='none';
+    _ptAreaFilter=fArea;
+  } else {
+    aRow.style.display='flex';
+    function aChip(label,val){
+      var b=document.createElement('button');
+      b.className='nav-chip'+((_ptAreaFilter===val)?' on':'');
+      b.style.cssText='font-size:11px;padding:2px 10px;flex-shrink:0;';
+      b.textContent=label;
+      b.onclick=function(){
+        _ptAreaFilter=val; _ptOfficeFilter='';
+        _ptBuildOfficeChips(); _ptRefresh();
+      };
+      aRow.appendChild(b);
+    }
+    aChip('全部','');
+    areas.forEach(function(a){aChip(a,a);});
+  }
+
+  /* 所列：依目前選取的處過濾 */
+  var officeSet=new Set();
+  var targetAreas=_ptAreaFilter?[_ptAreaFilter]:areas;
+  targetAreas.forEach(function(a){
+    (areaOfficeMap[a]||new Set()).forEach(function(o){officeSet.add(o);});
+  });
+  var offices=Array.from(officeSet).sort();
+  if(!offices.length){oRow.style.display='none';return;}
+  oRow.style.display='flex';
+  function oChip(label,val){
     var b=document.createElement('button');
     b.className='nav-chip'+((_ptOfficeFilter===val)?' on':'');
-    b.style.cssText='font-size:11px;padding:2px 10px;';
+    b.style.cssText='font-size:11px;padding:2px 10px;flex-shrink:0;';
     b.textContent=label;
     b.onclick=function(){_ptOfficeFilter=val;_ptRefresh();};
-    row.appendChild(b);
+    oRow.appendChild(b);
   }
-  chip('全所','');
-  Array.from(offices).sort().forEach(function(o){chip(o,o);});
+  oChip('全所','');
+  offices.forEach(function(o){oChip(o,o);});
 }
 function _ptRefresh(){
   _ptBuildOfficeChips();
-  /* 重新套用 office 篩選後更新表格 */
+  /* 重新套用 area/office 篩選後更新表格 */
   var allPMap={};
   allRows.forEach(function(r){
     var rawStaff=gv(r,'staff')||'（未知）';
     var area=gv(r,'area'),office=gv(r,'office');
     if(fArea&&area!==fArea) return;
+    if(_ptAreaFilter&&area!==_ptAreaFilter) return; /* 兩層篩選：處 */
     if(_ptOfficeFilter&&office!==_ptOfficeFilter) return;
     var key=SPLIT_NAMES.indexOf(rawStaff)>=0?rawStaff+'||'+area+'||'+office:rawStaff;
     if(!allPMap[key])allPMap[key]={rows:[],area:area,office:office,displayName:rawStaff,lastM:0,lastMAll:0};
@@ -1914,7 +1955,7 @@ function _ptRefresh(){
     if(!qd.evalMonths.length) return null;
     return{key:key,displayName:info.displayName,area:info.area,office:info.office,qd:qd};
   }).filter(Boolean);
-  var scopeLabel=_ptOfficeFilter||fOffice||(fArea?fArea:'全體');
+  var scopeLabel=_ptOfficeFilter||(_ptAreaFilter&&_ptAreaFilter!==fArea?_ptAreaFilter+' ':'')+fOffice||(fArea||_ptAreaFilter||'全體');
   document.getElementById('ptbl-subtitle').textContent=curQ+'　'+scopeLabel+'　共 '+persons.length+' 人';
   document.getElementById('ptbl-body').innerHTML=_personTableHTML(persons);
   /* 同步 office chip 高光 */
@@ -1925,7 +1966,7 @@ function _ptRefresh(){
 function openPersonTable(){
   var modal=document.getElementById('person-table-modal');
   if(!allRows.length){alert('尚無資料');return;}
-  _ptOfficeFilter='';
+  _ptOfficeFilter=''; _ptAreaFilter=fArea; /* 繼承主頁處別篩選 */
   var persons=_buildPersonTableData();
   var scopeLabel=fOffice?fOffice:(fArea?fArea:'全體');
   document.getElementById('ptbl-title').textContent='👤 人員彙整表';
