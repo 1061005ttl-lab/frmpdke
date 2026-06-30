@@ -1,19 +1,29 @@
 <!--
 ════════════════════════════════════════════════════════════
   audit_board.html  ─  大督導時代（店家名冊版）
-  版本：Ver. 2.4.0 ｜ 最後更新：2026-06-30
+  版本：Ver. 2.5.0 ｜ 最後更新：2026-06-30
 ════════════════════════════════════════════════════════════
+
+【需求更新 2.5.0】
+  來源分頁的問卷結構解析改為「動態辨識」，不再假設固定欄位數：
+  ‧ 來源分頁第 1 列：基本資料欄名（店家代碼、通路別…，欄數不固定，
+    會隨時間變動）＋ 問卷大題名稱（只在大題起始欄有字，
+    往右延伸的欄位皆空白，直到下一個大題名稱出現為止）。
+  ‧ 來源分頁第 2 列：選項列。基本資料這段是空白的，問卷區才開始
+    出現選項文字（如「無缺失」「缺失：位置」）。
+  ‧ 程式自動掃描第 2 列「第一個非空白值」當作問卷區起點，
+    起點之前一律視為基本資料，起點之後逐欄比對所屬大題、
+    建立「大題 → 選項清單」的對照表，全程不寫死欄位數或欄名。
+  ‧ 展開店家明細時，依此結構重建「大題 → 已勾選選項」，
+    同一大題下若有多欄被打勾（複選），全部一併列出；
+    若該欄除了打勾還填了文字說明，文字也會原樣顯示。
+  ‧ 顯示方式：問卷大題各自成一個區塊，已勾選的選項以標籤呈現，
+    一眼就能看出每一題實際填了什麼，不再是死板的欄名/欄值清單。
 
 【需求更新 2.4.0】
   店家名冊新增 A 欄「來源分頁+行數」（格式：分頁名稱_行數，
-  例：問卷資料傳統_90），作為跨分頁的唯一連結鍵。
-  點開店家葉節點時，依此欄解析出來源分頁名稱與列號，
-  即時向該分頁發送 gviz 請求，抓回「整列」原始問卷資料並顯示。
-  ‧ 同一來源分頁只會抓取一次（整頁快取於 _sourceSheetCache），
-    之後展開同分頁的其他店家直接吃快取，不重複打 API。
-  ‧ 找不到對應欄位或來源列時，顯示明確錯誤訊息而非空白。
-  ‧ 原本「直接讀本分頁 __raw」的作法已移除，改為跨分頁查詢，
-    確保看到的內容就是真正填寫問卷當下的完整資料。
+  例：問卷資料傳統_90），作為跨分頁的唯一連結鍵，
+  點開店家葉節點時即時向來源分頁查詢、整頁快取後續免重抓。
 
 【需求更新 2.3.0】
   店家展開列（樹狀視角最末層的每一筆店家）可點擊展開明細面板。
@@ -475,6 +485,22 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   line-height:1.5;
 }
 
+/* 問卷大題區：每題一塊，底下用 chip 標籤列出已勾選的選項 */
+.raw-quiz-list { display:flex; flex-direction:column; gap:10px; }
+.raw-quiz-section {
+  background:#fff; border:1px solid rgba(0,0,0,.06); border-radius:8px;
+  padding:8px 12px;
+}
+.raw-quiz-title {
+  font-size:12px; font-weight:700; color:var(--green,#3B6D11); margin-bottom:6px;
+}
+.raw-quiz-picks { display:flex; flex-wrap:wrap; gap:6px; }
+.raw-quiz-chip {
+  display:inline-block; font-size:12px; font-weight:600; color:#2D2D2D;
+  background:var(--green-bg,#EAF3DE); border:1px solid var(--green-bd,rgba(59,109,17,.25));
+  border-radius:6px; padding:3px 9px;
+}
+
 /* 子列：同字體、稍微縮排、背景略區分 */
 .pivot-child-row { display:none; }
 .pivot-child-row.visible { display:table-row; }
@@ -707,46 +733,103 @@ function _parseSourceRef(val){
   return { sheet: sheetName, row: rowNum };
 }
 
-/* 來源分頁完整資料快取：{ 分頁名稱: { headers:[...], rowsByNum:{行號: {欄名:值}} } } */
+/* 來源分頁完整資料快取：{ 分頁名稱: 解析後結構 } */
 var _sourceSheetCache = {};
 
-/* 抓取來源分頁整頁資料（一次抓整張，之後同分頁的其他列直接吃快取，不重複打 API） */
+/*
+  抓取來源分頁整頁資料，並解析「動態問卷結構」：
+  ‧ Sheet 第 1 列＝大題列：某些欄位有字（大題名稱），其餘空白；
+    一個大題名稱底下會橫跨好幾欄，直到下一個有字的儲存格為止。
+  ‧ Sheet 第 2 列＝選項列：每一欄填該題的選項文字（如「無缺失」「缺失：位置」）。
+  ‧ 第 2 列「第一個非空白值」之前的欄位，都是基本資料（人員/店家/時間…），
+    這段固定資料不限欄數、會隨時間變動，所以用「掃到第一個有大題名稱的欄」
+    自動切分，不寫死欄位數。
+  ‧ 資料列（第 3 列起）：基本資料區直接讀值；問卷區則看哪一欄有值（如 v），
+    該欄對應的「大題＋選項」就是受訪者勾選的內容（同大題可複選）。
+*/
 function _fetchSourceSheet(sheetName, callback){
   if(_sourceSheetCache[sheetName]){ callback(_sourceSheetCache[sheetName]); return; }
   var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
-    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(sheetName);
+    '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheetName);
   fetch(url)
     .then(function(r){ return r.text(); })
     .then(function(txt){
       var json = JSON.parse(txt.replace(/^[^\(]+\(/,'').replace(/\);?\s*$/,''));
       var tbl  = json.table || {};
-      var cols = (tbl.cols||[]).map(function(c){ return c.label||''; });
+      var rawRows = tbl.rows || [];
+      if(rawRows.length < 2){ callback(null, '分頁「'+sheetName+'」資料列數不足（需至少含大題列與選項列）'); return; }
+
+      function cellVal(row, i){
+        var c = row.c && row.c[i];
+        if(!c) return '';
+        var v=(c.v!==null&&c.v!==undefined)?c.v:'';
+        var f=c.f||'';
+        if(typeof v==='string' && /^Date\(/.test(v)) return f || parseGvizDate(v);
+        return (v!==''&&v!==null&&v!==undefined)?v:f;
+      }
+
+      var titleRow  = rawRows[0]; /* 大題列（Sheet 第 1 列） */
+      var optionRow = rawRows[1]; /* 選項列（Sheet 第 2 列） */
+      var colCount = Math.max(
+        (titleRow.c||[]).length,
+        (optionRow.c||[]).length
+      );
+
+      /* 找出「問卷區」起點：選項列第一個非空白值所在欄 */
+      var quizStartCol = -1;
+      for(var i=0;i<colCount;i++){
+        if(String(cellVal(optionRow,i)).trim()){ quizStartCol = i; break; }
+      }
+      if(quizStartCol === -1){ callback(null, '分頁「'+sheetName+'」找不到問卷內容起始欄'); return; }
+
+      /* 基本資料欄：問卷區之前的所有欄，欄名取自第 1 列（大題列在這段其實放的是
+         一般欄名，如「店家代碼」「通路別」；真正的大題名稱只會出現在問卷區起點之後） */
+      var baseColNames = [];
+      for(var bi=0; bi<quizStartCol; bi++){
+        var name = String(cellVal(titleRow,bi)||'').trim();
+        baseColNames.push(name || ('欄'+(bi+1)));
+      }
+
+      /* 解析問卷區：大題名稱橫跨多欄，直到下一個有字的大題儲存格為止 */
+      var quizCols = []; /* [{col, section, option}] */
+      var curSection = '';
+      for(var qi=quizStartCol; qi<colCount; qi++){
+        var t = String(cellVal(titleRow,qi)||'').trim();
+        if(t) curSection = t; /* 遇到新大題名稱就切換 */
+        var opt = String(cellVal(optionRow,qi)||'').trim();
+        if(!opt) continue; /* 選項列空白的欄（合併儲存格延伸出的空欄）略過 */
+        quizCols.push({ col:qi, section:curSection||'（未命名題組）', option:opt });
+      }
+
+      /* 解析資料列（第 3 列起，對應 Sheet 第 4 列開始，因為前兩列是表頭） */
       var rowsByNum = {};
-      (tbl.rows||[]).forEach(function(row, ridx){
-        var obj = {};
-        (row.c||[]).forEach(function(cell,i){
-          var colName = cols[i];
-          if(!colName) return;
-          var v=(cell&&cell.v!==null&&cell.v!==undefined)?cell.v:'';
-          var f=(cell&&cell.f)||'';
-          var dispVal;
-          if(/日期|時間/.test(colName) && typeof v==='string' && /^Date\(/.test(v)){
-            dispVal = f || parseGvizDate(v);
-          } else {
-            dispVal = (v!==''&&v!==null&&v!==undefined)?v:f;
-          }
-          obj[colName] = dispVal;
+      for(var ri=2; ri<rawRows.length; ri++){
+        var row = rawRows[ri];
+        var baseData = {};
+        baseColNames.forEach(function(name, bi){ baseData[name] = cellVal(row, bi); });
+
+        /* sections[大題名稱] = [選中的選項文字, ...] */
+        var sections = {}; var sectionOrder = [];
+        quizCols.forEach(function(qc){
+          var v = String(cellVal(row, qc.col)||'').trim();
+          if(!v) return; /* 沒打勾的欄跳過 */
+          if(!sections[qc.section]){ sections[qc.section]=[]; sectionOrder.push(qc.section); }
+          sections[qc.section].push({ option:qc.option, value:v });
         });
-        /* Sheet 第 1 列是表頭，gviz rows[0] 對應 Sheet 第 2 列（第一筆資料） */
-        var sheetRowNum = ridx + 2;
-        rowsByNum[sheetRowNum] = obj;
-      });
-      var result = { headers: cols, rowsByNum: rowsByNum };
+
+        var sheetRowNum = ri + 1; /* gviz rows[0] 對應 Sheet 第 1 列 */
+        rowsByNum[sheetRowNum] = {
+          base: baseData,
+          sections: sectionOrder.map(function(s){ return { section:s, picks:sections[s] }; })
+        };
+      }
+
+      var result = { baseColNames: baseColNames, quizCols: quizCols, rowsByNum: rowsByNum };
       _sourceSheetCache[sheetName] = result;
       callback(result);
     })
     .catch(function(err){
-      callback(null, err);
+      callback(null, String(err));
     });
 }
 
@@ -758,7 +841,7 @@ function _fetchSourceRowDetail(refVal, callback){
     if(err){ callback(null, ref, '讀取分頁「'+ref.sheet+'」失敗：'+err); return; }
     if(!sheetData){ callback(null, ref, '讀取分頁「'+ref.sheet+'」失敗'); return; }
     var rowData = sheetData.rowsByNum[ref.row];
-    if(!rowData){ callback(null, ref, '分頁「'+ref.sheet+'」第 '+ref.row+' 列查無資料'); return; }
+    if(!rowData){ callback(null, ref, '分頁「'+ref.sheet+'」第 '+ref.row+' 列查無資料（可能是表頭列或超出範圍）'); return; }
     callback(rowData, ref, null);
   });
 }
@@ -1453,28 +1536,63 @@ function _toggleStoreDetail(rid, sourceRef){
   });
 }
 
-/* 顯示優先順序：固定欄位排前面、其他原始欄位按來源順序，跳過空值 */
+/* 渲染：基本資料區（卡片 grid）＋ 問卷大題區（逐題列出已勾選的選項） */
 function _buildRawDetailPanel(rowData, ref){
-  var keys = Object.keys(rowData||{}).filter(function(k){
-    var v = rowData[k];
+  var srcTag = ref ? '<div style="font-size:10px;font-weight:700;color:var(--primary);margin-bottom:10px;">📄 來源：'+esc(ref.sheet)+'　第 '+ref.row+' 列</div>' : '';
+  var wrapOpen = '<div style="padding:10px 16px 14px 18px;background:#FAFAF8;border-left:3px solid var(--primary-bg,rgba(55,138,221,.3));margin:2px 12px 6px 0;border-radius:0 8px 8px 0;">';
+
+  if(!rowData){
+    return wrapOpen + srcTag + '<div style="font-size:12px;color:#999;">（查無資料）</div></div>';
+  }
+
+  var base = rowData.base || {};
+  var sections = rowData.sections || [];
+
+  /* 基本資料卡片 grid（跳過空值） */
+  var baseKeys = Object.keys(base).filter(function(k){
+    var v = base[k];
     return v !== '' && v !== null && v !== undefined;
   });
-  var srcTag = ref ? '<div style="font-size:10px;font-weight:700;color:var(--primary);margin-bottom:8px;">📄 來源：'+esc(ref.sheet)+'　第 '+ref.row+' 列</div>' : '';
-  if(!keys.length){
-    return '<div style="padding:10px 16px 14px 18px;background:#FAFAF8;border-left:3px solid var(--primary-bg,rgba(55,138,221,.3));margin:2px 12px 6px 0;border-radius:0 8px 8px 0;">'
-      + srcTag
-      + '<div style="font-size:12px;color:#999;">（此來源分頁查無欄位資料）</div></div>';
+  var baseHtml = '';
+  if(baseKeys.length){
+    baseHtml += '<div class="raw-detail-grid">';
+    baseKeys.forEach(function(k){
+      baseHtml += '<div class="raw-detail-item">'
+        + '<div class="raw-detail-label">'+esc(k)+'</div>'
+        + '<div class="raw-detail-val">'+esc(String(base[k]))+'</div>'
+        + '</div>';
+    });
+    baseHtml += '</div>';
   }
-  var html = '<div style="padding:10px 16px 14px 18px;background:#FAFAF8;border-left:3px solid var(--primary-bg,rgba(55,138,221,.3));margin:2px 12px 6px 0;border-radius:0 8px 8px 0;">';
-  html += srcTag;
-  html += '<div class="raw-detail-grid">';
-  keys.forEach(function(k){
-    html += '<div class="raw-detail-item">'
-      + '<div class="raw-detail-label">'+esc(k)+'</div>'
-      + '<div class="raw-detail-val">'+esc(String(rowData[k]))+'</div>'
-      + '</div>';
-  });
-  html += '</div></div>';
+
+  /* 問卷大題區：每題一個區塊，顯示已勾選的選項（可能複選） */
+  var quizHtml = '';
+  if(sections.length){
+    quizHtml += '<div class="raw-quiz-list">';
+    sections.forEach(function(sec){
+      quizHtml += '<div class="raw-quiz-section">'
+        + '<div class="raw-quiz-title">📋 '+esc(sec.section)+'</div>'
+        + '<div class="raw-quiz-picks">';
+      sec.picks.forEach(function(p){
+        quizHtml += '<span class="raw-quiz-chip">'+esc(p.option)
+          + (p.value && p.value!=='v' && p.value!=='V' && p.value!=='✓' ? '：'+esc(p.value) : '')
+          + '</span>';
+      });
+      quizHtml += '</div></div>';
+    });
+    quizHtml += '</div>';
+  } else {
+    quizHtml = '<div style="font-size:12px;color:#999;margin-top:4px;">（此筆問卷未填寫任何題目）</div>';
+  }
+
+  if(!baseKeys.length && !sections.length){
+    return wrapOpen + srcTag + '<div style="font-size:12px;color:#999;">（此來源分頁查無欄位資料）</div></div>';
+  }
+
+  var html = wrapOpen + srcTag;
+  if(baseHtml) html += baseHtml + '<div style="height:12px;"></div>';
+  html += quizHtml;
+  html += '</div>';
   return html;
 }
 function _rid(s){ return String(s).replace(/[^\w\u4e00-\u9fff]/g,'_').substring(0,20); }
