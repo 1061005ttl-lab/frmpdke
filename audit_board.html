@@ -170,12 +170,12 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .stat-row { display:flex; gap:6px; margin-top:4px; flex-wrap:wrap; }
 .stat-item { flex:1; min-width:0; background:var(--bg); border-radius:10px; padding:10px 6px; text-align:center; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; position:relative; }
 .stat-item.grp { background:var(--green-bg); }
-.stat-label { font-size:10px; font-weight:500; color:var(--sub); margin-bottom:6px; word-break:keep-all; overflow-wrap:break-word; line-height:1.3; min-height:2.6em; display:flex; align-items:center; justify-content:center; }
+.stat-label { font-size:10px; font-weight:600; color:#444; margin-bottom:6px; word-break:keep-all; overflow-wrap:break-word; line-height:1.3; min-height:2.6em; display:flex; align-items:center; justify-content:center; }
 .stat-item.grp .stat-label { color:var(--green); }
 .stat-val { font-size:24px; font-weight:800; color:var(--text); line-height:1; letter-spacing:-1px; }
 .stat-item.grp .stat-val { color:var(--green); }
-.stat-sub { font-size:11px; color:var(--sub); margin-top:3px; }
-.stat-item.grp .stat-sub { color:var(--green); opacity:.7; }
+.stat-sub { font-size:11px; color:#444; margin-top:3px; font-weight:500; }
+.stat-item.grp .stat-sub { color:var(--green); }
 
 /* ── tooltip ── */
 .tooltip {
@@ -539,7 +539,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     </div>
     <!-- Tab 列 -->
     <div class="pivot-tabs">
-      <button class="pivot-tab active" onclick="switchPivotTab('staff',this)">👤 業務王</button>
+      <button class="pivot-tab active" onclick="switchPivotTab('staff',this)">👤 人員</button>
       <button class="pivot-tab"        onclick="switchPivotTab('office',this)">🏢 單位</button>
       <button class="pivot-tab"        onclick="switchPivotTab('suptype',this)">📋 督導類型</button>
     </div>
@@ -960,9 +960,9 @@ function buildCard(name,labelText,stat,levelKey,rows,isOverall){
   /* 總計格 */
   var statRowHtml='<div class="stat-row">'
     +'<div class="stat-item">'
-    +'<div class="stat-label">總家數</div>'
-    +'<div class="stat-val">'+stat.totalStores+'</div>'
-    +'<div class="stat-sub">家　<span style="color:#aaa;font-size:10px;">共'+stat.totalRecords+'份</span></div>'
+    +'<div class="stat-label">總份數</div>'
+    +'<div class="stat-val">'+stat.totalRecords+'</div>'
+    +'<div class="stat-sub">份　<span style="font-size:10px;font-weight:600;color:#444;">'+stat.totalStores+' 家</span></div>'
     +'</div>';
 
   /* 各督導類型群格 */
@@ -971,16 +971,16 @@ function buildCard(name,labelText,stat,levelKey,rows,isOverall){
     var subHtml='';
     if(g.staffList && g.staffList.length){
       g.staffList.forEach(function(s){
-        subHtml+='<div class="tt-row"><span class="tt-label">'+esc(s.name)+'</span><span class="tt-val">'+s.stores+' 家／'+s.records+' 份</span></div>';
+        subHtml+='<div class="tt-row"><span class="tt-label" style="color:#333;">'+esc(s.name)+'</span><span class="tt-val">'+s.records+' 份　<span style="font-size:11px;color:#555;">'+s.stores+' 家</span></span></div>';
       });
     }
     statRowHtml+='<div class="stat-item grp" id="sig'+gi+'-'+ttId+'">'
       +'<div class="stat-label">'+esc(g.label)+'</div>'
-      +'<div class="stat-val">'+g.stores+'</div>'
-      +'<div class="stat-sub">家　<span style="color:#5a8a30;font-size:10px;">共'+g.records+'份</span></div>'
+      +'<div class="stat-val">'+g.records+'</div>'
+      +'<div class="stat-sub">份　<span style="font-size:10px;font-weight:600;color:var(--green-bd,#5a8a30);">'+g.stores+' 家</span></div>'
       +'<div class="tooltip" id="'+ttGId+'">'
         +'<div class="tt-title">'+esc(g.label)+'</div>'
-        +(subHtml||'<div class="tt-row"><span class="tt-label">家數／份數</span><span class="tt-val">'+g.stores+' 家／'+g.records+' 份</span></div>')
+        +(subHtml||'<div class="tt-row"><span class="tt-label" style="color:#333;">份數／家數</span><span class="tt-val">'+g.records+' 份　'+g.stores+' 家</span></div>')
       +'</div>'
     +'</div>';
   });
@@ -1123,11 +1123,11 @@ function openDialog(name,levelKey,rows){
   var stat=calcAudit(rows);
   var ctx=drillStack.map(function(d){ return d.key; });
   ctx.push(name);
-  var parts=['共 '+stat.totalStores+' 家／'+stat.totalRecords+' 份'];
-  stat.groups.forEach(function(g){ parts.push(esc(g.label)+'：'+g.stores+' 家／'+g.records+' 份'); });
+  var parts=['共 '+stat.totalRecords+' 份（'+stat.totalStores+' 家）'];
+  stat.groups.forEach(function(g){ parts.push(esc(g.label)+'：'+g.records+' 份／'+g.stores+' 家'); });
   document.getElementById('dlg-title').innerHTML=
     '<div style="font-size:14px;font-weight:900;line-height:1.3;">【'+ctx.join(' › ')+'】查核明細</div>'
-    +'<div style="font-size:12px;color:var(--sub);font-weight:500;margin-top:2px;">'+parts.join('　')+'</div>';
+    +'<div style="font-size:12px;color:#444;font-weight:600;margin-top:2px;">'+parts.join('　')+'</div>';
   _renderDimBar(); _renderDlgContent();
   var dlg=document.getElementById('detail-dialog');
   dlg.style.display='flex';
@@ -1465,8 +1465,8 @@ function _buildNestedPivot(rows, dims){
         + '</div></td>';
 
       html += '<td class="td-total" style="font-size:'+cfg.fontSize+';font-weight:'+cfg.fontWeight+';width:120px;text-align:right;white-space:nowrap;">'
-        + count
-        + (recs !== count ? '<span style="font-size:11px;font-weight:400;color:#aaa;margin-left:4px;">／'+recs+'份</span>' : '')
+        + recs + '<span style="font-size:10px;font-weight:500;color:#444;margin-left:3px;">份</span>'
+        + (recs !== count ? '<span style="font-size:11px;font-weight:600;color:#444;margin-left:6px;">'+count+'家</span>' : '')
         + '</td>';
       html += '</tr>';
 
@@ -1525,11 +1525,11 @@ function _buildNestedPivot(rows, dims){
             + '<span style="display:inline-block;width:18px;flex-shrink:0;"></span>'
             + '<span style="font-size:12px;opacity:.7;margin-right:5px;flex-shrink:0;">🏪</span>'
             + '<span style="font-size:12px;font-weight:500;color:#333;white-space:nowrap;">'
-              + (storeDate ? '<span style="font-size:11px;color:#aaa;font-weight:400;margin-right:8px;font-variant-numeric:tabular-nums;">'+esc(storeDate)+'</span>' : '')
+              + (storeDate ? '<span style="font-size:11px;font-weight:700;color:#333;margin-right:8px;font-variant-numeric:tabular-nums;">'+esc(storeDate)+'</span>' : '')
               + esc(storeName)
             + '</span>'
             + '</div></td>';
-          html += '<td class="td-total" style="font-size:11px;color:#aaa;font-weight:400;">—</td>';
+          html += '<td class="td-total" style="font-size:11px;color:#333;font-weight:500;">—</td>';
           html += '</tr>';
         });
       }
@@ -1544,8 +1544,8 @@ function _buildNestedPivot(rows, dims){
   html += '<tr class="sum-footer">'
     + '<td class="td-left" style="padding-left:20px;">合計</td>'
     + '<td class="td-total" style="font-size:17px;text-align:right;white-space:nowrap;">'
-      + totalC
-      + (totalR !== totalC ? '<span style="font-size:12px;font-weight:400;color:#888;margin-left:4px;">／'+totalR+'份</span>' : '')
+      + totalR + '<span style="font-size:11px;font-weight:500;color:#444;margin-left:3px;">份</span>'
+      + (totalR !== totalC ? '<span style="font-size:12px;font-weight:600;color:#444;margin-left:8px;">'+totalC+' 家</span>' : '')
     + '</td>'
     + '</tr></tbody></table>';
   return html;
@@ -1610,14 +1610,14 @@ function buildAuditTable(rows){
   sorted.forEach(function(r){
     html+='<tr>';
     extraCols.forEach(function(c){ html+='<td class="td-left">'+esc(String(r[c]||'—'))+'</td>'; });
-    html+='<td class="td-left" style="color:#aaa;font-size:11px;">'+esc(String(r[COL_CODE]||'—'))+'</td>';
+    html+='<td class="td-left" style="color:#444;font-size:11px;font-weight:600;">'+esc(String(r[COL_CODE]||'—'))+'</td>';
     html+='<td class="td-name td-left">'+esc(String(r[COL_NAME]||'—'))+'</td>';
     html+='<td class="td-left">'+esc(String(r[COL_CHANNEL]||'—'))+'</td>';
     html+='<td class="td-left">'+esc(String(r[COL_STORETYPE]||'—'))+'</td>';
     html+='<td class="td-left">'+esc(String(r[COL_GRADE]||'—'))+'</td>';
     html+='<td class="td-left">'+esc(String(r[COL_SUPTYPE]||'—'))+'</td>';
     html+='<td class="td-left">'+esc(String(r[COL_QUESTTYPE]||'—'))+'</td>';
-    html+='<td class="td-left" style="color:#888;font-size:12px;">'+esc(String(r[COL_DATE]||'—'))+'</td>';
+    html+='<td class="td-left" style="color:#333;font-size:12px;font-weight:600;">'+esc(String(r[COL_DATE]||'—'))+'</td>';
     html+='</tr>';
   });
   var footerCols = extraCols.length + 8; /* extra + 店碼+店名+通路+型態+等級+督導+問卷+日期 */
@@ -1625,7 +1625,7 @@ function buildAuditTable(rows){
   var footerRecs = sorted.length;
   html+='<tr class="sum-footer"><td class="td-left" colspan="'+footerCols+'" style="font-size:13px;">'
     +'合計：<strong style="color:var(--primary);">'+footerStores+' 家</strong>'
-    +'<span style="color:#888;margin-left:8px;">共 '+footerRecs+' 份</span>'
+    +'<span style="color:#444;font-weight:600;margin-left:8px;">共 '+footerRecs+' 份</span>'
     +'</td></tr>';
   html+='</tbody></table>';
   return html;
@@ -1722,7 +1722,7 @@ function openSummaryDialog(mode, rows){
   _pivotMode = mode || 'staff';
   _pivotRows = rows || getCurrentRows();
 
-  var titles = { staff:'業務王 × 督導類型', office:'單位 × 督導類型', suptype:'督導類型 × 問卷類型' };
+  var titles = { staff:'人員 × 督導類型', office:'單位 × 督導類型', suptype:'督導類型 × 問卷類型' };
   document.getElementById('sum-title').textContent = '彙整看板 ─ ' + (titles[_pivotMode] || '');
 
   /* 高亮正確 Tab */
@@ -1755,7 +1755,7 @@ function switchPivotTab(mode, tabEl){
   document.querySelectorAll('.pivot-tab').forEach(function(t){ t.classList.remove('active'); });
   if(tabEl) tabEl.classList.add('active');
   document.getElementById('sum-title').textContent =
-    '彙整看板 ─ ' + ({staff:'業務王 × 督導類型', office:'單位 × 督導類型', suptype:'督導類型 × 問卷類型'}[mode]||'');
+    '彙整看板 ─ ' + ({staff:'人員 × 督導類型', office:'單位 × 督導類型', suptype:'督導類型 × 問卷類型'}[mode]||'');
   _setPivotSlide(mode, true);
 }
 
@@ -1854,7 +1854,7 @@ function _buildStaffPivot(rows){
     var areaSpan=1+supTypes.length+1;
     html+='<tr class="pivot-area-row"><td colspan="'+areaSpan+'" style="padding:8px 16px;">'
       +'<span style="font-size:13px;font-weight:900;margin-right:10px;">▸ '+esc(area)+'</span>';
-    supTypes.forEach(function(st){ html+='<span style="font-size:12px;font-weight:500;color:#666;margin-right:10px;">'+esc(st)+' <strong style="color:#333;">'+areaBySt[st].size+'</strong></span>'; });
+    supTypes.forEach(function(st){ html+='<span style="font-size:12px;font-weight:600;color:#444;margin-right:10px;">'+esc(st)+' <strong style="color:#333;">'+areaBySt[st].size+'</strong></span>'; });
     html+='<span style="font-size:12px;">合計 <strong style="color:var(--primary);font-size:14px;">'+areaTotal.size+'</strong></span></td></tr>';
 
     /* 人員列 */
@@ -1868,19 +1868,22 @@ function _buildStaffPivot(rows){
       });
       html+='<td class="td-total">'+s.total+'</td></tr>';
 
-      /* 店家展開子列 */
+      /* 店家展開子列：日期 代碼 店名，依日期新→舊 */
       var storeRows=rows.filter(function(r){ return String(r[COL_AREA]||'').trim()===area&&String(r[COL_STAFF]||'').trim()===s.name; });
       storeRows.sort(function(a,b){
-        var sa=String(a[COL_SUPTYPE]||''),sb=String(b[COL_SUPTYPE]||'');
-        if(sa!==sb) return sa.localeCompare(sb);
-        return String(a[COL_NAME]||'').localeCompare(String(b[COL_NAME]||''));
+        var da=String(a[COL_DATE]||''), db=String(b[COL_DATE]||'');
+        if(da!==db) return da>db?-1:1;
+        return String(a[COL_NAME]||'').localeCompare(String(b[COL_NAME]||''),'zh-TW');
       });
       storeRows.forEach(function(r,ri){
         var code=String(r[COL_CODE]||'').trim(); if(!code) return;
+        var dateStr=String(r[COL_DATE]||'').trim();
         html+='<tr class="pivot-child-row" id="child-'+rid+'-'+ri+'" data-parent="'+rid+'">';
-        html+='<td class="td-left" colspan="1" style="padding-left:32px;color:#555;font-size:12px;">'
-             +'<span style="color:#aaa;font-size:11px;margin-right:6px;">'+esc(code)+'</span>'
-             +esc(String(r[COL_NAME]||''))+'</td>';
+        html+='<td class="td-left" colspan="1" style="padding-left:32px;font-size:13px;">'
+             +'<span style="font-size:12px;font-weight:700;color:#333;margin-right:8px;font-variant-numeric:tabular-nums;">'+(dateStr||'—')+'</span>'
+             +'<span style="font-size:11px;font-weight:600;color:#555;margin-right:6px;">'+esc(code)+'</span>'
+             +'<span style="font-weight:600;color:#1a1a1a;">'+esc(String(r[COL_NAME]||''))+'</span>'
+             +'</td>';
         supTypes.forEach(function(st,si){
           var match=String(r[COL_SUPTYPE]||'').trim()===st;
           html+='<td class="td-num td-sup-'+si+'" style="font-size:11px;font-weight:500;color:#888;">'
@@ -1996,7 +1999,7 @@ function _buildOfficePivot(rows){
     var areaSpan=2+supTypes.length+1;
     html+='<tr class="pivot-area-row"><td colspan="'+areaSpan+'" style="padding:8px 16px;">'
       +'<span style="font-size:13px;font-weight:900;margin-right:10px;">▸ '+esc(area)+'</span>';
-    supTypes.forEach(function(st,si){ html+='<span style="font-size:12px;font-weight:500;color:#666;margin-right:10px;">'+esc(st)+' <strong style="color:#333;">'+areaBySt[st].size+'</strong></span>'; });
+    supTypes.forEach(function(st,si){ html+='<span style="font-size:12px;font-weight:600;color:#444;margin-right:10px;">'+esc(st)+' <strong style="color:#333;">'+areaBySt[st].size+'</strong></span>'; });
     html+='<span style="font-size:12px;">合計 <strong style="color:var(--primary);font-size:14px;">'+areaTotal.size+'</strong></span>'
       +'</td></tr>';
 
@@ -2005,7 +2008,7 @@ function _buildOfficePivot(rows){
       var rid='pvoff-'+area.replace(/[^\w\u4e00-\u9fff]/g,'_')+oi;
       html+='<tr class="pivot-expand-row" onclick="_toggleOfficeExpand(\''+rid+'\')" id="row-'+rid+'">'
         +'<td class="td-left"><span class="pivot-expand-icon" id="ico-'+rid+'">▶</span>'+esc(o.off)+'</td>'
-        +'<td class="td-left" style="font-size:12px;color:#aaa;">'+o.staffs.length+' 人</td>';
+        +'<td class="td-left" style="font-size:12px;font-weight:600;color:#444;">'+o.staffs.length+' 人</td>';
       supTypes.forEach(function(st,si){
         html+='<td class="td-num td-sup-'+si+'">'+(o.bySt[st]?o.bySt[st]:'<span class="pivot-dash">—</span>')+'</td>';
       });
@@ -2021,7 +2024,7 @@ function _buildOfficePivot(rows){
           if(code){ sTotal.add(code); if(st&&sBySt[st]!==undefined) sBySt[st]++; }
         });
         html+='<tr class="pivot-child-row" id="child-'+rid+'-'+ni+'" data-parent="'+rid+'">'
-          +'<td class="td-left" style="padding-left:36px;font-size:13px;color:#555;">'+esc(name)+'</td>'
+          +'<td class="td-left" style="padding-left:36px;font-size:13px;font-weight:600;color:#1a1a1a;">'+esc(name)+'</td>'
           +'<td></td>';
         supTypes.forEach(function(st,si){
           html+='<td class="td-num td-sup-'+si+'" style="font-size:13px;font-weight:600;">'+(sBySt[st]?sBySt[st]:'<span class="pivot-dash">—</span>')+'</td>';
@@ -2053,8 +2056,8 @@ function _toggleOfficeExpand(rid){
 }
 
 /* ════ [3] 督導類型 維度 ════
-   欄位：督導類型 | 問卷類型 | 業務王數 | 家數
-   結構：督導類型 → 問卷類型 → 業務王名單（展開）
+   欄位：督導類型 | 問卷類型 | 人員數 | 家數
+   結構：督導類型 → 問卷類型 → 人員名單（展開）
 */
 function _buildSuptypePivot(rows){
   var supTypes=ROSTER_GROUPS;
@@ -2085,7 +2088,7 @@ function _buildSuptypePivot(rows){
   var html='<table class="pivot-tbl"><thead><tr>'
     +'<th class="th-left sortable" onclick="_sortSuptype(\'suptype\')" style="cursor:pointer;">督導類型'+sortIcon('suptype')+'</th>'
     +'<th class="th-left sortable" onclick="_sortSuptype(\'questtype\')" style="cursor:pointer;">問卷類型'+sortIcon('questtype')+'</th>'
-    +'<th class="th-num sortable" onclick="_sortSuptype(\'staffs\')" style="cursor:pointer;">業務王數'+sortIcon('staffs')+'</th>'
+    +'<th class="th-num sortable" onclick="_sortSuptype(\'staffs\')" style="cursor:pointer;">人員數'+sortIcon('staffs')+'</th>'
     +'<th class="th-num th-total sortable" onclick="_sortSuptype(\'stores\')" style="cursor:pointer;">家數'+sortIcon('stores')+'</th>'
     +'</tr></thead><tbody>';
 
@@ -2130,7 +2133,7 @@ function _buildSuptypePivot(rows){
       html+='<td class="td-num" style="font-size:12px;font-weight:600;color:var(--sub);">'+q.staffs+'</td>';
       html+='<td class="td-total" style="font-size:12px;">'+q.stores+'</td></tr>';
 
-      /* 業務王名單（第三層展開） */
+      /* 人員名單（第三層展開） */
       q.staffList.forEach(function(name, ni){
         html+='<tr class="pivot-child-row" id="child-'+qtId+'-'+ni+'" data-parent="'+qtId+'" style="display:none;" data-qt-child="1">';
         html+='<td colspan="2" class="td-left" style="padding-left:56px;font-size:12px;color:#666;">'+esc(name)+'</td>';
@@ -2189,7 +2192,7 @@ function downloadSummaryCsv(){
       return /[,"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;
     }).join(',');
   }).join('\n');
-  var titles={staff:'業務王彙整',office:'單位彙整',suptype:'督導類型彙整'};
+  var titles={staff:'人員彙整',office:'單位彙整',suptype:'督導類型彙整'};
   _downloadCsv('\uFEFF'+csv, titles[_pivotMode]||'彙整');
   _flashBtn(btn,'✅ 已下載');
 }
@@ -2234,7 +2237,7 @@ function _buildDialogLineSummary(){
 function _buildSummaryLineSummary(){
   var rows = _pivotRows || allRows;
   var stat = calcAudit(rows);
-  var modeNames = {staff:'業務王 × 督導類型', office:'單位 × 督導類型', suptype:'督導類型 × 問卷類型'};
+  var modeNames = {staff:'人員 × 督導類型', office:'單位 × 督導類型', suptype:'督導類型 × 問卷類型'};
   var lines = ['📊 彙整看板 ─ '+PROJ_NAME, '📑 維度：'+modeNames[_pivotMode], '🏪 總家數：'+stat.totalStores+' 家', ''];
   stat.groups.forEach(function(g){
     lines.push('【'+g.label+'】'+g.stores+' 家');
