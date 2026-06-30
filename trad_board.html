@@ -1,7 +1,7 @@
 <!--
 ╔══════════════════════════════════════════════════════════════════════════════════╗
 ║         傳統通路購值進度 — AI 交接說明書                                         ║
-║         VERSION: 1.5.6  UPDATED: 06/27 (千位逗號；彙整表成長%降冪正確)             ║
+║         VERSION: 1.5.8  UPDATED: 06/30 (跨單位排除處內排行/品評/彙整表一致)        ║
 ╠══════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                  ║
 ║  【系統用途】                                                                    ║
@@ -55,6 +55,8 @@
 ║                           說明書加入、身分別欄位加入人員卡片                      ║
 ║  v1.2.0  06/25  全站數字 1 位小數統一、按鈕統一 LINE/CSV/截圖、                   ║
 ║                 CSV 下載功能（主頁/彙整表/明細）、彙整表按鈕對齊外部              ║
+║  v1.5.8  06/30  跨單位人員統一排除處內排行、卓越貢獻、成長突破、品評額度          ║
+║                 彙整表/排行榜/人員卡片三處標準一致，跨單位欄顯示「跨單位」         ║
 ╚══════════════════════════════════════════════════════════════════════════════════╝
 -->
 <!DOCTYPE html>
@@ -364,7 +366,7 @@
   <button class="tb-btn" onclick="toggleRank()" id="rank-btn" style="background:rgba(255,215,0,.15);border-color:rgba(200,160,0,.3);color:#7a5500;">&#127942; 獎金排行</button>
   <button class="tb-btn" onclick="openPersonTable()" id="ptbl-btn" style="background:rgba(74,122,85,.1);border-color:rgba(74,122,85,.3);color:#2d5a38;">&#128100; 人員表</button>
   <div id="tb-right">
-    <div id="ver-ts">Ver. 1.3.2 (2026-06-26)</div>
+    <div id="ver-ts">Ver. 1.5.8 (2026-06-30)</div>
     <button class="tb-btn" onclick="mainCopyLine()" id="btn-main-line">&#128172; LINE</button>
     <button class="tb-btn" onclick="downloadCSV()" id="btn-main-csv">&#128229; CSV</button>
     <button class="tb-btn" onclick="mainScreenshot()" id="btn-main-shot">&#128248; 截圖</button>
@@ -397,7 +399,7 @@
       <button class="drawer-btn" onclick="mainScreenshot();closeMobileDrawer();"><span class="db-icon">&#128248;</span>截圖</button>
     </div>
   </div>
-  <div style="padding:10px 16px;font-size:9px;color:#bbb;border-top:1px solid rgba(0,0,0,.06);">Ver. 1.0.0</div>
+  <div style="padding:10px 16px;font-size:9px;color:#bbb;border-top:1px solid rgba(0,0,0,.06);">Ver. 1.5.8</div>
 </div>
 
 <div id="manual-bar">
@@ -424,7 +426,8 @@
     <hr>
     <p><b>【排行榜（獎金排行）】</b>僅限季成長% ≥ 5% 且有效月份 3 個月（即 $1,000 達標）人員參與。<br>
     &#x1F947; <b>卓越貢獻獎</b>：依各處<b>成長值</b>排名前 3。&#x1F680; <b>成長突破獎</b>：依各處<b>成長率%</b>排名前 3。<br>
-    同分並列時，全數納入相同名次，最多顯示 4 個名次（含並列）。</p>
+    同分並列時，全數納入相同名次，最多顯示 4 個名次（含並列）。<br>
+    ⚠️ <b>跨單位人員不計入任何處內排行：</b>本季任一月份資料屬於其他營業處者（月份標示＊號），不參與卓越貢獻獎、成長突破獎及品評額度計算，達成獎金（$500/$1,000）不受影響。</p>
     <hr>
     <p><b>【篩選與排序】</b>上方區域列可依<b>處別 → 所別</b>縮小範圍；狀態篩選可快速聚焦達獎、未達標等族群；排序可切換成長值或成長率。<br>
     右上角 <b>👁 去辨別化</b> 按鈕可將店家名稱的每偶數位字以「○」遮蔽，適合在公開場合展示時保護店家資訊。</p>
@@ -1705,10 +1708,16 @@ function _buildPersonTableData(){
     if(!qd.evalMonths.length) return null;
     return{key:key,displayName:info.displayName,area:info.area,office:info.office,qd:qd};
   }).filter(Boolean);
-  /* ③ 全體排名計算（僅 $1,000 達標者，依處別 dense rank） */
+  /* ③ 全體排名計算（僅 $1,000 達標且全季同處者，依處別 dense rank）
+     v1.5.8：跨單位人員（任一月份 area 不同）排除排名，
+             使彙整表與排行榜、人員卡片的標準完全一致 */
   var byAreaAll={};
   allPersons.forEach(function(p){
     if(p.qd.bonus!==1000) return;
+    /* 跨單位排除：3個月 monthArea 必須全部相同（且非空） */
+    var _ras=p.qd.evalMonths.map(function(m){return p.qd.monthArea[m]||'';});
+    var _same=p.qd.evalMonths.length===3&&_ras.every(function(a){return a!==''&&a===_ras[0];});
+    if(!_same) return; /* 跨單位者不進排名，品評額度也不適用 */
     var a=p.area||'（未知）';
     if(!byAreaAll[a])byAreaAll[a]=[];
     byAreaAll[a].push(p);
@@ -1820,8 +1829,11 @@ function _personTableHTML(persons){
       var bonusStr=qd.bonus?'$'+qd.bonus:'—';
       var rankG=p['_rank_totalGrowth'];
       var rankR=p['_rank_growthRate'];
-      /* 品評額度：只有卓越貢獻獎 第1名才顯示 */
-      var evalStr=(rankG===1&&qd.evalAmt>0)?('$'+qd.evalAmt.toLocaleString()+(qd.evalAmt>=20000?' ★':'')):'—';
+      /* 跨單位判斷：同一套規則，3個月 monthArea 必須全部相同 */
+      var _cras=qd.evalMonths.map(function(m){return qd.monthArea[m]||'';});
+      var _isCross=qd.bonus===1000&&!(qd.evalMonths.length===3&&_cras.every(function(a){return a!==''&&a===_cras[0];}));
+      /* 品評額度：只有卓越貢獻獎第1名且非跨單位才顯示 */
+      var evalStr=(!_isCross&&rankG===1&&qd.evalAmt>0)?('$'+qd.evalAmt.toLocaleString()+(qd.evalAmt>=20000?' ★':'')):'—';
       /* 身分別欄樣式 */
       var rdColor=rd.roleMonthCount<=1?'color:#d93025;font-weight:800;':(rd.formalCnt>0?'color:#22a84c;font-weight:700;':'color:#996600;font-weight:700;');
       var rdLabel=rd.roleLabel+(rd.roleMonthCount>0?' ('+rd.roleMonthCount+'/3)':'');
@@ -1837,9 +1849,9 @@ function _personTableHTML(persons){
         '<td style="'+tdS+dCl(grow)+'">'+(grow!==null?ds(grow):'—')+'</td>'+
         '<td style="'+tdS+(pct!==null&&pct>=5?'color:#22a84c;font-weight:800;':pct!==null&&pct<0?'color:#d93025;':'color:#aaa;')+'">'+pctStr+'</td>'+
         '<td style="'+tdS+(qd.bonus===1000?'color:#7a5500;font-weight:900;background:rgba(255,215,0,.08);':qd.bonus===500?'color:#3a6a45;font-weight:800;':'color:#aaa;')+'">'+bonusStr+'</td>'+
-        '<td style="'+tdS+(rankR&&rankR<=3?'font-weight:900;':'color:#aaa;')+'">'+rankBadge(rankR)+'</td>'+
-        '<td style="'+tdS+(rankG&&rankG<=3?'font-weight:900;':'color:#aaa;')+'">'+rankBadge(rankG)+'</td>'+
-        '<td style="'+tdS+(rankG===1&&qd.evalAmt>=20000?'color:#a04000;font-weight:900;':rankG===1&&qd.evalAmt>0?'color:#7a5500;font-weight:800;':'color:#aaa;')+'">'+evalStr+'</td>'+
+        '<td style="'+tdS+(_isCross?'color:#996600;':'')+((!_isCross&&rankR&&rankR<=3)?'font-weight:900;':'color:#aaa;')+'">'+(_isCross?'<span style="font-size:10px;">跨單位</span>':rankBadge(rankR))+'</td>'+
+        '<td style="'+tdS+(_isCross?'color:#996600;':'')+((!_isCross&&rankG&&rankG<=3)?'font-weight:900;':'color:#aaa;')+'">'+(_isCross?'<span style="font-size:10px;">跨單位</span>':rankBadge(rankG))+'</td>'+
+        '<td style="'+tdS+(!_isCross&&rankG===1&&qd.evalAmt>=20000?'color:#a04000;font-weight:900;':!_isCross&&rankG===1&&qd.evalAmt>0?'color:#7a5500;font-weight:800;':'color:#aaa;')+'">'+evalStr+'</td>'+
       '</tr>';
     });
     tbody+=makeSubtot('　小計 '+arr.length+' 人',arr,'background:#edf5ed;font-weight:900;border-top:1.5px solid #c0d8c0;');
