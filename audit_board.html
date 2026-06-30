@@ -961,9 +961,14 @@ function buildCard(name,labelText,stat,levelKey,rows,isOverall){
 
   /* 總計格 */
   var statRowHtml='<div class="stat-row">'
-    +'<div class="stat-item">'
+    +'<div class="stat-item" id="sigtotal-'+ttId+'">'
     +'<div class="stat-label">總份數</div>'
-    +'<div class="stat-val-combo">'+stat.totalRecords+' 份　'+stat.totalStores+' 家</div>'
+    +'<div class="stat-val">'+stat.totalRecords+'</div>'
+    +'<div class="stat-sub">份</div>'
+    +'<div class="tooltip" id="ttgtotal-'+ttId+'">'
+      +'<div class="tt-title">總計</div>'
+      +'<div class="tt-row"><span class="tt-label" style="color:#2D2D2D;">份數／家數</span><span class="tt-val">'+stat.totalRecords+' 份　'+stat.totalStores+' 家</span></div>'
+    +'</div>'
     +'</div>';
 
   /* 各督導類型群格 */
@@ -977,10 +982,12 @@ function buildCard(name,labelText,stat,levelKey,rows,isOverall){
     }
     statRowHtml+='<div class="stat-item grp" id="sig'+gi+'-'+ttId+'">'
       +'<div class="stat-label">'+esc(g.label)+'</div>'
-      +'<div class="stat-val-combo">'+g.records+' 份　'+g.stores+' 家</div>'
+      +'<div class="stat-val">'+g.records+'</div>'
+      +'<div class="stat-sub">份</div>'
       +'<div class="tooltip" id="'+ttGId+'">'
         +'<div class="tt-title">'+esc(g.label)+'</div>'
-        +(subHtml||'<div class="tt-row"><span class="tt-label" style="color:#2D2D2D;">份數／家數</span><span class="tt-val">'+g.records+' 份　'+g.stores+' 家</span></div>')
+        +'<div class="tt-row"><span class="tt-label" style="color:#2D2D2D;">份數／家數</span><span class="tt-val">'+g.records+' 份　'+g.stores+' 家</span></div>'
+        +subHtml
       +'</div>'
     +'</div>';
   });
@@ -989,6 +996,9 @@ function buildCard(name,labelText,stat,levelKey,rows,isOverall){
   card.innerHTML=topHtml+statRowHtml;
 
   /* 綁定 tooltip */
+  var siTotalEl=card.querySelector('#sigtotal-'+ttId);
+  var ttTotalEl=card.querySelector('#ttgtotal-'+ttId);
+  if(siTotalEl&&ttTotalEl) bindTooltip(siTotalEl,ttTotalEl,card);
   stat.groups.forEach(function(g,gi){
     var siEl=card.querySelector('#sig'+gi+'-'+ttId);
     var ttEl=card.querySelector('#ttg'+gi+'-'+ttId);
@@ -1344,8 +1354,9 @@ function _countRows(rows){
 function _fmtRecStore(records, stores){
   return records+' 份　'+stores+' 家';
 }
-/* 統一格式：無資料時顯示「0 份　0 家」而非破折號，避免被誤判為缺漏 */
+/* 統一格式：無資料時留白，避免「0 份 0 家」造成視覺疲乏 */
 function _fmtRecStoreOrZero(records, stores){
+  if(!records && !stores) return '';
   return _fmtRecStore(records||0, stores||0);
 }
 
@@ -2055,7 +2066,7 @@ function _buildOfficePivot(rows){
           +'<td></td>';
         supTypes.forEach(function(st,si){
           var n=sBySt[st]?sBySt[st].recs:0;
-          html+='<td class="td-num td-sup-'+si+'" style="font-size:13px;font-weight:600;">'+(n||0)+' 份</td>';
+          html+='<td class="td-num td-sup-'+si+'" style="font-size:13px;font-weight:600;">'+(n?n+' 份':'')+'</td>';
         });
         html+='<td class="td-total" style="font-size:13px;">'+_fmtRecStore(sRecs,sCodes.size)+'</td></tr>';
       });
