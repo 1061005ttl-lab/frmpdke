@@ -1655,11 +1655,13 @@ var BASIC_DETAIL_FIELDS = [
   COL_CODE, COL_NAME, COL_GRADE, COL_SUPTYPE, COL_QUESTTYPE, COL_DATE
 ];
 
-/* 渲染：基本資料區（卡片 grid，直接取自店家名冊 basicRow）＋ 問卷大題區（來源分頁，逐題列出已勾選的選項） */
+/* 渲染：基本資料區（卡片 grid，直接取自店家名冊 basicRow）＋ 問卷大題區（來源分頁，逐題列出已勾選的選項）
+   注意：dbgHtml（來源分頁前 3 列原始內容）只在「解析失敗／查無資料」時才附加，
+   因為它顯示的是分頁最前面 3 列固定樣本，跟目前展開的這一筆資料無關；
+   若連解析成功的畫面都附加，容易讓人誤以為第 3 列內容是這筆店家的資料，造成混淆。 */
 function _buildRawDetailPanel(rowData, ref, sheetData, basicRow){
   var srcTag = ref ? '<div style="font-size:10px;font-weight:700;color:var(--primary);margin-bottom:10px;">📄 來源：'+esc(ref.sheet)+'　第 '+ref.row+' 列</div>' : '';
   var wrapOpen = '<div style="padding:10px 16px 14px 18px;background:#FAFAF8;border-left:3px solid var(--primary-bg,rgba(55,138,221,.3));margin:2px 12px 6px 0;border-radius:0 8px 8px 0;">';
-  var dbgHtml = _renderDebugRowsHtml(sheetData);
 
   /* 基本資料：一律直接從店家名冊（basicRow，即被點擊的那一列）取得，
      不再依賴來源分頁解析出的 base —— 即使來源分頁讀取失敗，
@@ -1711,13 +1713,14 @@ function _buildRawDetailPanel(rowData, ref, sheetData, basicRow){
   }
 
   if(!baseHtml && !sections.length){
+    /* 真的查無任何資料（基本資料、問卷內容都沒有），才附上除錯區塊供排查 */
+    var dbgHtml = _renderDebugRowsHtml(sheetData);
     return wrapOpen + srcTag + '<div style="font-size:12px;color:#2D2D2D;">（查無資料）</div>' + dbgHtml + '</div>';
   }
 
   var html = wrapOpen + srcTag;
   if(baseHtml) html += baseHtml + '<div style="height:12px;"></div>';
   html += quizHtml;
-  html += dbgHtml;
   html += '</div>';
   return html;
 }
