@@ -1,8 +1,16 @@
 <!--
 ════════════════════════════════════════════════════════════
   audit_board.html  ─  大督導時代（店家名冊版）
-  版本：Ver. 2.2.0 ｜ 最後更新：2026-06-29
+  版本：Ver. 2.3.0 ｜ 最後更新：2026-06-30
 ════════════════════════════════════════════════════════════
+
+【需求更新 2.3.0】
+  店家展開列（樹狀視角最末層的每一筆店家）現在可再點擊，
+  向下展開「原始問卷」當列所有欄位（讀取 Google Sheet 該分頁
+  的全部欄位，不限於固定 11 欄），逐筆顯示完整問卷內容，
+  例如：打卡時間、回報時間、督導意見、拍照備存等。
+  讀取邏輯：fetchSheet 不再過濾欄位，改為把整列存進 row.__raw，
+  並指定 row.__rid 作為穩定識別碼供前端切換 DOM 顯示用。
 
 【需求更新 2.1.0】
   1. 模式一改名「所→人」：處›督›所›人›問卷類型→店家
@@ -440,6 +448,26 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 }
 .pivot-expand-icon.open { transform:rotate(90deg); }
 
+/* 店家葉節點：可點擊展開原始問卷明細 */
+.store-leaf-row { transition:background .12s; }
+.store-leaf-row:hover td { background:rgba(55,138,221,.05) !important; }
+.store-detail-row td { padding:0 !important; }
+
+/* 原始問卷明細格 */
+.raw-detail-grid {
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+  gap:8px 18px; margin-top:6px;
+}
+.raw-detail-item { min-width:0; }
+.raw-detail-label {
+  font-size:10px; font-weight:700; color:var(--primary); margin-bottom:2px;
+  letter-spacing:.3px; text-transform:uppercase;
+}
+.raw-detail-val {
+  font-size:12.5px; font-weight:500; color:#2D2D2D; word-break:break-word;
+  line-height:1.5;
+}
+
 /* 子列：同字體、稍微縮排、背景略區分 */
 .pivot-child-row { display:none; }
 .pivot-child-row.visible { display:table-row; }
@@ -767,23 +795,31 @@ function fetchSheet() {
       var json = JSON.parse(txt.replace(/^[^\(]+\(/,'').replace(/\);?\s*$/,''));
       var tbl  = json.table || {};
       var cols = (tbl.cols||[]).map(function(c){ return c.label||''; });
-      allRows = (tbl.rows||[]).map(function(row){
+      allRows = (tbl.rows||[]).map(function(row, ridx){
         var obj = {};
+        var raw = {}; /* 保留「原始問卷」所有欄位，供逐筆明細展開使用 */
         (row.c||[]).forEach(function(cell,i){
           var colName = cols[i];
-          if (FIXED_COLS.indexOf(colName) === -1) return; /* 只讀取指定欄位 */
-          if (!cell) { obj[colName]=''; return; }
-          var v=(cell.v!==null&&cell.v!==undefined)?cell.v:'';
-          var f=cell.f||'';
-          /* 日期欄位：優先用 formatted value（f），再 fallback parseGvizDate(v) */
-          if(colName === '日期'){
-            if(f) obj[colName]=f;
-            else if(v) obj[colName]=parseGvizDate(String(v));
-            else obj[colName]='';
+          if (!colName) return;
+          var v=(cell&&cell.v!==null&&cell.v!==undefined)?cell.v:'';
+          var f=(cell&&cell.f)||'';
+          var dispVal;
+          if(/日期|時間/.test(colName) && typeof v==='string' && /^Date\(/.test(v)){
+            dispVal = f || parseGvizDate(v);
           } else {
-            obj[colName]=(v!==''&&v!==null&&v!==undefined)?v:f;
+            dispVal = (v!==''&&v!==null&&v!==undefined)?v:f;
+          }
+          raw[colName] = dispVal;
+          if (FIXED_COLS.indexOf(colName) !== -1) {
+            if(colName === '日期'){
+              obj[colName] = f || (v?parseGvizDate(String(v)):'');
+            } else {
+              obj[colName] = dispVal;
+            }
           }
         });
+        obj.__raw = raw;
+        obj.__rid = 'row'+ridx;
         return obj;
       }).filter(function(r){
         /* 過濾掉完全空白列 */
@@ -1308,6 +1344,40 @@ function _sortBtns(col){
     +'</span>';
 }
 function _dlgNestToggle(rid){ _dlgExpandMap[rid]=!_dlgExpandMap[rid]; _renderDlgContent(); }
+
+/* ── 店家葉節點：原始問卷明細展開／收合（不重繪整表，直接切換 DOM） ── */
+function _toggleStoreDetail(rid, trEl){
+  var detail = document.getElementById('storedetail-'+rid);
+  var ico = document.getElementById('storeico-'+rid);
+  if(!detail) return;
+  var isOpen = detail.style.display !== 'none';
+  detail.style.display = isOpen ? 'none' : 'table-row';
+  if(ico) ico.classList.toggle('open', !isOpen);
+}
+
+/* 顯示優先順序：固定欄位排前面、其他原始欄位按來源順序，跳過已在標題顯示過的欄位與空值 */
+var RAW_DETAIL_SKIP = ['店家代碼','店家名稱','日期'];
+function _buildRawDetailPanel(r, padLeft){
+  var raw = r.__raw || r;
+  var keys = Object.keys(raw).filter(function(k){
+    if (RAW_DETAIL_SKIP.indexOf(k) !== -1) return false;
+    var v = raw[k];
+    return v !== '' && v !== null && v !== undefined;
+  });
+  if(!keys.length){
+    return '<div style="padding:10px 16px 10px '+(padLeft+18)+'px;font-size:12px;color:#999;">（無其他問卷欄位資料）</div>';
+  }
+  var html = '<div style="padding:10px 16px 14px '+(padLeft+18)+'px;background:#FAFAF8;border-left:3px solid var(--primary-bg,rgba(55,138,221,.3));margin:2px 12px 6px 0;border-radius:0 8px 8px 0;">';
+  html += '<div class="raw-detail-grid">';
+  keys.forEach(function(k){
+    html += '<div class="raw-detail-item">'
+      + '<div class="raw-detail-label">'+esc(k)+'</div>'
+      + '<div class="raw-detail-val">'+esc(String(raw[k]))+'</div>'
+      + '</div>';
+  });
+  html += '</div></div>';
+  return html;
+}
 function _rid(s){ return String(s).replace(/[^\w\u4e00-\u9fff]/g,'_').substring(0,20); }
 function escAttr(s){ return String(s).replace(/'/g,"\\'"); }
 
@@ -1553,11 +1623,11 @@ function _buildNestedPivot(rows, dims){
             + '<line x1="12" y1="10" x2="'+INDENT_STEP+'" y2="10" stroke="'+LINE_COLOR+'" stroke-width="1.5"/>'
             + '</svg></span>';
 
-          html += '<tr style="background:rgba(0,0,0,.012);border-top:1px solid #f7f6f3;height:30px;">';
+          html += '<tr class="store-leaf-row" id="storerow-'+r.__rid+'" style="background:rgba(0,0,0,.012);border-top:1px solid #f7f6f3;height:30px;cursor:pointer;" onclick="_toggleStoreDetail(\''+r.__rid+'\',this)">';
           html += '<td class="td-left" style="padding:0 12px 0 '+INDENT_BASE+'px;">'
             + '<div style="display:flex;align-items:center;min-width:0;">'
             + stPrefix
-            + '<span style="display:inline-block;width:18px;flex-shrink:0;"></span>'
+            + '<span class="pivot-expand-icon" id="storeico-'+r.__rid+'" style="font-size:9px;width:14px;flex-shrink:0;">▶</span>'
             + '<span style="font-size:12px;opacity:.7;margin-right:5px;flex-shrink:0;">🏪</span>'
             + '<span style="font-size:12px;font-weight:500;color:#2D2D2D;white-space:nowrap;">'
               + (storeDate ? '<span style="font-size:11px;font-weight:700;color:#2D2D2D;margin-right:8px;font-variant-numeric:tabular-nums;">'+esc(storeDate)+'</span>' : '')
@@ -1566,6 +1636,10 @@ function _buildNestedPivot(rows, dims){
             + '</div></td>';
           html += '<td class="td-total" style="font-size:11px;color:#2D2D2D;font-weight:500;">—</td>';
           html += '</tr>';
+          /* 原始問卷明細展開面板（隱藏，點擊切換） */
+          html += '<tr class="store-detail-row" id="storedetail-'+r.__rid+'" style="display:none;">'
+            + '<td colspan="2" style="padding:0;">' + _buildRawDetailPanel(r, INDENT_BASE+18) + '</td>'
+            + '</tr>';
         });
       }
     });
