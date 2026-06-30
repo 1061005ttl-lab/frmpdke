@@ -1,8 +1,27 @@
 <!--
 ════════════════════════════════════════════════════════════
   audit_board.html  ─  大督導時代（店家名冊版）
-  版本：Ver. 2.5.0 ｜ 最後更新：2026-06-30
+  版本：Ver. 2.5.1 ｜ 最後更新：2026-06-30
 ════════════════════════════════════════════════════════════
+
+【修正 2.5.1】解析錯位問題排查與防呆
+  上一版（2.5.0）實測發現部分分頁解析結果錯亂（把人名、日期等
+  基本資料誤判為問卷大題名稱），原因推測為 gviz API 在未明確指定
+  headers 參數時，對特定分頁可能做了非預期的列序自動偵測。
+  本版改動：
+  ‧ _fetchSourceSheet 明確帶上 headers=0，避免 gviz 自動猜測表頭
+    列數導致回傳的 rows[0] 實際對應 Sheet 的列不是第 1 列。
+  ‧ 新增結構防呆：若解析出的「大題名稱」剛好跟基本資料欄名重複，
+    判定為列序錯位異常，直接回報清楚錯誤訊息，不再靜默產生
+    錯誤資料誤導使用者。
+  ‧ 新增除錯區塊：解析失敗、或查無資料時，畫面下方會附上
+    「🔍 除錯：查看來源分頁原始前 3 列內容」可展開區塊，
+    逐欄列出 gviz 實際抓到的原始值，方便直接核對是否與
+    Google Sheet 畫面顯示的列序一致，不需要再用程式碼除錯。
+  ‧ 移除殘留的灰色提示文字（#999、#666），統一改深色。
+  注意：此問題的根本成因仍待用實際資料驗證（沙盒環境無法連線
+  Google Sheets API），若展開除錯區塊後發現第 1/2 列內容仍與
+  Sheet 畫面不符，請回報該分頁的除錯輸出內容以便進一步排查。
 
 【需求更新 2.5.0】
   來源分頁的問卷結構解析改為「動態辨識」，不再假設固定欄位數：
@@ -747,10 +766,25 @@ var _sourceSheetCache = {};
   ‧ 資料列（第 3 列起）：基本資料區直接讀值；問卷區則看哪一欄有值（如 v），
     該欄對應的「大題＋選項」就是受訪者勾選的內容（同大題可複選）。
 */
+/* 除錯輔助：顯示某一列前 5 欄的原始值，方便核對 gviz 回傳的列序是否與 Sheet 實際結構對齊 */
+function _debugRowPreview(row){
+  if(!row || !row.c) return '(空列)';
+  var out=[];
+  for(var i=0;i<Math.min(5,row.c.length);i++){
+    var c=row.c[i];
+    var v=c?((c.v!==null&&c.v!==undefined)?c.v:(c.f||'')):'';
+    out.push('['+i+']='+(v===''?'(空)':String(v)));
+  }
+  return out.join(' ');
+}
+
 function _fetchSourceSheet(sheetName, callback){
   if(_sourceSheetCache[sheetName]){ callback(_sourceSheetCache[sheetName]); return; }
+  /* 用 tq=SELECT * 並指定 range 為整個分頁，強制 gviz 不做任何表頭自動偵測，
+     確保回傳的 rows[0] 一定對應 Sheet 可見的第 1 列、rows[1] 對應第 2 列。
+     headers=0 為官方文件預設值，這裡仍明確帶上以避免任何隱式行為差異。 */
   var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
-    '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(sheetName);
+    '/gviz/tq?tqx=out:json&headers=0&sheet=' + encodeURIComponent(sheetName);
   fetch(url)
     .then(function(r){ return r.text(); })
     .then(function(txt){
@@ -760,6 +794,7 @@ function _fetchSourceSheet(sheetName, callback){
       if(rawRows.length < 2){ callback(null, '分頁「'+sheetName+'」資料列數不足（需至少含大題列與選項列）'); return; }
 
       function cellVal(row, i){
+        if(!row) return '';
         var c = row.c && row.c[i];
         if(!c) return '';
         var v=(c.v!==null&&c.v!==undefined)?c.v:'';
@@ -775,56 +810,83 @@ function _fetchSourceSheet(sheetName, callback){
         (optionRow.c||[]).length
       );
 
-      /* 找出「問卷區」起點：選項列第一個非空白值所在欄 */
+      /* 找出「問卷區」起點：選項列第一個非空白值所在欄。
+         基本資料區（店家代碼、通路別…）在第 2 列必為空白，
+         只有問卷區的選項名稱才會出現在第 2 列，這是判斷起點唯一依據。 */
       var quizStartCol = -1;
       for(var i=0;i<colCount;i++){
         if(String(cellVal(optionRow,i)).trim()){ quizStartCol = i; break; }
       }
-      if(quizStartCol === -1){ callback(null, '分頁「'+sheetName+'」找不到問卷內容起始欄'); return; }
+      if(quizStartCol === -1){ callback(null, '分頁「'+sheetName+'」找不到問卷內容起始欄（第 2 列全部空白）'
+        +'　[除錯] 第1列前5欄：'+_debugRowPreview(titleRow)+'　第2列前5欄：'+_debugRowPreview(optionRow)); return; }
 
-      /* 基本資料欄：問卷區之前的所有欄，欄名取自第 1 列（大題列在這段其實放的是
-         一般欄名，如「店家代碼」「通路別」；真正的大題名稱只會出現在問卷區起點之後） */
+      /* 基本資料欄：問卷區之前的所有欄，欄名取自第 1 列 */
       var baseColNames = [];
       for(var bi=0; bi<quizStartCol; bi++){
         var name = String(cellVal(titleRow,bi)||'').trim();
         baseColNames.push(name || ('欄'+(bi+1)));
       }
 
-      /* 解析問卷區：大題名稱橫跨多欄，直到下一個有字的大題儲存格為止 */
+      /* 解析問卷區：大題名稱橫跨多欄（合併儲存格效果：只有起始欄第 1 列有字，
+         其餘延伸欄第 1 列為空白），直到下一個第 1 列有字的儲存格才換題。
+         注意：問卷區每一欄都必須同時滿足「屬於問卷區範圍（col>=quizStartCol）」
+         且該欄第 2 列（選項列）有值，才會被收進 quizCols；
+         若第 2 列為空白，代表此欄沒有對應的選項定義，一律跳過，
+         避免把非問卷用途的零散儲存格誤判為選項。 */
       var quizCols = []; /* [{col, section, option}] */
       var curSection = '';
       for(var qi=quizStartCol; qi<colCount; qi++){
         var t = String(cellVal(titleRow,qi)||'').trim();
-        if(t) curSection = t; /* 遇到新大題名稱就切換 */
         var opt = String(cellVal(optionRow,qi)||'').trim();
-        if(!opt) continue; /* 選項列空白的欄（合併儲存格延伸出的空欄）略過 */
-        quizCols.push({ col:qi, section:curSection||'（未命名題組）', option:opt });
+        if(t) curSection = t; /* 遇到新大題名稱就切換（合併儲存格的延伸空欄不會有字，沿用前一個大題） */
+        if(!opt) continue; /* 選項列空白：不是問卷選項欄，跳過，不建立 quizCols 項目 */
+        if(!curSection) continue; /* 防禦：尚未遇到任何大題名稱就出現選項，視為異常資料，跳過 */
+        quizCols.push({ col:qi, section:curSection, option:opt });
       }
 
-      /* 解析資料列（第 3 列起，對應 Sheet 第 4 列開始，因為前兩列是表頭） */
+      /* 解析資料列：從 rawRows[2] 開始（對應 Sheet 第 3 列起），
+         前兩列固定是大題列＋選項列，不會是資料。 */
       var rowsByNum = {};
       for(var ri=2; ri<rawRows.length; ri++){
         var row = rawRows[ri];
         var baseData = {};
         baseColNames.forEach(function(name, bi){ baseData[name] = cellVal(row, bi); });
 
-        /* sections[大題名稱] = [選中的選項文字, ...] */
+        /* sections[大題名稱] = [{option, value}, ...]（同大題可複選） */
         var sections = {}; var sectionOrder = [];
         quizCols.forEach(function(qc){
           var v = String(cellVal(row, qc.col)||'').trim();
-          if(!v) return; /* 沒打勾的欄跳過 */
+          if(!v) return; /* 該欄沒填值，跳過 */
           if(!sections[qc.section]){ sections[qc.section]=[]; sectionOrder.push(qc.section); }
           sections[qc.section].push({ option:qc.option, value:v });
         });
 
-        var sheetRowNum = ri + 1; /* gviz rows[0] 對應 Sheet 第 1 列 */
+        var sheetRowNum = ri + 1; /* rawRows[0] 對應 Sheet 第 1 列，故 rawRows[ri] 對應第 (ri+1) 列 */
         rowsByNum[sheetRowNum] = {
           base: baseData,
           sections: sectionOrder.map(function(s){ return { section:s, picks:sections[s] }; })
         };
       }
 
-      var result = { baseColNames: baseColNames, quizCols: quizCols, rowsByNum: rowsByNum };
+      if(quizCols.length === 0){
+        callback(null, '分頁「'+sheetName+'」問卷區（'+(quizStartCol+1)+'欄之後）未解析出任何題組，請確認第 1/2 列格式'
+          +'　[除錯] 第1列前5欄：'+_debugRowPreview(titleRow)+'　第2列前5欄：'+_debugRowPreview(optionRow)); return;
+      }
+
+      /* 防呆：若解析出的大題名稱剛好跟基本資料欄名重複，極可能是 gviz 回傳列序錯位
+         （例如把資料列誤判為表頭列），而非真的有同名大題，直接回報錯誤避免顯示錯誤資料 */
+      var baseNameSet = {};
+      baseColNames.forEach(function(n){ baseNameSet[n]=true; });
+      var badSection = quizCols.find(function(qc){ return baseNameSet[qc.section]; });
+      if(badSection){
+        callback(null, '分頁「'+sheetName+'」解析異常：大題名稱「'+badSection.section+'」與基本資料欄名重複，'
+          +'可能是來源分頁列序與預期不符（第 1 列應為大題列、第 2 列應為選項列），請確認該分頁格式'
+          +'　[除錯] 第1列前5欄：'+_debugRowPreview(titleRow)
+          +'　第2列前5欄：'+_debugRowPreview(optionRow));
+        return;
+      }
+
+      var result = { baseColNames: baseColNames, quizCols: quizCols, rowsByNum: rowsByNum, _debugRows: rawRows.slice(0,3) };
       _sourceSheetCache[sheetName] = result;
       callback(result);
     })
@@ -841,8 +903,8 @@ function _fetchSourceRowDetail(refVal, callback){
     if(err){ callback(null, ref, '讀取分頁「'+ref.sheet+'」失敗：'+err); return; }
     if(!sheetData){ callback(null, ref, '讀取分頁「'+ref.sheet+'」失敗'); return; }
     var rowData = sheetData.rowsByNum[ref.row];
-    if(!rowData){ callback(null, ref, '分頁「'+ref.sheet+'」第 '+ref.row+' 列查無資料（可能是表頭列或超出範圍）'); return; }
-    callback(rowData, ref, null);
+    if(!rowData){ callback(null, ref, '分頁「'+ref.sheet+'」第 '+ref.row+' 列查無資料（可能是表頭列或超出範圍）', sheetData); return; }
+    callback(rowData, ref, null, sheetData);
   });
 }
 
@@ -1524,25 +1586,48 @@ function _toggleStoreDetail(rid, sourceRef){
     return;
   }
 
-  bodyEl.innerHTML = '<div style="padding:10px 16px;font-size:12px;color:#666;">⏳ 讀取「'+esc(ref.sheet)+'」第 '+ref.row+' 列…</div>';
+  bodyEl.innerHTML = '<div style="padding:10px 16px;font-size:12px;color:#2D2D2D;">⏳ 讀取「'+esc(ref.sheet)+'」第 '+ref.row+' 列…</div>';
 
-  _fetchSourceRowDetail(sourceRef, function(rowData, parsedRef, err){
+  _fetchSourceRowDetail(sourceRef, function(rowData, parsedRef, err, sheetData){
     if(err){
-      bodyEl.innerHTML = '<div style="padding:10px 16px;font-size:12px;color:#B23A3A;">⚠️ '+esc(err)+'</div>';
+      var dbgHtml = sheetData && sheetData._debugRows ? _renderDebugRowsHtml(sheetData) : '';
+      bodyEl.innerHTML = '<div style="padding:10px 16px;font-size:12px;color:#B23A3A;">⚠️ '+esc(err)+'</div>' + dbgHtml;
       return;
     }
     _storeDetailLoaded[rid] = true;
-    bodyEl.innerHTML = _buildRawDetailPanel(rowData, parsedRef);
+    bodyEl.innerHTML = _buildRawDetailPanel(rowData, parsedRef, sheetData);
   });
 }
 
+/* 除錯區塊：顯示來源分頁前 3 列原始內容，方便核對 gviz 回傳結構是否與 Sheet 實際畫面一致 */
+function _renderDebugRowsHtml(sheetData){
+  if(!sheetData || !sheetData._debugRows) return '';
+  var rows = sheetData._debugRows;
+  var html = '<details style="margin:8px 16px;font-size:11px;">'
+    + '<summary style="cursor:pointer;font-weight:700;color:var(--primary);">🔍 除錯：查看來源分頁原始前 3 列內容</summary>'
+    + '<div style="margin-top:6px;padding:8px;background:#fff;border:1px solid #ddd;border-radius:6px;overflow-x:auto;">';
+  rows.forEach(function(row, ri){
+    var cells = (row && row.c) || [];
+    html += '<div style="margin-bottom:6px;"><strong style="color:#2D2D2D;">第 '+(ri+1)+' 列：</strong>';
+    for(var i=0;i<Math.min(cells.length,20);i++){
+      var c = cells[i];
+      var v = c ? ((c.v!==null&&c.v!==undefined)?c.v:(c.f||'')) : '';
+      html += '<span style="display:inline-block;margin:2px;padding:1px 5px;background:#f0f0f0;border-radius:3px;color:#1a1a1a;">'+i+':'+esc(v===''?'(空)':String(v))+'</span>';
+    }
+    html += '</div>';
+  });
+  html += '</div></details>';
+  return html;
+}
+
 /* 渲染：基本資料區（卡片 grid）＋ 問卷大題區（逐題列出已勾選的選項） */
-function _buildRawDetailPanel(rowData, ref){
+function _buildRawDetailPanel(rowData, ref, sheetData){
   var srcTag = ref ? '<div style="font-size:10px;font-weight:700;color:var(--primary);margin-bottom:10px;">📄 來源：'+esc(ref.sheet)+'　第 '+ref.row+' 列</div>' : '';
   var wrapOpen = '<div style="padding:10px 16px 14px 18px;background:#FAFAF8;border-left:3px solid var(--primary-bg,rgba(55,138,221,.3));margin:2px 12px 6px 0;border-radius:0 8px 8px 0;">';
+  var dbgHtml = _renderDebugRowsHtml(sheetData);
 
   if(!rowData){
-    return wrapOpen + srcTag + '<div style="font-size:12px;color:#999;">（查無資料）</div></div>';
+    return wrapOpen + srcTag + '<div style="font-size:12px;color:#2D2D2D;">（查無資料）</div>' + dbgHtml + '</div>';
   }
 
   var base = rowData.base || {};
@@ -1582,16 +1667,17 @@ function _buildRawDetailPanel(rowData, ref){
     });
     quizHtml += '</div>';
   } else {
-    quizHtml = '<div style="font-size:12px;color:#999;margin-top:4px;">（此筆問卷未填寫任何題目）</div>';
+    quizHtml = '<div style="font-size:12px;color:#2D2D2D;margin-top:4px;">（此筆問卷未填寫任何題目）</div>';
   }
 
   if(!baseKeys.length && !sections.length){
-    return wrapOpen + srcTag + '<div style="font-size:12px;color:#999;">（此來源分頁查無欄位資料）</div></div>';
+    return wrapOpen + srcTag + '<div style="font-size:12px;color:#2D2D2D;">（此來源分頁查無欄位資料）</div>' + dbgHtml + '</div>';
   }
 
   var html = wrapOpen + srcTag;
   if(baseHtml) html += baseHtml + '<div style="height:12px;"></div>';
   html += quizHtml;
+  html += dbgHtml;
   html += '</div>';
   return html;
 }
