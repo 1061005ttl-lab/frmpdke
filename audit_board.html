@@ -559,6 +559,15 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   font-size:12.5px; font-weight:600;
 }
 
+/* 店家明細卡片右上角的分享動作列（複製摘要／截圖） */
+.raw-share-btn {
+  font-size:11px; font-weight:600; padding:3px 10px; border-radius:6px;
+  border:1px solid rgba(0,0,0,.12); background:#fff; color:var(--sub);
+  cursor:pointer; font-family:inherit; transition:all .15s; white-space:nowrap;
+}
+.raw-share-btn:hover { border-color:var(--primary); color:var(--primary); }
+.raw-share-btn.done { border-color:var(--green); color:var(--green); background:var(--green-bg); }
+
 /* 子列：同字體、稍微縮排、背景略區分 */
 .pivot-child-row { display:none; }
 .pivot-child-row.visible { display:table-row; }
@@ -1604,6 +1613,7 @@ function _dlgNestToggle(rid){ _dlgExpandMap[rid]=!_dlgExpandMap[rid]; _renderDlg
 
 /* ── 店家葉節點：原始問卷明細展開／收合（首次展開才去抓來源分頁，之後吃快取） ── */
 var _storeDetailLoaded = {}; /* rid → true，避免重複抓取 */
+var _storeDetailCache  = {}; /* rid → {rowData, ref, basicRow}，供「複製摘要／截圖」分享功能取用 */
 function _toggleStoreDetail(rid, sourceRef){
   var detail = document.getElementById('storedetail-'+rid);
   var ico = document.getElementById('storeico-'+rid);
@@ -1619,30 +1629,32 @@ function _toggleStoreDetail(rid, sourceRef){
      （同一店家代碼可能因多次查核在店家名冊出現多筆，用 __rid 才能保證拿到的
      正是被點擊的那一列，不會選錯）。問卷內容（大題/選項）才需要另外向來源分頁查詢。 */
   var basicRow = allRows.find(function(x){ return x.__rid === rid; }) || null;
+  _storeDetailCache[rid] = { rowData:null, ref:null, basicRow:basicRow };
 
   var ref = _parseSourceRef(sourceRef);
   var bodyEl = document.getElementById('storedetailbody-'+rid);
   if(!bodyEl) return;
 
   if(!ref){
-    bodyEl.innerHTML = _buildRawDetailPanel(null, null, null, basicRow)
+    bodyEl.innerHTML = _buildRawDetailPanel(null, null, null, basicRow, rid)
       + '<div style="padding:0 16px 10px;font-size:12px;color:#B23A3A;">⚠️ 此筆店家沒有「來源分頁+行數」資料，無法回溯問卷內容</div>';
     _storeDetailLoaded[rid] = true;
     return;
   }
 
-  bodyEl.innerHTML = _buildRawDetailPanel(null, ref, null, basicRow)
+  bodyEl.innerHTML = _buildRawDetailPanel(null, ref, null, basicRow, rid)
     + '<div style="padding:0 16px 10px;font-size:12px;color:#2D2D2D;">⏳ 讀取「'+esc(ref.sheet)+'」第 '+ref.row+' 列問卷內容…</div>';
 
   _fetchSourceRowDetail(sourceRef, function(rowData, parsedRef, err, sheetData){
     _storeDetailLoaded[rid] = true;
+    _storeDetailCache[rid] = { rowData:rowData, ref:parsedRef, basicRow:basicRow };
     if(err){
       var dbgHtml = sheetData && sheetData._debugRows ? _renderDebugRowsHtml(sheetData) : '';
-      bodyEl.innerHTML = _buildRawDetailPanel(null, parsedRef, null, basicRow)
+      bodyEl.innerHTML = _buildRawDetailPanel(null, parsedRef, null, basicRow, rid)
         + '<div style="padding:0 16px 10px;font-size:12px;color:#B23A3A;">⚠️ '+esc(err)+'</div>' + dbgHtml;
       return;
     }
-    bodyEl.innerHTML = _buildRawDetailPanel(rowData, parsedRef, sheetData, basicRow);
+    bodyEl.innerHTML = _buildRawDetailPanel(rowData, parsedRef, sheetData, basicRow, rid);
   });
 }
 
@@ -1676,10 +1688,23 @@ var BASIC_DETAIL_FIELDS = [
 /* 渲染：基本資料區（卡片 grid，直接取自店家名冊 basicRow）＋ 問卷大題區（來源分頁，逐題列出已勾選的選項）
    注意：dbgHtml（來源分頁前 3 列原始內容）只在「解析失敗／查無資料」時才附加，
    因為它顯示的是分頁最前面 3 列固定樣本，跟目前展開的這一筆資料無關；
-   若連解析成功的畫面都附加，容易讓人誤以為第 3 列內容是這筆店家的資料，造成混淆。 */
-function _buildRawDetailPanel(rowData, ref, sheetData, basicRow){
+   若連解析成功的畫面都附加，容易讓人誤以為第 3 列內容是這筆店家的資料，造成混淆。
+   rid：用來給整個面板一個唯一 id（rawpanel-RID），讓「📸 截圖」功能能精準鎖定
+   只擷取這一筆店家的卡片區塊，而不是整個頁面或整張表格。 */
+function _buildRawDetailPanel(rowData, ref, sheetData, basicRow, rid){
   var srcTag = ref ? '<div style="font-size:10px;font-weight:700;color:var(--primary);margin-bottom:10px;">📄 來源：'+esc(ref.sheet)+'　第 '+ref.row+' 列</div>' : '';
-  var wrapOpen = '<div style="padding:10px 16px 14px 18px;background:#FAFAF8;border-left:3px solid var(--primary-bg,rgba(55,138,221,.3));margin:2px 12px 6px 0;border-radius:0 8px 8px 0;">';
+  var panelId = rid ? ' id="rawpanel-'+esc(rid)+'"' : '';
+  var wrapOpen = '<div'+panelId+' style="padding:10px 16px 14px 18px;background:#FAFAF8;border-left:3px solid var(--primary-bg,rgba(55,138,221,.3));margin:2px 12px 6px 0;border-radius:0 8px 8px 0;">';
+
+  /* 分享動作列：複製成 LINE 文字摘要／截圖存成個案圖片，方便逐筆拿去跟同事討論。
+     只有在 rid 存在時才顯示（rid 是呼叫端傳入的店家 __rid，截圖／複製都要靠它
+     回頭從 _storeDetailCache 取出這一筆的完整資料）。 */
+  var actionBar = rid ? (
+    '<div data-screenshot-ignore="1" style="display:flex;gap:6px;justify-content:flex-end;margin-bottom:8px;">'
+    + '<button class="raw-share-btn" id="rawshare-copy-'+esc(rid)+'" onclick="event.stopPropagation();_storeDetailCopy(\''+escAttr(rid)+'\',this)">📋 複製摘要</button>'
+    + '<button class="raw-share-btn" id="rawshare-shot-'+esc(rid)+'" onclick="event.stopPropagation();_storeDetailScreenshot(\''+escAttr(rid)+'\',this)">📸 截圖</button>'
+    + '</div>'
+  ) : '';
 
   /* 基本資料：一律直接從店家名冊（basicRow，即被點擊的那一列）取得，
      不再依賴來源分頁解析出的 base —— 即使來源分頁讀取失敗，
@@ -1704,8 +1729,9 @@ function _buildRawDetailPanel(rowData, ref, sheetData, basicRow){
   if(!rowData){
     /* 問卷內容尚未抓到（讀取中／失敗／無來源連結），但基本資料已經可以先顯示。
        這裡正常關閉容器；呼叫端（_toggleStoreDetail）會把「讀取中／錯誤」訊息
-       接在這個區塊的後面，視覺上呈現為同一塊卡片下方的提示文字。 */
-    return wrapOpen + srcTag + baseHtml + '</div>';
+       接在這個區塊的後面，視覺上呈現為同一塊卡片下方的提示文字。
+       動作列在讀取中也先顯示沒關係：複製摘要會自動 fallback 成只有基本資料的版本。 */
+    return wrapOpen + actionBar + srcTag + baseHtml + '</div>';
   }
 
   var sections = rowData.sections || [];
@@ -1729,8 +1755,8 @@ function _buildRawDetailPanel(rowData, ref, sheetData, basicRow){
             + '</span>';
         } else {
           quizHtml += '<span class="raw-quiz-chip">'
-            + '<span class="raw-quiz-chip-q">選項　'+esc(p.option)+'</span>'
-            + '<span class="raw-quiz-chip-a">回答　'+esc(p.value)+'</span>'
+            + '<span class="raw-quiz-chip-q">'+esc(p.option)+'</span>'
+            + '<span class="raw-quiz-chip-a">→ '+esc(p.value)+'</span>'
             + '</span>';
         }
       });
@@ -1744,10 +1770,10 @@ function _buildRawDetailPanel(rowData, ref, sheetData, basicRow){
   if(!baseHtml && !sections.length){
     /* 真的查無任何資料（基本資料、問卷內容都沒有），才附上除錯區塊供排查 */
     var dbgHtml = _renderDebugRowsHtml(sheetData);
-    return wrapOpen + srcTag + '<div style="font-size:12px;color:#2D2D2D;">（查無資料）</div>' + dbgHtml + '</div>';
+    return wrapOpen + actionBar + srcTag + '<div style="font-size:12px;color:#2D2D2D;">（查無資料）</div>' + dbgHtml + '</div>';
   }
 
-  var html = wrapOpen + srcTag;
+  var html = wrapOpen + actionBar + srcTag;
   if(baseHtml) html += baseHtml + '<div style="height:12px;"></div>';
   html += quizHtml;
   html += '</div>';
@@ -2955,13 +2981,71 @@ function summaryShareLine(){
   _shareToLine(_buildSummaryLineSummary(), btn);
 }
 
+/* ════ 單筆店家明細分享（個案討論用：複製成 LINE 文字摘要／截圖存圖） ════
+   每一筆展開的店家明細卡片右上角都有「📋 複製摘要」「📸 截圖」兩顆按鈕，
+   方便逐筆挑出要跟同事討論的個案，不用截整頁或整個 Dialog。 */
+
+/* 把單一筆店家明細（基本資料＋問卷內容）組成純文字，格式跟其他 LINE 摘要一致 */
+function _buildStoreDetailLineText(rid){
+  var cache = _storeDetailCache[rid];
+  if(!cache) return '⚠️ 找不到這筆店家的資料';
+  var basicRow = cache.basicRow, ref = cache.ref, rowData = cache.rowData;
+
+  var lines = ['📋 查核個案 ─ '+PROJ_NAME];
+  if(ref) lines.push('📄 來源：'+ref.sheet+'　第 '+ref.row+' 列');
+  lines.push('');
+
+  if(basicRow){
+    BASIC_DETAIL_FIELDS.forEach(function(k){
+      var v = basicRow[k];
+      if(v === '' || v === null || v === undefined) return;
+      lines.push(k+'：'+v);
+    });
+    lines.push('');
+  }
+
+  var sections = (rowData && rowData.sections) || [];
+  if(sections.length){
+    sections.forEach(function(sec){
+      lines.push('📋 '+sec.section);
+      sec.picks.forEach(function(p){
+        var isCheckmarkOnly = (p.value==='v' || p.value==='V' || p.value==='✓');
+        lines.push(isCheckmarkOnly ? '　✓ '+p.option : '　'+p.option+'　→ '+p.value);
+      });
+      lines.push('');
+    });
+  } else if(rowData){
+    lines.push('（此筆問卷未填寫任何題目）');
+    lines.push('');
+  } else {
+    lines.push('（問卷內容尚未讀取完成或讀取失敗）');
+    lines.push('');
+  }
+
+  lines.push('📅 '+new Date().toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}));
+  return lines.join('\n');
+}
+
+function _storeDetailCopy(rid, btn){
+  _shareToLine(_buildStoreDetailLineText(rid), btn);
+}
+
+function _storeDetailScreenshot(rid, btn){
+  var el = document.getElementById('rawpanel-'+rid);
+  if(!el){ _flashBtn(btn,'⚠️ 無畫面'); return; }
+  var cache = _storeDetailCache[rid];
+  var name = (cache && cache.basicRow && cache.basicRow[COL_NAME]) ? cache.basicRow[COL_NAME] : '查核個案';
+  _captureElement(el, btn, name+'_查核明細');
+}
+
 /* ════ Dialog 截圖 ════ */
 function _captureElement(el, btn, filename){
   btn.classList.add('loading'); btn.innerHTML='<span>⏳</span>';
   function doCapture(){
     html2canvas(el, {
       scale:2, backgroundColor:'#ffffff', useCORS:true,
-      width:el.scrollWidth, height:el.scrollHeight
+      width:el.scrollWidth, height:el.scrollHeight,
+      ignoreElements:function(node){ return node.getAttribute && node.getAttribute('data-screenshot-ignore')==='1'; }
     }).then(function(canvas){
       if(navigator.clipboard && window.ClipboardItem){
         canvas.toBlob(function(blob){
