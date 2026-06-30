@@ -1,16 +1,22 @@
 <!--
 ════════════════════════════════════════════════════════════
   audit_board.html  ─  大督導時代（店家名冊版）
-  版本：Ver. 2.3.0 ｜ 最後更新：2026-06-30
+  版本：Ver. 2.4.0 ｜ 最後更新：2026-06-30
 ════════════════════════════════════════════════════════════
 
+【需求更新 2.4.0】
+  店家名冊新增 A 欄「來源分頁+行數」（格式：分頁名稱_行數，
+  例：問卷資料傳統_90），作為跨分頁的唯一連結鍵。
+  點開店家葉節點時，依此欄解析出來源分頁名稱與列號，
+  即時向該分頁發送 gviz 請求，抓回「整列」原始問卷資料並顯示。
+  ‧ 同一來源分頁只會抓取一次（整頁快取於 _sourceSheetCache），
+    之後展開同分頁的其他店家直接吃快取，不重複打 API。
+  ‧ 找不到對應欄位或來源列時，顯示明確錯誤訊息而非空白。
+  ‧ 原本「直接讀本分頁 __raw」的作法已移除，改為跨分頁查詢，
+    確保看到的內容就是真正填寫問卷當下的完整資料。
+
 【需求更新 2.3.0】
-  店家展開列（樹狀視角最末層的每一筆店家）現在可再點擊，
-  向下展開「原始問卷」當列所有欄位（讀取 Google Sheet 該分頁
-  的全部欄位，不限於固定 11 欄），逐筆顯示完整問卷內容，
-  例如：打卡時間、回報時間、督導意見、拍照備存等。
-  讀取邏輯：fetchSheet 不再過濾欄位，改為把整列存進 row.__raw，
-  並指定 row.__rid 作為穩定識別碼供前端切換 DOM 顯示用。
+  店家展開列（樹狀視角最末層的每一筆店家）可點擊展開明細面板。
 
 【需求更新 2.1.0】
   1. 模式一改名「所→人」：處›督›所›人›問卷類型→店家
@@ -28,18 +34,19 @@
   依「督導類型」(I欄) 分大群統計家數；群內依「問卷類型」(J欄) 細分。
   層級視角：營業處 → 營業所/課 → 業務人員。
 
-【店家名冊固定欄位（A~K）】
-  A 營業處名稱
-  B 營業所/課
-  C 執行人員
-  D 通路別
-  E 店家型態
-  F 店家代碼
-  G 店家名稱
-  H 店家等級
-  I 督導類型   ← 大群分組鍵（ROSTER_GROUPS 由資料動態產生）
-  J 問卷類型   ← 群內子分類
-  K 日期       ← 查核日期（選填）
+【店家名冊固定欄位（A~L）】
+  A 來源分頁+行數 ← 跨分頁連結鍵，格式：分頁名稱_行數（例：問卷資料傳統_90）
+  B 營業處名稱
+  C 營業所/課
+  D 執行人員
+  E 通路別
+  F 店家型態
+  G 店家代碼
+  H 店家名稱
+  I 店家等級
+  J 督導類型   ← 大群分組鍵（ROSTER_GROUPS 由資料動態產生）
+  K 問卷類型   ← 群內子分類
+  L 日期       ← 查核日期（選填）
 
 【計算邏輯】
   大群 = 唯一督導類型值（依資料首次出現順序）
@@ -636,18 +643,19 @@ var SYNC_SHEET_DEFAULT = '輔助';
 var SYNC_CELL_DEFAULT  = 'B1';
 var SHEET_NAME_DEFAULT = '店家名冊';
 
-/* 店家名冊固定欄位（A~J） */
-var COL_AREA      = '營業處名稱';   /* A */
-var COL_OFFICE    = '營業所/課';    /* B */
-var COL_STAFF     = '執行人員';     /* C */
-var COL_CHANNEL   = '通路別';       /* D */
-var COL_STORETYPE = '店家型態';     /* E */
-var COL_CODE      = '店家代碼';     /* F */
-var COL_NAME      = '店家名稱';     /* G */
-var COL_GRADE     = '店家等級';     /* H */
-var COL_SUPTYPE   = '督導類型';     /* I — 大群分組鍵 */
-var COL_QUESTTYPE = '問卷類型';     /* J — 群內子分類 */
-var COL_DATE      = '日期';         /* K — 店家查核日期 */
+/* 店家名冊固定欄位（A~K，B~K 為原資料，A 為新增的來源連結欄） */
+var COL_SOURCE_REF = '來源分頁+行數'; /* A — 格式：分頁名稱_行數，例：問卷資料傳統_90 */
+var COL_AREA      = '營業處名稱';   /* B */
+var COL_OFFICE    = '營業所/課';    /* C */
+var COL_STAFF     = '執行人員';     /* D */
+var COL_CHANNEL   = '通路別';       /* E */
+var COL_STORETYPE = '店家型態';     /* F */
+var COL_CODE      = '店家代碼';     /* G */
+var COL_NAME      = '店家名稱';     /* H */
+var COL_GRADE     = '店家等級';     /* I */
+var COL_SUPTYPE   = '督導類型';     /* J — 大群分組鍵 */
+var COL_QUESTTYPE = '問卷類型';     /* K — 群內子分類 */
+var COL_DATE      = '日期';         /* L — 店家查核日期 */
 
 /* ROSTER_GROUPS: 由資料動態產生（唯一督導類型清單，依首次出現順序） */
 var ROSTER_GROUPS = [];
@@ -682,6 +690,77 @@ function parseGvizDate(v) {
   if (!m) return String(v);
   var d = new Date(+m[1], +m[2], +m[3], +m[4], +m[5], +m[6]);
   return d.toLocaleString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'Asia/Taipei'});
+}
+
+/* ════ 跨分頁來源連結（COL_SOURCE_REF：分頁名稱_行數） ════
+   例：「問卷資料傳統_90」→ 分頁「問卷資料傳統」第 90 列（含表頭，即資料第 89 筆）
+   用「最後一個底線」切分，避免分頁名稱本身含底線時誤判。 */
+function _parseSourceRef(val){
+  var s = String(val||'').trim();
+  if(!s) return null;
+  var idx = s.lastIndexOf('_');
+  if(idx === -1) return null;
+  var sheetName = s.substring(0, idx);
+  var rowStr    = s.substring(idx+1);
+  var rowNum    = parseInt(rowStr, 10);
+  if(!sheetName || !rowNum || isNaN(rowNum)) return null;
+  return { sheet: sheetName, row: rowNum };
+}
+
+/* 來源分頁完整資料快取：{ 分頁名稱: { headers:[...], rowsByNum:{行號: {欄名:值}} } } */
+var _sourceSheetCache = {};
+
+/* 抓取來源分頁整頁資料（一次抓整張，之後同分頁的其他列直接吃快取，不重複打 API） */
+function _fetchSourceSheet(sheetName, callback){
+  if(_sourceSheetCache[sheetName]){ callback(_sourceSheetCache[sheetName]); return; }
+  var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(sheetName);
+  fetch(url)
+    .then(function(r){ return r.text(); })
+    .then(function(txt){
+      var json = JSON.parse(txt.replace(/^[^\(]+\(/,'').replace(/\);?\s*$/,''));
+      var tbl  = json.table || {};
+      var cols = (tbl.cols||[]).map(function(c){ return c.label||''; });
+      var rowsByNum = {};
+      (tbl.rows||[]).forEach(function(row, ridx){
+        var obj = {};
+        (row.c||[]).forEach(function(cell,i){
+          var colName = cols[i];
+          if(!colName) return;
+          var v=(cell&&cell.v!==null&&cell.v!==undefined)?cell.v:'';
+          var f=(cell&&cell.f)||'';
+          var dispVal;
+          if(/日期|時間/.test(colName) && typeof v==='string' && /^Date\(/.test(v)){
+            dispVal = f || parseGvizDate(v);
+          } else {
+            dispVal = (v!==''&&v!==null&&v!==undefined)?v:f;
+          }
+          obj[colName] = dispVal;
+        });
+        /* Sheet 第 1 列是表頭，gviz rows[0] 對應 Sheet 第 2 列（第一筆資料） */
+        var sheetRowNum = ridx + 2;
+        rowsByNum[sheetRowNum] = obj;
+      });
+      var result = { headers: cols, rowsByNum: rowsByNum };
+      _sourceSheetCache[sheetName] = result;
+      callback(result);
+    })
+    .catch(function(err){
+      callback(null, err);
+    });
+}
+
+/* 依 COL_SOURCE_REF 抓單筆來源問卷的完整內容 */
+function _fetchSourceRowDetail(refVal, callback){
+  var ref = _parseSourceRef(refVal);
+  if(!ref){ callback(null, null, '找不到來源連結欄位或格式不符'); return; }
+  _fetchSourceSheet(ref.sheet, function(sheetData, err){
+    if(err){ callback(null, ref, '讀取分頁「'+ref.sheet+'」失敗：'+err); return; }
+    if(!sheetData){ callback(null, ref, '讀取分頁「'+ref.sheet+'」失敗'); return; }
+    var rowData = sheetData.rowsByNum[ref.row];
+    if(!rowData){ callback(null, ref, '分頁「'+ref.sheet+'」第 '+ref.row+' 列查無資料'); return; }
+    callback(rowData, ref, null);
+  });
 }
 
 function _flashBtn(btn, txt) {
@@ -780,6 +859,7 @@ function fetchOrgSkeleton(callback) {
 
 /* ════ 讀主資料 ════ */
 var FIXED_COLS = [
+  '來源分頁+行數',
   '營業處名稱','營業所/課','執行人員','通路別',
   '店家型態','店家代碼','店家名稱','店家等級',
   '督導類型','問卷類型','日期'
@@ -797,28 +877,21 @@ function fetchSheet() {
       var cols = (tbl.cols||[]).map(function(c){ return c.label||''; });
       allRows = (tbl.rows||[]).map(function(row, ridx){
         var obj = {};
-        var raw = {}; /* 保留「原始問卷」所有欄位，供逐筆明細展開使用 */
         (row.c||[]).forEach(function(cell,i){
           var colName = cols[i];
-          if (!colName) return;
-          var v=(cell&&cell.v!==null&&cell.v!==undefined)?cell.v:'';
-          var f=(cell&&cell.f)||'';
-          var dispVal;
-          if(/日期|時間/.test(colName) && typeof v==='string' && /^Date\(/.test(v)){
-            dispVal = f || parseGvizDate(v);
+          if (FIXED_COLS.indexOf(colName) === -1) return; /* 只讀取指定欄位（含來源連結欄） */
+          if (!cell) { obj[colName]=''; return; }
+          var v=(cell.v!==null&&cell.v!==undefined)?cell.v:'';
+          var f=cell.f||'';
+          /* 日期欄位：優先用 formatted value（f），再 fallback parseGvizDate(v) */
+          if(colName === '日期'){
+            if(f) obj[colName]=f;
+            else if(v) obj[colName]=parseGvizDate(String(v));
+            else obj[colName]='';
           } else {
-            dispVal = (v!==''&&v!==null&&v!==undefined)?v:f;
-          }
-          raw[colName] = dispVal;
-          if (FIXED_COLS.indexOf(colName) !== -1) {
-            if(colName === '日期'){
-              obj[colName] = f || (v?parseGvizDate(String(v)):'');
-            } else {
-              obj[colName] = dispVal;
-            }
+            obj[colName]=(v!==''&&v!==null&&v!==undefined)?v:f;
           }
         });
-        obj.__raw = raw;
         obj.__rid = 'row'+ridx;
         return obj;
       }).filter(function(r){
@@ -1345,34 +1418,60 @@ function _sortBtns(col){
 }
 function _dlgNestToggle(rid){ _dlgExpandMap[rid]=!_dlgExpandMap[rid]; _renderDlgContent(); }
 
-/* ── 店家葉節點：原始問卷明細展開／收合（不重繪整表，直接切換 DOM） ── */
-function _toggleStoreDetail(rid, trEl){
+/* ── 店家葉節點：原始問卷明細展開／收合（首次展開才去抓來源分頁，之後吃快取） ── */
+var _storeDetailLoaded = {}; /* rid → true，避免重複抓取 */
+function _toggleStoreDetail(rid, sourceRef){
   var detail = document.getElementById('storedetail-'+rid);
   var ico = document.getElementById('storeico-'+rid);
   if(!detail) return;
   var isOpen = detail.style.display !== 'none';
   detail.style.display = isOpen ? 'none' : 'table-row';
   if(ico) ico.classList.toggle('open', !isOpen);
+  if(isOpen) return; /* 收合不用重抓 */
+
+  if(_storeDetailLoaded[rid]) return; /* 已經抓過，DOM 內容還在，不重抓 */
+
+  var ref = _parseSourceRef(sourceRef);
+  var bodyEl = document.getElementById('storedetailbody-'+rid);
+  if(!bodyEl) return;
+
+  if(!ref){
+    bodyEl.innerHTML = '<div style="padding:10px 16px;font-size:12px;color:#B23A3A;">⚠️ 此筆店家沒有「來源分頁+行數」資料，無法回溯問卷內容</div>';
+    _storeDetailLoaded[rid] = true;
+    return;
+  }
+
+  bodyEl.innerHTML = '<div style="padding:10px 16px;font-size:12px;color:#666;">⏳ 讀取「'+esc(ref.sheet)+'」第 '+ref.row+' 列…</div>';
+
+  _fetchSourceRowDetail(sourceRef, function(rowData, parsedRef, err){
+    if(err){
+      bodyEl.innerHTML = '<div style="padding:10px 16px;font-size:12px;color:#B23A3A;">⚠️ '+esc(err)+'</div>';
+      return;
+    }
+    _storeDetailLoaded[rid] = true;
+    bodyEl.innerHTML = _buildRawDetailPanel(rowData, parsedRef);
+  });
 }
 
-/* 顯示優先順序：固定欄位排前面、其他原始欄位按來源順序，跳過已在標題顯示過的欄位與空值 */
-var RAW_DETAIL_SKIP = ['店家代碼','店家名稱','日期'];
-function _buildRawDetailPanel(r, padLeft){
-  var raw = r.__raw || r;
-  var keys = Object.keys(raw).filter(function(k){
-    if (RAW_DETAIL_SKIP.indexOf(k) !== -1) return false;
-    var v = raw[k];
+/* 顯示優先順序：固定欄位排前面、其他原始欄位按來源順序，跳過空值 */
+function _buildRawDetailPanel(rowData, ref){
+  var keys = Object.keys(rowData||{}).filter(function(k){
+    var v = rowData[k];
     return v !== '' && v !== null && v !== undefined;
   });
+  var srcTag = ref ? '<div style="font-size:10px;font-weight:700;color:var(--primary);margin-bottom:8px;">📄 來源：'+esc(ref.sheet)+'　第 '+ref.row+' 列</div>' : '';
   if(!keys.length){
-    return '<div style="padding:10px 16px 10px '+(padLeft+18)+'px;font-size:12px;color:#999;">（無其他問卷欄位資料）</div>';
+    return '<div style="padding:10px 16px 14px 18px;background:#FAFAF8;border-left:3px solid var(--primary-bg,rgba(55,138,221,.3));margin:2px 12px 6px 0;border-radius:0 8px 8px 0;">'
+      + srcTag
+      + '<div style="font-size:12px;color:#999;">（此來源分頁查無欄位資料）</div></div>';
   }
-  var html = '<div style="padding:10px 16px 14px '+(padLeft+18)+'px;background:#FAFAF8;border-left:3px solid var(--primary-bg,rgba(55,138,221,.3));margin:2px 12px 6px 0;border-radius:0 8px 8px 0;">';
+  var html = '<div style="padding:10px 16px 14px 18px;background:#FAFAF8;border-left:3px solid var(--primary-bg,rgba(55,138,221,.3));margin:2px 12px 6px 0;border-radius:0 8px 8px 0;">';
+  html += srcTag;
   html += '<div class="raw-detail-grid">';
   keys.forEach(function(k){
     html += '<div class="raw-detail-item">'
       + '<div class="raw-detail-label">'+esc(k)+'</div>'
-      + '<div class="raw-detail-val">'+esc(String(raw[k]))+'</div>'
+      + '<div class="raw-detail-val">'+esc(String(rowData[k]))+'</div>'
       + '</div>';
   });
   html += '</div></div>';
@@ -1623,7 +1722,9 @@ function _buildNestedPivot(rows, dims){
             + '<line x1="12" y1="10" x2="'+INDENT_STEP+'" y2="10" stroke="'+LINE_COLOR+'" stroke-width="1.5"/>'
             + '</svg></span>';
 
-          html += '<tr class="store-leaf-row" id="storerow-'+r.__rid+'" style="background:rgba(0,0,0,.012);border-top:1px solid #f7f6f3;height:30px;cursor:pointer;" onclick="_toggleStoreDetail(\''+r.__rid+'\',this)">';
+          var srcRefVal = String(r[COL_SOURCE_REF]||'').trim();
+          var srcRefJs = srcRefVal.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+          html += '<tr class="store-leaf-row" id="storerow-'+r.__rid+'" style="background:rgba(0,0,0,.012);border-top:1px solid #f7f6f3;height:30px;cursor:pointer;" onclick="_toggleStoreDetail(\''+r.__rid+'\',\''+srcRefJs+'\')">';
           html += '<td class="td-left" style="padding:0 12px 0 '+INDENT_BASE+'px;">'
             + '<div style="display:flex;align-items:center;min-width:0;">'
             + stPrefix
@@ -1636,9 +1737,9 @@ function _buildNestedPivot(rows, dims){
             + '</div></td>';
           html += '<td class="td-total" style="font-size:11px;color:#2D2D2D;font-weight:500;">—</td>';
           html += '</tr>';
-          /* 原始問卷明細展開面板（隱藏，點擊切換） */
+          /* 原始問卷明細展開面板（隱藏，點擊才向來源分頁抓取） */
           html += '<tr class="store-detail-row" id="storedetail-'+r.__rid+'" style="display:none;">'
-            + '<td colspan="2" style="padding:0;">' + _buildRawDetailPanel(r, INDENT_BASE+18) + '</td>'
+            + '<td colspan="2" style="padding:0;" id="storedetailbody-'+r.__rid+'"></td>'
             + '</tr>';
         });
       }
