@@ -525,7 +525,10 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   line-height:1.5;
 }
 
-/* 問卷大題區：每題一塊，底下用 chip 標籤列出已勾選的選項 */
+/* 問卷大題區：每題一塊，底下逐選項列出「題目／答案」兩段式卡片，
+   不再用冒號把選項與答案黏在同一行文字裡 —— 答案內容若較長
+   （例如開放式文字欄），容易跟選項名稱混在一起難以分辨起訖，
+   改成上下分層：上排小字＋淺色是選項本身，下排正常字重深色是回答內容。 */
 .raw-quiz-list { display:flex; flex-direction:column; gap:10px; }
 .raw-quiz-section {
   background:#fff; border:1px solid rgba(0,0,0,.06); border-radius:8px;
@@ -534,11 +537,26 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .raw-quiz-title {
   font-size:12px; font-weight:700; color:var(--green,#3B6D11); margin-bottom:6px;
 }
-.raw-quiz-picks { display:flex; flex-wrap:wrap; gap:6px; }
+.raw-quiz-picks { display:flex; flex-direction:column; gap:6px; }
 .raw-quiz-chip {
-  display:inline-block; font-size:12px; font-weight:600; color:#2D2D2D;
-  background:var(--green-bg,#EAF3DE); border:1px solid var(--green-bd,rgba(59,109,17,.25));
-  border-radius:6px; padding:3px 9px;
+  display:block; background:var(--green-bg,#EAF3DE);
+  border:1px solid var(--green-bd,rgba(59,109,17,.25));
+  border-radius:6px; padding:5px 10px;
+}
+.raw-quiz-chip-q {
+  font-size:10.5px; font-weight:700; color:var(--green,#3B6D11);
+  letter-spacing:.5px; margin-bottom:3px; opacity:.8;
+}
+.raw-quiz-chip-a {
+  font-size:13px; font-weight:600; color:#1a1a1a; line-height:1.5; word-break:break-word;
+}
+/* 純打勾（無額外文字說明）：答案就是選項本身被勾選，不需要拆 Q/A 兩段，
+   維持單行徽章樣式即可，避免「Q：有　A：有」這種無意義的重複 */
+.raw-quiz-chip.is-simple {
+  display:inline-block; padding:4px 10px;
+}
+.raw-quiz-chip.is-simple .raw-quiz-chip-a {
+  font-size:12.5px; font-weight:600;
 }
 
 /* 子列：同字體、稍微縮排、背景略區分 */
@@ -1692,7 +1710,10 @@ function _buildRawDetailPanel(rowData, ref, sheetData, basicRow){
 
   var sections = rowData.sections || [];
 
-  /* 問卷大題區：每題一個區塊，顯示已勾選的選項（可能複選） */
+  /* 問卷大題區：每題一個區塊，每個選項各自一張小卡片，Q（選項本身）／A（填寫的答案）
+     上下分兩行顯示，不再用冒號把兩者黏成一行文字，長答案也能清楚看出起訖。
+     若該欄只是單純打勾（值為 v/V/✓，沒有額外文字說明），代表「答案」其實就是
+     選項本身被選取了，不需要再重複顯示一次，改用單行徽章樣式即可。 */
   var quizHtml = '';
   if(sections.length){
     quizHtml += '<div class="raw-quiz-list">';
@@ -1701,9 +1722,17 @@ function _buildRawDetailPanel(rowData, ref, sheetData, basicRow){
         + '<div class="raw-quiz-title">📋 '+esc(sec.section)+'</div>'
         + '<div class="raw-quiz-picks">';
       sec.picks.forEach(function(p){
-        quizHtml += '<span class="raw-quiz-chip">'+esc(p.option)
-          + (p.value && p.value!=='v' && p.value!=='V' && p.value!=='✓' ? '：'+esc(p.value) : '')
-          + '</span>';
+        var isCheckmarkOnly = (p.value==='v' || p.value==='V' || p.value==='✓');
+        if(isCheckmarkOnly){
+          quizHtml += '<span class="raw-quiz-chip is-simple">'
+            + '<span class="raw-quiz-chip-a">✓ '+esc(p.option)+'</span>'
+            + '</span>';
+        } else {
+          quizHtml += '<span class="raw-quiz-chip">'
+            + '<span class="raw-quiz-chip-q">選項　'+esc(p.option)+'</span>'
+            + '<span class="raw-quiz-chip-a">回答　'+esc(p.value)+'</span>'
+            + '</span>';
+        }
       });
       quizHtml += '</div></div>';
     });
