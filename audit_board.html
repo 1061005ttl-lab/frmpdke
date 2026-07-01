@@ -857,8 +857,7 @@ function _debugRowPreview(row){
 function _fetchSourceSheet(sheetName, callback){
   if(_sourceSheetCache[sheetName]){ callback(_sourceSheetCache[sheetName]); return; }
   /* 用 tq=SELECT * 並指定 range 為整個分頁，強制 gviz 不做任何表頭自動偵測，
-     確保回傳的 rows[0] 一定對應 Sheet 可見的第 1 列、rows[1] 對應第 2 列。
-     headers=0 為官方文件預設值，這裡仍明確帶上以避免任何隱式行為差異。 */
+     確保回傳的 rows[0] 一定對應 Sheet 可見的第 1 列（現在是單行扁平化標題）。 */
   var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
     '/gviz/tq?tqx=out:json&headers=0&sheet=' + encodeURIComponent(sheetName);
   fetch(url)
@@ -867,7 +866,9 @@ function _fetchSourceSheet(sheetName, callback){
       var json = JSON.parse(txt.replace(/^[^\(]+\(/,'').replace(/\);?\s*$/,''));
       var tbl  = json.table || {};
       var rawRows = tbl.rows || [];
-      if(rawRows.length < 2){ callback(null, '分頁「'+sheetName+'」資料列數不足（需至少含大題列與選項列）'); return; }
+      
+      // 【修改】現在只需要 1 列（標題列本身）即可通關
+      if(rawRows.length < 1){ callback(null, '分頁「'+sheetName+'」完全沒有資料（連標題列都沒有）'); return; }
 
       function cellVal(row, i){
         if(!row) return '';
@@ -879,54 +880,46 @@ function _fetchSourceSheet(sheetName, callback){
         return (v!==''&&v!==null&&v!==undefined)?v:f;
       }
 
-      var titleRow  = rawRows[0]; /* 大題列（Sheet 第 1 列） */
-      var optionRow = rawRows[1]; /* 選項列（Sheet 第 2 列） */
-      var colCount = Math.max(
-        (titleRow.c||[]).length,
-        (optionRow.c||[]).length
-      );
+      var headerRow = rawRows[0]; /* 單行標題列（Sheet 第 1 列） */
+      var colCount = (headerRow.c || []).length;
 
-      /* 找出「問卷區」起點：選項列第一個非空白值所在欄。
-         基本資料區（店家代碼、通路別…）在第 2 列必為空白，
-         只有問卷區的選項名稱才會出現在第 2 列，這是判斷起點唯一依據。 */
-      var quizStartCol = -1;
-      for(var i=0;i<colCount;i++){
-        if(String(cellVal(optionRow,i)).trim()){ quizStartCol = i; break; }
-      }
-      if(quizStartCol === -1){ callback(null, '分頁「'+sheetName+'」找不到問卷內容起始欄（第 2 列全部空白）'
-        +'　[除錯] 第1列前5欄：'+_debugRowPreview(titleRow)+'　第2列前5欄：'+_debugRowPreview(optionRow)); return; }
-
-      /* 基本資料欄：問卷區之前的所有欄，欄名取自第 1 列 */
       var baseColNames = [];
-      for(var bi=0; bi<quizStartCol; bi++){
-        var name = String(cellVal(titleRow,bi)||'').trim();
-        baseColNames.push(name || ('欄'+(bi+1)));
-      }
-
-      /* 解析問卷區：大題名稱橫跨多欄（合併儲存格效果：只有起始欄第 1 列有字，
-         其餘延伸欄第 1 列為空白），直到下一個第 1 列有字的儲存格才換題。
-         注意：問卷區每一欄都必須同時滿足「屬於問卷區範圍（col>=quizStartCol）」
-         且該欄第 2 列（選項列）有值，才會被收進 quizCols；
-         若第 2 列為空白，代表此欄沒有對應的選項定義，一律跳過，
-         避免把非問卷用途的零散儲存格誤判為選項。 */
       var quizCols = []; /* [{col, section, option}] */
-      var curSection = '';
-      for(var qi=quizStartCol; qi<colCount; qi++){
-        var t = String(cellVal(titleRow,qi)||'').trim();
-        var opt = String(cellVal(optionRow,qi)||'').trim();
-        if(t) curSection = t; /* 遇到新大題名稱就切換（合併儲存格的延伸空欄不會有字，沿用前一個大題） */
-        if(!opt) continue; /* 選項列空白：不是問卷選項欄，跳過，不建立 quizCols 項目 */
-        if(!curSection) continue; /* 防禦：尚未遇到任何大題名稱就出現選項，視為異常資料，跳過 */
-        quizCols.push({ col:qi, section:curSection, option:opt });
+
+      /* 【修改】核心邏輯：掃描單行標題，自動用底線拆分「基本資料」與「問卷題組」 */
+      for (var i = 0; i < colCount; i++) {
+        var headerText = String(cellVal(headerRow, i) || '').trim();
+        if (!headerText) continue; // 欄位名稱為空則跳過
+
+        if (headerText.indexOf('_') !== -1) {
+          // 發現底線（如：TTL陳列及販售品項_0.6L金牌）
+          var parts = headerText.split('_');
+          var bigTitle = parts[0].trim();
+          var optionName = parts.slice(1).join('_').trim(); // 防止選項本身也帶有底線
+          
+          quizCols.push({ col: i, section: bigTitle, option: optionName });
+        } else {
+          // 沒有底線（如：月份、營業處、店家代碼），視為基本資料欄位
+          baseColNames.push(headerText);
+        }
       }
 
-      /* 解析資料列：從 rawRows[2] 開始（對應 Sheet 第 3 列起），
-         前兩列固定是大題列＋選項列，不會是資料。 */
+      /* 【修改】解析資料列：從 rawRows[1] 開始（對應 Sheet 第 2 列起），
+         因為現在只有第 1 列是標題，第 2 列就是第一筆資料了。 */
       var rowsByNum = {};
-      for(var ri=2; ri<rawRows.length; ri++){
+      for(var ri=1; ri<rawRows.length; ri++){
         var row = rawRows[ri];
         var baseData = {};
-        baseColNames.forEach(function(name, bi){ baseData[name] = cellVal(row, bi); });
+        
+        // 抓取基本資料
+        baseColNames.forEach(function(name){
+          // 找出該基本資料欄名在 headerRow 中的真實索引
+          var bi = -1;
+          for(var cIdx=0; cIdx<colCount; cIdx++){
+            if(String(cellVal(headerRow, cIdx)||'').trim() === name){ bi = cIdx; break; }
+          }
+          baseData[name] = bi !== -1 ? cellVal(row, bi) : '';
+        });
 
         /* sections[大題名稱] = [{option, value}, ...]（同大題可複選） */
         var sections = {}; var sectionOrder = [];
@@ -937,7 +930,8 @@ function _fetchSourceSheet(sheetName, callback){
           sections[qc.section].push({ option:qc.option, value:v });
         });
 
-        var sheetRowNum = ri + 1; /* rawRows[0] 對應 Sheet 第 1 列，故 rawRows[ri] 對應第 (ri+1) 列 */
+        // 換算成對應 Excel/Sheet 的實際列號 (rawRows[0] 是第 1 列，則 rawRows[ri] 是第 ri+1 列)
+        var sheetRowNum = ri + 1; 
         rowsByNum[sheetRowNum] = {
           base: baseData,
           sections: sectionOrder.map(function(s){ return { section:s, picks:sections[s] }; })
@@ -945,23 +939,11 @@ function _fetchSourceSheet(sheetName, callback){
       }
 
       if(quizCols.length === 0){
-        callback(null, '分頁「'+sheetName+'」問卷區（'+(quizStartCol+1)+'欄之後）未解析出任何題組，請確認第 1/2 列格式'
-          +'　[除錯] 第1列前5欄：'+_debugRowPreview(titleRow)+'　第2列前5欄：'+_debugRowPreview(optionRow)); return;
+        callback(null, '分頁「'+sheetName+'」未偵測到任何帶有「_」底線的問卷題組欄位，請檢查標題列格式。'
+          +' [除錯] 標題前5欄：'+_debugRowPreview(headerRow)); return;
       }
 
-      /* 防呆：若解析出的大題名稱剛好跟基本資料欄名重複，極可能是 gviz 回傳列序錯位
-         （例如把資料列誤判為表頭列），而非真的有同名大題，直接回報錯誤避免顯示錯誤資料 */
-      var baseNameSet = {};
-      baseColNames.forEach(function(n){ baseNameSet[n]=true; });
-      var badSection = quizCols.find(function(qc){ return baseNameSet[qc.section]; });
-      if(badSection){
-        callback(null, '分頁「'+sheetName+'」解析異常：大題名稱「'+badSection.section+'」與基本資料欄名重複，'
-          +'可能是來源分頁列序與預期不符（第 1 列應為大題列、第 2 列應為選項列），請確認該分頁格式'
-          +'　[除錯] 第1列前5欄：'+_debugRowPreview(titleRow)
-          +'　第2列前5欄：'+_debugRowPreview(optionRow));
-        return;
-      }
-
+      // 移除原本的「大題與基本資料同名」防呆，因為單行結構不會發生 gviz 雙行錯位問題
       var result = { baseColNames: baseColNames, quizCols: quizCols, rowsByNum: rowsByNum, _debugRows: rawRows.slice(0,3) };
       _sourceSheetCache[sheetName] = result;
       callback(result);
