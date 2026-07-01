@@ -558,6 +558,17 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .raw-quiz-chip.is-simple .raw-quiz-chip-a {
   font-size:12.5px; font-weight:600;
 }
+/* 問卷內的照片欄位（如PG半身照/全身照/服務情形照片）：顯示縮圖，點擊開新分頁看原圖 */
+.raw-quiz-chip.raw-quiz-photo { display:inline-block; padding:6px 8px; vertical-align:top; }
+.raw-quiz-photo-link { display:block; margin-top:4px; }
+.raw-quiz-photo-img {
+  display:block; width:120px; height:120px; object-fit:cover;
+  border-radius:6px; border:1px solid rgba(0,0,0,.08); cursor:zoom-in;
+  background:#f0f0ee;
+}
+.raw-quiz-photo-fail {
+  display:block; margin-top:4px; font-size:11px; color:#B23A3A;
+}
 
 /* 店家明細卡片右上角的分享動作列（複製摘要／截圖） */
 .raw-share-btn {
@@ -1748,6 +1759,14 @@ function _buildRawDetailPanel(rowData, ref, sheetData, basicRow, rid){
         + '<div class="raw-quiz-title">📋 '+esc(sec.section)+'</div>'
         + '<div class="raw-quiz-picks">';
       sec.picks.forEach(function(p){
+        /* 照片欄位（PG半身照／PG全身照／服務情形照片…）：GAS那邊會把照片上傳到
+           雲端硬碟並把網址寫進儲存格，所以只要答案本身是一個網址，就當照片處理，
+           顯示縮圖＋可點擊開新分頁看原圖，不用寫死欄位名稱清單，未來新增照片欄位也能自動支援。 */
+        var isPhotoUrl = /^https?:\/\//i.test(String(p.value||'').trim());
+        if(isPhotoUrl){
+          quizHtml += _renderPhotoChip(p.option, p.value);
+          return;
+        }
         var isCheckmarkOnly = (p.value==='v' || p.value==='V' || p.value==='✓');
         if(isCheckmarkOnly){
           quizHtml += '<span class="raw-quiz-chip is-simple">'
@@ -1778,6 +1797,27 @@ function _buildRawDetailPanel(rowData, ref, sheetData, basicRow, rid){
   html += quizHtml;
   html += '</div>';
   return html;
+}
+/* 雲端硬碟縮圖網址（thumbnail?id=xxx&sz=…）→ 原圖檢視網址（file/d/xxx/view）。
+   縮圖網址載入快，適合當卡片裡的小圖；但點開想看原尺寸時要導去正式的檢視頁，
+   所以另外從網址裡撈出 file id 組出 view 連結。撈不到 id 就原網址照用（不會壞掉，只是點開一樣是縮圖）。 */
+function _driveViewUrlFromThumb(url){
+  var m = String(url).match(/[?&]id=([^&]+)/);
+  return m ? ('https://drive.google.com/file/d/'+m[1]+'/view') : url;
+}
+/* 照片欄位的卡片：選項名稱（如「PG半身照」）＋縮圖，點縮圖開新分頁看原圖。
+   img 讀取失敗（例如雲端硬碟該檔案還沒設定好公開權限、或網址失效）時，
+   用 onerror 換成文字提示，不留一個破圖示在畫面上。 */
+function _renderPhotoChip(optionName, url){
+  var viewUrl = _driveViewUrlFromThumb(url);
+  var uid = 'photo_' + Math.random().toString(36).substring(2,9);
+  return '<span class="raw-quiz-chip raw-quiz-photo">'
+    + '<span class="raw-quiz-chip-q">'+esc(optionName)+'</span>'
+    + '<a class="raw-quiz-photo-link" href="'+esc(viewUrl)+'" target="_blank" rel="noopener" onclick="event.stopPropagation();">'
+    +   '<img id="'+uid+'" class="raw-quiz-photo-img" src="'+esc(url)+'" alt="'+esc(optionName)+'" loading="lazy" '
+    +   'onerror="this.style.display=\'none\';this.insertAdjacentHTML(\'afterend\',\'<span class=&quot;raw-quiz-photo-fail&quot;>⚠️ 圖片載入失敗</span>\');">'
+    + '</a>'
+    + '</span>';
 }
 function _rid(s){ return String(s).replace(/[^\w\u4e00-\u9fff]/g,'_').substring(0,20); }
 function escAttr(s){ return String(s).replace(/'/g,"\\'"); }
