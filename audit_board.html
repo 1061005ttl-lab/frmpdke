@@ -69,9 +69,9 @@
   店家展開列（樹狀視角最末層的每一筆店家）可點擊展開明細面板。
 
 【需求更新 2.1.0】
-  1. 模式一改名「所→人」：處›督›所›人›問卷類型→店家
-     模式二改名「人→所」：處›督›人›所›問卷類型→店家
-  2. 問卷類型節點可展開，下方顯示店家名稱 + 查核時間並列
+  1. 模式一改名「所→人」：處›督›所›人›子分類→店家
+     模式二改名「人→所」：處›督›人›所›子分類→店家
+  2. 子分類節點可展開，下方顯示店家名稱 + 查核時間並列
      明細表新增「查核時間」欄位（資料欄：查核時間 K欄，選填）
   3. 主看板 / Detail Dialog / Summary Dialog 均有
      「📋 複製 / 📥 CSV / 📸 截圖」
@@ -81,7 +81,7 @@
 【這個檔案在做什麼】
   顯示「查核型」專案的店家名冊概況。
   資料格式：每列一筆店家，固定讀取以下 11 個欄位。
-  依「督導類型」(I欄) 分大群統計家數；群內依「問卷類型」(J欄) 細分。
+  依「分類」(I欄) 分大群統計家數；群內依「子分類」(J欄) 細分。
   層級視角：營業處 → 營業所/課 → 業務人員。
 
 【店家名冊固定欄位（A~L）】
@@ -94,19 +94,19 @@
   G 店家代碼
   H 店家名稱
   I 店家等級
-  J 督導類型   ← 大群分組鍵（ROSTER_GROUPS 由資料動態產生）
-  K 問卷類型   ← 群內子分類
+  J 分類   ← 大群分組鍵（ROSTER_GROUPS 由資料動態產生）
+  K 子分類   ← 群內子分類
   L 日期       ← 查核日期（選填）
 
 【計算邏輯】
-  大群 = 唯一督導類型值（依資料首次出現順序）
+  大群 = 唯一分類值（依資料首次出現順序）
   家數 = 店家代碼去重計數
-  卡片：各督導類型群組 N 家（hover/長按 Tooltip 展開問卷類型明細）
-  Dialog：逐列明細，含通路別、店家型態、店家等級、督導類型、問卷類型
+  卡片：各分類群組 N 家（hover/長按 Tooltip 展開子分類明細）
+  Dialog：逐列明細，含通路別、店家型態、店家等級、分類、子分類
 
 【版本紀錄】
   2.2.0  2026-06-29  讀 MGMT_ID「單位名冊」建骨架；月初無資料仍顯示完整營業處/所
-  2.0.0  2026-06-26  改為店家名冊模式：固定10欄、督導類型分群、問卷類型子分類
+  2.0.0  2026-06-26  改為店家名冊模式：固定10欄、分類分群、子分類子分類
   1.0.0  2026-06-26  初版
 
 ════════════════════════════════════════════════════════════
@@ -624,7 +624,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   white-space:nowrap; vertical-align:middle;
 }
 
-/* 督導類型色帶 */
+/* 分類色帶 */
 .th-sup-0 { background:rgba(52,199,89,.15) !important; color:#1a5c10 !important; }
 .th-sup-1 { background:rgba(0,122,255,.12) !important; color:#003d99 !important; }
 .th-sup-2 { background:rgba(255,149,0,.14) !important; color:#7a4600 !important; }
@@ -714,7 +714,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <div class="pivot-tabs">
       <button class="pivot-tab active" onclick="switchPivotTab('staff',this)">👤 人員</button>
       <button class="pivot-tab"        onclick="switchPivotTab('office',this)">🏢 單位</button>
-      <button class="pivot-tab"        onclick="switchPivotTab('suptype',this)">📋 督導類型</button>
+      <button class="pivot-tab"        onclick="switchPivotTab('suptype',this)">📋 分類</button>
       <button class="pivot-tab"        onclick="switchPivotTab('store',this)">🏪 店家</button>
     </div>
     <!-- 滑動容器 -->
@@ -774,11 +774,11 @@ var COL_STORETYPE = '店家型態';     /* F */
 var COL_CODE      = '店家代碼';     /* G */
 var COL_NAME      = '店家名稱';     /* H */
 var COL_GRADE     = '店家等級';     /* I */
-var COL_SUPTYPE   = '督導類型';     /* J — 大群分組鍵 */
-var COL_QUESTTYPE = '問卷類型';     /* K — 群內子分類 */
+var COL_SUPTYPE   = '分類';     /* J — 大群分組鍵 */
+var COL_QUESTTYPE = '子分類';     /* K — 群內子分類 */
 var COL_DATE      = '日期';         /* L — 店家查核日期 */
 
-/* ROSTER_GROUPS: 由資料動態產生（唯一督導類型清單，依首次出現順序） */
+/* ROSTER_GROUPS: 由資料動態產生（唯一分類清單，依首次出現順序） */
 var ROSTER_GROUPS = [];
 
 /* URL 參數 */
@@ -1065,7 +1065,7 @@ var FIXED_COLS = [
   '來源分頁+行數',
   '營業處名稱','營業所/課','執行人員','通路別',
   '店家型態','店家代碼','店家名稱','店家等級',
-  '督導類型','問卷類型','日期'
+  '分類','子分類','日期'
 ];
 
 function fetchSheet() {
@@ -1102,7 +1102,7 @@ function fetchSheet() {
         return FIXED_COLS.some(function(c){ return String(r[c]||'').trim(); });
       });
 
-      /* 由資料建立 ROSTER_GROUPS（唯一督導類型，依首次出現順序） */
+      /* 由資料建立 ROSTER_GROUPS（唯一分類，依首次出現順序） */
       var seen = {};
       ROSTER_GROUPS = [];
       allRows.forEach(function(r){
@@ -1129,9 +1129,9 @@ function fetchSyncTime() {
 }
 
 /* ════ 計算 ════ */
-/* 對一批 rows，依 ROSTER_GROUPS（督導類型）統計店家數與問卷類型子分佈 */
+/* 對一批 rows，依 ROSTER_GROUPS（分類）統計店家數與子分類子分佈 */
 function calcAudit(rows) {
-  /* groups[i] = { label:督導類型, stores:Set, questMap:{問卷類型:Set} } */
+  /* groups[i] = { label:分類, stores:Set, questMap:{子分類:Set} } */
   var groups = ROSTER_GROUPS.map(function(g){
     return { label:g, stores:new Set(), records:0, staffMap:{}, staffRecMap:{}, questMap:{}, questRecMap:{} };
   });
@@ -1300,7 +1300,7 @@ function buildCard(name,labelText,stat,levelKey,rows,isOverall){
     +'</div>'
     +'</div>';
 
-  /* 各督導類型群格 */
+  /* 各分類群格 */
   stat.groups.forEach(function(g,gi){
     var ttGId='ttg'+gi+'-'+ttId;
     var subHtml='';
@@ -1431,8 +1431,8 @@ function buildQuicknav(){
 
 /* ════════════════════════════════════════════════════════
    DETAIL DIALOG ─ 兩模式維度 + 欄位雙向排序
-   模式一：處›所/課›人員›督導類型
-   模式二：處›人員›督導類型›所/課
+   模式一：處›所/課›人員›分類
+   模式二：處›人員›分類›所/課
 */
 
 var DIM_STORAGE_KEY = 'ttl_audit_dim_mode_v4';
@@ -1443,9 +1443,9 @@ var DIM_MODES = {
 var DIM_META = {
   area:      { icon:'🏢', label:'營業處' },
   office:    { icon:'📁', label:'所/課'  },
-  suptype:   { icon:'📋', label:'督導類型' },
+  suptype:   { icon:'📋', label:'分類' },
   staff:     { icon:'👤', label:'人員'   },
-  questtype: { icon:'📄', label:'問卷類型' }
+  questtype: { icon:'📄', label:'子分類' }
 };
 var _dlgDimMode=_loadDimMode(), _dlgListMode=false, _dlgExpandMap={}, _dlgSortState={}, _dlgAllExpanded=false;
 
@@ -1572,7 +1572,7 @@ function _buildDialogLineDetail(){
     var areaRows = areaG.map[area];
     lines.push('🏢 '+area+'（'+_fmtRecStore(_countRows(areaRows), _countCodes(areaRows))+'）');
 
-    /* 第1維：督導類型 */
+    /* 第1維：分類 */
     var g1 = grpBy(areaRows, fullDims[1]);
     g1.order.forEach(function(k1){
       var rows1 = g1.map[k1];
@@ -1946,7 +1946,7 @@ function _buildNestedPivot(rows, dims){
     /* depth 3 */
     { bg:'transparent', borderTop:'1px solid #f5f4f1',
       fontSize:'14px', fontWeight:'500', color:'#333', rowH:'34px' },
-    /* depth 4（問卷類型，葉節點） */
+    /* depth 4（子分類，葉節點） */
     { bg:'rgba(0,0,0,.015)', borderTop:'1px solid #f7f6f3',
       fontSize:'13px', fontWeight:'500', color:'#2D2D2D', rowH:'32px' }
   ];
@@ -2178,8 +2178,8 @@ function buildAuditTable(rows){
   html+='<th class="th-left">通路別</th>';
   html+='<th class="th-left">店家型態</th>';
   html+='<th class="th-left">店家等級</th>';
-  html+='<th class="th-left">督導類型</th>';
-  html+='<th class="th-left">問卷類型</th>';
+  html+='<th class="th-left">分類</th>';
+  html+='<th class="th-left">子分類</th>';
   html+='<th class="th-left">查核時間</th>';
   html+='</tr></thead><tbody>';
 
@@ -2291,7 +2291,7 @@ var _pivotMode      = 'staff';   /* staff | office | suptype | store */
 var _pivotRows      = null;      /* 目前 pivot 使用的資料集（null = allRows） */
 var _pivotSortState = {};        /* { mode: { col, dir } } */
 var _pivotTabIndex  = { staff:0, office:1, suptype:2, store:3 };
-var PIVOT_TITLES = { staff:'人員 × 督導類型', office:'單位 × 督導類型', suptype:'督導類型 × 問卷類型', store:'店家明細' };
+var PIVOT_TITLES = { staff:'人員 × 分類', office:'單位 × 分類', suptype:'分類 × 子分類', store:'店家明細' };
 
 /* ── 開啟 / 關閉 ── */
 function openSummaryDialog(mode, rows){
@@ -2355,7 +2355,7 @@ function _renderPivotSlide(mode){
 
 /* ════ [1] 人員 維度 ════
    三層：營業處 Banner → 人員（可展開） → 店家子列
-   欄位：人員 | 督導類型₁ | … | 合計
+   欄位：人員 | 分類₁ | … | 合計
 */
 function _buildStaffPivot(rows){
   var supTypes = ROSTER_GROUPS;
@@ -2503,7 +2503,7 @@ function _toggleStaffExpand(rid){
 
 /* ════ [2] 單位 維度 ════
    三層：營業處 Banner → 所/課（可展開） → 人員子列
-   欄位：所/課 | 督導類型₁ | … | 合計
+   欄位：所/課 | 分類₁ | … | 合計
 */
 function _buildOfficePivot(rows){
   var supTypes=ROSTER_GROUPS;
@@ -2655,8 +2655,8 @@ function _toggleOfficeExpand(rid){
 
 /* ════ [4] 店家 維度 ════
    兩層：營業處 Banner → 所/課（可展開）→ 展開後直接列出該所/課全部店家逐筆明細
-   明細排序：日期（新→舊）→ 代碼 → 店名 → 人員 → 督導類型
-   欄位：日期 | 代碼 | 店名 | 人員 | 督導類型
+   明細排序：日期（新→舊）→ 代碼 → 店名 → 人員 → 分類
+   欄位：日期 | 代碼 | 店名 | 人員 | 分類
 */
 function _buildStorePivot(rows){
   var sortKey=(_pivotSortState.store||{}).col||'office';
@@ -2689,7 +2689,7 @@ function _buildStorePivot(rows){
     grandTotalCodes.add(code); grandTotalRecs++;
   });
 
-  /* 明細排序：日期新→舊，同日期再依代碼→店名→人員→督導類型 */
+  /* 明細排序：日期新→舊，同日期再依代碼→店名→人員→分類 */
   function _sortStoreRows(list){
     return list.slice().sort(function(a,b){
       var da=String(a[COL_DATE]||''), db=String(b[COL_DATE]||'');
@@ -2715,7 +2715,7 @@ function _buildStorePivot(rows){
     +'<th class="th-left" style="min-width:70px;color:#2D2D2D;">代碼</th>'
     +'<th class="th-left" style="min-width:120px;color:#2D2D2D;">店名</th>'
     +'<th class="th-left" style="min-width:70px;color:#2D2D2D;">人員</th>'
-    +'<th class="th-num th-total sortable" onclick="_sortStore(\'total\')" style="cursor:pointer;">督導類型／份數 '+sortIcon('total')+'</th>'
+    +'<th class="th-num th-total sortable" onclick="_sortStore(\'total\')" style="cursor:pointer;">分類／份數 '+sortIcon('total')+'</th>'
     +'</tr></thead><tbody>';
 
   areaOrder.forEach(function(area, ai){
@@ -2756,7 +2756,7 @@ function _buildStorePivot(rows){
         +'<td class="td-left"></td><td class="td-left"></td><td class="td-left"></td><td class="td-left"></td>'
         +'<td class="td-total">'+_fmtRecStore(o.totalRecs,o.totalStores)+'</td></tr>';
 
-      /* 店家逐筆明細子列：日期新→舊 → 代碼 → 店名 → 人員 → 督導類型 */
+      /* 店家逐筆明細子列：日期新→舊 → 代碼 → 店名 → 人員 → 分類 */
       var storeRows=_sortStoreRows(o.rows);
 
       /* 偵測「同日且同店」：日期+代碼 出現次數 > 1 即標記高光 */
@@ -2808,9 +2808,9 @@ function _toggleStoreExpand(rid){
   childRows.forEach(function(tr){ tr.classList.toggle('visible',!isOpen); });
 }
 
-/* ════ [3] 督導類型 維度 ════
-   欄位：督導類型 | 問卷類型 | 人員數 | 份數／家數
-   結構：督導類型 → 問卷類型 → 人員名單（展開）
+/* ════ [3] 分類 維度 ════
+   欄位：分類 | 子分類 | 人員數 | 份數／家數
+   結構：分類 → 子分類 → 人員名單（展開）
 */
 function _buildSuptypePivot(rows){
   var supTypes=ROSTER_GROUPS;
@@ -2840,8 +2840,8 @@ function _buildSuptypePivot(rows){
   }
 
   var html='<table class="pivot-tbl"><thead><tr>'
-    +'<th class="th-left sortable" onclick="_sortSuptype(\'suptype\')" style="cursor:pointer;">督導類型'+sortIcon('suptype')+'</th>'
-    +'<th class="th-left sortable" onclick="_sortSuptype(\'questtype\')" style="cursor:pointer;">問卷類型'+sortIcon('questtype')+'</th>'
+    +'<th class="th-left sortable" onclick="_sortSuptype(\'suptype\')" style="cursor:pointer;">分類'+sortIcon('suptype')+'</th>'
+    +'<th class="th-left sortable" onclick="_sortSuptype(\'questtype\')" style="cursor:pointer;">子分類'+sortIcon('questtype')+'</th>'
     +'<th class="th-num sortable" onclick="_sortSuptype(\'staffs\')" style="cursor:pointer;">人員數'+sortIcon('staffs')+'</th>'
     +'<th class="th-num th-total sortable" onclick="_sortSuptype(\'stores\')" style="cursor:pointer;">份數／家數'+sortIcon('stores')+'</th>'
     +'</tr></thead><tbody>';
@@ -2862,22 +2862,22 @@ function _buildSuptypePivot(rows){
       return sortDir==='asc'?va-vb:vb-va;
     });
 
-    /* 督導類型小計（份數＋家數） */
+    /* 分類小計（份數＋家數） */
     var stTotalCodes=new Set(), stTotalRecs=0;
     rows.forEach(function(r){ if(String(r[COL_SUPTYPE]||'').trim()===st){ var c=String(r[COL_CODE]||'').trim(); if(c){ stTotalCodes.add(c); stTotalRecs++; } } });
     var stStaffs=new Set();
     rows.forEach(function(r){ if(String(r[COL_SUPTYPE]||'').trim()===st){ var s=String(r[COL_STAFF]||'').trim(); if(s) stStaffs.add(s); } });
 
-    /* 督導類型標題列（展開/收合問卷類型） */
+    /* 分類標題列（展開/收合子分類） */
     var stId='pvst-'+String(st).replace(/[^a-zA-Z0-9\u4e00-\u9fff]/g,'_');
     html+='<tr class="pivot-expand-row" onclick="_toggleSuptypeExpand(\''+stId+'\')" id="row-'+stId+'" '
       +'style="background:rgba(55,138,221,.05);border-top:2px solid rgba(0,0,0,.07);">';
     html+='<td class="td-left" style="font-weight:900;"><span class="pivot-expand-icon" id="ico-'+stId+'">▶</span>'+esc(st)+'</td>';
-    html+='<td class="td-left" style="color:#2D2D2D;font-size:12px;">共 '+qtList.length+' 種問卷類型</td>';
+    html+='<td class="td-left" style="color:#2D2D2D;font-size:12px;">共 '+qtList.length+' 種子分類</td>';
     html+='<td class="td-num" style="font-weight:900;color:#2D2D2D;">'+stStaffs.size+'</td>';
     html+='<td class="td-total" style="font-size:14px;">'+_fmtRecStore(stTotalRecs,stTotalCodes.size)+'</td></tr>';
 
-    /* 問卷類型子列 */
+    /* 子分類子列 */
     qtList.forEach(function(q, qi){
       var qtId=stId+'_qt'+qi;
       html+='<tr class="pivot-child-row" id="child-'+stId+'-'+qi+'" data-parent="'+stId+'">';
@@ -2946,7 +2946,7 @@ function downloadSummaryCsv(){
       return /[,"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;
     }).join(',');
   }).join('\n');
-  var titles={staff:'人員彙整',office:'單位彙整',suptype:'督導類型彙整',store:'店家明細'};
+  var titles={staff:'人員彙整',office:'單位彙整',suptype:'分類彙整',store:'店家明細'};
   _downloadCsv('\uFEFF'+csv, titles[_pivotMode]||'彙整');
   _flashBtn(btn,'✅ 已下載');
 }
@@ -3099,7 +3099,7 @@ function _storeDetailScreenshot(rid, btn){
   if(!el){ _flashBtn(btn,'⚠️ 無畫面'); return; }
   var cache = _storeDetailCache[rid];
   var row = (cache && cache.basicRow) || {};
-  /* 檔名組成：單位（營業所/課）_督屬（執行人員）_卷名（問卷類型）_店名（店家名稱）
+  /* 檔名組成：單位（營業所/課）_督屬（執行人員）_卷名（子分類）_店名（店家名稱）
      缺哪一段就跳過那一段，不會留下多餘底線；全部缺就退回「查核個案」。 */
   var parts = [row[COL_OFFICE], row[COL_STAFF], row[COL_QUESTTYPE], row[COL_NAME]]
     .filter(function(v){ return v!=null && String(v).trim()!==''; })
