@@ -79,7 +79,7 @@
      複製純文字到剪貼簿，方便貼到 LINE 或任何通訊軟體
 
 【這個檔案在做什麼】
-  顯示「查核型」專案的店家名冊概況。
+  顯示「稽核管理型」專案的店家名冊概況。
   資料格式：每列一筆店家，固定讀取以下 11 個欄位。
   依「分類」(I欄) 分大群統計家數；群內依「子分類」(J欄) 細分。
   層級視角：營業處 → 營業所/課 → 業務人員。
@@ -753,6 +753,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   </div>
 </div>
 
+<div class="quicknav" id="timenav"></div>
 <div class="quicknav" id="quicknav"></div>
 <div class="stage"   id="stage"></div>
 
@@ -794,6 +795,8 @@ var SHEET_NAME = SHEET_NAME_DEFAULT;
 /* 狀態 */
 var allRows    = [];
 var drillStack = [];
+/* 時間篩選狀態：年度/季度/月份，三者可疊加（AND），季度與月份互斥（擇一） */
+var TIME_FILTER = { year:'', quarter:'', month:'' };
 var _dialogTitle = '';
 var _dialogRows  = [];
 var _dialogLevel = 'staff';
@@ -1004,7 +1007,7 @@ function init() {
         var cell      = cv(cells[5]) || SYNC_CELL_DEFAULT;
         var boardType = cv(cells[6]);
         if (!name || !sid) return;
-        if (boardType !== '查核型') return;
+        if (boardType !== '稽核管理型') return;
         if (sid === SHEET_ID) {
           PROJ_NAME  = name;
           SHEET_NAME = sheet;
@@ -1182,9 +1185,43 @@ function calcAudit(rows) {
 }
 
 /* ════ 篩選 ════ */
+/* 時間維度解析：從 COL_DATE（yyyy-mm-dd 字串）解析年度、季度（自然年／日曆季）、月份 */
+function _parseDateParts(dateStr){
+  var s = String(dateStr||'').trim();
+  if(!s) return null;
+  var m = s.match(/^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?/);
+  if(!m) return null;
+  var y = m[1], mo = parseInt(m[2],10);
+  if(!mo || mo<1 || mo>12) return null;
+  var q = mo<=3?'Q1':mo<=6?'Q2':mo<=9?'Q3':'Q4';
+  return { year:y, month:mo, quarter:q };
+}
+function getTimeFilteredRows(rows){
+  if(!TIME_FILTER.year && !TIME_FILTER.quarter && !TIME_FILTER.month) return rows;
+  return rows.filter(function(r){
+    var p = _parseDateParts(r[COL_DATE]);
+    if(!p) return false; /* 篩選中但無日期可比對 → 不列入 */
+    if(TIME_FILTER.year && p.year !== TIME_FILTER.year) return false;
+    if(TIME_FILTER.quarter && p.quarter !== TIME_FILTER.quarter) return false;
+    if(TIME_FILTER.month && p.month !== TIME_FILTER.month) return false;
+    return true;
+  });
+}
+function setTimeFilter(dim,val){
+  if(TIME_FILTER[dim]===val){ TIME_FILTER[dim]=''; }
+  else {
+    TIME_FILTER[dim]=val;
+    /* 季度與月份互斥：擇一縮小範圍，避免互相矛盾 */
+    if(dim==='quarter') TIME_FILTER.month='';
+    if(dim==='month') TIME_FILTER.quarter='';
+  }
+  render();
+}
+function clearTimeFilter(){ TIME_FILTER={year:'',quarter:'',month:''}; render(); }
+
 function getCurrentRows(){
-  if(!drillStack.length) return allRows;
-  var rows=allRows;
+  var rows = getTimeFilteredRows(allRows);
+  if(!drillStack.length) return rows;
   drillStack.forEach(function(d){
     var col;
     if(d.level==='area')   col=COL_AREA;
@@ -1212,6 +1249,7 @@ var ORG_SKELETON = null; /* null = 尚未載入 */
 
 function render() {
   hideLoading();
+  buildTimenav();
   buildQuicknav();
   var stage=document.getElementById('stage');
   stage.innerHTML='';
@@ -1228,9 +1266,12 @@ function render() {
 
 function updateStickyTops(){
   var tb=document.querySelector('.toolbar');
+  var tn=document.getElementById('timenav');
   var qn=document.getElementById('quicknav');
   var tbH=tb?tb.offsetHeight:52;
-  if(qn) qn.style.top=tbH+'px';
+  if(tn) tn.style.top=tbH+'px';
+  var tnH=tn?tn.offsetHeight:0;
+  if(qn) qn.style.top=(tbH+tnH)+'px';
 }
 window.addEventListener('resize',updateStickyTops);
 
@@ -1384,6 +1425,72 @@ function drillDown(levelKey,key){ drillStack.push({level:levelKey,key:key}); ren
 function drillTo(idx){ drillStack=idx<0?[]:drillStack.slice(0,idx+1); render(); }
 
 /* ════ Quicknav ════ */
+/* 時間篩選按鈕列：年度／季度／月份，風格與地區頁籤(quicknav)一致，與地區篩選疊加生效 */
+function buildTimenav(){
+  var nav=document.getElementById('timenav');
+  if(!nav) return;
+  nav.innerHTML='';
+  function addGroup(btns){
+    var g=document.createElement('div'); g.className='qn-group';
+    btns.forEach(function(b){ g.appendChild(b); }); nav.appendChild(g);
+  }
+
+  /* 年度：從資料中動態取得，新到舊排序 */
+  var yearSet={};
+  allRows.forEach(function(r){
+    var p=_parseDateParts(r[COL_DATE]);
+    if(p) yearSet[p.year]=true;
+  });
+  var years=Object.keys(yearSet).sort().reverse();
+  if(years.length){
+    var yLbl=document.createElement('span'); yLbl.className='qn-label'; yLbl.textContent='年度';
+    var yGrp=[yLbl];
+    years.forEach(function(y){
+      var b=document.createElement('button');
+      b.className='qn-btn'+(TIME_FILTER.year===y?' active':'');
+      b.textContent=y+'年';
+      b.onclick=function(){ setTimeFilter('year',y); };
+      yGrp.push(b);
+    });
+    addGroup(yGrp);
+  }
+
+  /* 季度：自然年日曆季 Q1~Q4 */
+  var qLbl=document.createElement('span'); qLbl.className='qn-label'; qLbl.textContent='季度';
+  var qGrp=[qLbl];
+  ['Q1','Q2','Q3','Q4'].forEach(function(q){
+    var b=document.createElement('button');
+    b.className='qn-btn'+(TIME_FILTER.quarter===q?' active':'');
+    b.textContent=q;
+    b.onclick=function(){ setTimeFilter('quarter',q); };
+    qGrp.push(b);
+  });
+  addGroup(qGrp);
+
+  /* 月份：1~12 月 */
+  var mLbl=document.createElement('span'); mLbl.className='qn-label'; mLbl.textContent='月份';
+  var mGrp=[mLbl];
+  for(var m=1;m<=12;m++){
+    (function(mm){
+      var b=document.createElement('button');
+      b.className='qn-btn'+(TIME_FILTER.month===mm?' active':'');
+      b.textContent=mm+'月';
+      b.onclick=function(){ setTimeFilter('month',mm); };
+      mGrp.push(b);
+    })(m);
+  }
+  addGroup(mGrp);
+
+  /* 清除時間篩選（僅在有篩選中時顯示） */
+  if(TIME_FILTER.year||TIME_FILTER.quarter||TIME_FILTER.month){
+    var clrBtn=document.createElement('button');
+    clrBtn.className='qn-btn';
+    clrBtn.textContent='✕ 清除時間篩選';
+    clrBtn.onclick=clearTimeFilter;
+    addGroup([clrBtn]);
+  }
+}
+
 function buildQuicknav(){
   var nav=document.getElementById('quicknav'); nav.innerHTML='';
   function addGroup(btns){
@@ -1408,7 +1515,7 @@ function buildQuicknav(){
 
   /* 快捷：頂層顯示各區按鈕 */
   if(drillStack.length===0){
-    var areaGroups=getNextGroups(allRows,COL_AREA);
+    var areaGroups=getNextGroups(getTimeFilteredRows(allRows),COL_AREA);
     var aKeys=Object.keys(areaGroups).sort(function(a,b){
       var ia=AREA_ORDER.indexOf(a),ib=AREA_ORDER.indexOf(b);
       if(ia===-1&&ib===-1) return a>b?1:-1;
