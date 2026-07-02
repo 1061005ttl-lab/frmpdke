@@ -1870,7 +1870,14 @@ function _buildRawDetailPanel(rowData, ref, sheetData, basicRow, rid){
            顯示縮圖＋可點擊開新分頁看原圖，不用寫死欄位名稱清單，未來新增照片欄位也能自動支援。 */
         var isPhotoUrl = /^https?:\/\//i.test(String(p.value||'').trim());
         if(isPhotoUrl){
-          quizHtml += _renderPhotoChip(p.option, p.value);
+          /* 【方案C】同一格可能存了不只一張照片網址，用換行符號分隔——
+             GAS那邊「寫回照片網址」遇到同格已有值時會用換行累加，不再覆蓋。
+             這裡拆開，每張各自渲染一張縮圖；只有一張時維持原本樣式不加編號。 */
+          var urls = String(p.value||'').split(/\r?\n/).map(function(u){ return u.trim(); }).filter(Boolean);
+          urls.forEach(function(u, uIdx){
+            var label = urls.length > 1 ? (p.option + '-' + (uIdx+1)) : p.option;
+            quizHtml += _renderPhotoChip(label, u);
+          });
           return;
         }
         var isCheckmarkOnly = (p.value==='v' || p.value==='V' || p.value==='✓');
