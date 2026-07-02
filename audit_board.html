@@ -1,8 +1,105 @@
 <!--
 ════════════════════════════════════════════════════════════
   audit_board.html  ─  大督導時代（店家名冊版）
-  版本：Ver. 2.6.0 ｜ 最後更新：2026-06-30
+  版本：Ver. 2.7.0 ｜ 最後更新：2026-07-02
+
+  🤖 給後續 AI 模組看的導讀（放最上面，優先讀這段；下面才是完整版本紀錄）
 ════════════════════════════════════════════════════════════
+
+【這個檔案是什麼】
+  單一 HTML 檔案（無後端伺服器），純前端 JS，透過 Google Sheets
+  的 gviz API（`/gviz/tq?...`，公開分享連結即可讀，不需要 API Key
+  或 OAuth）直接讀取兩份 Google 試算表資料，在瀏覽器端組成一個
+  「稽核／查核」儀表板。部署方式是丟到 GitHub Pages 上當靜態網頁。
+
+  跟另一份「業務王同步 Code.gs」（Google Apps Script）是兩個
+  完全獨立的系統：Code.gs 負責把業務王/Excel資料同步進 Google
+  試算表；這份 audit_board.html 只負責「讀」試算表資料並畫成
+  儀表板，兩者透過「Google 試算表」這個共用資料層銜接，彼此
+  不會互相呼叫程式碼。
+
+【讀取的兩份資料來源】
+  1. MGMT_ID「單位名冊」試算表：組織架構骨架（處/所/人），
+     即使當月完全沒有查核紀錄，畫面也要能顯示完整的組織樹狀結構。
+  2. SHEET_ID「店家名冊」分頁：主要資料來源，每列一筆店家查核
+     紀錄，固定讀取 A~L 共 11 欄（見下方【店家名冊固定欄位】）。
+     其中 A 欄「來源分頁+行數」（格式：分頁名稱_行數，例如
+     「問卷資料傳統_90」）是跨分頁的唯一連結鍵——點開某一筆店家
+     的明細面板時，才會即時用這個鍵去對應的「來源分頁」（原始
+     問卷資料所在分頁）查詢完整問卷內容，屬於按需載入，不會
+     一次全部抓回來，避免資料量大時卡頓。
+
+【這份檔案「能做什麼」】
+  ‧ 依「分類」(I欄) 分大群統計家數、群內依「子分類」(J欄) 細分。
+  ‧ 兩種巢狀 Pivot 視角可切換：
+      模式一「所→人」：處›督›所›人›子分類→店家
+      模式二「人→所」：處›督›人›所›子分類→店家
+  ‧ 卡片 hover/長按可看子分類明細 Tooltip；點卡片可開 Detail Dialog
+    逐列展開到 所/人 層級。
+  ‧ 子分類節點可再展開，列出底下每一筆店家名稱＋查核時間；
+    點單一店家可展開「明細面板」：
+      - 基本資料卡片：直接從已載入記憶體的店家名冊列（basicRow）
+        取得，不依賴來源分頁，一定能顯示、速度快。
+      - 問卷大題內容（督導意見、拍照備存等）：即時向來源分頁
+        查詢解析，含照片欄位渲染（見下方【照片欄位規則】）。
+  ‧ 主看板 / Detail Dialog / 店家明細面板 都有「複製摘要」「CSV」
+    「截圖」功能，複製的是純文字方便貼 LINE，截圖用 html2canvas
+    只框住當下這個卡片區塊（靠 rid 產生的 DOM id 精準鎖定範圍）。
+
+【照片欄位規則 —— 之後修改前務必先讀這段】
+  ‧ GAS 那邊同步資料時，問卷裡的照片會先上傳到 Google Drive，
+    再把「Drive 分享連結網址」寫回問卷來源分頁的儲存格裡，
+    所以「這格是不是照片」的判斷方式是看值裡有沒有 http(s):// 網址，
+    不是看欄位名稱寫死清單（未來新增任何照片類欄位都能自動支援）。
+  ‧ 【重要】同一個儲存格的值，可能是以下任何一種組合，都要能正確處理：
+      (a) 純文字（沒有網址）→ 當一般問卷答案文字顯示
+      (b) 純網址，可能不只一個，用換行符號分隔（GAS 寫入時，
+          同格已有值會用換行累加，不會覆蓋）→ 每個網址各自渲染
+          成一張照片縮圖
+      (c) 文字＋網址混在同一格（例如「缺失：無價格卡 https://...」，
+          常見於「文字說明＋隨附照片佐證」的情境）→ 文字部分要
+          正常顯示成文字，網址部分要各自渲染成照片縮圖，
+          不能整格被判斷成「不是照片」而把網址原樣印成一串文字
+          （2.7.0 之前的版本有這個問題，已修正，見版本紀錄）
+  ‧ 網址判斷／萃取一律用「掃描整個字串找出所有 http(s):// 開頭的
+    片段」，不是只判斷「字串開頭是不是 http」，才能處理 (c) 這種
+    文字在前、網址在後（或穿插）的情況。
+  ‧ 圖片縮圖用原網址直接當 src；點縮圖開燈箱看大圖時，用
+    _driveBigUrl() 把 Drive 縮圖網址的 =w1000 參數換成 =w1600。
+  ‧ img 標籤一定要帶 crossorigin="anonymous"，否則截圖／複製剪貼簿
+    功能對這張圖會抓到空白（瀏覽器跨網域圖片預設不給讀像素）。
+  ‧ img 讀取失敗（Drive 檔案權限沒設公開、或網址失效）要有
+    onerror fallback 顯示文字提示，不能留破圖示。
+  ‧ 同一大題內若有多張照片，版面上要並排顯示（flex-wrap），
+    不要每張各自佔滿一整行——這是 2.7.0 才修正的版面問題，
+    舊版 `.raw-quiz-picks` 是 `flex-direction:column`，會讓每個
+    子元素（含照片）都各自成一整排，之後若調整版面請留意
+    別又退回這個狀態。
+
+【店家名冊固定欄位（A~L，順序不可變動，程式寫死用欄位索引讀取）】
+  A 來源分頁+行數 ← 跨分頁連結鍵，格式：分頁名稱_行數（例：問卷資料傳統_90）
+  B 營業處名稱　C 營業所/課　D 執行人員　E 通路別　F 店家型態
+  G 店家代碼　H 店家名稱　I 店家等級　J 分類（大群分組鍵）
+  K 子分類（群內細分）　L 日期（查核日期，選填）
+
+【修改這份檔案前，建議先確認的事】
+  1. gviz API 讀分頁務必明確帶 `headers=0` 參數，不要讓它自動猜表頭
+     列數，否則同一份程式碼在不同分頁上可能解析出錯位的結果
+     （已在 2.5.1 踩過這個坑，見下方版本紀錄）。
+  2. 比對「這是不是同一筆店家資料」一律用 __rid（內部產生的唯一
+     識別碼），不要用店家代碼字串比對——同一店家代碼可能有多筆
+     查核紀錄，用字串比對會抓錯筆。
+  3. 這份檔案不會主動寫回 Google 試算表，純讀取，所以理論上不會
+     把資料寫壞；但如果要新增「寫回」功能，要另外考慮 gviz 唯讀
+     的限制（gviz 本身就只能讀，寫回要另外接 GAS Web App 或
+     Sheets API）。
+  4. 版面／樣式改動前，善用瀏覽器 DevTools 直接改 CSS 變數
+     （檔案開頭 :root 裡列了主要色票），不用整段重寫。
+
+════════════════════════════════════════════════════════════
+  以下為完整版本紀錄（由新到舊），細節變更請往下查閱
+════════════════════════════════════════════════════════════
+
 
 【架構優化 2.6.0】基本資料改由店家名冊直接提供，不再依賴來源分頁
   店家明細展開面板拆成兩個獨立資料來源：
@@ -105,6 +202,11 @@
   Dialog：逐列明細，含通路別、店家型態、店家等級、分類、子分類
 
 【版本紀錄】
+  2.7.0  2026-07-02  照片欄位改成「掃描整段文字找出所有網址」而非
+                      「整格值只能是網址」，支援文字＋網址混在同一格
+                      （文字正常顯示、網址各自渲染成縮圖）；同一大題
+                      內多張照片改成並排顯示（flex-wrap），不再每張
+                      各佔一整排；檔案最上方新增給後續 AI 讀的導讀區塊
   2.2.0  2026-06-29  讀 MGMT_ID「單位名冊」建骨架；月初無資料仍顯示完整營業處/所
   2.0.0  2026-06-26  改為店家名冊模式：固定10欄、分類分群、子分類子分類
   1.0.0  2026-06-26  初版
@@ -558,15 +660,18 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .raw-quiz-chip.is-simple .raw-quiz-chip-a {
   font-size:12.5px; font-weight:600;
 }
-/* 問卷內的照片欄位（如PG半身照/全身照/服務情形照片）：顯示縮圖，點擊開新分頁看原圖 */
-.raw-quiz-chip.raw-quiz-photo { display:inline-block; padding:6px 8px; vertical-align:top; }
+/* 問卷內的照片欄位（如PG半身照/全身照/服務情形照片）：顯示縮圖，點擊開燈箱看原圖。
+   同一大題內若有多張照片，全部收在 .raw-quiz-photos 裡用 flex-wrap 並排顯示，
+   不再像文字卡片一樣一行一則（一張照片佔一整排太浪費版面）。 */
+.raw-quiz-photos { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+.raw-quiz-chip.raw-quiz-photo { display:inline-block; padding:6px 8px; vertical-align:top; margin:0; }
 .raw-quiz-photo-img {
-  display:block; margin-top:4px; width:120px; height:120px; object-fit:cover;
+  display:block; margin-top:4px; width:100px; height:100px; object-fit:cover;
   border-radius:6px; border:1px solid rgba(0,0,0,.08); cursor:zoom-in;
   background:#f0f0ee;
 }
 .raw-quiz-photo-fail {
-  display:block; margin-top:4px; font-size:11px; color:#B23A3A;
+  display:block; margin-top:4px; font-size:11px; color:#B23A3A; max-width:100px;
 }
 /* 照片燈箱：點縮圖後直接浮在畫面正中央看大圖，不用開新分頁再關掉分頁那麼麻煩 */
 .photo-lightbox-backdrop {
@@ -1856,43 +1961,61 @@ function _buildRawDetailPanel(rowData, ref, sheetData, basicRow, rid){
   /* 問卷大題區：每題一個區塊，每個選項各自一張小卡片，Q（選項本身）／A（填寫的答案）
      上下分兩行顯示，不再用冒號把兩者黏成一行文字，長答案也能清楚看出起訖。
      若該欄只是單純打勾（值為 v/V/✓，沒有額外文字說明），代表「答案」其實就是
-     選項本身被選取了，不需要再重複顯示一次，改用單行徽章樣式即可。 */
+     選項本身被選取了，不需要再重複顯示一次，改用單行徽章樣式即可。
+     照片（見上方【照片欄位規則】）：文字卡片跟照片縮圖分兩個容器渲染——
+     文字卡片維持原本一行一則的直向排列；照片縮圖收集到同一個
+     .raw-quiz-photos 容器裡用 flex-wrap 並排顯示，不再每張各佔一整排。 */
   var quizHtml = '';
   if(sections.length){
     quizHtml += '<div class="raw-quiz-list">';
     sections.forEach(function(sec){
-      quizHtml += '<div class="raw-quiz-section">'
-        + '<div class="raw-quiz-title">📋 '+esc(sec.section)+'</div>'
-        + '<div class="raw-quiz-picks">';
+      var picksHtml = '';
+      var photosHtml = '';
       sec.picks.forEach(function(p){
         /* 照片欄位（PG半身照／PG全身照／服務情形照片…）：GAS那邊會把照片上傳到
-           雲端硬碟並把網址寫進儲存格，所以只要答案本身是一個網址，就當照片處理，
-           顯示縮圖＋可點擊開新分頁看原圖，不用寫死欄位名稱清單，未來新增照片欄位也能自動支援。 */
-        var isPhotoUrl = /^https?:\/\//i.test(String(p.value||'').trim());
-        if(isPhotoUrl){
-          /* 【方案C】同一格可能存了不只一張照片網址，用換行符號分隔——
-             GAS那邊「寫回照片網址」遇到同格已有值時會用換行累加，不再覆蓋。
-             這裡拆開，每張各自渲染一張縮圖；只有一張時維持原本樣式不加編號。 */
-          var urls = String(p.value||'').split(/\r?\n/).map(function(u){ return u.trim(); }).filter(Boolean);
+           雲端硬碟並把網址寫進儲存格。網址可能是整格唯一內容、可能用換行
+           累加多筆、也可能跟文字說明混在同一格（例如「缺失：無價格卡
+           https://...」）——一律用全域正則掃描整段文字找出所有網址，
+           不限定網址一定要出現在開頭，才能處理文字＋網址混合的情況。 */
+        var raw = String(p.value||'');
+        var urlRe = /https?:\/\/\S+/gi;
+        var urls = raw.match(urlRe) || [];
+        var textOnly = raw.replace(urlRe, '').replace(/[\r\n]+/g, ' ').trim();
+        // 去掉文字被抽走網址後可能留下的孤立連接符號（例如「→」單獨留在句尾）
+        textOnly = textOnly.replace(/[→\-–—]+$/, '').trim();
+
+        if(urls.length){
           urls.forEach(function(u, uIdx){
             var label = urls.length > 1 ? (p.option + '-' + (uIdx+1)) : p.option;
-            quizHtml += _renderPhotoChip(label, u);
+            photosHtml += _renderPhotoChip(label, u);
           });
+          if(textOnly){
+            // 網址之外還有文字說明，文字部分照正常 Q/A 卡片顯示，不能被丟掉
+            picksHtml += '<span class="raw-quiz-chip">'
+              + '<span class="raw-quiz-chip-q">'+esc(p.option)+'</span>'
+              + '<span class="raw-quiz-chip-a">→ '+esc(textOnly)+'</span>'
+              + '</span>';
+          }
           return;
         }
+
         var isCheckmarkOnly = (p.value==='v' || p.value==='V' || p.value==='✓');
         if(isCheckmarkOnly){
-          quizHtml += '<span class="raw-quiz-chip is-simple">'
+          picksHtml += '<span class="raw-quiz-chip is-simple">'
             + '<span class="raw-quiz-chip-a">✓ '+esc(p.option)+'</span>'
             + '</span>';
         } else {
-          quizHtml += '<span class="raw-quiz-chip">'
+          picksHtml += '<span class="raw-quiz-chip">'
             + '<span class="raw-quiz-chip-q">'+esc(p.option)+'</span>'
             + '<span class="raw-quiz-chip-a">→ '+esc(p.value)+'</span>'
             + '</span>';
         }
       });
-      quizHtml += '</div></div>';
+      quizHtml += '<div class="raw-quiz-section">'
+        + '<div class="raw-quiz-title">📋 '+esc(sec.section)+'</div>'
+        + (picksHtml ? '<div class="raw-quiz-picks">' + picksHtml + '</div>' : '')
+        + (photosHtml ? '<div class="raw-quiz-photos">' + photosHtml + '</div>' : '')
+        + '</div>';
     });
     quizHtml += '</div>';
   } else {
