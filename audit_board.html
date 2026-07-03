@@ -763,6 +763,12 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .raw-quiz-photo-fail {
   display:block; margin-top:4px; font-size:11px; color:#B23A3A; max-width:100px;
 }
+/* 照片旁若儲存格裡除了網址還有文字備註（例如「花雕酸菜牛肉麵袋麵缺貨」），
+   顯示在縮圖下方，讓人知道這張照片被額外註記了什麼內容，不會漏看。 */
+.raw-quiz-photo-note {
+  display:block; margin-top:4px; font-size:11px; font-weight:600; color:#B2650A;
+  max-width:100px; line-height:1.4; word-break:break-word;
+}
 /* 照片燈箱：點縮圖後直接浮在畫面正中央看大圖，不用開新分頁再關掉分頁那麼麻煩 */
 .photo-lightbox-backdrop {
   display:none; position:fixed; inset:0; background:rgba(0,0,0,.75);
@@ -2251,7 +2257,7 @@ function _driveBigUrl(url){
    img 讀取失敗（例如雲端硬碟該檔案還沒設定好公開權限、或網址失效）時，用 onerror 換成文字提示，不留破圖示。
    crossorigin="anonymous"：讓「📸截圖」功能能把這張圖的像素畫進canvas再輸出，
    沒有這個屬性的話，截圖／複製到剪貼簿功能對這張圖片會抓到空白（瀏覽器安全限制，跨網域圖片預設不給讀像素）。 */
-function _renderPhotoChip(optionName, url){
+function _renderPhotoChip(optionName, url, note){
   var bigUrl = _driveBigUrl(url);
   var uid = 'photo_' + Math.random().toString(36).substring(2,9);
   return '<span class="raw-quiz-chip raw-quiz-photo">'
@@ -2260,6 +2266,7 @@ function _renderPhotoChip(optionName, url){
     +   'loading="lazy" crossorigin="anonymous" '
     +   'onclick="event.stopPropagation();_openPhotoLightbox(\''+escAttr(bigUrl)+'\',\''+escAttr(optionName)+'\');" '
     +   'onerror="this.style.display=\'none\';this.insertAdjacentHTML(\'afterend\',\'<span class=&quot;raw-quiz-photo-fail&quot;>⚠️ 圖片載入失敗</span>\');">'
+    +   (note ? '<span class="raw-quiz-photo-note">📝 '+esc(note)+'</span>' : '')
     + '</span>';
 }
 /* ── 照片燈箱：點縮圖後浮在畫面正中央看大圖 ──
@@ -2310,9 +2317,16 @@ function _extractPhotosFromRowData(rowData){
       var raw = String(p.value||'');
       var urlRe = /https?:\/\/\S+/gi;
       var urls = raw.match(urlRe) || [];
+      if(!urls.length) return;
+      /* 儲存格裡網址之外若還有文字備註（例如「花雕酸菜牛肉麵袋麵缺貨」），
+         照片牆之前只取網址、把文字整個丟掉，導致看不出這張照片被備註了什麼。
+         這裡跟單筆店家展開明細用同一套規則抽出文字，一併帶著走，
+         讓照片牆縮圖底下也能顯示這段備註。 */
+      var textOnly = raw.replace(urlRe, '').replace(/[\r\n]+/g, ' ').trim();
+      textOnly = textOnly.replace(/[→\-–—]+$/, '').trim();
       urls.forEach(function(u, uIdx){
         var label = urls.length > 1 ? (p.option + '-' + (uIdx+1)) : p.option;
-        out.push({ section: sec.section, option: label, url: u });
+        out.push({ section: sec.section, option: label, url: u, note: textOnly });
       });
     });
   });
@@ -2379,7 +2393,7 @@ function _buildPhotoGallery(rows, callback){
         bySection[p.section].push(p);
       });
       var sectionsHtml = sectionOrder.map(function(sec){
-        var photosHtml = bySection[sec].map(function(p){ return _renderPhotoChip(p.option, p.url); }).join('');
+        var photosHtml = bySection[sec].map(function(p){ return _renderPhotoChip(p.option, p.url, p.note); }).join('');
         return '<div class="raw-quiz-section">'
           + '<div class="raw-quiz-title">📋 '+esc(sec)+'</div>'
           + '<div class="raw-quiz-photos">'+photosHtml+'</div>'
