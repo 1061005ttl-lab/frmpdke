@@ -430,6 +430,82 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .dlg-action-btn.loading { opacity:.6; pointer-events:none; }
 .dlg-body { flex:1; min-height:0; padding:0; overflow:hidden; }
 
+/* ── 彙整看板 Pivot Dialog（視角切換） ── */
+#summary-dialog {
+  position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:500;
+  display:flex; align-items:center; justify-content:center;
+  opacity:0; transition:opacity .2s;
+}
+#summary-dialog.open { opacity:1; }
+#summary-dialog .dlg-box { transform:translateY(16px); transition:transform .22s; }
+#summary-dialog.open .dlg-box { transform:translateY(0); }
+.pivot-tabs {
+  display:flex; gap:0; padding:12px 20px 0; background:#fafaf8;
+  border-bottom:1px solid rgba(0,0,0,.09); flex-shrink:0;
+}
+.pivot-tab {
+  padding:8px 20px; border-radius:10px 10px 0 0; font-size:13px; font-weight:700;
+  border:1px solid transparent; border-bottom:none; cursor:pointer;
+  font-family:inherit; background:transparent; color:var(--sub);
+  transition:all .18s; position:relative; top:1px; white-space:nowrap;
+}
+.pivot-tab:hover { color:var(--primary); background:rgba(55,138,221,.06); }
+.pivot-tab.active {
+  background:#fff; color:var(--primary);
+  border-color:rgba(0,0,0,.09); border-bottom-color:#fff;
+}
+.pivot-viewport { flex:1; overflow:hidden; position:relative; }
+.pivot-slides {
+  display:flex; width:300%; height:100%;
+  transition:transform .36s cubic-bezier(.4,0,.2,1);
+}
+.pivot-slide {
+  width:calc(100% / 3); height:100%; overflow:auto; flex-shrink:0; padding:0;
+}
+.pivot-tbl { border-collapse:collapse; width:100%; min-width:520px; font-size:14px; }
+.pivot-tbl thead th {
+  position:sticky; top:0; z-index:5;
+  padding:9px 14px; font-size:12px; font-weight:800; color:var(--text);
+  background:#f0ede8; border-bottom:2px solid #d8d4cc;
+  white-space:nowrap; user-select:none;
+}
+.pivot-tbl thead th.th-left { text-align:left; }
+.pivot-tbl thead th.th-total { background:rgba(55,138,221,.12) !important; color:var(--primary) !important; }
+.pivot-tbl tbody td {
+  padding:9px 14px; border-bottom:1px solid #ebebea; white-space:nowrap;
+  font-size:14px; color:var(--text);
+}
+.pivot-tbl tbody td.td-num { text-align:right; font-weight:700; color:var(--green); }
+.pivot-tbl tbody td.td-total {
+  text-align:right; font-weight:900; color:var(--primary);
+  background:rgba(55,138,221,.05);
+}
+.pivot-tbl tbody td.td-left { text-align:left; }
+.pivot-tbl .sum-footer td {
+  font-weight:900; background:#e8e4dc; border-top:2px solid #bbb; font-size:14px; color:#111;
+}
+.pivot-tbl .sum-footer .td-total { font-size:16px; color:var(--primary); }
+.pivot-area-row td {
+  background:rgba(55,138,221,.08) !important;
+  border-top:2px solid rgba(55,138,221,.2) !important;
+  padding:8px 14px !important; font-weight:900; letter-spacing:.02em;
+}
+.pivot-expand-row { cursor:pointer; transition:background .12s; }
+.pivot-expand-row:hover td { background:rgba(55,138,221,.06) !important; }
+.pivot-expand-icon {
+  display:inline-block; margin-right:7px; font-size:11px;
+  transition:transform .2s; color:var(--primary);
+}
+.pivot-expand-icon.open { transform:rotate(90deg); }
+.pivot-child-row > td { padding:0 !important; background:#fbfaf8; }
+.pivot-banner-block { padding:8px 16px; background:rgba(55,138,221,.08); border-top:2px solid rgba(55,138,221,.2); font-weight:900; font-size:13px; }
+@media (max-width:640px){
+  .pivot-tab { padding:6px 12px; font-size:12px; }
+  .pivot-tbl { font-size:12px; min-width:400px; }
+  .pivot-tbl thead th { font-size:10px; padding:6px 8px; }
+  .pivot-tbl tbody td { padding:5px 8px; font-size:12px; }
+}
+
 /* ── Dialog 內篩選列 ── */
 .dlg-filter-row {
   display:flex; align-items:center; gap:6px;
@@ -699,6 +775,14 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   .vt-btn { font-size:11px; padding:3px 7px; }
   /* 同步時間手機隱藏 */
   .sync-note { display:none; }
+  /* 工具列右側按鈕群組（視角icon＋LINE/CSV/截圖）：按鈕數量多，允許自身橫向滑動，
+     不擠壓 proj-sel／view-toggle，也不被 .toolbar 的 overflow:hidden 裁掉 */
+  #toolbar-actions {
+    flex-shrink:1 !important; min-width:0; max-width:54vw;
+    overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch;
+  }
+  #toolbar-actions::-webkit-scrollbar { display:none; }
+  .tb-act-btn { font-size:11px; padding:4px 8px; }
   /* 燈號列移到 quicknav 同列（overflow scroll） */
   .lamp-bar { flex-shrink:0; gap:3px; }
   .lamp-chip { font-size:10px; padding:3px 7px; white-space:nowrap; }
@@ -776,10 +860,39 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   </div>
   <span class="sync-note" id="tb-sync"></span>
   <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;" id="toolbar-actions">
+    <button class="tb-act-btn" onclick="openSummaryDialog('staff')">👤 人員</button>
+    <button class="tb-act-btn" onclick="openSummaryDialog('office')">🏢 單位</button>
+    <button class="tb-act-btn" onclick="openSummaryDialog('store')">🏪 店家</button>
     <button class="tb-act-btn" id="tb-btn-line"        onclick="toolbarCopyLine()">💬 LINE</button>
     <button class="tb-act-btn" id="tb-btn-line-simple" onclick="toolbarCopyLineSimple()">💬 LINE精簡</button>
     <button class="tb-act-btn" id="tb-btn-csv"         onclick="toolbarDownloadCsv()">📥 CSV</button>
     <button class="tb-act-btn" id="tb-btn-screenshot"  onclick="toolbarScreenshot()">📸 截圖</button>
+  </div>
+</div>
+
+<!-- Pivot Dialog：彙整看板，三種視角（人員／單位／店家）快速切換 -->
+<div id="summary-dialog" style="display:none" onclick="if(event.target===this)closeSummaryDialog()">
+  <div class="dlg-box">
+    <div class="dlg-header">
+      <span id="sum-title" style="font-size:14px;font-weight:900;flex:1;min-width:0;"></span>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+        <button class="dlg-action-btn" id="btn-sum-csv" onclick="downloadSummaryCsv()"><span>📥</span><span class="btn-txt"> CSV</span></button>
+        <button class="dlg-action-btn" id="btn-sum-screenshot" onclick="summaryScreenshot()"><span>📸</span><span class="btn-txt"> 截圖</span></button>
+        <button class="dlg-close" onclick="closeSummaryDialog()">✕</button>
+      </div>
+    </div>
+    <div class="pivot-tabs">
+      <button class="pivot-tab active" onclick="switchPivotTab('staff',this)">👤 人員</button>
+      <button class="pivot-tab"        onclick="switchPivotTab('office',this)">🏢 單位</button>
+      <button class="pivot-tab"        onclick="switchPivotTab('store',this)">🏪 店家</button>
+    </div>
+    <div class="pivot-viewport">
+      <div class="pivot-slides" id="pivot-slides" style="width:300%;">
+        <div class="pivot-slide" id="pivot-slide-staff"  style="width:calc(100%/3);"></div>
+        <div class="pivot-slide" id="pivot-slide-office" style="width:calc(100%/3);"></div>
+        <div class="pivot-slide" id="pivot-slide-store"  style="width:calc(100%/3);"></div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -2206,7 +2319,7 @@ function getDisplayCols(levelKey) {
   }
 }
 
-function buildStoreTable(rows, levelKey){
+function buildStoreTable(rows, levelKey, ridPrefix){
   var items = dialogRows(rows, levelKey);
   var extraCols = getDisplayCols(levelKey);
   var colLabels = COL_LABELS;
@@ -2241,7 +2354,7 @@ function buildStoreTable(rows, levelKey){
     var r = d.r, grp = d.grp;
     var isUnfill = (grp === 3);
     var code = String(r[COL_CODE]||'');
-    var rid  = 'st-'+_rid(code);
+    var rid  = (ridPrefix||'')+'st-'+_rid(code);
     var trClass  = 'store-row' + (isUnfill ? ' row-unfill' : '');
     html += '<tr class="'+trClass+'" id="storerow-'+rid+'" onclick="_toggleStoreDetail(\''+rid+'\',\''+esc(code).replace(/'/g,"\\'")+'\')">';
     extraCols.forEach(function(c){
@@ -2292,6 +2405,219 @@ function buildStoreTable(rows, levelKey){
   html += '</tbody></table></div>';
   return html;
 }
+
+/* ══════════════════════════════════════════
+   彙整看板 Pivot Dialog（視角切換：人員／單位／店家）
+   結構沿用 audit_board.html 右上角視角icon的設計：
+   toolbar 三顆按鈕開同一個對話框，內部用 tab 橫向滑動切換維度。
+   人員／單位維度為「營業處 Banner → 可展開列」的彙總表（用 calcGroup 算各燈號家數），
+   店家維度直接沿用既有 buildStoreTable 逐店呈現（含既有拜訪明細展開功能）。
+   ══════════════════════════════════════════ */
+var _pivotMode = 'staff';
+var _pivotRows = [];
+var _pivotTabIndex = { staff:0, office:1, store:2 };
+var PIVOT_TITLES = { staff:'人員視角', office:'單位視角', store:'店家視角' };
+
+function openSummaryDialog(mode){
+  _pivotMode = mode || 'staff';
+  _pivotRows = applyGradeFilter(getCurrentRows());
+
+  document.getElementById('sum-title').textContent = '彙整看板 ─ ' + (PIVOT_TITLES[_pivotMode] || '');
+  document.querySelectorAll('.pivot-tab').forEach(function(t,i){
+    t.classList.toggle('active', i === _pivotTabIndex[_pivotMode]);
+  });
+
+  _renderPivotSlide('staff');
+  _renderPivotSlide('office');
+  _renderPivotSlide('store');
+  _setPivotSlide(_pivotMode, false);
+
+  var dlg = document.getElementById('summary-dialog');
+  dlg.style.display = 'flex';
+  setTimeout(function(){ dlg.classList.add('open'); }, 10);
+}
+
+function closeSummaryDialog(){
+  var dlg = document.getElementById('summary-dialog');
+  dlg.classList.remove('open');
+  setTimeout(function(){ dlg.style.display='none'; }, 220);
+}
+
+function switchPivotTab(mode, tabEl){
+  _pivotMode = mode;
+  document.querySelectorAll('.pivot-tab').forEach(function(t){ t.classList.remove('active'); });
+  if(tabEl) tabEl.classList.add('active');
+  document.getElementById('sum-title').textContent = '彙整看板 ─ ' + (PIVOT_TITLES[mode]||'');
+  _setPivotSlide(mode, true);
+}
+
+function _setPivotSlide(mode, animate){
+  var idx = _pivotTabIndex[mode] || 0;
+  var slides = document.getElementById('pivot-slides');
+  if(!animate) slides.style.transition = 'none';
+  slides.style.transform = 'translateX(-' + (idx * 100/3) + '%)';
+  if(!animate) setTimeout(function(){ slides.style.transition=''; }, 30);
+}
+
+function _renderPivotSlide(mode){
+  var el = document.getElementById('pivot-slide-' + mode);
+  if(!el) return;
+  var rows = _pivotRows || [];
+  if(mode === 'staff')       el.innerHTML = _buildStaffPivot(rows);
+  else if(mode === 'office') el.innerHTML = _buildOfficePivot(rows);
+  else if(mode === 'store')  el.innerHTML = _buildStorePivotView(rows);
+}
+
+/* 依目前 BUCKETS_B / BUCKETS_C / COL_UNFILL 動態決定彙總表欄位數 */
+function _pivotColCount(){
+  return 1 + BUCKETS_B.length + (isSum() ? 0 : BUCKETS_C.length) + (COL_UNFILL ? 1 : 0) + 1;
+}
+function _pivotHeaderCells(){
+  var html='';
+  BUCKETS_B.forEach(function(g){ html += '<th class="th-num">'+esc(g.label)+(isSum()?'（份）':'（家）')+'</th>'; });
+  if(!isSum()){
+    BUCKETS_C.forEach(function(g){ html += '<th class="th-num">'+esc(g.label||'未有')+'（家）</th>'; });
+  }
+  if(COL_UNFILL) html += '<th class="th-num">'+esc(UNFILL_LABEL)+'</th>';
+  html += '<th class="th-num th-total">合計</th>';
+  return html;
+}
+function _pivotStatCells(stat){
+  var html='';
+  BUCKETS_B.forEach(function(g,i){
+    var v = stat.bGroupCounts[i]||0;
+    html += '<td class="td-num">'+(v ? v+(isSum()?' 份':' 家') : '') +'</td>';
+  });
+  if(!isSum()){
+    BUCKETS_C.forEach(function(g,j){
+      var v = stat.cGroupCounts[j]||0;
+      html += '<td class="td-num">'+(v ? v+' 家' : '')+'</td>';
+    });
+  }
+  if(COL_UNFILL) html += '<td class="td-num">'+(stat.unfilled ? stat.unfilled+' 家' : '')+'</td>';
+  var totalVal = isSum() ? (stat.bTotalSum||0) : stat.total;
+  html += '<td class="td-total">'+totalVal+(isSum()?' 份':' 家')+'</td>';
+  return html;
+}
+function _pivotAreaBanner(area, areaRows, colCount){
+  var stat = calcGroup(areaRows);
+  var totalVal = isSum() ? (stat.bTotalSum||0) : stat.total;
+  return '<tr class="pivot-area-row"><td colspan="'+colCount+'">'
+    + '<span style="font-size:13px;">▸ '+esc(area)+'</span>'
+    + '　<span style="font-size:12px;font-weight:600;">合計 <strong style="color:var(--primary);font-size:14px;">'
+    + totalVal + (isSum()?' 份':' 家') + '</strong></span></td></tr>';
+}
+function _togglePivotExpand(rid){
+  var ico = document.getElementById('ico-'+rid);
+  var child = document.getElementById('child-'+rid);
+  if(!ico || !child) return;
+  var isOpen = ico.classList.contains('open');
+  ico.classList.toggle('open', !isOpen);
+  child.style.display = isOpen ? 'none' : 'table-row';
+}
+
+/* ── [1] 人員視角：營業處 Banner → 人員（可展開看該人員店家清單） ── */
+function _buildStaffPivot(rows){
+  var colCount = _pivotColCount();
+  if(!rows.length) return '<div class="empty">無資料</div>';
+  var areaGroups = getNextGroups(rows, COL_AREA);
+  var areaKeys = sortAreaKeys(Object.keys(areaGroups), areaGroups);
+
+  var html = '<table class="pivot-tbl"><thead><tr><th class="th-left">人員</th>'+_pivotHeaderCells()+'</tr></thead><tbody>';
+  areaKeys.forEach(function(area){
+    var areaRows = areaGroups[area];
+    html += _pivotAreaBanner(area, areaRows, colCount);
+
+    var staffGroups = getNextGroups(areaRows, COL_STAFF);
+    var staffKeys = Object.keys(staffGroups).sort(function(a,b){
+      return calcGroup(staffGroups[b]).hasDisp - calcGroup(staffGroups[a]).hasDisp;
+    });
+    staffKeys.forEach(function(name, ni){
+      var srows = staffGroups[name];
+      var stat = calcGroup(srows);
+      var rid = 'pvst-'+_rid(area)+'-'+_rid(name)+ni;
+      html += '<tr class="pivot-expand-row" onclick="_togglePivotExpand(\''+rid+'\')" id="row-'+rid+'">'
+        + '<td class="td-left"><span class="pivot-expand-icon" id="ico-'+rid+'">▶</span>'+esc(name)+'</td>'
+        + _pivotStatCells(stat) + '</tr>';
+      html += '<tr class="pivot-child-row" id="child-'+rid+'" style="display:none;">'
+        + '<td colspan="'+colCount+'">'+buildStoreTable(srows,'staff','pv-'+rid+'-')+'</td></tr>';
+    });
+  });
+  var grand = calcGroup(rows);
+  html += '<tr class="sum-footer"><td class="td-left">合計</td>'+_pivotStatCells(grand)+'</tr>';
+  html += '</tbody></table>';
+  return html;
+}
+
+/* ── [2] 單位視角：營業處 Banner → 所/課（可展開看轄下人員彙總＋店家清單） ── */
+function _buildOfficePivot(rows){
+  var colCount = _pivotColCount();
+  if(!rows.length) return '<div class="empty">無資料</div>';
+  var areaGroups = getNextGroups(rows, COL_AREA);
+  var areaKeys = sortAreaKeys(Object.keys(areaGroups), areaGroups);
+
+  var html = '<table class="pivot-tbl"><thead><tr><th class="th-left">所/課</th>'+_pivotHeaderCells()+'</tr></thead><tbody>';
+  areaKeys.forEach(function(area){
+    var areaRows = areaGroups[area];
+    html += _pivotAreaBanner(area, areaRows, colCount);
+
+    var offGroups = getNextGroups(areaRows, COL_OFFICE);
+    var offKeys = Object.keys(offGroups).sort(function(a,b){
+      return calcGroup(offGroups[b]).hasDisp - calcGroup(offGroups[a]).hasDisp;
+    });
+    offKeys.forEach(function(off, oi){
+      var orows = offGroups[off];
+      var stat = calcGroup(orows);
+      var rid = 'pvoff-'+_rid(area)+'-'+_rid(off)+oi;
+      html += '<tr class="pivot-expand-row" onclick="_togglePivotExpand(\''+rid+'\')" id="row-'+rid+'">'
+        + '<td class="td-left"><span class="pivot-expand-icon" id="ico-'+rid+'">▶</span>'+esc(off)+'</td>'
+        + _pivotStatCells(stat) + '</tr>';
+      html += '<tr class="pivot-child-row" id="child-'+rid+'" style="display:none;">'
+        + '<td colspan="'+colCount+'">'+buildStoreTable(orows,'office','pv-'+rid+'-')+'</td></tr>';
+    });
+  });
+  var grand = calcGroup(rows);
+  html += '<tr class="sum-footer"><td class="td-left">合計</td>'+_pivotStatCells(grand)+'</tr>';
+  html += '</tbody></table>';
+  return html;
+}
+
+/* ── [3] 店家視角：營業處 Banner → 逐店明細（沿用既有 buildStoreTable，含拜訪明細展開） ── */
+function _buildStorePivotView(rows){
+  if(!rows.length) return '<div class="empty">無資料</div>';
+  var areaGroups = getNextGroups(rows, COL_AREA);
+  var areaKeys = sortAreaKeys(Object.keys(areaGroups), areaGroups);
+  var html='';
+  areaKeys.forEach(function(area){
+    var areaRows = areaGroups[area];
+    var stat = calcGroup(areaRows);
+    var totalVal = isSum() ? (stat.bTotalSum||0) : stat.total;
+    html += '<div class="pivot-banner-block">▸ '+esc(area)
+      + '　<span style="font-size:12px;font-weight:600;">合計 <strong style="color:var(--primary);">'
+      + totalVal + (isSum()?' 份':' 家') + '</strong></span></div>';
+    html += buildStoreTable(areaRows, 'area', 'pv-store-'+_rid(area)+'-');
+  });
+  return html;
+}
+
+/* ── Pivot CSV 匯出（依目前 tab 對應維度） ── */
+function downloadSummaryCsv(){
+  var btn = document.getElementById('btn-sum-csv');
+  if(!_pivotRows || !_pivotRows.length){ _flashBtn(btn,'⚠️ 無資料'); return; }
+  var levelKey = _pivotMode === 'staff' ? 'staff' : (_pivotMode === 'office' ? 'office' : 'area');
+  _triggerCsvDownload(buildCsvContent(_pivotRows, levelKey), '彙整看板_'+(PIVOT_TITLES[_pivotMode]||''));
+  _flashBtn(btn,'✅ 已下載');
+}
+
+/* ── Pivot 截圖（只截目前可見的 slide 表格內容） ── */
+function summaryScreenshot(){
+  var btn = document.getElementById('btn-sum-screenshot');
+  var el = document.getElementById('pivot-slide-'+_pivotMode);
+  if(!el){ _flashBtn(btn,'⚠️ 無畫面'); return; }
+  _captureElement(el, btn, PROJ_NAME+'_彙整看板_'+(PIVOT_TITLES[_pivotMode]||''));
+}
+
+document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeSummaryDialog(); });
 
 /* ── refreshDialogContent: 依目前 chips 動態重繪 dialog ── */
 function refreshDialogContent() {
