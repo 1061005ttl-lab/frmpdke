@@ -202,6 +202,12 @@
   Dialog：逐列明細，含通路別、店家型態、店家等級、分類、子分類
 
 【版本紀錄】
+  2.9.4  2026-07-03  照片燈箱尺寸改成 JS 主動監聽 window resize／visualViewport
+                      resize 事件即時重算（寫回 px），不再只靠 CSS 的 96vw/94vh
+                      被動運算。原因：純 CSS vw/vh 理論上會隨視窗改變自動反應，
+                      但拉動視窗大小、手機轉方向或網址列跳出跳入時，部分瀏覽器
+                      不會即時重繪，導致照片看起來卡住不跟著縮放。開燈箱當下與
+                      每次 resize 都重新算一次寬高，確保畫面大小一變照片就跟著變。
   2.9.3  2026-07-03  照片燈箱改回滿版模式（明確框 96vw×94vh＋object-fit:contain，
                       高先頂高／寬先頂寬，誰先到就停），不再用「只縮不放＋點空白處
                       判定」那套邏輯。改成點燈箱範圍內任何地方（含照片本身）都會
@@ -2297,13 +2303,27 @@ function _ensurePhotoLightbox(){
   el.addEventListener('click', function(){ _closePhotoLightbox(); });
   document.body.appendChild(el);
   document.addEventListener('keydown', function(e){ if(e.key==='Escape') _closePhotoLightbox(); });
+  // 螢幕大小改變時（拉視窗、轉方向、手機網址列跳出跳入）主動重算一次照片尺寸，
+  // 不只是被動依賴 CSS vw/vh 的即時運算——有些瀏覽器（尤其行動裝置）在
+  // resize 當下不會立刻套用新的 vw/vh，用 JS 直接算 px 寫回去比較保險。
+  window.addEventListener('resize', _resizePhotoLightbox);
+  if(window.visualViewport) window.visualViewport.addEventListener('resize', _resizePhotoLightbox);
   return el;
+}
+function _resizePhotoLightbox(){
+  var el = document.getElementById('photo-lightbox-backdrop');
+  if(!el || !el.classList.contains('show')) return;
+  var img = document.getElementById('photo-lightbox-img');
+  if(!img) return;
+  img.style.width = (window.innerWidth*0.96)+'px';
+  img.style.height = (window.innerHeight*0.94)+'px';
 }
 function _openPhotoLightbox(url, alt){
   var el = _ensurePhotoLightbox();
   var img = document.getElementById('photo-lightbox-img');
   img.src = url; img.alt = alt||'';
   el.classList.add('show');
+  _resizePhotoLightbox();
 }
 function _closePhotoLightbox(){
   var el = document.getElementById('photo-lightbox-backdrop');
