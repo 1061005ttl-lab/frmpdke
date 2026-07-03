@@ -202,6 +202,16 @@
   Dialog：逐列明細，含通路別、店家型態、店家等級、分類、子分類
 
 【版本紀錄】
+  2.8.1  2026-07-03  修正「展開店家明細箭頭轉開但內容空白」的 bug：查核明細 Dialog、
+                      彙整看板的人員 slide、店家 slide 三處先前都直接拿 r.__rid 當
+                      storedetail-／storedetailbody-／storeico- 的 DOM id；但彙整看板一
+                      開啟就會把人員／單位／督導／店家四個 slide 一次全部渲染進 DOM（不是
+                      切到哪個 tab 才渲染），關閉後 DOM 也不會被移除，導致同一筆店家資料
+                      若同時出現在兩個以上畫面（例如人員 slide 與店家 slide 都有），id 會
+                      撞名，document.getElementById 只抓文件順序中第一個，實際被更新的
+                      往往是別處那份看不見的副本。改成三處各自加上 dlg-／pvstaff-／
+                      pvstore- 命名空間前綴，_toggleStoreDetail 另外新增 dataRid 參數，
+                      確保 DOM id 不撞名的同時，回頭比對 allRows 用的仍是原始 __rid。
   2.8.0  2026-07-03  1) 查核明細新增第三種排序模式「分→子」：處›分類›子分類›所›人，
                       _buildDialogLineDetail 同步改成通用遞迴寫法，不再寫死只支援兩種模式；
                       2) 彙整看板「人員」「店家」兩個視角，只要畫面上列得出店名，逐筆列都能
@@ -1879,7 +1889,18 @@ function _dlgNestToggle(rid){ _dlgExpandMap[rid]=!_dlgExpandMap[rid]; _renderDlg
 /* ── 店家葉節點：原始問卷明細展開／收合（首次展開才去抓來源分頁，之後吃快取） ── */
 var _storeDetailLoaded = {}; /* rid → true，避免重複抓取 */
 var _storeDetailCache  = {}; /* rid → {rowData, ref, basicRow}，供「複製摘要／截圖」分享功能取用 */
-function _toggleStoreDetail(rid, sourceRef){
+function _toggleStoreDetail(rid, sourceRef, dataRid){
+  /* 【修正】rid 現在是「這次呼叫端自己的命名空間 id」（例如 dlg-row123／pvstaff-row123／
+     pvstore-row123），確保同一筆資料在不同畫面（查核明細 Dialog／彙整看板的人員 slide／
+     店家 slide）各自展開時，DOM id 不會撞名。
+     舊行為是直接拿 r.__rid 當 DOM id：因為彙整看板一開啟會把「人員／單位／督導／店家」
+     四個 slide 一次全部渲染進 DOM（即使沒切到那個 tab），且關閉彙整看板時 DOM 也不會被移除，
+     只要同一筆店家資料同時出現在兩個以上的畫面（例如人員 slide 與店家 slide都有），
+     document.getElementById 就只會抓「文件順序中第一個」符合 id 的節點——導致點擊的明明是
+     A 畫面這一列，實際被更新（或已經標記成「已讀取過」）的卻是 B 畫面裡那份看不見的副本，
+     畫面上就會出現「箭頭轉開了、內容卻是空的」。
+     dataRid 才是真正拿來回頭比對 allRows 的原始 __rid，务必跟 DOM id 分開，不能混用。 */
+  dataRid = dataRid || rid;
   var detail = document.getElementById('storedetail-'+rid);
   var ico = document.getElementById('storeico-'+rid);
   if(!detail) return;
@@ -1893,7 +1914,7 @@ function _toggleStoreDetail(rid, sourceRef){
   /* 基本資料：直接用 __rid 從 allRows 找回這一筆完整物件，不用再回頭比對店家代碼
      （同一店家代碼可能因多次查核在店家名冊出現多筆，用 __rid 才能保證拿到的
      正是被點擊的那一列，不會選錯）。問卷內容（大題/選項）才需要另外向來源分頁查詢。 */
-  var basicRow = allRows.find(function(x){ return x.__rid === rid; }) || null;
+  var basicRow = allRows.find(function(x){ return x.__rid === dataRid; }) || null;
   _storeDetailCache[rid] = { rowData:null, ref:null, basicRow:basicRow };
 
   var ref = _parseSourceRef(sourceRef);
@@ -2370,11 +2391,11 @@ function _buildNestedPivot(rows, dims){
 
           var srcRefVal = String(r[COL_SOURCE_REF]||'').trim();
           var srcRefJs = srcRefVal.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-          html += '<tr class="store-leaf-row" id="storerow-'+r.__rid+'" style="background:rgba(0,0,0,.012);border-top:1px solid #f7f6f3;height:30px;cursor:pointer;" onclick="_toggleStoreDetail(\''+r.__rid+'\',\''+srcRefJs+'\')">';
+          html += '<tr class="store-leaf-row" id="storerow-dlg-'+r.__rid+'" style="background:rgba(0,0,0,.012);border-top:1px solid #f7f6f3;height:30px;cursor:pointer;" onclick="_toggleStoreDetail(\'dlg-'+r.__rid+'\',\''+srcRefJs+'\',\''+r.__rid+'\')">';
           html += '<td class="td-left" style="padding:0 12px 0 '+INDENT_BASE+'px;">'
             + '<div style="display:flex;align-items:center;min-width:0;">'
             + stPrefix
-            + '<span class="pivot-expand-icon" id="storeico-'+r.__rid+'" style="font-size:9px;width:14px;flex-shrink:0;">▶</span>'
+            + '<span class="pivot-expand-icon" id="storeico-dlg-'+r.__rid+'" style="font-size:9px;width:14px;flex-shrink:0;">▶</span>'
             + '<span style="font-size:12px;opacity:.7;margin-right:5px;flex-shrink:0;">🏪</span>'
             + '<span style="font-size:12px;font-weight:500;color:#2D2D2D;white-space:nowrap;">'
               + (storeDate ? '<span style="font-size:11px;font-weight:700;color:#2D2D2D;margin-right:8px;font-variant-numeric:tabular-nums;">'+esc(storeDate)+'</span>' : '')
@@ -2384,8 +2405,8 @@ function _buildNestedPivot(rows, dims){
           html += '<td class="td-total" style="font-size:11px;color:#2D2D2D;font-weight:500;">—</td>';
           html += '</tr>';
           /* 原始問卷明細展開面板（隱藏，點擊才向來源分頁抓取） */
-          html += '<tr class="store-detail-row" id="storedetail-'+r.__rid+'" style="display:none;">'
-            + '<td colspan="2" style="padding:0;" id="storedetailbody-'+r.__rid+'"></td>'
+          html += '<tr class="store-detail-row" id="storedetail-dlg-'+r.__rid+'" style="display:none;">'
+            + '<td colspan="2" style="padding:0;" id="storedetailbody-dlg-'+r.__rid+'"></td>'
             + '</tr>';
         });
       }
@@ -2747,10 +2768,9 @@ function _buildStaffPivot(rows){
         var dateStr=String(r[COL_DATE]||'').trim();
         var srcRefVal = String(r[COL_SOURCE_REF]||'').trim();
         var srcRefJs = srcRefVal.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        html+='<tr class="pivot-child-row store-leaf-row" id="child-'+rid+'-'+ri+'" data-parent="'+rid+'" style="cursor:pointer;" onclick="_toggleStoreDetail(\''+r.__rid+'\',\''+srcRefJs+'\')">';
+        html+='<tr class="pivot-child-row store-leaf-row" id="child-'+rid+'-'+ri+'" data-parent="'+rid+'" style="cursor:pointer;" onclick="_toggleStoreDetail(\'pvstaff-'+r.__rid+'\',\''+srcRefJs+'\',\''+r.__rid+'\')">';
         html+='<td class="td-left" colspan="1" style="padding-left:32px;font-size:13px;">'
-             +'<span class="pivot-expand-icon" id="storeico-'+r.__rid+'" style="font-size:9px;width:14px;display:inline-block;">▶</span>'
-             +'<span style="font-size:12px;font-weight:700;color:#2D2D2D;margin-right:8px;font-variant-numeric:tabular-nums;">'+(dateStr||'—')+'</span>'
+             +'<span class="pivot-expand-icon" id="storeico-pvstaff-'+r.__rid+'" style="font-size:9px;width:14px;display:inline-block;">▶</span>'
              +'<span style="font-size:11px;font-weight:600;color:#2D2D2D;margin-right:6px;">'+esc(code)+'</span>'
              +'<span style="font-weight:600;color:#1a1a1a;">'+esc(String(r[COL_NAME]||''))+'</span>'
              +'</td>';
@@ -2760,8 +2780,8 @@ function _buildStaffPivot(rows){
             +(match?'<span style="color:var(--green);">✓</span>':'')+'</td>';
         });
         html+='<td class="td-total" style="font-size:11px;color:#2D2D2D;">'+esc(String(r[COL_QUESTTYPE]||'—'))+'</td></tr>';
-        html+='<tr class="pivot-child-row store-detail-row" id="storedetail-'+r.__rid+'" data-parent="'+rid+'" style="display:none;">'
-             +'<td colspan="'+storeColspan+'" style="padding:0;" id="storedetailbody-'+r.__rid+'"></td></tr>';
+        html+='<tr class="pivot-child-row store-detail-row" id="storedetail-pvstaff-'+r.__rid+'" data-parent="'+rid+'" style="display:none;">'
+             +'<td colspan="'+storeColspan+'" style="padding:0;" id="storedetailbody-pvstaff-'+r.__rid+'"></td></tr>';
       });
       /* 收合人員時，一併收合底下已展開的店家明細，避免收合後留下孤兒面板 */
     });
@@ -3083,16 +3103,16 @@ function _buildStorePivot(rows){
         var rowClass='pivot-child-row store-leaf-row'+(isDup?' pivot-dup-row':'');
         var srcRefVal=String(r[COL_SOURCE_REF]||'').trim();
         var srcRefJs=srcRefVal.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        html+='<tr class="'+rowClass+'" id="child-'+rid+'-'+ri+'" data-parent="'+rid+'" style="cursor:pointer;"'+(isDup?' title="同一天同一家店有多筆查核紀錄"':'')+' onclick="_toggleStoreDetail(\''+r.__rid+'\',\''+srcRefJs+'\')">'
-          +'<td class="td-left" style="padding-left:20px;"><span class="pivot-expand-icon" id="storeico-'+r.__rid+'" style="font-size:9px;width:14px;display:inline-block;">▶</span></td>'
+        html+='<tr class="'+rowClass+'" id="child-'+rid+'-'+ri+'" data-parent="'+rid+'" style="cursor:pointer;"'+(isDup?' title="同一天同一家店有多筆查核紀錄"':'')+' onclick="_toggleStoreDetail(\'pvstore-'+r.__rid+'\',\''+srcRefJs+'\',\''+r.__rid+'\')">'
+          +'<td class="td-left" style="padding-left:20px;"><span class="pivot-expand-icon" id="storeico-pvstore-'+r.__rid+'" style="font-size:9px;width:14px;display:inline-block;">▶</span></td>'
           +'<td class="td-left" style="font-size:12px;font-weight:700;color:#2D2D2D;font-variant-numeric:tabular-nums;">'+(dateStr||'—')+'</td>'
           +'<td class="td-left" style="font-size:11px;font-weight:600;color:#2D2D2D;">'+esc(code||'—')+'</td>'
           +'<td class="td-left" style="font-size:13px;font-weight:700;color:#1a1a1a;">'+esc(name||'—')+(isDup?' <span class="pivot-dup-badge">⚠ 同日重複</span>':'')+'</td>'
           +'<td class="td-left" style="font-size:12px;font-weight:600;color:#1a1a1a;">'+esc(staff||'—')+'</td>'
           +'<td class="td-total" style="font-size:12px;font-weight:600;color:var(--green);">'+esc(st||'—')+(qt?'　<span style="color:#2D2D2D;font-weight:500;">'+esc(qt)+'</span>':'')+'</td>'
           +'</tr>';
-        html+='<tr class="pivot-child-row store-detail-row" id="storedetail-'+r.__rid+'" data-parent="'+rid+'" style="display:none;">'
-          +'<td colspan="6" style="padding:0;" id="storedetailbody-'+r.__rid+'"></td></tr>';
+        html+='<tr class="pivot-child-row store-detail-row" id="storedetail-pvstore-'+r.__rid+'" data-parent="'+rid+'" style="display:none;">'
+          +'<td colspan="6" style="padding:0;" id="storedetailbody-pvstore-'+r.__rid+'"></td></tr>';
       });
     });
   });
