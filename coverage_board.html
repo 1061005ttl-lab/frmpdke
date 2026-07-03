@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 2.9.0 ｜ 最後更新：2026-06-26
+  版本：Ver. 3.0.0 ｜ 最後更新：2026-07-03
 ════════════════════════════════════════════════════════════
 
 【⚠ 版本更新作業流程】
@@ -23,6 +23,28 @@
     修改計算邏輯時兩條路徑都要確認，不要讓其中一條覆蓋另一條
 
 【版本紀錄】
+  3.0.0  2026-07-03  新增「店家逐筆拜訪明細」（改編自 audit_board 的來源分頁機制）
+         - 明細 Dialog 表格裡的每一列店家，現在可以點擊展開，呈現這家店在
+           「問卷資料」分頁裡的完整拜訪時間軸（同一店家代碼可能有多筆歷史
+           紀錄，依時間新到舊排序），不再只看店家名冊裡聚合後的單一結果。
+         - 跟 AUDIT 不同：AUDIT 每列連到不同的「來源分頁」（A欄「來源分頁+
+           行數」連結鍵）；COVERAGE 的原始問卷全部攤平在同一個「問卷資料」
+           分頁，改成整頁抓回＋依「店家代碼」建立索引（_fetchQuestionnaireSheet），
+           不需要額外的連結鍵欄位。
+         - 沒有任何拜訪紀錄的店家（尚未執行）展開後會顯示「尚未執行」提示，
+           不會嘗試發請求去撈不存在的資料。
+         - 問卷大題/選項解析沿用同一套「單行標題、底線切分大題/選項」規則，
+           剛好跟「問卷資料」分頁現有的欄名格式（如「開瓶有獎(海報)可複選_
+           店外大門口及外牆(上傳照片)」）直接對上，不需要改資料格式。
+         - 照片欄位規則與 audit_board 完全一致：同一儲存格可能是純文字／
+           純網址（可多筆換行累加）／文字＋網址混合，一律用正則掃描整段
+           字串找出所有 http(s):// 網址；有網址就渲染縮圖＋點擊開燈箱看大圖，
+           純文字就正常顯示，兩者都有則並存，不會互相蓋掉。目前資料源
+           （問卷資料分頁的「上傳照片」欄）若還沒真的寫入網址（例如只有
+           打勾值 v），畫面會自動顯示成純文字勾選，之後照片流程把網址補
+           進儲存格後不需要改任何前端程式碼，會自動生效。
+         - 每筆展開明細右上角提供「📋 複製摘要」「📸 截圖」，只鎖定這筆
+           店家的卡片區塊，用法與 audit_board 一致。
   2.9.0  2026-06-26  數字顯示修正、等級預設收納、LOG更新
          - 加總型卡片總家數改顯示有效家數（有填 B 欄的店家數）
          - 加總型 B 群格 stat-val 改顯示所有欄位總份數（bTotalSum），stat-pct 隱藏
@@ -485,6 +507,81 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .detail-tbl td.td-code { text-align:left; color:var(--sub); font-size:12px; font-weight:600; }
 .detail-tbl td.td-name { text-align:left; color:var(--text); font-weight:600; }
 
+/* ══ 店家逐筆明細展開（沿用 audit_board 的呈現方式）══ */
+.detail-tbl tbody tr.store-row { cursor:pointer; }
+.store-expand-ico { display:inline-block; width:12px; font-size:10px; color:var(--sub); transition:transform .15s; margin-right:3px; }
+.store-expand-ico.open { transform:rotate(90deg); color:var(--primary); }
+.store-detail-row td { padding:0 !important; background:#FBFAF7; }
+
+.raw-detail-grid {
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr));
+  gap:8px 18px; margin-top:6px;
+}
+.raw-detail-item { min-width:0; }
+.raw-detail-label {
+  font-size:10px; font-weight:700; color:var(--primary); margin-bottom:2px;
+  letter-spacing:.3px; text-transform:uppercase;
+}
+.raw-detail-val {
+  font-size:12.5px; font-weight:500; color:var(--text); word-break:break-word; line-height:1.5;
+}
+
+/* 拜訪時間軸：同一家店可能有多筆歷史紀錄，每筆各自一個區塊，由新到舊排列 */
+.store-history-list { display:flex; flex-direction:column; gap:10px; margin-top:10px; }
+.store-history-record { background:#fff; border:1px solid rgba(0,0,0,.07); border-radius:8px; padding:10px 12px; }
+.store-history-head {
+  display:flex; align-items:center; gap:8px; margin-bottom:8px; padding-bottom:6px;
+  border-bottom:1px dashed rgba(0,0,0,.08);
+}
+.store-history-badge {
+  font-size:10px; font-weight:800; color:#fff; background:var(--primary);
+  border-radius:5px; padding:2px 7px;
+}
+.store-history-time { font-size:12px; font-weight:700; color:var(--text); }
+.store-history-empty { padding:20px 14px; font-size:12.5px; color:var(--sub); }
+
+.raw-quiz-list { display:flex; flex-direction:column; gap:8px; }
+.raw-quiz-section { background:#FAFAF8; border:1px solid rgba(0,0,0,.06); border-radius:8px; padding:8px 12px; }
+.raw-quiz-title { font-size:12px; font-weight:700; color:var(--green,#3B6D11); margin-bottom:6px; }
+.raw-quiz-picks { display:flex; flex-direction:column; gap:6px; }
+.raw-quiz-chip {
+  display:block; background:var(--green-bg,#EAF3DE);
+  border:1px solid var(--green-bd,rgba(59,109,17,.25));
+  border-radius:6px; padding:5px 10px;
+}
+.raw-quiz-chip-q { font-size:10.5px; font-weight:700; color:var(--green,#3B6D11); letter-spacing:.5px; margin-bottom:3px; opacity:.8; }
+.raw-quiz-chip-a { font-size:13px; font-weight:600; color:#1a1a1a; line-height:1.5; word-break:break-word; }
+.raw-quiz-chip.is-simple { display:inline-block; padding:4px 10px; }
+.raw-quiz-chip.is-simple .raw-quiz-chip-a { font-size:12.5px; font-weight:600; }
+.raw-quiz-photos { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+.raw-quiz-chip.raw-quiz-photo { display:inline-block; padding:6px 8px; vertical-align:top; margin:0; }
+.raw-quiz-photo-img {
+  display:block; margin-top:4px; width:100px; height:100px; object-fit:cover;
+  border-radius:6px; border:1px solid rgba(0,0,0,.08); cursor:zoom-in; background:#f0f0ee;
+}
+.raw-quiz-photo-fail { display:block; margin-top:4px; font-size:11px; color:#B23A3A; max-width:100px; }
+.raw-quiz-photo-note { display:block; margin-top:4px; font-size:11px; font-weight:600; color:#B2650A; max-width:100px; line-height:1.4; word-break:break-word; }
+
+.photo-lightbox-backdrop {
+  display:none; position:fixed; inset:0; background:rgba(0,0,0,.75);
+  z-index:9999; align-items:center; justify-content:center; padding:24px; cursor:zoom-out;
+}
+.photo-lightbox-backdrop.show { display:flex; }
+.photo-lightbox-img { max-width:min(1600px,96vw); max-height:min(900px,94vh); width:auto; height:auto; cursor:zoom-out; }
+.photo-lightbox-close {
+  position:absolute; top:18px; right:24px; width:36px; height:36px; border-radius:50%;
+  background:rgba(255,255,255,.15); color:#fff; border:none; font-size:20px; cursor:pointer; line-height:36px;
+}
+.photo-lightbox-close:hover { background:rgba(255,255,255,.3); }
+
+.raw-share-btn {
+  font-size:11px; font-weight:600; padding:3px 10px; border-radius:6px;
+  border:1px solid rgba(0,0,0,.12); background:#fff; color:var(--sub);
+  cursor:pointer; font-family:inherit; transition:all .15s; white-space:nowrap;
+}
+.raw-share-btn:hover { border-color:var(--primary); color:var(--primary); }
+.raw-share-btn.done { border-color:var(--green); color:var(--green); background:var(--green-bg); }
+
 /* ── loading ── */
 .loading {
   display:none;
@@ -928,6 +1025,352 @@ function parseGvizDate(v) {
     hour:'2-digit', minute:'2-digit',
     timeZone:'Asia/Taipei'
   });
+}
+
+/* ══════════════════════════════════════════════════════════════
+   店家逐筆拜訪明細（改編自 audit_board 的 _fetchSourceSheet 機制）
+   ──────────────────────────────────────────────────────────────
+   跟 AUDIT 不同的地方：AUDIT 每列各自連到不同的「來源分頁」，
+   COVERAGE 這裡的原始問卷全部攤平在同一個分頁「問卷資料」裡，
+   所以不需要 A 欄「來源分頁+行數」這種連結鍵，直接整頁抓回來、
+   依「店家代碼」分組建立索引即可；同一家店可能有多筆歷史紀錄
+   （每次拜訪一筆），依時間新到舊排序，呈現成時間軸。
+   ══════════════════════════════════════════════════════════════ */
+var QUESTIONNAIRE_SHEET = '\u554F\u5377\u8CC7\u6599'; /* 問卷資料 */
+var _qSheetCache = null;      /* { quizCols, codeToRecords } */
+var _qSheetLoading = false;
+var _qSheetWaiters = [];
+var _storeDetailLoaded = {};
+var _storeDetailCache  = {};
+
+/* 把任意字串轉成安全的 DOM id 片段 */
+function _rid(s){ return String(s).replace(/[^\w\u4e00-\u9fff]/g,'_').substring(0,24); }
+
+function _fetchQuestionnaireSheet(callback){
+  if(_qSheetCache){ callback(_qSheetCache); return; }
+  if(_qSheetLoading){ _qSheetWaiters.push(callback); return; }
+  _qSheetLoading = true;
+  var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+    '/gviz/tq?tqx=out:json&headers=0&sheet=' + encodeURIComponent(QUESTIONNAIRE_SHEET);
+  fetch(url)
+    .then(function(r){ return r.text(); })
+    .then(function(txt){
+      var json = JSON.parse(txt.replace(/^[^\(]+\(/,'').replace(/\);?\s*$/,''));
+      var tbl  = json.table || {};
+      var rawRows = tbl.rows || [];
+      if(rawRows.length < 1){ _qSheetFail('分頁「'+QUESTIONNAIRE_SHEET+'」沒有資料'); return; }
+
+      function cellVal(row, i){
+        if(!row) return '';
+        var c = row.c && row.c[i];
+        if(!c) return '';
+        var v=(c.v!==null&&c.v!==undefined)?c.v:'';
+        var f=c.f||'';
+        if(typeof v==='string' && /^Date\(/.test(v)) return f || parseGvizDate(v);
+        return (v!==''&&v!==null&&v!==undefined)?v:f;
+      }
+
+      var headerRow = rawRows[0];
+      var colCount = (headerRow.c || []).length;
+      var baseColNames = [];
+      var quizCols = []; /* [{col, section, option}] */
+      var codeColIdx = -1;
+
+      for (var i = 0; i < colCount; i++) {
+        var headerText = String(cellVal(headerRow, i) || '').trim();
+        if (!headerText) continue;
+        if (headerText.indexOf('_') !== -1) {
+          var parts = headerText.split('_');
+          quizCols.push({ col:i, section:parts[0].trim(), option:parts.slice(1).join('_').trim() });
+        } else {
+          baseColNames.push({ name:headerText, col:i });
+          if (headerText === COL_CODE) codeColIdx = i;
+        }
+      }
+
+      var codeToRecords = {};
+      for (var ri = 1; ri < rawRows.length; ri++) {
+        var row = rawRows[ri];
+        if (!row || !row.c) continue;
+        var code = codeColIdx !== -1 ? String(cellVal(row, codeColIdx)||'').trim() : '';
+        if (!code) continue;
+
+        var baseData = {};
+        baseColNames.forEach(function(b){ baseData[b.name] = cellVal(row, b.col); });
+
+        var sections = {}, sectionOrder = [];
+        quizCols.forEach(function(qc){
+          var v = String(cellVal(row, qc.col)||'').trim();
+          if(!v) return;
+          if(!sections[qc.section]){ sections[qc.section]=[]; sectionOrder.push(qc.section); }
+          sections[qc.section].push({ option:qc.option, value:v });
+        });
+
+        if(!codeToRecords[code]) codeToRecords[code] = [];
+        codeToRecords[code].push({
+          base: baseData,
+          sections: sectionOrder.map(function(s){ return { section:s, picks:sections[s] }; }),
+          timeKey: String(baseData['\u6253\u5361\u6642\u9593'] || baseData['\u56DE\u5831\u6642\u9593'] || baseData['\u6708\u4EFD'] || '')
+        });
+      }
+
+      /* 同一家店多筆紀錄，時間新到舊排序 */
+      Object.keys(codeToRecords).forEach(function(code){
+        codeToRecords[code].sort(function(a,b){ return a.timeKey < b.timeKey ? 1 : (a.timeKey > b.timeKey ? -1 : 0); });
+      });
+
+      _qSheetCache = { quizCols:quizCols, codeToRecords:codeToRecords };
+      _qSheetLoading = false;
+      callback(_qSheetCache);
+      _qSheetWaiters.forEach(function(cb){ cb(_qSheetCache); });
+      _qSheetWaiters = [];
+    })
+    .catch(function(err){ _qSheetFail(String(err)); });
+
+  function _qSheetFail(msg){
+    _qSheetLoading = false;
+    var errResult = { error: msg };
+    callback(errResult);
+    _qSheetWaiters.forEach(function(cb){ cb(errResult); });
+    _qSheetWaiters = [];
+  }
+}
+
+/* ── 照片欄位渲染（規則與 audit_board 完全一致）──
+   同一儲存格可能是：純文字／純網址（可多筆，換行分隔）／文字＋網址混合，
+   一律用全域正則掃描整段字串找出所有 http(s):// 開頭片段。 */
+function _driveBigUrl(url){
+  var m = String(url).match(/\/d\/([^=\/]+)/);
+  return m ? ('https://lh3.googleusercontent.com/d/'+m[1]+'=w1600') : url;
+}
+function _renderPhotoChip(optionName, url){
+  var bigUrl = _driveBigUrl(url);
+  var uid = 'photo_' + Math.random().toString(36).substring(2,9);
+  return '<span class="raw-quiz-chip raw-quiz-photo">'
+    + '<span class="raw-quiz-chip-q">'+esc(optionName)+'</span>'
+    +   '<img id="'+uid+'" class="raw-quiz-photo-img" src="'+esc(url)+'" alt="'+esc(optionName)+'" '
+    +   'loading="lazy" crossorigin="anonymous" '
+    +   'onclick="event.stopPropagation();_openPhotoLightbox(\''+esc(bigUrl).replace(/'/g,"\\'")+'\',\''+esc(optionName).replace(/'/g,"\\'")+'\');" '
+    +   'onerror="this.style.display=\'none\';this.insertAdjacentHTML(\'afterend\',\'<span class=&quot;raw-quiz-photo-fail&quot;>\u26A0\uFE0F \u5716\u7247\u8F09\u5165\u5931\u6557</span>\');">'
+    + '</span>';
+}
+function _ensurePhotoLightbox(){
+  var el = document.getElementById('photo-lightbox-backdrop');
+  if(el) return el;
+  el = document.createElement('div');
+  el.id = 'photo-lightbox-backdrop';
+  el.className = 'photo-lightbox-backdrop';
+  el.innerHTML = '<button class="photo-lightbox-close" onclick="_closePhotoLightbox()">\u2715</button>'
+    + '<img class="photo-lightbox-img" id="photo-lightbox-img" src="" alt="">';
+  el.addEventListener('click', function(){ _closePhotoLightbox(); });
+  document.body.appendChild(el);
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape') _closePhotoLightbox(); });
+  return el;
+}
+function _openPhotoLightbox(url, alt){
+  var el = _ensurePhotoLightbox();
+  document.getElementById('photo-lightbox-img').src = url;
+  document.getElementById('photo-lightbox-img').alt = alt||'';
+  el.classList.add('show');
+}
+function _closePhotoLightbox(){
+  var el = document.getElementById('photo-lightbox-backdrop');
+  if(el) el.classList.remove('show');
+}
+
+/* 每筆拜訪紀錄的問卷大題／選項渲染，規則與 audit_board 一致：
+   有網址畫縮圖、有文字純顯示文字、兩者都有則並存。 */
+function _renderQuizSections(sections){
+  if(!sections || !sections.length) return '<div style="font-size:12px;color:var(--sub);">（此筆未填寫任何題目）</div>';
+  var html = '<div class="raw-quiz-list">';
+  sections.forEach(function(sec){
+    var picksHtml = '', photosHtml = '';
+    sec.picks.forEach(function(p){
+      var raw = String(p.value||'');
+      var urlRe = /https?:\/\/\S+/gi;
+      var urls = raw.match(urlRe) || [];
+      var textOnly = raw.replace(urlRe, '').replace(/[\r\n]+/g, ' ').trim().replace(/[\u2192\-\u2013\u2014]+$/, '').trim();
+
+      if(urls.length){
+        urls.forEach(function(u, uIdx){
+          var label = urls.length > 1 ? (p.option + '-' + (uIdx+1)) : p.option;
+          photosHtml += _renderPhotoChip(label, u);
+        });
+        if(textOnly){
+          picksHtml += '<span class="raw-quiz-chip"><span class="raw-quiz-chip-q">'+esc(p.option)+'</span>'
+            + '<span class="raw-quiz-chip-a">\u2192 '+esc(textOnly)+'</span></span>';
+        }
+        return;
+      }
+
+      var isCheckmarkOnly = (p.value==='v' || p.value==='V' || p.value==='\u2713');
+      if(isCheckmarkOnly){
+        picksHtml += '<span class="raw-quiz-chip is-simple"><span class="raw-quiz-chip-a">\u2713 '+esc(p.option)+'</span></span>';
+      } else {
+        picksHtml += '<span class="raw-quiz-chip"><span class="raw-quiz-chip-q">'+esc(p.option)+'</span>'
+          + '<span class="raw-quiz-chip-a">\u2192 '+esc(p.value)+'</span></span>';
+      }
+    });
+    html += '<div class="raw-quiz-section">'
+      + '<div class="raw-quiz-title">\uD83D\uDCCB '+esc(sec.section)+'</div>'
+      + (picksHtml ? '<div class="raw-quiz-picks">'+picksHtml+'</div>' : '')
+      + (photosHtml ? '<div class="raw-quiz-photos">'+photosHtml+'</div>' : '')
+      + '</div>';
+  });
+  html += '</div>';
+  return html;
+}
+
+/* 店家明細基本資料要顯示的欄位，依店家名冊欄名，跟主表格用詞一致 */
+var STORE_BASIC_FIELDS = [COL_AREA, COL_OFFICE, COL_STAFF, COL_CHANNEL, COL_TYPE, COL_CODE, COL_NAME, COL_GRADE];
+
+function _buildStoreHistoryPanel(storeRow, records, rid, errMsg, loading){
+  var panelId = ' id="rawpanel-'+esc(rid)+'"';
+  var actionBar = '<div data-screenshot-ignore="1" style="display:flex;gap:6px;justify-content:flex-end;margin-bottom:8px;">'
+    + '<button class="raw-share-btn" onclick="event.stopPropagation();_storeDetailCopy(\''+esc(rid).replace(/'/g,"\\'")+'\',this)">\uD83D\uDCCB \u8907\u88FD\u6458\u8981</button>'
+    + '<button class="raw-share-btn" onclick="event.stopPropagation();_storeDetailScreenshot(\''+esc(rid).replace(/'/g,"\\'")+'\',this)">\uD83D\uDCF8 \u622A\u5716</button>'
+    + '</div>';
+
+  var baseHtml = '';
+  if(storeRow){
+    var items = STORE_BASIC_FIELDS.map(function(k){ return {k:k, v:storeRow[k]}; })
+      .filter(function(it){ return it.v!==''&&it.v!==null&&it.v!==undefined; });
+    if(items.length){
+      baseHtml = '<div class="raw-detail-grid">' + items.map(function(it){
+        return '<div class="raw-detail-item"><div class="raw-detail-label">'+esc(it.k)+'</div>'
+          + '<div class="raw-detail-val">'+esc(String(it.v))+'</div></div>';
+      }).join('') + '</div>';
+    }
+  }
+
+  var histHtml;
+  if(errMsg){
+    histHtml = '<div style="padding:8px 0;font-size:12px;color:#B23A3A;">\u26A0\uFE0F '+esc(errMsg)+'</div>';
+  } else if(loading){
+    histHtml = '<div style="padding:8px 0;font-size:12px;color:var(--sub);">\u23F3 \u8B80\u53D6\u62DC\u8A2A\u7D00\u9304\u2026</div>';
+  } else if(!records || !records.length){
+    histHtml = '<div class="store-history-empty">\u23F3 \u5C1A\u672A\u57F7\u884C\uFF0C\u76EE\u524D\u6C92\u6709\u4EFB\u4F55\u62DC\u8A2A\u7D00\u9304</div>';
+  } else {
+    histHtml = '<div class="store-history-list">' + records.map(function(rec, idx){
+      var timeText = rec.base['\u6253\u5361\u6642\u9593'] || rec.base['\u56DE\u5831\u6642\u9593'] || rec.base['\u6708\u4EFD'] || '\u672A\u77E5\u6642\u9593';
+      var badge = idx===0 ? '\u6700\u65B0' : ('\u7B2C '+(records.length-idx)+' \u7B46');
+      return '<div class="store-history-record">'
+        + '<div class="store-history-head"><span class="store-history-badge">'+esc(badge)+'</span>'
+        + '<span class="store-history-time">\uD83D\uDD52 '+esc(String(timeText))+'</span></div>'
+        + _renderQuizSections(rec.sections)
+        + '</div>';
+    }).join('') + '</div>';
+  }
+
+  return '<div'+panelId+' style="padding:10px 16px 14px 18px;background:#FAFAF8;border-left:3px solid var(--primary-bg,rgba(55,138,221,.3));margin:2px 12px 6px 0;border-radius:0 8px 8px 0;">'
+    + actionBar + baseHtml + histHtml + '</div>';
+}
+
+function _toggleStoreDetail(rid, storeCode){
+  var detailRow = document.getElementById('storedetail-'+rid);
+  var ico = document.getElementById('storeico-'+rid);
+  if(!detailRow) return;
+  var isOpen = detailRow.style.display !== 'none';
+  detailRow.style.display = isOpen ? 'none' : 'table-row';
+  if(ico) ico.classList.toggle('open', !isOpen);
+  if(isOpen) return;
+
+  var bodyEl = document.getElementById('storedetailbody-'+rid);
+  if(!bodyEl) return;
+
+  if(_storeDetailLoaded[rid] && _storeDetailCache[rid]){
+    bodyEl.innerHTML = _storeDetailCache[rid];
+    return;
+  }
+
+  var storeRow = allRows.find(function(x){ return String(x[COL_CODE]||'')===storeCode; }) || null;
+  bodyEl.innerHTML = _buildStoreHistoryPanel(storeRow, null, rid, null, true);
+
+  _fetchQuestionnaireSheet(function(qData){
+    var liveBodyEl = document.getElementById('storedetailbody-'+rid);
+    if(!liveBodyEl) return; /* 使用者可能已經收合或畫面已重繪 */
+    if(qData && qData.error){
+      var htmlErr = _buildStoreHistoryPanel(storeRow, null, rid, qData.error);
+      liveBodyEl.innerHTML = htmlErr;
+      return; /* 讀取失敗不快取，允許下次重試 */
+    }
+    var records = (qData.codeToRecords && qData.codeToRecords[storeCode]) || [];
+    var htmlOk = _buildStoreHistoryPanel(storeRow, records, rid, null);
+    _storeDetailLoaded[rid] = true;
+    _storeDetailCache[rid] = htmlOk;
+    liveBodyEl.innerHTML = htmlOk;
+  });
+}
+
+/* ── 單筆店家明細分享（LINE 摘要／截圖）── */
+function _buildStoreDetailLineText(rid, storeRow, records){
+  var lines = ['\uD83D\uDCCB \u5E97\u5BB6\u62DC\u8A2A\u7D00\u9304 \u2500 '+PROJ_NAME, ''];
+  if(storeRow){
+    STORE_BASIC_FIELDS.forEach(function(k){
+      var v = storeRow[k];
+      if(v===''||v===null||v===undefined) return;
+      lines.push(k+'\uFF1A'+v);
+    });
+    lines.push('');
+  }
+  if(!records || !records.length){
+    lines.push('\u23F3 \u5C1A\u672A\u57F7\u884C\uFF0C\u76EE\u524D\u6C92\u6709\u4EFB\u4F55\u62DC\u8A2A\u7D00\u9304');
+  } else {
+    records.forEach(function(rec, idx){
+      var timeText = rec.base['\u6253\u5361\u6642\u9593'] || rec.base['\u56DE\u5831\u6642\u9593'] || rec.base['\u6708\u4EFD'] || '\u672A\u77E5\u6642\u9593';
+      lines.push('\uD83D\uDD52 '+timeText+(idx===0?'\uFF08\u6700\u65B0\uFF09':''));
+      (rec.sections||[]).forEach(function(sec){
+        lines.push('\u3000\uD83D\uDCCB '+sec.section);
+        sec.picks.forEach(function(p){
+          var isCheckmarkOnly = (p.value==='v'||p.value==='V'||p.value==='\u2713');
+          lines.push(isCheckmarkOnly ? '\u3000\u3000\u2713 '+p.option : '\u3000\u3000'+p.option+' \u2192 '+p.value);
+        });
+      });
+      lines.push('');
+    });
+  }
+  lines.push('\uD83D\uDCC5 '+new Date().toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}));
+  return lines.join('\n');
+}
+function _storeDetailCopy(rid, btn){
+  var qData = _qSheetCache;
+  var storeRow = allRows.find(function(x){ return ('st-'+_rid(String(x[COL_CODE]||'')))===rid; }) || null;
+  var records = (storeRow && qData && qData.codeToRecords) ? (qData.codeToRecords[storeRow[COL_CODE]]||[]) : [];
+  _doCopy(_buildStoreDetailLineText(rid, storeRow, records), btn);
+}
+function _storeDetailScreenshot(rid, btn){
+  var el = document.getElementById('rawpanel-'+rid);
+  if(!el){ _flashBtn(btn,'\u26A0\uFE0F \u7121\u756B\u9762'); return; }
+  _captureElement(el, btn, PROJ_NAME+'_\u62DC\u8A2A\u660E\u7D30');
+}
+/* 通用元素截圖（只複製到剪貼簿），沿用既有 html2canvas 載入方式 */
+function _captureElement(el, btn, filename){
+  btn.classList.add('loading');
+  function doCapture(){
+    html2canvas(el, {
+      scale:2, backgroundColor:'#ffffff', useCORS:true,
+      width:el.scrollWidth, height:el.scrollHeight,
+      ignoreElements:function(node){ return node.getAttribute && node.getAttribute('data-screenshot-ignore')==='1'; }
+    }).then(function(canvas){
+      if(navigator.clipboard && window.ClipboardItem){
+        canvas.toBlob(function(blob){
+          try{
+            navigator.clipboard.write([new ClipboardItem({'image/png':blob})])
+              .then(function(){ btn.classList.remove('loading'); _flashBtn(btn,'\u2705 \u5DF2\u8907\u88FD\uFF01'); })
+              .catch(function(){ _downloadCanvas(canvas, filename, btn); });
+          }catch(e){ _downloadCanvas(canvas, filename, btn); }
+        },'image/png');
+      } else { _downloadCanvas(canvas, filename, btn); }
+    }).catch(function(){ btn.classList.remove('loading'); _flashBtn(btn,'\u26A0\uFE0F \u5931\u6557'); });
+  }
+  if(window.html2canvas) doCapture();
+  else {
+    var s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    s.onload=doCapture;
+    s.onerror=function(){ btn.classList.remove('loading'); _flashBtn(btn,'\u26A0\uFE0F \u8F09\u5165\u5931\u6557'); };
+    document.head.appendChild(s);
+  }
 }
 
 /* \u2500\u2500 \u8FD4\u56DE \u2500\u2500 */
@@ -1787,18 +2230,25 @@ function buildStoreTable(rows, levelKey){
       else g.cols.filter(function(t){ return t; }).forEach(function(t){ html+='<th'+cls+'>'+esc(t)+'</th>'; });
     });
   }
+  /* 計算總欄數，供展開列 colspan 使用 */
+  var totalCols = extraCols.length + 2 /* 店碼/店名 */ + (showType?1:0) + 1 /* 狀態 */;
+  BUCKETS_B.forEach(function(g){ totalCols += g.cols.length; });
+  if (!isSum()) BUCKETS_C.forEach(function(g){ totalCols += g.cols.filter(function(t){return t;}).length; });
+
   html+='</tr></thead><tbody>';
 
   items.forEach(function(d){
     var r = d.r, grp = d.grp;
     var isUnfill = (grp === 3);
-    var trClass  = isUnfill ? ' class="row-unfill"' : '';
-    html += '<tr' + trClass + '>';
+    var code = String(r[COL_CODE]||'');
+    var rid  = 'st-'+_rid(code);
+    var trClass  = 'store-row' + (isUnfill ? ' row-unfill' : '');
+    html += '<tr class="'+trClass+'" id="storerow-'+rid+'" onclick="_toggleStoreDetail(\''+rid+'\',\''+esc(code).replace(/'/g,"\\'")+'\')">';
     extraCols.forEach(function(c){
       html += '<td class="td-org">' + esc(String(r[c]||'\u2014')) + '</td>';
     });
-    html += '<td class="td-code">' + esc(String(r[COL_CODE]||'\u2014')) + '</td>';
-    html += '<td class="td-name">' + esc(String(r[COL_NAME]||'\u2014')) + '</td>';
+    html += '<td class="td-code">' + esc(code||'\u2014') + '</td>';
+    html += '<td class="td-name"><span class="store-expand-ico" id="storeico-'+rid+'">\u25B6</span>' + esc(String(r[COL_NAME]||'\u2014')) + '</td>';
     if(showType) html += '<td class="td-org">' + esc(String(r[COL_TYPE]||'\u2014')) + '</td>';
 
     /* \u72c0\u614b\u6b04 */
@@ -1835,6 +2285,8 @@ function buildStoreTable(rows, levelKey){
       });
     }
     html += '</tr>';
+    html += '<tr class="store-detail-row" id="storedetail-'+rid+'" style="display:none;">'
+      + '<td colspan="'+totalCols+'"><div id="storedetailbody-'+rid+'"></div></td></tr>';
   });
 
   html += '</tbody></table></div>';
