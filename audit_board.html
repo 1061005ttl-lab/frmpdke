@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
-  audit_board.html  ─  大督導時代（店家名冊版）
-  版本：Ver. 2.7.0 ｜ 最後更新：2026-07-02
+  audit_board.html  ─  稽核型看版（店家名冊版）
+  版本：Ver. 2.8.0 ｜ 最後更新：2026-07-03
 
   🤖 給後續 AI 模組看的導讀（放最上面，優先讀這段；下面才是完整版本紀錄）
 ════════════════════════════════════════════════════════════
@@ -202,6 +202,16 @@
   Dialog：逐列明細，含通路別、店家型態、店家等級、分類、子分類
 
 【版本紀錄】
+  2.8.0  2026-07-03  1) 查核明細新增第三種排序模式「分→子」：處›分類›子分類›所›人，
+                      _buildDialogLineDetail 同步改成通用遞迴寫法，不再寫死只支援兩種模式；
+                      2) 彙整看板「人員」「店家」兩個視角，只要畫面上列得出店名，逐筆列都能
+                      點擊展開原始問卷明細（沿用既有 _toggleStoreDetail／_buildRawDetailPanel），
+                      群組收合時一併收合底下已展開的明細面板，避免留下孤兒面板；
+                      3) 所有「截圖」功能一律只複製到剪貼簿，拿掉「複製失敗才下載到本機」的
+                      退路，改成顯示錯誤提示，因為截圖後就是要直接貼上，下載反而多一道手續；
+                      4) 頂部時間篩選列重寫：季度／月份改成只列出資料裡實際存在的選項，
+                      月份只在選定季度後才出現、且只列該季度內有資料的月份；一進畫面預設
+                      直接帶入「當季當月」篩選（僅初次載入設定一次）。
   2.7.0  2026-07-02  照片欄位改成「掃描整段文字找出所有網址」而非
                       「整格值只能是網址」，支援文字＋網址混在同一格
                       （文字正常顯示、網址各自渲染成縮圖）；同一大題
@@ -218,7 +228,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>大督導時代</title>
+<title>稽核型看版</title>
 <script>
 if (localStorage.getItem('ttl_auth_v1') !== '1') {
   window.location.replace('index.html');
@@ -789,7 +799,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 
 <div class="toolbar">
   <button class="back-btn" onclick="goBack()">← 返回</button>
-  <span class="toolbar-title" id="tb-title">大督導時代</span>
+  <span class="toolbar-title" id="tb-title">稽核型看版</span>
   <select class="proj-sel" id="proj-sel" style="display:none" onchange="switchProject(this.value)"></select>
   <span class="sync-note" id="tb-sync"></span>
   <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
@@ -892,7 +902,7 @@ var params   = new URLSearchParams(location.search);
 var SHEET_ID = params.get('sheetId') || '';
 
 /* 專案資訊 */
-var PROJ_NAME  = '大督導時代';
+var PROJ_NAME  = '稽核型看版';
 var SYNC_SHEET = SYNC_SHEET_DEFAULT;
 var SYNC_CELL  = SYNC_CELL_DEFAULT;
 var SHEET_NAME = SHEET_NAME_DEFAULT;
@@ -900,8 +910,10 @@ var SHEET_NAME = SHEET_NAME_DEFAULT;
 /* 狀態 */
 var allRows    = [];
 var drillStack = [];
-/* 時間篩選狀態：年度/季度/月份，三者可疊加（AND），季度與月份互斥（擇一） */
+/* 時間篩選狀態：年度/季度/月份，三者可疊加（AND）；月份是季度底下的子選項，
+   選了月份會自動帶出對應季度，兩者不互斥 */
 var TIME_FILTER = { year:'', quarter:'', month:'' };
+var _initialTimeFilterSet = false; /* 一進畫面預設帶入「當季當月」，只設定一次 */
 var _dialogTitle = '';
 var _dialogRows  = [];
 var _dialogLevel = 'staff';
@@ -1218,6 +1230,18 @@ function fetchSheet() {
         if (st && !seen[st]) { seen[st]=true; ROSTER_GROUPS.push(st); }
       });
 
+      /* 一進畫面預設帶入「當季當月」篩選（僅初次載入設定一次，
+         之後使用者自行切換／清除篩選，不會再被這段覆蓋） */
+      if(!_initialTimeFilterSet){
+        _initialTimeFilterSet = true;
+        var _tp = new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Taipei',year:'numeric',month:'numeric'}).formatToParts(new Date());
+        var _yy = (_tp.find(function(p){ return p.type==='year'; })||{}).value;
+        var _mm = parseInt((_tp.find(function(p){ return p.type==='month'; })||{}).value, 10);
+        if(_yy && _mm){
+          TIME_FILTER = { year:_yy, quarter:(_mm<=3?'Q1':_mm<=6?'Q2':_mm<=9?'Q3':'Q4'), month:_mm };
+        }
+      }
+
       render();
     })
     .catch(function(err){
@@ -1313,12 +1337,18 @@ function getTimeFilteredRows(rows){
   });
 }
 function setTimeFilter(dim,val){
-  if(TIME_FILTER[dim]===val){ TIME_FILTER[dim]=''; }
-  else {
-    TIME_FILTER[dim]=val;
-    /* 季度與月份互斥：擇一縮小範圍，避免互相矛盾 */
+  if(TIME_FILTER[dim]===val){
+    TIME_FILTER[dim]='';
+    /* 收合季度時，底下月份篩選（屬於該季度）一併清除 */
     if(dim==='quarter') TIME_FILTER.month='';
-    if(dim==='month') TIME_FILTER.quarter='';
+  } else {
+    TIME_FILTER[dim]=val;
+    /* 月份是季度底下展開出來的子選項，不是互斥維度：
+       選月份時自動帶出對應季度；換季度時月份已不屬於新季度，須清空 */
+    if(dim==='quarter') TIME_FILTER.month='';
+    if(dim==='month'){
+      TIME_FILTER.quarter = val<=3?'Q1':val<=6?'Q2':val<=9?'Q3':'Q4';
+    }
   }
   render();
 }
@@ -1529,8 +1559,14 @@ function bindTooltip(triggerEl,ttEl,card){
 function drillDown(levelKey,key){ drillStack.push({level:levelKey,key:key}); render(); }
 function drillTo(idx){ drillStack=idx<0?[]:drillStack.slice(0,idx+1); render(); }
 
-/* ════ Quicknav ════ */
-/* 時間篩選按鈕列：年度／季度／月份，風格與地區頁籤(quicknav)一致，與地區篩選疊加生效 */
+/* ════ Quicknav ════
+   時間篩選按鈕列：年度／季度／月份，風格與地區頁籤(quicknav)一致，與地區篩選疊加生效。
+   規則（依需求調整）：
+   ‧ 季度、月份都只列出「資料裡實際出現過」的選項，不是把 Q1~Q4／1~12月固定全列出來。
+   ‧ 月份是季度展開出來的下一層，只有選了季度之後才會出現，
+     且只列出該季度範圍內、資料實際有出現的月份。
+   ‧ 季度的可選範圍會先依目前選定的年度縮小（若有選年度的話）。 */
+var QUARTER_MONTHS = { Q1:[1,2,3], Q2:[4,5,6], Q3:[7,8,9], Q4:[10,11,12] };
 function buildTimenav(){
   var nav=document.getElementById('timenav');
   if(!nav) return;
@@ -1560,31 +1596,47 @@ function buildTimenav(){
     addGroup(yGrp);
   }
 
-  /* 季度：自然年日曆季 Q1~Q4 */
-  var qLbl=document.createElement('span'); qLbl.className='qn-label'; qLbl.textContent='季度';
-  var qGrp=[qLbl];
-  ['Q1','Q2','Q3','Q4'].forEach(function(q){
-    var b=document.createElement('button');
-    b.className='qn-btn'+(TIME_FILTER.quarter===q?' active':'');
-    b.textContent=q;
-    b.onclick=function(){ setTimeFilter('quarter',q); };
-    qGrp.push(b);
-  });
-  addGroup(qGrp);
-
-  /* 月份：1~12 月 */
-  var mLbl=document.createElement('span'); mLbl.className='qn-label'; mLbl.textContent='月份';
-  var mGrp=[mLbl];
-  for(var m=1;m<=12;m++){
-    (function(mm){
+  /* 季度：只列出（在目前年度篩選範圍內）資料實際有出現的季度 */
+  var yearRows = TIME_FILTER.year ? allRows.filter(function(r){
+    var p=_parseDateParts(r[COL_DATE]); return p && p.year===TIME_FILTER.year;
+  }) : allRows;
+  var qSet={};
+  yearRows.forEach(function(r){ var p=_parseDateParts(r[COL_DATE]); if(p) qSet[p.quarter]=true; });
+  var qOrder=['Q1','Q2','Q3','Q4'].filter(function(q){ return qSet[q]; });
+  if(qOrder.length){
+    var qLbl=document.createElement('span'); qLbl.className='qn-label'; qLbl.textContent='季度';
+    var qGrp=[qLbl];
+    qOrder.forEach(function(q){
       var b=document.createElement('button');
-      b.className='qn-btn'+(TIME_FILTER.month===mm?' active':'');
-      b.textContent=mm+'月';
-      b.onclick=function(){ setTimeFilter('month',mm); };
-      mGrp.push(b);
-    })(m);
+      b.className='qn-btn'+(TIME_FILTER.quarter===q?' active':'');
+      b.textContent=q;
+      b.onclick=function(){ setTimeFilter('quarter',q); };
+      qGrp.push(b);
+    });
+    addGroup(qGrp);
   }
-  addGroup(mGrp);
+
+  /* 月份：只有選定季度後才展開，且只列出該季度內資料實際有出現的月份 */
+  if(TIME_FILTER.quarter){
+    var qRows = yearRows.filter(function(r){
+      var p=_parseDateParts(r[COL_DATE]); return p && p.quarter===TIME_FILTER.quarter;
+    });
+    var mSet={};
+    qRows.forEach(function(r){ var p=_parseDateParts(r[COL_DATE]); if(p) mSet[p.month]=true; });
+    var mOrder=(QUARTER_MONTHS[TIME_FILTER.quarter]||[]).filter(function(m){ return mSet[m]; });
+    if(mOrder.length){
+      var mLbl=document.createElement('span'); mLbl.className='qn-label'; mLbl.textContent='月份';
+      var mGrp=[mLbl];
+      mOrder.forEach(function(m){
+        var b=document.createElement('button');
+        b.className='qn-btn'+(TIME_FILTER.month===m?' active':'');
+        b.textContent=m+'月';
+        b.onclick=function(){ setTimeFilter('month',m); };
+        mGrp.push(b);
+      });
+      addGroup(mGrp);
+    }
+  }
 
   /* 清除時間篩選（僅在有篩選中時顯示） */
   if(TIME_FILTER.year||TIME_FILTER.quarter||TIME_FILTER.month){
@@ -1649,8 +1701,9 @@ function buildQuicknav(){
 
 var DIM_STORAGE_KEY = 'ttl_audit_dim_mode_v4';
 var DIM_MODES = {
-  '1': ['suptype','office','staff','questtype'],   /* 所→人：處›督›所›人›問 */
-  '2': ['suptype','staff','office','questtype']    /* 人→所：處›督›人›所›問 */
+  '1': ['suptype','office','staff','questtype'],   /* 所→人：處›分類›所›人›子分類 */
+  '2': ['suptype','staff','office','questtype'],   /* 人→所：處›分類›人›所›子分類 */
+  '3': ['suptype','questtype','office','staff']    /* 分→子：處›分類›子分類›所›人 */
 };
 var DIM_META = {
   area:      { icon:'🏢', label:'營業處' },
@@ -1662,8 +1715,8 @@ var DIM_META = {
 var _dlgDimMode=_loadDimMode(), _dlgListMode=false, _dlgExpandMap={}, _dlgSortState={}, _dlgAllExpanded=false;
 
 function _loadDimMode(){
-  try{ var v=localStorage.getItem(DIM_STORAGE_KEY); if(v==='1'||v==='2') return v; }catch(e){}
-  return '1';  /* 預設模式一：處›所›人›督›問 */
+  try{ var v=localStorage.getItem(DIM_STORAGE_KEY); if(v==='1'||v==='2'||v==='3') return v; }catch(e){}
+  return '1';  /* 預設模式一：處›分類›所›人›子分類 */
 }
 function _saveDimMode(){ try{ localStorage.setItem(DIM_STORAGE_KEY,_dlgDimMode); }catch(e){} }
 function _getDimOrder(){ return DIM_MODES[_dlgDimMode]; }
@@ -1701,8 +1754,9 @@ function _renderDimBar(){
   p+='</div>';
   var expandLabel = _dlgAllExpanded ? '⊟ 全摺疊' : '⊞ 全展開';
   var c='<div class="dim-mode-group">'
-    +'<button class="dim-mode-btn'+(_dlgDimMode==='1'?' active':'')+'" onclick="_setDimMode(\'1\')" title="處›督›所›人›問">所→人</button>'
-    +'<button class="dim-mode-btn'+(_dlgDimMode==='2'?' active':'')+'" onclick="_setDimMode(\'2\')" title="處›督›人›所›問">人→所</button>'
+    +'<button class="dim-mode-btn'+(_dlgDimMode==='1'?' active':'')+'" onclick="_setDimMode(\'1\')" title="處›分類›所›人›子分類">所→人</button>'
+    +'<button class="dim-mode-btn'+(_dlgDimMode==='2'?' active':'')+'" onclick="_setDimMode(\'2\')" title="處›分類›人›所›子分類">人→所</button>'
+    +'<button class="dim-mode-btn'+(_dlgDimMode==='3'?' active':'')+'" onclick="_setDimMode(\'3\')" title="處›分類›子分類›所›人">分→子</button>'
     +'<button class="dim-list-btn" onclick="_dlgToggleExpandAll()">'+expandLabel+'</button>'
     +'<button class="dim-list-btn'+(_dlgListMode?' active':'')+'" onclick="_dlgToggleList()">📄 明細</button>'
     +'</div>';
@@ -1752,7 +1806,8 @@ function _dlgToggleExpandAll(){
 function _buildDialogLineDetail(){
   var ctx = drillStack.map(function(d){ return d.key; });
   ctx.push(_dialogTitle);
-  var mode = _dlgDimMode === '1' ? '所→人' : '人→所';
+  var MODE_NAMES = { '1':'所→人', '2':'人→所', '3':'分→子' };
+  var mode = MODE_NAMES[_dlgDimMode] || _dlgDimMode;
   var lines = [
     '📋 查核明細（詳細）─ '+PROJ_NAME,
     '📍 '+ctx.join(' › '),
@@ -1761,13 +1816,11 @@ function _buildDialogLineDetail(){
     ''
   ];
 
-  /* 依模式決定第一、二維度 key（處固定為第0層，跳過） */
-  /* 模式1：所→人  dims=[suptype,office,staff,questtype]  → 先所後人
-     模式2：人→所  dims=[suptype,staff,office,questtype]  → 先人後所
-     文字只展開到第2層（含）：處›[督]›[所|人] */
+  /* 通用逐層展開：處固定第0層，之後依當前模式的維度順序逐層展開，
+     展開到倒數第二層為止（最後一層留給明細表本身，文字摘要不重複列出）。 */
   var fullDims = ['area'].concat(_getDimOrder());
-  /* 第0=area，第1=suptype，第2=office|staff，第3=staff|office */
-  /* 逐層 groupBy */
+  var maxDepth = fullDims.length - 1; /* 不展開到最後一層（留給明細/店家列表） */
+
   function grpBy(rows, dim){
     var col=DIM_COL[dim](), map={}, order=[];
     rows.forEach(function(r){
@@ -1779,35 +1832,25 @@ function _buildDialogLineDetail(){
     return {map:map, order:order};
   }
 
-  var areaG = grpBy(_dialogRows, 'area');
-  areaG.order.forEach(function(area){
-    var areaRows = areaG.map[area];
-    lines.push('🏢 '+area+'（'+_fmtRecStore(_countRows(areaRows), _countCodes(areaRows))+'）');
-
-    /* 第1維：分類 */
-    var g1 = grpBy(areaRows, fullDims[1]);
-    g1.order.forEach(function(k1){
-      var rows1 = g1.map[k1];
-      lines.push('  【'+k1+'】'+_fmtRecStore(_countRows(rows1), _countCodes(rows1)));
-
-      /* 第2維：所 or 人 */
-      var g2 = grpBy(rows1, fullDims[2]);
-      g2.order.forEach(function(k2){
-        var rows2 = g2.map[k2];
-        var meta2 = DIM_META[fullDims[2]];
-        lines.push('    '+meta2.icon+' '+k2+'（'+_fmtRecStore(_countRows(rows2), _countCodes(rows2))+'）');
-
-        /* 第3維：人 or 所 */
-        var g3 = grpBy(rows2, fullDims[3]);
-        g3.order.forEach(function(k3){
-          var rows3 = g3.map[k3];
-          var meta3 = DIM_META[fullDims[3]];
-          lines.push('      '+meta3.icon+' '+k3+'（'+_fmtRecStore(_countRows(rows3), _countCodes(rows3))+'）');
-        });
-      });
+  function recurse(rows, dimIdx, indent){
+    if(dimIdx >= maxDepth) return;
+    var dim = fullDims[dimIdx];
+    var g = grpBy(rows, dim);
+    var pad = '  '.repeat(indent);
+    g.order.forEach(function(key){
+      var childRows = g.map[key];
+      var summary = _fmtRecStore(_countRows(childRows), _countCodes(childRows));
+      var text;
+      if(dimIdx===0) text = '🏢 '+key+'（'+summary+'）';
+      else if(dimIdx===1) text = '【'+key+'】'+summary;
+      else text = DIM_META[dim].icon+' '+key+'（'+summary+'）';
+      lines.push(pad+text);
+      recurse(childRows, dimIdx+1, indent+1);
     });
-    lines.push('');
-  });
+    if(dimIdx===0) lines.push('');
+  }
+
+  recurse(_dialogRows, 0, 0);
 
   lines.push('📅 '+new Date().toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}));
   return lines.join('\n');
@@ -2481,7 +2524,15 @@ function toolbarDownloadCsv(){
 }
 
 
-/* ════ 截圖（Viewport） ════ */
+/* ════ 截圖（Viewport） ════
+   一律只複製到剪貼簿，不下載到本機（複製後就是要直接貼上，
+   下載反而多一道存檔/找檔案的手續）。若瀏覽器不支援剪貼簿圖片
+   寫入，才提示錯誤，不再自動退回下載。 */
+function _clipboardCopyFailBtn(btn, restoreHtml){
+  btn.classList.remove('loading');
+  if(restoreHtml!==undefined) btn.innerHTML = restoreHtml;
+  _flashBtn(btn,'⚠️ 複製失敗，請改用瀏覽器截圖');
+}
 function toolbarScreenshot(){
   var btn=document.getElementById('tb-btn-screenshot');
   btn.classList.add('loading'); btn.textContent='⏳ 截圖中...';
@@ -2492,16 +2543,15 @@ function toolbarScreenshot(){
       windowWidth:window.innerWidth, windowHeight:window.innerHeight,
       x:window.scrollX, y:window.scrollY
     }).then(function(canvas){
-      var titleText=PROJ_NAME||'查核';
       if(navigator.clipboard&&window.ClipboardItem){
         canvas.toBlob(function(blob){
           try{
             navigator.clipboard.write([new ClipboardItem({'image/png':blob})])
-              .then(function(){ btn.classList.remove('loading'); _flashBtn(btn,'✅ 已複製！'); })
-              .catch(function(){ _downloadCanvas(canvas,titleText,btn); });
-          }catch(e){ _downloadCanvas(canvas,titleText,btn); }
+              .then(function(){ btn.classList.remove('loading'); btn.textContent='📸 截圖'; _flashBtn(btn,'✅ 已複製！'); })
+              .catch(function(){ _clipboardCopyFailBtn(btn,'📸 截圖'); });
+          }catch(e){ _clipboardCopyFailBtn(btn,'📸 截圖'); }
         },'image/png');
-      } else _downloadCanvas(canvas,titleText,btn);
+      } else { _clipboardCopyFailBtn(btn,'📸 截圖'); }
     }).catch(function(err){ btn.classList.remove('loading'); btn.textContent='📸 截圖'; alert('截圖失敗：'+err); });
   }
   if(window.html2canvas) doCapture();
@@ -2512,12 +2562,6 @@ function toolbarScreenshot(){
     s.onerror=function(){ btn.classList.remove('loading'); btn.textContent='📸 截圖'; alert('html2canvas 載入失敗'); };
     document.head.appendChild(s);
   }
-}
-function _downloadCanvas(canvas,titleText,btn){
-  var link=document.createElement('a');
-  link.download=titleText.replace(/\s+/g,'_')+'.png';
-  link.href=canvas.toDataURL('image/png'); link.click();
-  btn.classList.remove('loading'); _flashBtn(btn,'✅ 已下載！');
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -2697,11 +2741,15 @@ function _buildStaffPivot(rows){
         if(da!==db) return da>db?-1:1;
         return String(a[COL_NAME]||'').localeCompare(String(b[COL_NAME]||''),'zh-TW');
       });
+      var storeColspan = 2 + supTypes.length;
       storeRows.forEach(function(r,ri){
         var code=String(r[COL_CODE]||'').trim(); if(!code) return;
         var dateStr=String(r[COL_DATE]||'').trim();
-        html+='<tr class="pivot-child-row" id="child-'+rid+'-'+ri+'" data-parent="'+rid+'">';
+        var srcRefVal = String(r[COL_SOURCE_REF]||'').trim();
+        var srcRefJs = srcRefVal.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        html+='<tr class="pivot-child-row store-leaf-row" id="child-'+rid+'-'+ri+'" data-parent="'+rid+'" style="cursor:pointer;" onclick="_toggleStoreDetail(\''+r.__rid+'\',\''+srcRefJs+'\')">';
         html+='<td class="td-left" colspan="1" style="padding-left:32px;font-size:13px;">'
+             +'<span class="pivot-expand-icon" id="storeico-'+r.__rid+'" style="font-size:9px;width:14px;display:inline-block;">▶</span>'
              +'<span style="font-size:12px;font-weight:700;color:#2D2D2D;margin-right:8px;font-variant-numeric:tabular-nums;">'+(dateStr||'—')+'</span>'
              +'<span style="font-size:11px;font-weight:600;color:#2D2D2D;margin-right:6px;">'+esc(code)+'</span>'
              +'<span style="font-weight:600;color:#1a1a1a;">'+esc(String(r[COL_NAME]||''))+'</span>'
@@ -2712,7 +2760,10 @@ function _buildStaffPivot(rows){
             +(match?'<span style="color:var(--green);">✓</span>':'')+'</td>';
         });
         html+='<td class="td-total" style="font-size:11px;color:#2D2D2D;">'+esc(String(r[COL_QUESTTYPE]||'—'))+'</td></tr>';
+        html+='<tr class="pivot-child-row store-detail-row" id="storedetail-'+r.__rid+'" data-parent="'+rid+'" style="display:none;">'
+             +'<td colspan="'+storeColspan+'" style="padding:0;" id="storedetailbody-'+r.__rid+'"></td></tr>';
       });
+      /* 收合人員時，一併收合底下已展開的店家明細，避免收合後留下孤兒面板 */
     });
   });
 
@@ -2730,12 +2781,28 @@ function _sortStaff(col){
   _renderPivotSlide('staff');
 }
 
+/* 收合某層群組時，一併強制收合底下任何已展開的店家問卷明細面板，
+   避免群組收合後，明細面板因為是用 inline style 個別控制開合，
+   殘留變成「孤兒面板」浮在畫面上（inline style 優先權比 class 高，
+   單純 toggle class 蓋不掉它）。 */
+function _collapseNestedStoreDetails(rid){
+  document.querySelectorAll('.store-detail-row[data-parent="'+rid+'"]').forEach(function(tr){
+    if(tr.style.display!=='none'){
+      tr.style.display='none';
+      var ridSuffix=tr.id.replace('storedetail-','');
+      var ico=document.getElementById('storeico-'+ridSuffix);
+      if(ico) ico.classList.remove('open');
+    }
+  });
+}
+
 function _toggleStaffExpand(rid){
   var ico=document.getElementById('ico-'+rid);
   var childRows=document.querySelectorAll('[data-parent="'+rid+'"]');
   var isOpen=ico&&ico.classList.contains('open');
   if(ico) ico.classList.toggle('open',!isOpen);
   childRows.forEach(function(tr){ tr.classList.toggle('visible',!isOpen); });
+  if(isOpen) _collapseNestedStoreDetails(rid);
 }
 
 /* ════ [2] 單位 維度 ════
@@ -2888,6 +2955,7 @@ function _toggleOfficeExpand(rid){
   var isOpen=ico&&ico.classList.contains('open');
   if(ico) ico.classList.toggle('open',!isOpen);
   childRows.forEach(function(tr){ tr.classList.toggle('visible',!isOpen); });
+  if(isOpen) _collapseNestedStoreDetails(rid);
 }
 
 /* ════ [4] 店家 維度 ════
@@ -3012,15 +3080,19 @@ function _buildStorePivot(rows){
         var qt=String(r[COL_QUESTTYPE]||'').trim();
         var dupKey=dateStr+'|'+code;
         var isDup=dateStr&&code&&dupKeyCount[dupKey]>1;
-        var rowClass='pivot-child-row'+(isDup?' pivot-dup-row':'');
-        html+='<tr class="'+rowClass+'" id="child-'+rid+'-'+ri+'" data-parent="'+rid+'"'+(isDup?' title="同一天同一家店有多筆查核紀錄"':'')+'>'
-          +'<td class="td-left" style="padding-left:36px;"></td>'
+        var rowClass='pivot-child-row store-leaf-row'+(isDup?' pivot-dup-row':'');
+        var srcRefVal=String(r[COL_SOURCE_REF]||'').trim();
+        var srcRefJs=srcRefVal.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        html+='<tr class="'+rowClass+'" id="child-'+rid+'-'+ri+'" data-parent="'+rid+'" style="cursor:pointer;"'+(isDup?' title="同一天同一家店有多筆查核紀錄"':'')+' onclick="_toggleStoreDetail(\''+r.__rid+'\',\''+srcRefJs+'\')">'
+          +'<td class="td-left" style="padding-left:20px;"><span class="pivot-expand-icon" id="storeico-'+r.__rid+'" style="font-size:9px;width:14px;display:inline-block;">▶</span></td>'
           +'<td class="td-left" style="font-size:12px;font-weight:700;color:#2D2D2D;font-variant-numeric:tabular-nums;">'+(dateStr||'—')+'</td>'
           +'<td class="td-left" style="font-size:11px;font-weight:600;color:#2D2D2D;">'+esc(code||'—')+'</td>'
           +'<td class="td-left" style="font-size:13px;font-weight:700;color:#1a1a1a;">'+esc(name||'—')+(isDup?' <span class="pivot-dup-badge">⚠ 同日重複</span>':'')+'</td>'
           +'<td class="td-left" style="font-size:12px;font-weight:600;color:#1a1a1a;">'+esc(staff||'—')+'</td>'
           +'<td class="td-total" style="font-size:12px;font-weight:600;color:var(--green);">'+esc(st||'—')+(qt?'　<span style="color:#2D2D2D;font-weight:500;">'+esc(qt)+'</span>':'')+'</td>'
           +'</tr>';
+        html+='<tr class="pivot-child-row store-detail-row" id="storedetail-'+r.__rid+'" data-parent="'+rid+'" style="display:none;">'
+          +'<td colspan="6" style="padding:0;" id="storedetailbody-'+r.__rid+'"></td></tr>';
       });
     });
   });
@@ -3043,6 +3115,7 @@ function _toggleStoreExpand(rid){
   var isOpen=ico&&ico.classList.contains('open');
   if(ico) ico.classList.toggle('open',!isOpen);
   childRows.forEach(function(tr){ tr.classList.toggle('visible',!isOpen); });
+  if(isOpen) _collapseNestedStoreDetails(rid);
 }
 
 /* ════ [3] 分類 維度 ════
@@ -3197,7 +3270,7 @@ function _buildBoardLineSummary(){
   var rows = getCurrentRows();
   var stat = calcAudit(rows);
   var ctx = drillStack.length ? drillStack.map(function(d){ return d.key; }).join(' › ') : '全台';
-  var lines = ['📋 大督導時代 ─ '+PROJ_NAME, '📍 範圍：'+ctx, '🏪 總計：'+_fmtRecStore(stat.totalRecords, stat.totalStores), ''];
+  var lines = ['📋 稽核型看版 ─ '+PROJ_NAME, '📍 範圍：'+ctx, '🏪 總計：'+_fmtRecStore(stat.totalRecords, stat.totalStores), ''];
   stat.groups.forEach(function(g){
     lines.push('【'+g.label+'】'+_fmtRecStore(g.records, g.stores));
     if(g.subItems && g.subItems.length){
@@ -3214,7 +3287,7 @@ function _buildDialogLineSummary(){
   var stat = calcAudit(_dialogRows);
   var ctx = drillStack.map(function(d){ return d.key; });
   ctx.push(_dialogTitle);
-  var mode = _dlgDimMode === '1' ? '所→人' : '人→所';
+  var mode = { '1':'所→人', '2':'人→所', '3':'分→子' }[_dlgDimMode] || _dlgDimMode;
   var lines = ['📋 查核明細 ─ '+PROJ_NAME, '📍 '+ctx.join(' › '), '🔀 模式：'+mode, '🏪 合計：'+_fmtRecStore(stat.totalRecords, stat.totalStores), ''];
   stat.groups.forEach(function(g){
     lines.push('【'+g.label+'】'+_fmtRecStore(g.records, g.stores));
@@ -3345,7 +3418,8 @@ function _storeDetailScreenshot(rid, btn){
   _captureElement(el, btn, name+'_查核明細');
 }
 
-/* ════ Dialog 截圖 ════ */
+/* ════ Dialog 截圖 ════
+   同樣一律只複製到剪貼簿，不下載到本機（見 toolbarScreenshot 說明）。 */
 function _captureElement(el, btn, filename){
   btn.classList.add('loading'); btn.innerHTML='<span>⏳</span>';
   function doCapture(){
@@ -3359,10 +3433,10 @@ function _captureElement(el, btn, filename){
           try{
             navigator.clipboard.write([new ClipboardItem({'image/png':blob})])
               .then(function(){ btn.classList.remove('loading'); _flashBtn(btn,'✅ 已複製！'); })
-              .catch(function(){ _downloadCanvas(canvas, filename, btn); });
-          }catch(e){ _downloadCanvas(canvas, filename, btn); }
+              .catch(function(){ _clipboardCopyFailBtn(btn,'<span>📸</span>'); });
+          }catch(e){ _clipboardCopyFailBtn(btn,'<span>📸</span>'); }
         },'image/png');
-      } else { _downloadCanvas(canvas, filename, btn); }
+      } else { _clipboardCopyFailBtn(btn,'<span>📸</span>'); }
     }).catch(function(err){ btn.classList.remove('loading'); btn.innerHTML='<span>📸</span>'; });
   }
   if(window.html2canvas) doCapture();
