@@ -202,6 +202,22 @@
   Dialog：逐列明細，含通路別、店家型態、店家等級、分類、子分類
 
 【版本紀錄】
+  2.8.3  2026-07-03  修正「切了維度 on/off 開關（或切排序模式/展開其他節點）之後，
+                      原本點得開的店家明細又打不開，而且切回原本設定也一樣打不開」的 bug。
+                      根因：查核明細 Dialog 裡任何操作（切維度開關／切所→人/人→所/分→子／
+                      點全展開／展開收合其他節點）都是呼叫 _renderDlgContent() 把整棵樹
+                      innerHTML 整個重建一次，storedetailbody-dlg-XXX 這個 id 雖然沒變，
+                      但其實已經是全新的空節點；而 _storeDetailLoaded／_storeDetailCache
+                      是全域變數，不會因為樹被重建而重置，一看到某筆資料先前已經讀取過，
+                      就直接 return，這個全新的空節點就永遠沒被填內容。改成快取直接存
+                      「渲染完成的 html 字串」，只要有快取，不管 bodyEl 是不是剛誕生的新節點，
+                      一律直接把快取 html 貼回去（不會重打 API），徹底不依賴節點是否為
+                      同一個 DOM 實例；抓取失敗的情況也改成不快取、不標記已讀取，讓使用者
+                      展開時可以重試。
+                      （另外檢查了「自動整理」GAS 腳本產生的「來源分頁+行數」格式
+                      ${sheetName}_${i+1}，跟前端 _parseSourceRef／_fetchSourceSheet 的
+                      列號換算邏輯是對得起來的，兩邊沒有互衝，這次的 bug 純粹是前端
+                      畫面重繪時的快取失效問題。）
   2.8.2  2026-07-03  1) 查核明細 Dialog 麵包屑（🏢營業處›📋分類›📁所/課›👤人員›📄子分類）
                       的後 4 個 badge 改成可點擊的 on/off 開關：不管目前選的是「所→人／
                       人→所／分→子」哪個排序模式，都能把其中幾層直接關掉（灰底+刪除線），
@@ -1943,15 +1959,9 @@ function _dlgNestToggle(rid){ _dlgExpandMap[rid]=!_dlgExpandMap[rid]; _renderDlg
 var _storeDetailLoaded = {}; /* rid → true，避免重複抓取 */
 var _storeDetailCache  = {}; /* rid → {rowData, ref, basicRow}，供「複製摘要／截圖」分享功能取用 */
 function _toggleStoreDetail(rid, sourceRef, dataRid){
-  /* 【修正】rid 現在是「這次呼叫端自己的命名空間 id」（例如 dlg-row123／pvstaff-row123／
+  /* rid 是「這次呼叫端自己的命名空間 id」（例如 dlg-row123／pvstaff-row123／
      pvstore-row123），確保同一筆資料在不同畫面（查核明細 Dialog／彙整看板的人員 slide／
      店家 slide）各自展開時，DOM id 不會撞名。
-     舊行為是直接拿 r.__rid 當 DOM id：因為彙整看板一開啟會把「人員／單位／督導／店家」
-     四個 slide 一次全部渲染進 DOM（即使沒切到那個 tab），且關閉彙整看板時 DOM 也不會被移除，
-     只要同一筆店家資料同時出現在兩個以上的畫面（例如人員 slide 與店家 slide都有），
-     document.getElementById 就只會抓「文件順序中第一個」符合 id 的節點——導致點擊的明明是
-     A 畫面這一列，實際被更新（或已經標記成「已讀取過」）的卻是 B 畫面裡那份看不見的副本，
-     畫面上就會出現「箭頭轉開了、內容卻是空的」。
      dataRid 才是真正拿來回頭比對 allRows 的原始 __rid，务必跟 DOM id 分開，不能混用。 */
   dataRid = dataRid || rid;
   var detail = document.getElementById('storedetail-'+rid);
@@ -1962,22 +1972,37 @@ function _toggleStoreDetail(rid, sourceRef, dataRid){
   if(ico) ico.classList.toggle('open', !isOpen);
   if(isOpen) return; /* 收合不用重抓 */
 
-  if(_storeDetailLoaded[rid]) return; /* 已經抓過，DOM 內容還在，不重抓 */
+  var bodyEl = document.getElementById('storedetailbody-'+rid);
+  if(!bodyEl) return;
+
+  /* 【修正】「切維度 on/off 開關／切排序模式/子分/所人／點全展開／點其他節點的展開箭頭」
+     這些操作全部都是呼叫 _renderDlgContent() 整棵樹重新 innerHTML 重建，rid 相同的
+     storedetailbody DOM 節點其實已經被整個換成一個全新、空的節點。但 _storeDetailLoaded
+     / _storeDetailCache 是頁面層級的全域變數，不會因為樹被重建而重置，於是舊寫法一看到
+     _storeDetailLoaded[rid] 已經是 true，就直接 return，這個全新、空的節點就永遠沒被
+     填內容——畫面上呈現「箭頭轉開了、內容卻是空的」，而且不管怎麼切回原本的維度開關都一樣
+     （因為每切一次都是新的一輪「整棵樹重建 → 舊旗標騙過新節點」）。
+     正確做法：快取直接存「渲染完成的 html 字串」而不是原始資料；只要快取存在，
+     不管 bodyEl 是不是剛剛才重新誕生的全新節點，都直接拿快取的 html 貼回去即可
+     （不必也不會重新打 API），徹底不依賴「這個節點之前是不是同一個節點」。 */
+  if(_storeDetailLoaded[rid] && _storeDetailCache[rid] && _storeDetailCache[rid].html){
+    bodyEl.innerHTML = _storeDetailCache[rid].html;
+    return;
+  }
 
   /* 基本資料：直接用 __rid 從 allRows 找回這一筆完整物件，不用再回頭比對店家代碼
      （同一店家代碼可能因多次查核在店家名冊出現多筆，用 __rid 才能保證拿到的
      正是被點擊的那一列，不會選錯）。問卷內容（大題/選項）才需要另外向來源分頁查詢。 */
   var basicRow = allRows.find(function(x){ return x.__rid === dataRid; }) || null;
-  _storeDetailCache[rid] = { rowData:null, ref:null, basicRow:basicRow };
 
   var ref = _parseSourceRef(sourceRef);
-  var bodyEl = document.getElementById('storedetailbody-'+rid);
-  if(!bodyEl) return;
 
   if(!ref){
-    bodyEl.innerHTML = _buildRawDetailPanel(null, null, null, basicRow, rid)
+    var htmlNoRef = _buildRawDetailPanel(null, null, null, basicRow, rid)
       + '<div style="padding:0 16px 10px;font-size:12px;color:#B23A3A;">⚠️ 此筆店家沒有「來源分頁+行數」資料，無法回溯問卷內容</div>';
+    bodyEl.innerHTML = htmlNoRef;
     _storeDetailLoaded[rid] = true;
+    _storeDetailCache[rid] = { rowData:null, ref:null, basicRow:basicRow, html:htmlNoRef };
     return;
   }
 
@@ -1985,15 +2010,22 @@ function _toggleStoreDetail(rid, sourceRef, dataRid){
     + '<div style="padding:0 16px 10px;font-size:12px;color:#2D2D2D;">⏳ 讀取「'+esc(ref.sheet)+'」第 '+ref.row+' 列問卷內容…</div>';
 
   _fetchSourceRowDetail(sourceRef, function(rowData, parsedRef, err, sheetData){
-    _storeDetailLoaded[rid] = true;
-    _storeDetailCache[rid] = { rowData:rowData, ref:parsedRef, basicRow:basicRow };
+    /* 重抓期間使用者可能已經切換維度、重建了整棵樹，這個當初抓到的 bodyEl 參照
+       可能已經不在畫面上了；每次要寫入前都重新用 rid 找一次目前畫面上「現存」的
+       節點，找不到就代表這筆展開狀態已經被使用者收合／重建掉了，不用再寫。 */
+    var liveBodyEl = document.getElementById('storedetailbody-'+rid);
     if(err){
       var dbgHtml = sheetData && sheetData._debugRows ? _renderDebugRowsHtml(sheetData) : '';
-      bodyEl.innerHTML = _buildRawDetailPanel(null, parsedRef, null, basicRow, rid)
+      var htmlErr = _buildRawDetailPanel(null, parsedRef, null, basicRow, rid)
         + '<div style="padding:0 16px 10px;font-size:12px;color:#B23A3A;">⚠️ '+esc(err)+'</div>' + dbgHtml;
+      /* 錯誤不快取、不標記為已讀取，讓使用者下次展開時可以重試（例如網路暫時失敗） */
+      if(liveBodyEl) liveBodyEl.innerHTML = htmlErr;
       return;
     }
-    bodyEl.innerHTML = _buildRawDetailPanel(rowData, parsedRef, sheetData, basicRow, rid);
+    var htmlOk = _buildRawDetailPanel(rowData, parsedRef, sheetData, basicRow, rid);
+    _storeDetailLoaded[rid] = true;
+    _storeDetailCache[rid] = { rowData:rowData, ref:parsedRef, basicRow:basicRow, html:htmlOk };
+    if(liveBodyEl) liveBodyEl.innerHTML = htmlOk;
   });
 }
 
