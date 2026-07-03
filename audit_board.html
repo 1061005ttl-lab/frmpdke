@@ -777,12 +777,14 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 }
 .photo-lightbox-backdrop.show { display:flex; }
 .photo-lightbox-img {
-  /* 【修改】拿掉原本 min(90vw,900px) 的寬度上限——螢幕越大，圖片理應跟著放大，
-     不該卡在 900px。改成單純用 max-width/max-height 各自設一個視窗百分比，
-     瀏覽器對 <img> 元素本來就會自動照原始長寬比，同時滿足兩個限制中「比較吃緊」
-     的那一個（直式照片通常先撐滿高度、橫式照片通常先撐滿寬度），不需要額外用
-     JS 去判斷「這張是直的還橫的該先比高還比寬」，CSS 天生就是這樣算的。 */
-  max-width:96vw; max-height:94vh; width:auto; height:auto;
+  /* 之前用 max-width/max-height + width:auto/height:auto：瀏覽器只會「縮小」
+     超出限制的圖片，原始解析度較小的照片（多數手機直向照片本來就不大）
+     不會被「放大」填滿視窗，導致燈箱裡的圖看起來很小、跟背景大片黑幕不成比例。
+     改成給一個明確的框（96vw × 94vh）＋ object-fit:contain：無論照片原始
+     解析度大小，瀏覽器都會把圖片縮放到「剛好卡住框的寬或高（兩者先碰到誰
+     就以誰為準）」，同時維持原始長寬比不變形——直式照片通常先頂到高度上限、
+     橫式照片通常先頂到寬度上限，恰好符合「頂高/頂寬看誰先達到」的需求。 */
+  width:96vw; height:94vh;
   border-radius:8px; object-fit:contain;
   box-shadow:0 8px 32px rgba(0,0,0,.4); cursor:default;
   background:#222;
