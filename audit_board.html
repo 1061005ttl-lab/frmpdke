@@ -202,6 +202,10 @@
   Dialog：逐列明細，含通路別、店家型態、店家等級、分類、子分類
 
 【版本紀錄】
+  2.9.3  2026-07-03  照片燈箱改回滿版模式（明確框 96vw×94vh＋object-fit:contain，
+                      高先頂高／寬先頂寬，誰先到就停），不再用「只縮不放＋點空白處
+                      判定」那套邏輯。改成點燈箱範圍內任何地方（含照片本身）都會
+                      關閉，不必特地瞄準留白處或按右上角 X，X 仍保留但非必要。
   2.9.2  2026-07-03  拿掉照片燈箱裡圖片自己的圓角／陰影／深色底（border-radius、
                       box-shadow、background）。這幾個樣式會讓圖片本身看起來像
                       是一個獨立的框，疊在黑幕背景之上，變成「黑幕＋框」視覺上
@@ -790,14 +794,13 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 }
 .photo-lightbox-backdrop.show { display:flex; }
 .photo-lightbox-img {
-  /* 「只縮不放」：max-width/max-height 限制上限，width/height:auto 讓圖片
-     依原始尺寸與長寬比自然呈現，img 範圍等於看得到圖的範圍，四周才是
-     真正的黑幕背景，點下去可以正確關閉燈箱。
-     拿掉圓角／陰影／自己的深色底：這些會讓圖片看起來像是「黑幕之上又疊了
-     一個框」，變成視覺上的兩層。圖片本身不需要框，直接貼在黑幕上就好。 */
-  max-width:98vw; max-height:97vh;
-  width:auto; height:auto;
-  object-fit:contain; cursor:default;
+  /* 滿版縮放：給一個明確的框（96vw×94vh）＋ object-fit:contain，
+     瀏覽器會把照片縮放到「剛好卡住框的寬或高，兩者先碰到誰就以誰為準」，
+     同時維持長寬比不變形——直式照片先頂高、橫式照片先頂寬。
+     不再靠「點空白處才關閉」這種判斷，改成點燈箱裡任何地方（含照片本身）
+     都會關閉，所以不需要糾結 img 的實際可視範圍跟點擊範圍是否一致。 */
+  width:96vw; height:94vh;
+  object-fit:contain; cursor:zoom-out;
 }
 .photo-lightbox-close {
   position:absolute; top:18px; right:24px; width:36px; height:36px;
@@ -2291,7 +2294,7 @@ function _ensurePhotoLightbox(){
   el.className = 'photo-lightbox-backdrop';
   el.innerHTML = '<button class="photo-lightbox-close" onclick="_closePhotoLightbox()">✕</button>'
     + '<img class="photo-lightbox-img" id="photo-lightbox-img" src="" alt="">';
-  el.addEventListener('click', function(e){ if(e.target===el) _closePhotoLightbox(); });
+  el.addEventListener('click', function(){ _closePhotoLightbox(); });
   document.body.appendChild(el);
   document.addEventListener('keydown', function(e){ if(e.key==='Escape') _closePhotoLightbox(); });
   return el;
