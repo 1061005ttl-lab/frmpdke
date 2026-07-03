@@ -202,6 +202,17 @@
   Dialog：逐列明細，含通路別、店家型態、店家等級、分類、子分類
 
 【版本紀錄】
+  2.9.0  2026-07-03  1) 照片燈箱拿掉原本 900px 的寬度上限，改成 max-width:96vw／
+                      max-height:94vh，讓瀏覽器依照片原始長寬比自動撐到「畫面能容納
+                      的最大尺寸」（直式照片先撐滿高度、橫式照片先撐滿寬度，CSS 本來
+                      就是這樣算，不需要額外判斷）。
+                      2) 新增「🖼️ 照片牆」視角（圖片選項型清單）：列出目前篩選範圍內
+                      每一家「問卷裡有放照片」的店家，依大題／選項分組顯示縮圖，點縮圖
+                      一樣開燈箱看大圖。實作方式：先蒐集範圍內所有列的「來源分頁+行數」，
+                      取不重複的分頁名稱各抓一次（沿用既有 _fetchSourceSheet 分頁層級
+                      快取，重複開照片牆不會重打 API），抓完後逐列用文字掃網址的規則
+                      （跟單筆展開明細同一套邏輯）找出照片，組成店卡清單；完全沒有照片
+                      的店家不會列出。
   2.8.3  2026-07-03  修正「切了維度 on/off 開關（或切排序模式/展開其他節點）之後，
                       原本點得開的店家明細又打不開，而且切回原本設定也一樣打不開」的 bug。
                       根因：查核明細 Dialog 裡任何操作（切維度開關／切所→人/人→所/分→子／
@@ -408,19 +419,19 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .tt-val { font-size:12px; font-weight:700; color:var(--text); white-space:nowrap; }
 
 /* ── Dialog ── */
-#detail-dialog, #summary-dialog {
+#detail-dialog, #summary-dialog, #photo-dialog {
   position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:500;
   display:flex; align-items:center; justify-content:center;
   opacity:0; transition:opacity .2s;
 }
-#detail-dialog.open, #summary-dialog.open { opacity:1; }
+#detail-dialog.open, #summary-dialog.open, #photo-dialog.open { opacity:1; }
 .dlg-box {
   background:#fff; border-radius:14px; width:min(92vw,1200px); height:88vh;
   display:flex; flex-direction:column; overflow:hidden;
   box-shadow:0 20px 80px rgba(0,0,0,.35);
   transform:translateY(16px); transition:transform .22s;
 }
-#detail-dialog.open .dlg-box { transform:translateY(0); }
+#detail-dialog.open .dlg-box, #photo-dialog.open .dlg-box { transform:translateY(0); }
 .dlg-header {
   padding:14px 20px; border-bottom:1px solid rgba(0,0,0,.09);
   display:flex; align-items:center; justify-content:space-between;
@@ -717,6 +728,33 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
    不再像文字卡片一樣一行一則（一張照片佔一整排太浪費版面）。 */
 .raw-quiz-photos { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
 .raw-quiz-chip.raw-quiz-photo { display:inline-block; padding:6px 8px; vertical-align:top; margin:0; }
+
+/* ── 照片牆（圖片選項型視角）：哪間店、哪份問卷、哪個大題、哪個選項底下放了什麼照片 ──
+   店卡沿用 .raw-quiz-section／.raw-quiz-title／.raw-quiz-photos 既有樣式渲染大題/選項，
+   這裡只需要額外補「整間店的外框卡片」與「頂部摘要列」的樣式。 */
+.photo-gallery-wrap { padding:14px 20px 30px; }
+.photo-gallery-summary {
+  font-size:12px; font-weight:700; color:var(--sub); margin-bottom:12px;
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+}
+.photo-gallery-summary strong { color:var(--primary); font-size:14px; }
+.photo-store-card {
+  background:#FAFAF8; border:1px solid rgba(0,0,0,.08); border-radius:10px;
+  padding:12px 14px 14px; margin-bottom:12px;
+}
+.photo-store-head {
+  display:flex; align-items:baseline; flex-wrap:wrap; gap:8px;
+  margin-bottom:10px; padding-bottom:8px; border-bottom:1px dashed rgba(0,0,0,.1);
+}
+.photo-store-name { font-size:14px; font-weight:900; color:#1a1a1a; }
+.photo-store-meta { font-size:11px; color:var(--sub); font-weight:600; }
+.photo-store-tag {
+  font-size:10.5px; font-weight:700; color:var(--primary);
+  background:rgba(55,138,221,.08); border-radius:5px; padding:2px 7px;
+}
+.photo-gallery-sections { display:flex; flex-direction:column; gap:8px; }
+.photo-gallery-empty { padding:60px 20px; text-align:center; color:var(--sub); font-size:13px; }
+.photo-gallery-loading { padding:60px 20px; text-align:center; color:var(--sub); font-size:13px; }
 .raw-quiz-photo-img {
   display:block; margin-top:4px; width:100px; height:100px; object-fit:cover;
   border-radius:6px; border:1px solid rgba(0,0,0,.08); cursor:zoom-in;
@@ -733,7 +771,13 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 }
 .photo-lightbox-backdrop.show { display:flex; }
 .photo-lightbox-img {
-  max-width:min(90vw,900px); max-height:90vh; border-radius:8px;
+  /* 【修改】拿掉原本 min(90vw,900px) 的寬度上限——螢幕越大，圖片理應跟著放大，
+     不該卡在 900px。改成單純用 max-width/max-height 各自設一個視窗百分比，
+     瀏覽器對 <img> 元素本來就會自動照原始長寬比，同時滿足兩個限制中「比較吃緊」
+     的那一個（直式照片通常先撐滿高度、橫式照片通常先撐滿寬度），不需要額外用
+     JS 去判斷「這張是直的還橫的該先比高還比寬」，CSS 天生就是這樣算的。 */
+  max-width:96vw; max-height:94vh; width:auto; height:auto;
+  border-radius:8px; object-fit:contain;
   box-shadow:0 8px 32px rgba(0,0,0,.4); cursor:default;
   background:#222;
 }
@@ -849,6 +893,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <button class="tb-act-btn" onclick="openSummaryDialog('office')">🏢 單位</button>
     <button class="tb-act-btn" onclick="openSummaryDialog('suptype')">📋 督導</button>
     <button class="tb-act-btn" onclick="openSummaryDialog('store')">🏪 店家</button>
+    <button class="tb-act-btn" onclick="openPhotoGalleryDialog()">🖼️ 照片牆</button>
     <button class="tb-act-btn" id="tb-btn-line" onclick="toolbarShareLine()">📋 LINE</button>
     <button class="tb-act-btn" id="tb-btn-csv" onclick="toolbarDownloadCsv()">📥 CSV</button>
     <button class="tb-act-btn" id="tb-btn-screenshot" onclick="toolbarScreenshot()">📸 截圖</button>
@@ -907,6 +952,19 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <div class="pivot-viewport">
       <div id="dlg-pivot-content" style="height:100%;overflow:auto;"></div>
     </div>
+  </div>
+</div>
+
+<!-- 照片牆 Dialog：圖片選項型視角——哪間店、在哪份問卷的哪個大題／哪個選項底下放了什麼照片 -->
+<div id="photo-dialog" style="display:none" onclick="if(event.target===this)closePhotoGalleryDialog()">
+  <div class="dlg-box">
+    <div class="dlg-header">
+      <span id="photo-dlg-title" style="font-size:14px;font-weight:900;flex:1;min-width:0;">🖼️ 照片牆</span>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+        <button class="dlg-close" onclick="closePhotoGalleryDialog()">✕</button>
+      </div>
+    </div>
+    <div id="photo-dlg-content" style="height:100%;overflow:auto;"></div>
   </div>
 </div>
 
@@ -1805,7 +1863,7 @@ function closeDialog(){
   setTimeout(function(){ dlg.style.display='none'; },220);
 }
 document.addEventListener('keydown',function(e){
-  if(e.key==='Escape'){ closeDialog(); closeSummaryDialog(); }
+  if(e.key==='Escape'){ closeDialog(); closeSummaryDialog(); closePhotoGalleryDialog(); }
 });
 
 function _renderDimBar(){
@@ -2228,6 +2286,136 @@ function _openPhotoLightbox(url, alt){
 function _closePhotoLightbox(){
   var el = document.getElementById('photo-lightbox-backdrop');
   if(el) el.classList.remove('show');
+}
+
+/* ════ 照片牆（圖片選項型視角） ════
+   需求：一份清單，列出「哪間店、在哪份問卷（子分類）、哪個大題、哪個選項底下」
+   被放了什麼照片。跟單筆店家展開明細用的是同一套「來源分頁+行數」機制，差別只在
+   這裡要一次掃描『目前篩選範圍內的所有店家』，而不是使用者點開的單一筆。
+
+   作法：
+   1. 目前範圍內每一筆有效資料（COL_CODE + COL_SOURCE_REF 都存在）先解析出
+      { sheet, row }，收集所有「不重複」的來源分頁名稱。
+   2. 逐一分頁呼叫 _fetchSourceSheet（本來就有分頁層級的快取 _sourceSheetCache，
+      同一分頁只會真的打一次 API，之後不管開幾次照片牆都是吃快取，不會越開越慢）。
+   3. 全部分頁都抓完後，回頭用每一筆資料自己的 { sheet, row } 去對應分頁的
+      rowsByNum 撈出 sections/picks，跟單筆展開明細用同一套「文字裡掃網址」規則
+      （urlRe = /https?:\/\/\S+/gi）找出照片欄位，組成「店卡」清單。
+   4. 完全沒有照片的店家不顯示（照片牆本來就是要看照片，不是看全部店家）。 */
+function _extractPhotosFromRowData(rowData){
+  if(!rowData || !rowData.sections) return [];
+  var out = [];
+  rowData.sections.forEach(function(sec){
+    sec.picks.forEach(function(p){
+      var raw = String(p.value||'');
+      var urlRe = /https?:\/\/\S+/gi;
+      var urls = raw.match(urlRe) || [];
+      urls.forEach(function(u, uIdx){
+        var label = urls.length > 1 ? (p.option + '-' + (uIdx+1)) : p.option;
+        out.push({ section: sec.section, option: label, url: u });
+      });
+    });
+  });
+  return out;
+}
+
+function _buildPhotoGallery(rows, callback){
+  var candidates = rows.filter(function(r){
+    return String(r[COL_CODE]||'').trim() && String(r[COL_SOURCE_REF]||'').trim();
+  }).map(function(r){
+    return { row:r, ref:_parseSourceRef(r[COL_SOURCE_REF]) };
+  }).filter(function(x){ return !!x.ref; });
+
+  if(!candidates.length){ callback('<div class="photo-gallery-empty">目前範圍內沒有可回溯照片的資料（缺少「來源分頁+行數」）</div>'); return; }
+
+  var sheetNames = [];
+  var seenSheet = {};
+  candidates.forEach(function(x){
+    if(!seenSheet[x.ref.sheet]){ seenSheet[x.ref.sheet]=true; sheetNames.push(x.ref.sheet); }
+  });
+
+  var loadedCount = 0;
+  var sheetDataMap = {};
+  sheetNames.forEach(function(sn){
+    _fetchSourceSheet(sn, function(sheetData, err){
+      sheetDataMap[sn] = sheetData; /* err 時是 null，等等對應不到列，該分頁的照片自然跳過 */
+      loadedCount++;
+      if(loadedCount === sheetNames.length) _finishGallery();
+    });
+  });
+
+  function _finishGallery(){
+    var cards = [];
+    var totalPhotos = 0;
+    candidates.forEach(function(x){
+      var sheetData = sheetDataMap[x.ref.sheet];
+      if(!sheetData) return;
+      var rowData = sheetData.rowsByNum[x.ref.row];
+      var photos = _extractPhotosFromRowData(rowData);
+      if(!photos.length) return;
+      totalPhotos += photos.length;
+      cards.push({ row:x.row, ref:x.ref, photos:photos });
+    });
+
+    if(!cards.length){ callback('<div class="photo-gallery-empty">目前範圍內的問卷都沒有找到任何照片</div>'); return; }
+
+    /* 日期新→舊，同日再依店名排序，跟其他清單的排序習慣一致 */
+    cards.sort(function(a,b){
+      var da=String(a.row[COL_DATE]||''), db=String(b.row[COL_DATE]||'');
+      if(da!==db) return da>db?-1:1;
+      return String(a.row[COL_NAME]||'').localeCompare(String(b.row[COL_NAME]||''),'zh-TW');
+    });
+
+    var html = '<div class="photo-gallery-wrap">'
+      + '<div class="photo-gallery-summary">📸 共 <strong>'+cards.length+'</strong> 家店　🖼️ 共 <strong>'+totalPhotos+'</strong> 張照片'
+      + '　<span style="font-weight:500;opacity:.7;">（僅列出目前篩選範圍內、且問卷裡有照片的店家）</span></div>';
+
+    cards.forEach(function(c){
+      var r = c.row;
+      /* 依大題分組（同一張店卡可能橫跨好幾個大題，例如陳列照＋PG合照分屬不同大題） */
+      var bySection = {}, sectionOrder = [];
+      c.photos.forEach(function(p){
+        if(!bySection[p.section]){ bySection[p.section]=[]; sectionOrder.push(p.section); }
+        bySection[p.section].push(p);
+      });
+      var sectionsHtml = sectionOrder.map(function(sec){
+        var photosHtml = bySection[sec].map(function(p){ return _renderPhotoChip(p.option, p.url); }).join('');
+        return '<div class="raw-quiz-section">'
+          + '<div class="raw-quiz-title">📋 '+esc(sec)+'</div>'
+          + '<div class="raw-quiz-photos">'+photosHtml+'</div>'
+          + '</div>';
+      }).join('');
+
+      var metaParts = [r[COL_AREA], r[COL_OFFICE], r[COL_STAFF]].filter(function(v){ return v; });
+      html += '<div class="photo-store-card">'
+        + '<div class="photo-store-head">'
+        + '<span class="photo-store-name">🏪 '+esc(String(r[COL_NAME]||'—'))+'</span>'
+        + '<span class="photo-store-meta">'+(r[COL_DATE]?esc(String(r[COL_DATE]))+'　':'')+esc(metaParts.join(' · '))+'</span>'
+        + '<span class="photo-store-tag">📄 '+esc(c.ref.sheet)+' 第 '+c.ref.row+' 列</span>'
+        + (r[COL_QUESTTYPE] ? '<span class="photo-store-tag">'+esc(String(r[COL_QUESTTYPE]))+'</span>' : '')
+        + '</div>'
+        + '<div class="photo-gallery-sections">'+sectionsHtml+'</div>'
+        + '</div>';
+    });
+
+    html += '</div>';
+    callback(html);
+  }
+}
+
+function openPhotoGalleryDialog(){
+  var dlg = document.getElementById('photo-dialog');
+  document.getElementById('photo-dlg-content').innerHTML = '<div class="photo-gallery-loading">⏳ 掃描問卷照片中，分頁數量較多時可能要等幾秒…</div>';
+  dlg.style.display='flex';
+  setTimeout(function(){ dlg.classList.add('open'); },10);
+  _buildPhotoGallery(getCurrentRows(), function(html){
+    document.getElementById('photo-dlg-content').innerHTML = html;
+  });
+}
+function closePhotoGalleryDialog(){
+  var dlg = document.getElementById('photo-dialog');
+  dlg.classList.remove('open');
+  setTimeout(function(){ dlg.style.display='none'; },220);
 }
 function _rid(s){ return String(s).replace(/[^\w\u4e00-\u9fff]/g,'_').substring(0,20); }
 function escAttr(s){ return String(s).replace(/'/g,"\\'"); }
