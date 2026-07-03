@@ -202,6 +202,15 @@
   Dialog：逐列明細，含通路別、店家型態、店家等級、分類、子分類
 
 【版本紀錄】
+  2.8.2  2026-07-03  1) 查核明細 Dialog 麵包屑（🏢營業處›📋分類›📁所/課›👤人員›📄子分類）
+                      的後 4 個 badge 改成可點擊的 on/off 開關：不管目前選的是「所→人／
+                      人→所／分→子」哪個排序模式，都能把其中幾層直接關掉（灰底+刪除線），
+                      關掉的層級會從資料樹跳過、不佔縮排，適合只想看特定人員/單位資料、
+                      懶得逐層展開的情境；設定存 localStorage，記住上次的開關狀態，且獨立於
+                      排序模式（切排序模式不會重置 on/off）。實作上只需讓 _getDimOrder()
+                      依 _dlgDimActive 過濾，_buildNestedPivot／全展開／複製詳細文字都是
+                      吃 _getDimOrder() 的通用遞迴，完全不用改動。
+                      2) 頂部工具列與彙整看板的「📋 複製」按鈕文字改成「📋 LINE」。
   2.8.1  2026-07-03  修正「展開店家明細箭頭轉開但內容空白」的 bug：查核明細 Dialog、
                       彙整看板的人員 slide、店家 slide 三處先前都直接拿 r.__rid 當
                       storedetail-／storedetailbody-／storeico- 的 DOM id；但彙整看板一
@@ -520,8 +529,15 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   padding:8px 14px; font-size:13px; font-weight:700; color:var(--primary);
   background:#fff; border:1px solid rgba(55,138,221,.25); border-bottom:none;
   border-radius:10px 10px 0 0; white-space:nowrap;
-  position:relative; top:2px;
+  position:relative; top:2px; cursor:pointer; user-select:none; transition:all .15s;
 }
+.dim-badge:hover { background:rgba(55,138,221,.06); }
+/* 該層被關閉（off）：仍保留在麵包屑上，但變灰＋加刪除線，點擊可再打開 */
+.dim-badge.off {
+  color:#aaa; background:#f2f0ec; border-color:rgba(0,0,0,.08);
+  text-decoration:line-through; text-decoration-color:rgba(0,0,0,.25);
+}
+.dim-badge.off:hover { background:#ece9e3; color:#888; }
 
 /* 排序按鈕組（在欄位標頭旁） */
 .sort-btns {
@@ -817,7 +833,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <button class="tb-act-btn" onclick="openSummaryDialog('office')">🏢 單位</button>
     <button class="tb-act-btn" onclick="openSummaryDialog('suptype')">📋 督導</button>
     <button class="tb-act-btn" onclick="openSummaryDialog('store')">🏪 店家</button>
-    <button class="tb-act-btn" id="tb-btn-line" onclick="toolbarShareLine()">📋 複製</button>
+    <button class="tb-act-btn" id="tb-btn-line" onclick="toolbarShareLine()">📋 LINE</button>
     <button class="tb-act-btn" id="tb-btn-csv" onclick="toolbarDownloadCsv()">📥 CSV</button>
     <button class="tb-act-btn" id="tb-btn-screenshot" onclick="toolbarScreenshot()">📸 截圖</button>
   </div>
@@ -829,7 +845,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <div class="dlg-header">
       <span id="sum-title" style="font-size:14px;font-weight:900;flex:1;min-width:0;"></span>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-        <button class="dlg-action-btn" id="btn-sum-line" onclick="summaryShareLine()"><span>📋</span><span class="btn-txt"> 複製</span></button>
+        <button class="dlg-action-btn" id="btn-sum-line" onclick="summaryShareLine()"><span>📋</span><span class="btn-txt"> LINE</span></button>
         <button class="dlg-action-btn" id="btn-sum-csv" onclick="downloadSummaryCsv()"><span>📥</span><span class="btn-txt"> CSV</span></button>
         <button class="dlg-action-btn" id="btn-sum-screenshot" onclick="summaryScreenshot()"><span>📸</span><span class="btn-txt"> 截圖</span></button>
         <button class="dlg-close" onclick="closeSummaryDialog()">✕</button>
@@ -1724,12 +1740,32 @@ var DIM_META = {
 };
 var _dlgDimMode=_loadDimMode(), _dlgListMode=false, _dlgExpandMap={}, _dlgSortState={}, _dlgAllExpanded=false;
 
+/* 【新增】四個維度（分類／所課／人員／子分類）各自獨立的 on/off 狀態，
+   不論目前選的是哪一種排序模式（所→人／人→所／分→子），都可以把其中幾層關掉，
+   關掉的層級直接跳過、不佔一層縮排，適合「只想看某個人員/單位資料，懶得逐層點開」的情境。
+   跟排序模式一樣存 localStorage，記住使用者上次的設定。 */
+var DIM_ACTIVE_STORAGE_KEY = 'ttl_audit_dim_active_v1';
+var DIM_TOGGLABLE = ['suptype','office','staff','questtype'];
+function _loadDimActive(){
+  var def = { suptype:true, office:true, staff:true, questtype:true };
+  try{
+    var v = localStorage.getItem(DIM_ACTIVE_STORAGE_KEY);
+    if(v){
+      var o = JSON.parse(v);
+      DIM_TOGGLABLE.forEach(function(d){ def[d] = o[d]!==false; });
+    }
+  }catch(e){}
+  return def;
+}
+function _saveDimActive(){ try{ localStorage.setItem(DIM_ACTIVE_STORAGE_KEY, JSON.stringify(_dlgDimActive)); }catch(e){} }
+var _dlgDimActive = _loadDimActive();
+
 function _loadDimMode(){
   try{ var v=localStorage.getItem(DIM_STORAGE_KEY); if(v==='1'||v==='2'||v==='3') return v; }catch(e){}
   return '1';  /* 預設模式一：處›分類›所›人›子分類 */
 }
 function _saveDimMode(){ try{ localStorage.setItem(DIM_STORAGE_KEY,_dlgDimMode); }catch(e){} }
-function _getDimOrder(){ return DIM_MODES[_dlgDimMode]; }
+function _getDimOrder(){ return DIM_MODES[_dlgDimMode].filter(function(d){ return _dlgDimActive[d]!==false; }); }
 
 function openDialog(name,levelKey,rows){
   _dialogTitle=name; _dialogLevel=levelKey; _dialogRows=rows;
@@ -1758,9 +1794,16 @@ document.addEventListener('keydown',function(e){
 
 function _renderDimBar(){
   var bar=document.getElementById('dlg-dim-bar');
-  var dims=_getDimOrder();
+  /* 【修改】麵包屑一律照「目前排序模式」的完整順序把 4 個維度都列出來（即使被關掉），
+     這樣使用者才能點回去重新打開；真正決定資料樹要不要展開那一層的是 _getDimOrder()
+     （只回傳 active 的維度）。 */
+  var fullOrderDims = DIM_MODES[_dlgDimMode];
   var p='<div class="dim-path"><div class="dim-tag-locked"><span class="lock-icon">🔒</span>🏢 營業處</div>';
-  dims.forEach(function(d){ var m=DIM_META[d]; p+='<span class="dim-sep">›</span><div class="dim-badge">'+m.icon+' '+m.label+'</div>'; });
+  fullOrderDims.forEach(function(d){
+    var m=DIM_META[d];
+    var isOn = _dlgDimActive[d]!==false;
+    p+='<span class="dim-sep">›</span><div class="dim-badge'+(isOn?'':' off')+'" onclick="_dlgToggleDimActive(\''+d+'\')" title="'+(isOn?'點擊隱藏此層':'點擊顯示此層')+'">'+m.icon+' '+m.label+'</div>';
+  });
   p+='</div>';
   var expandLabel = _dlgAllExpanded ? '⊟ 全摺疊' : '⊞ 全展開';
   var c='<div class="dim-mode-group">'
@@ -1771,6 +1814,16 @@ function _renderDimBar(){
     +'<button class="dim-list-btn'+(_dlgListMode?' active':'')+'" onclick="_dlgToggleList()">📄 明細</button>'
     +'</div>';
   bar.innerHTML=p+c;
+}
+/* 點擊麵包屑上的 分類／所課／人員／子分類 badge，切換該層 on/off；
+   不論現在是所→人／人→所／分→子哪個排序模式都能用，設定會存 localStorage 記住。
+   關閉的層級會直接從資料樹跳過（不佔縮排），例如把「所/課」關掉，
+   就會從「分類」直接跳到「人員」，適合只想看特定人員/單位、懶得逐層展開的情境。 */
+function _dlgToggleDimActive(dim){
+  _dlgDimActive[dim] = !(_dlgDimActive[dim]!==false);
+  _saveDimActive();
+  _dlgExpandMap={}; _dlgSortState={}; _dlgAllExpanded=false;
+  _renderDimBar(); _renderDlgContent();
 }
 function _setDimMode(m){
   _dlgDimMode=m; _saveDimMode();
