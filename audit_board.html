@@ -202,6 +202,14 @@
   Dialog：逐列明細，含通路別、店家型態、店家等級、分類、子分類
 
 【版本紀錄】
+  2.9.1  2026-07-03  照片燈箱改回「只縮不放」模式（max-width/max-height + width/
+                      height:auto），取消 2.9.0 那版「固定 96vw×94vh 框」的做法。
+                      原因：固定框會讓 img 元素的實際範圍撐滿整個框，即使照片本身
+                      因長寬比只佔框的一部分，四周留白（看起來像背景黑幕）其實還是
+                      算在 img 範圍內，導致點那些留白處想關燈箱卻沒反應（因為判定成
+                      點到圖片本身，不是點到背景）。改回 auto 讓 img 範圍縮回照片實際
+                      顯示大小，四周才是真正的背景可以點擊關閉；上限順勢拉高到
+                      98vw／97vh，讓照片盡量顯示大一點。
   2.9.0  2026-07-03  1) 照片燈箱拿掉原本 900px 的寬度上限，改成 max-width:96vw／
                       max-height:94vh，讓瀏覽器依照片原始長寬比自動撐到「畫面能容納
                       的最大尺寸」（直式照片先撐滿高度、橫式照片先撐滿寬度，CSS 本來
@@ -777,14 +785,14 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 }
 .photo-lightbox-backdrop.show { display:flex; }
 .photo-lightbox-img {
-  /* 之前用 max-width/max-height + width:auto/height:auto：瀏覽器只會「縮小」
-     超出限制的圖片，原始解析度較小的照片（多數手機直向照片本來就不大）
-     不會被「放大」填滿視窗，導致燈箱裡的圖看起來很小、跟背景大片黑幕不成比例。
-     改成給一個明確的框（96vw × 94vh）＋ object-fit:contain：無論照片原始
-     解析度大小，瀏覽器都會把圖片縮放到「剛好卡住框的寬或高（兩者先碰到誰
-     就以誰為準）」，同時維持原始長寬比不變形——直式照片通常先頂到高度上限、
-     橫式照片通常先頂到寬度上限，恰好符合「頂高/頂寬看誰先達到」的需求。 */
-  width:96vw; height:94vh;
+  /* 改回「只縮不放」的燈箱模式：用 max-width/max-height 限制上限，
+     width/height 設 auto 讓圖片依照片原始尺寸與長寬比自然呈現，
+     瀏覽器只會縮小超出上限的圖片，不會把小圖硬撐成整個框（96vw×94vh）
+     那麼大——這樣 img 元素的實際點擊範圍才會等於「看得到圖的範圍」，
+     四周留白（背景黑幕）點下去才能正確判定為點到背景、關閉燈箱，
+     而不是誤判成點到圖片本身。上限拉高讓照片盡量顯示大一點。 */
+  max-width:98vw; max-height:97vh;
+  width:auto; height:auto;
   border-radius:8px; object-fit:contain;
   box-shadow:0 8px 32px rgba(0,0,0,.4); cursor:default;
   background:#222;
