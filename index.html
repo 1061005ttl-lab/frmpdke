@@ -17,31 +17,45 @@
 【管理表結構（Google Sheets: MGMT_ID）】
 
   工作表①「登入與頁面設定」
-  ┌──────────┬──────────────────┬──────────────────────┐
-  │ A: 鍵值   │ B: 值             │ C: 備註              │
-  ├──────────┼──────────────────┼──────────────────────┤
-  │ 密碼      │ ttl（可改）       │                      │
-  │ 頁面對照  │ 獎勵達成型        │ award_board.html     │
-  └──────────┴──────────────────┴──────────────────────┘
-  → 可在此新增「看板類型名稱 → HTML 檔名」的對照關係。
+  ┌──────────┬──────────────────┬──────────────────┬────────────┬────────┐
+  │ A: 鍵值   │ B: 值             │ C: 頁面檔名        │ D: 顏色(選)│ E: 圖示(選)│
+  ├──────────┼──────────────────┼──────────────────┼────────────┼────────┤
+  │ 密碼      │ ttl（可改）       │                   │            │        │
+  │ 頁面對照  │ 獎勵達成型        │ award_board.html  │ #E0955D    │ 🏆     │
+  └──────────┴──────────────────┴──────────────────┴────────────┴────────┘
+  → 新增一種「看板類型」完全不用改程式碼，只要在這裡加一列：
+    A欄固定填「頁面對照」，B欄填看板類型名稱（要跟專案管理表G欄打的
+    一字不差），C欄填對應的HTML頁面檔名（必填，這個頁面要自己先做
+    好放上去，系統沒辦法幫你生出頁面）。
+  → D欄（顏色，hex碼如 #E0955D）、E欄（圖示，一個emoji）都是選填，
+    用來決定看板入口卡片的 badge 顏色與圖示。兩者都不填的話，系統會
+    依看板類型名稱自動配一個穩定的顏色（同名稱永遠配到同一色），不會
+    報錯也不會誤用到其他類型的顏色。
 
   工作表②「專案管理」
-  ┌──────┬──────────┬────────────────┬────────────┬────────┬──────┬──────────────┐
-  │ A    │ B        │ C              │ D          │ E      │ F    │ G            │
-  │ 啟用 │ 專案名稱  │ 試算表 ID      │ 資料工作表 │ 輔助表  │ 儲存格│ 看板類型     │
-  ├──────┼──────────┼────────────────┼────────────┼────────┼──────┼──────────────┤
-  │ ON   │ CVS春季…  │ 1aBcD…（44碼） │ 店家名冊   │ 輔助   │ B1   │ 達成率型     │
-  │ OFF  │ 舊專案    │ 1xYzW…        │ 店家名冊   │ 輔助   │ B1   │ 達成率型     │
-  └──────┴──────────┴────────────────┴────────────┴────────┴──────┴──────────────┘
+  ┌──────┬──────────┬────────────────┬────────────┬────────┬──────┬──────────────┬────────────┐
+  │ A    │ B        │ C              │ D          │ E      │ F    │ G            │ H          │
+  │ 啟用 │ 專案名稱  │ 試算表 ID      │ 資料工作表 │ 輔助表  │ 儲存格│ 看板類型     │ 看板群分類  │
+  ├──────┼──────────┼────────────────┼────────────┼────────┼──────┼──────────────┼────────────┤
+  │ ON   │ CVS春季…  │ 1aBcD…（44碼） │ 店家名冊   │ 輔助   │ B1   │ 達成率型     │ 訪頻       │
+  │ OFF  │ 舊專案    │ 1xYzW…        │ 店家名冊   │ 輔助   │ B1   │ 達成率型     │ 訪頻       │
+  └──────┴──────────┴────────────────┴────────────┴────────┴──────┴──────────────┴────────────┘
   → A 欄填 ON 為進行中（可點擊），填 OFF 為已結束（灰化、折疊顯示、不可點擊）。
   → E/F 欄指定從哪張工作表的哪個儲存格讀取「最後同步時間」，顯示在卡片底部。
+  → G 欄「看板類型」決定點卡片要跳轉到哪個頁面（見上方「頁面對照」）。
+  → H 欄「看板群分類」純粹是入口頁「怎麼把卡片分組顯示」的視覺分類，
+    不影響點進去開哪個頁面。沒有預設類別清單，填什麼就自動照該文字
+    分組，同一個 ON/OFF 區塊內依你填的文字動態產生小標題。填的文字前後
+    多打的空白（含全形空白）會被自動忽略，真的要讓同名分類拆開，請用
+    數字或文字區隔（例如「訪頻1」「訪頻2」），不要用空白鍵區分。空白
+    留白不填則自動歸類到「未分類」。
 
 【OFF 專案為何還顯示卡片】
   OFF 只代表活動結束、資料不再更新，但歷史資料仍有檢視價值。
   OFF 卡片灰化（視覺區隔）但仍可點擊，跳轉到對應看板查看歷史資料。
   折疊在「已結束專案」底下，避免干擾進行中專案的操作。
 
-【看板類型與對應頁面（預設）】
+【看板類型與對應頁面（內建預設，其餘全部由管理表「頁面對照」擴充）】
   達成率型   → achievement_board.html  （以箱數/業績達成率為主）
   覆蓋率型   → coverage_board.html     （以店數覆蓋/陳列為主）
   獎勵達成型 → award_board.html        （以季度獎勵達成為主）
@@ -482,7 +496,21 @@ function loadLoginConfig(){
         var b=String(cv(cells[1])).trim();
         var c=String(cv(cells[2])).trim();
         if(key==='密碼') _password=b.toLowerCase();
-        if(key==='頁面對照'&&b&&c) _pageMap[b]=c;
+        if(key==='頁面對照'&&b&&c){
+          _pageMap[b]=c;
+          /* D欄(顏色)、E欄都選填：留空就交給 autoStyle() 依名稱自動配一個
+             穩定的顏色，不會因為沒填而報錯或誤用到其他類型的樣式。 */
+          var colorHex=String(cv(cells[3])).trim();
+          var icon=String(cv(cells[4])).trim();
+          if(colorHex||icon){
+            TYPE_STYLE[b] = {
+              accent:  colorHex || (TYPE_STYLE[b]&&TYPE_STYLE[b].accent)  || autoStyle(b).accent,
+              badgeBg: colorHex ? hexToRgba(colorHex,0.12) : (TYPE_STYLE[b]&&TYPE_STYLE[b].badgeBg) || autoStyle(b).badgeBg,
+              badgeFg: colorHex || (TYPE_STYLE[b]&&TYPE_STYLE[b].badgeFg) || autoStyle(b).badgeFg,
+              icon:    icon || (TYPE_STYLE[b]&&TYPE_STYLE[b].icon) || '📁'
+            };
+          }
+        }
       });
     })
     .catch(function(){});
@@ -549,11 +577,47 @@ function loadProjects(){
 }
 
 /* ══ 渲染入口 ══ */
+/* 內建三種預設樣式，可被「登入與頁面設定」表的「頁面對照」列（D欄顏色／
+   E欄圖示）覆蓋或擴充，完全不用改這裡的程式碼。 */
 var TYPE_STYLE={
   '達成率型': {accent:'#8BA690',badgeBg:'rgba(139,166,144,.12)',badgeFg:'#4a7a55',icon:'📊'},
   '覆蓋率型': {accent:'#378ADD',badgeBg:'rgba(55,138,221,.10)',badgeFg:'#1a5fa8',icon:'🗺️'},
   '傳統購值型':{accent:'#7B5EA7',badgeBg:'rgba(123,94,167,.10)',badgeFg:'#5a3a8a',icon:'🏪'}
 };
+
+/* hex（例如 "#E0955D" 或 "E0955D"）轉成指定透明度的 rgba 字串，
+   格式不對就退回中性的預設灰綠色，不會讓畫面壞掉。 */
+function hexToRgba(hex, alpha){
+  hex = String(hex||'').replace('#','').trim();
+  if(hex.length===3) hex = hex.split('').map(function(c){return c+c;}).join('');
+  var r=parseInt(hex.substring(0,2),16), g=parseInt(hex.substring(2,4),16), b=parseInt(hex.substring(4,6),16);
+  if(isNaN(r)||isNaN(g)||isNaN(b)) return 'rgba(139,166,144,'+alpha+')';
+  return 'rgba('+r+','+g+','+b+','+alpha+')';
+}
+
+/* 給完全沒設定過樣式的新看板類型，依名稱穩定配一個顏色（同一個名稱
+   永遠配到同一個顏色，不會每次重新整理就換色），不會誤套到其他類型
+   的樣式，也不會因為找不到而報錯。 */
+var AUTO_PALETTE=[
+  {accent:'#E0955D',badgeBg:'rgba(224,149,93,.12)',badgeFg:'#a65f22'},
+  {accent:'#4FB0A5',badgeBg:'rgba(79,176,165,.12)',badgeFg:'#2c7a70'},
+  {accent:'#C75B7A',badgeBg:'rgba(199,91,122,.12)',badgeFg:'#8a3350'},
+  {accent:'#8B8FE0',badgeBg:'rgba(139,143,224,.12)',badgeFg:'#4c50a8'},
+  {accent:'#B3A15A',badgeBg:'rgba(179,161,90,.12)',badgeFg:'#7a6a2e'}
+];
+function autoStyle(boardType){
+  var s=String(boardType||''), h=0;
+  for(var i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))|0; }
+  var base=AUTO_PALETTE[Math.abs(h)%AUTO_PALETTE.length];
+  return {accent:base.accent,badgeBg:base.badgeBg,badgeFg:base.badgeFg,icon:'📁'};
+}
+
+/* 卡片樣式一律透過這支函式取得：有登記(內建或管理表補的)就用登記的，
+   完全沒登記過的新類型就用 autoStyle() 自動配色，不會再出現「查無此
+   類型就悄悄借用達成率型的綠色」這種誤導視覺的情況。 */
+function getTypeStyle(boardType){
+  return TYPE_STYLE[boardType] || autoStyle(boardType);
+}
 
 function renderPortal(){
   document.getElementById('main-screen').style.display='flex';
@@ -613,7 +677,7 @@ function renderGroupedGrid(container, list, isOff){
 }
 
 function buildCard(proj,isOff){
-  var sty=TYPE_STYLE[proj.boardType]||TYPE_STYLE['達成率型'];
+  var sty=getTypeStyle(proj.boardType);
   var card=document.createElement('div');
   card.className='proj-card'+(isOff?' off':'');
   card.id='card-'+proj.id;
@@ -652,7 +716,10 @@ function buildCard(proj,isOff){
 
 function openProject(proj){
   var page=_pageMap[proj.boardType];
-  if(!page){ alert('找不到對應頁面：'+proj.boardType); return; }
+  if(!page){
+    alert('「'+proj.boardType+'」還沒設定要開哪個看板頁面。\n\n請到管理表「登入與頁面設定」分頁新增一列：\nA欄填「頁面對照」、B欄填「'+proj.boardType+'」、C欄填對應的頁面檔名（例如 xxx_board.html），存檔後重新整理本頁即可，不用改程式碼。');
+    return;
+  }
   window.location.href=page+'?sheetId='+encodeURIComponent(proj.id);
 }
 
