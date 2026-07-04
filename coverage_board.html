@@ -2319,7 +2319,7 @@ function getDisplayCols(levelKey) {
   }
 }
 
-function buildStoreTable(rows, levelKey, ridPrefix){
+function buildStoreTable(rows, levelKey, ridPrefix, compact){
   var items = dialogRows(rows, levelKey);
   var extraCols = getDisplayCols(levelKey);
   var colLabels = COL_LABELS;
@@ -2330,23 +2330,23 @@ function buildStoreTable(rows, levelKey, ridPrefix){
   html+='<th class="th-left">\u5E97\u78BC</th><th class="th-left">\u5E97\u540D</th>';
   if(showType) html+='<th class="th-left">\u5E97\u5BB6\u578B\u614B</th>';
   html+='<th>\u72C0\u614B</th>';
-  /* B 群欄：每個群組一欄（若群組有多個子欄再逐欄） */
+  /* B 群欄：精簡模式每群組固定一欄；一般模式群組有多個子欄則逐欄展開 */
   BUCKETS_B.forEach(function(g,gi){
     var cls=' class="th-grp-b'+gi+'"';
-    if(g.cols.length===1) html+='<th'+cls+'>'+esc(g.label)+'</th>';
+    if(compact || g.cols.length===1) html+='<th'+cls+'>'+esc(g.label)+'</th>';
     else g.cols.forEach(function(t){ html+='<th'+cls+'>'+esc(t)+'</th>'; });
   });
   if (!isSum()) {
     BUCKETS_C.forEach(function(g,gi){
       var cls=' class="th-grp-c'+gi+'"';
-      if(g.cols.length===1) html+='<th'+cls+'>'+esc(g.label||'\u672A\u6709')+'</th>';
+      if(compact || g.cols.length===1) html+='<th'+cls+'>'+esc(g.label||'\u672A\u6709')+'</th>';
       else g.cols.filter(function(t){ return t; }).forEach(function(t){ html+='<th'+cls+'>'+esc(t)+'</th>'; });
     });
   }
   /* 計算總欄數，供展開列 colspan 使用 */
   var totalCols = extraCols.length + 2 /* 店碼/店名 */ + (showType?1:0) + 1 /* 狀態 */;
-  BUCKETS_B.forEach(function(g){ totalCols += g.cols.length; });
-  if (!isSum()) BUCKETS_C.forEach(function(g){ totalCols += g.cols.filter(function(t){return t;}).length; });
+  BUCKETS_B.forEach(function(g){ totalCols += compact ? 1 : g.cols.length; });
+  if (!isSum()) BUCKETS_C.forEach(function(g){ totalCols += compact ? 1 : g.cols.filter(function(t){return t;}).length; });
 
   html+='</tr></thead><tbody>';
 
@@ -2367,8 +2367,13 @@ function buildStoreTable(rows, levelKey, ridPrefix){
     /* \u72c0\u614b\u6b04 */
     if (isUnfill) {
       html += '<td><span class="d-unfill">'+esc(UNFILL_LABEL)+'</span></td>';
-      BUCKETS_B.forEach(function(g,gi){ g.cols.forEach(function(){ html+='<td class="td-grp-b'+gi+'"><span class="d-no">\u2014</span></td>'; }); });
-      if (!isSum()) BUCKETS_C.forEach(function(g,gi){ g.cols.filter(function(t){ return t; }).forEach(function(){ html+='<td class="td-grp-c'+gi+'"><span class="d-no">\u2014</span></td>'; }); });
+      if (compact) {
+        BUCKETS_B.forEach(function(g,gi){ html+='<td class="td-grp-b'+gi+'"><span class="d-no">\u2014</span></td>'; });
+        if (!isSum()) BUCKETS_C.forEach(function(g,gi){ html+='<td class="td-grp-c'+gi+'"><span class="d-no">\u2014</span></td>'; });
+      } else {
+        BUCKETS_B.forEach(function(g,gi){ g.cols.forEach(function(){ html+='<td class="td-grp-b'+gi+'"><span class="d-no">\u2014</span></td>'; }); });
+        if (!isSum()) BUCKETS_C.forEach(function(g,gi){ g.cols.filter(function(t){ return t; }).forEach(function(){ html+='<td class="td-grp-c'+gi+'"><span class="d-no">\u2014</span></td>'; }); });
+      }
     } else {
       if (grp === 0) {
         if (isSum()) {
@@ -2380,22 +2385,45 @@ function buildStoreTable(rows, levelKey, ridPrefix){
         }
       } else if (grp === 1) { var _lc = (BUCKETS_C[d.ci] && BUCKETS_C[d.ci].label) || '\u672A\u6709'; html += '<td><span class="d-no-label">' + esc(_lc) + '</span></td>'; }
       else                html += '<td><span class="d-no">\u2014</span></td>';
-      BUCKETS_B.forEach(function(g,gi){
-        var cls=' class="td-grp-b'+gi+'"';
-        g.cols.forEach(function(t){ html+='<td'+cls+'>'+(isOne(r[t])?'<span class="d-yes">\u2705</span>':'<span class="d-no">\u2014</span>')+'</td>'; });
-      });
-      if (!isSum()) BUCKETS_C.forEach(function(g,gi){
-        var cls=' class="td-grp-c'+gi+'"';
-        var cols = g.cols.filter(function(t){ return t; });
-        cols.forEach(function(t){
-          var v = r[t];
-          var cell;
-          if (isOne(v))       cell = '<span class="d-c-yes">\u2716</span>';
-          else if (isCText(v)) cell = '<span class="d-c-text">'+esc(String(v))+'</span>';
-          else                 cell = '<span class="d-no">\u2014</span>';
-          html += '<td'+cls+'>'+cell+'</td>';
+
+      if (compact) {
+        BUCKETS_B.forEach(function(g,gi){
+          if (isSum()) {
+            var _gShares = g.cols.reduce(function(s2,t){ return s2+numVal(r[t]); },0);
+            html += '<td class="td-grp-b'+gi+'">'+(_gShares ? '<span class="d-yes">'+_gShares+'\u4efd</span>' : '<span class="d-no">\u2014</span>')+'</td>';
+          } else {
+            var _gYes = g.cols.some(function(t){ return isOne(r[t]); });
+            html += '<td class="td-grp-b'+gi+'">'+(_gYes ? '<span class="d-yes">\u2705</span>' : '<span class="d-no">\u2014</span>')+'</td>';
+          }
         });
-      });
+        if (!isSum()) BUCKETS_C.forEach(function(g,gi){
+          var cols = g.cols.filter(function(t){ return t; });
+          var cell = '<span class="d-no">\u2014</span>';
+          for (var _k=0;_k<cols.length;_k++){
+            var v = r[cols[_k]];
+            if (isOne(v)) { cell = '<span class="d-c-yes">\u2716</span>'; break; }
+            if (isCText(v)) { cell = '<span class="d-c-text">'+esc(String(v))+'</span>'; break; }
+          }
+          html += '<td class="td-grp-c'+gi+'">'+cell+'</td>';
+        });
+      } else {
+        BUCKETS_B.forEach(function(g,gi){
+          var cls=' class="td-grp-b'+gi+'"';
+          g.cols.forEach(function(t){ html+='<td'+cls+'>'+(isOne(r[t])?'<span class="d-yes">\u2705</span>':'<span class="d-no">\u2014</span>')+'</td>'; });
+        });
+        if (!isSum()) BUCKETS_C.forEach(function(g,gi){
+          var cls=' class="td-grp-c'+gi+'"';
+          var cols = g.cols.filter(function(t){ return t; });
+          cols.forEach(function(t){
+            var v = r[t];
+            var cell;
+            if (isOne(v))       cell = '<span class="d-c-yes">\u2716</span>';
+            else if (isCText(v)) cell = '<span class="d-c-text">'+esc(String(v))+'</span>';
+            else                 cell = '<span class="d-no">\u2014</span>';
+            html += '<td'+cls+'>'+cell+'</td>';
+          });
+        });
+      }
     }
     html += '</tr>';
     html += '<tr class="store-detail-row" id="storedetail-'+rid+'" style="display:none;">'
@@ -2540,7 +2568,7 @@ function _buildStaffPivot(rows){
         + '<td class="td-left"><span class="pivot-expand-icon" id="ico-'+rid+'">▶</span>'+esc(name)+'</td>'
         + _pivotStatCells(stat) + '</tr>';
       html += '<tr class="pivot-child-row" id="child-'+rid+'" style="display:none;">'
-        + '<td colspan="'+colCount+'">'+buildStoreTable(srows,'staff','pv-'+rid+'-')+'</td></tr>';
+        + '<td colspan="'+colCount+'">'+buildStoreTable(srows,'staff','pv-'+rid+'-',true)+'</td></tr>';
     });
   });
   var grand = calcGroup(rows);
@@ -2573,7 +2601,7 @@ function _buildOfficePivot(rows){
         + '<td class="td-left"><span class="pivot-expand-icon" id="ico-'+rid+'">▶</span>'+esc(off)+'</td>'
         + _pivotStatCells(stat) + '</tr>';
       html += '<tr class="pivot-child-row" id="child-'+rid+'" style="display:none;">'
-        + '<td colspan="'+colCount+'">'+buildStoreTable(orows,'office','pv-'+rid+'-')+'</td></tr>';
+        + '<td colspan="'+colCount+'">'+buildStoreTable(orows,'office','pv-'+rid+'-',true)+'</td></tr>';
     });
   });
   var grand = calcGroup(rows);
@@ -2595,7 +2623,7 @@ function _buildStorePivotView(rows){
     html += '<div class="pivot-banner-block">▸ '+esc(area)
       + '　<span style="font-size:12px;font-weight:600;">合計 <strong style="color:var(--primary);">'
       + totalVal + (isSum()?' 份':' 家') + '</strong></span></div>';
-    html += buildStoreTable(areaRows, 'area', 'pv-store-'+_rid(area)+'-');
+    html += buildStoreTable(areaRows, 'area', 'pv-store-'+_rid(area)+'-', true);
   });
   return html;
 }
