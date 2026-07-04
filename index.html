@@ -232,6 +232,13 @@ body{background:var(--bg);color:var(--text);min-height:100vh;}
   letter-spacing:.08em;margin-bottom:12px;margin-top:28px;
 }
 .section-label:first-child{margin-top:0;}
+.group-sublabel{
+  font-size:12px;font-weight:800;color:var(--primary-d);
+  margin:16px 0 10px;padding-left:10px;
+  border-left:3px solid var(--primary);
+  letter-spacing:.02em;
+}
+.group-sublabel:first-of-type{margin-top:2px;}
 .proj-grid{
   display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
   gap:12px;margin-bottom:8px;
@@ -289,6 +296,7 @@ body{background:var(--bg);color:var(--text);min-height:100vh;}
   #stage{padding:12px 12px 40px;}
   .proj-grid{gap:8px;}
   .section-label{margin-top:16px;margin-bottom:8px;}
+  .group-sublabel{margin:12px 0 8px;font-size:11px;}
 
   .proj-card{
     padding:10px 32px 10px 12px; /* 右側 32px 給 arrow */
@@ -413,6 +421,12 @@ function parseGvizDate(v){
 
 function cv(c){ return c?(c.v!==null&&c.v!==undefined?c.v:c.f||''):''; }
 
+/* 看板群分類正規化：去除頭尾與內部所有空白（含全形空白 \u3000），
+   避免「訪頻」「訪頻 」「訪 頻」這種純粹手滑造成的空白差異被誤判成
+   不同分組。真的要讓同名分類拆開，請用可辨識的文字區隔（例如
+   「訪頻1」「訪頻2」），不要用空白鍵——空白一律會被吃掉。 */
+function _normGroup(s){ return String(s||'').replace(/[\s\u3000]+/g,''); }
+
 function gvizFetch(sheetId, sheetName){
   var url = 'https://docs.google.com/spreadsheets/d/'+sheetId+
     '/gviz/tq?tqx=out:json&sheet='+encodeURIComponent(sheetName);
@@ -515,10 +529,11 @@ function loadProjects(){
         var sync=String(cv(cells[4])).trim()||'輔助';
         var cell=String(cv(cells[5])).trim()||'B1';
         var btype=String(cv(cells[6])).trim()||'達成率型';
+        var group=_normGroup(cv(cells[7]))||'未分類'; /* H欄：看板群分類，沒填的一律歸「未分類」 */
         /* ── 修正①：跳過空列與表頭佔位列 ── */
         if(!name||!sid) return;
         if(isHeaderRow(name,sid)) return;
-        var p={name:name,id:sid,sheet:sheet,syncSheet:sync,syncCell:cell,boardType:btype};
+        var p={name:name,id:sid,sheet:sheet,syncSheet:sync,syncCell:cell,boardType:btype,group:group};
         if(active) onList.push(p); else offList.push(p);
       });
       _surveys={on:onList,off:offList};
@@ -551,9 +566,7 @@ function renderPortal(){
     var lbl=document.createElement('div');
     lbl.className='section-label'; lbl.textContent='🟢  進行中專案';
     stage.appendChild(lbl);
-    var grid=document.createElement('div'); grid.className='proj-grid';
-    _surveys.on.forEach(function(p){ grid.appendChild(buildCard(p,false)); });
-    stage.appendChild(grid);
+    renderGroupedGrid(stage,_surveys.on,false);
   }
   if(_surveys.off.length){
     var toggle=document.createElement('div');
@@ -567,10 +580,36 @@ function renderPortal(){
     };
     stage.appendChild(toggle);
     var sec=document.createElement('div'); sec.id='off-section';
-    var offGrid=document.createElement('div'); offGrid.className='proj-grid';
-    _surveys.off.forEach(function(p){ offGrid.appendChild(buildCard(p,true)); });
-    sec.appendChild(offGrid); stage.appendChild(sec);
+    renderGroupedGrid(sec,_surveys.off,true);
+    stage.appendChild(sec);
   }
+}
+
+/* 依「看板群分類」(H欄) 動態分組：不預設任何固定類別清單，
+   純粹依照專案管理表裡實際出現的文字分組，第一次出現的順序＝
+   畫面顯示順序（也就是照你在管理表排的列順序），日後新增分類、
+   改分類名稱都不用動這裡的程式碼。 */
+function groupByBoardGroup(list){
+  var order=[], map={};
+  list.forEach(function(p){
+    var g = p.group || '未分類';
+    if(!map[g]){ map[g]=[]; order.push(g); }
+    map[g].push(p);
+  });
+  return order.map(function(g){ return {group:g, items:map[g]}; });
+}
+
+function renderGroupedGrid(container, list, isOff){
+  var groups = groupByBoardGroup(list);
+  groups.forEach(function(g){
+    var sub=document.createElement('div');
+    sub.className='group-sublabel';
+    sub.textContent = g.group+'（'+g.items.length+'）';
+    container.appendChild(sub);
+    var grid=document.createElement('div'); grid.className='proj-grid';
+    g.items.forEach(function(p){ grid.appendChild(buildCard(p,isOff)); });
+    container.appendChild(grid);
+  });
 }
 
 function buildCard(proj,isOff){
