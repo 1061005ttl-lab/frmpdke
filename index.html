@@ -246,13 +246,16 @@ body{background:var(--bg);color:var(--text);min-height:100vh;}
   letter-spacing:.08em;margin-bottom:12px;margin-top:28px;
 }
 .section-label:first-child{margin-top:0;}
+.group-block{
+  background:var(--group-tint,rgba(0,0,0,.02));
+  border-radius:14px;padding:2px 16px 16px;margin-bottom:4px;
+}
 .group-sublabel{
   font-size:12px;font-weight:800;color:var(--primary-d);
   margin:16px 0 10px;padding-left:10px;
-  border-left:3px solid var(--primary);
+  border-left:4px solid var(--group-accent,var(--primary));
   letter-spacing:.02em;
 }
-.group-sublabel:first-of-type{margin-top:2px;}
 .proj-grid{
   display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
   gap:12px;margin-bottom:8px;
@@ -268,6 +271,19 @@ body{background:var(--bg);color:var(--text);min-height:100vh;}
   background:var(--accent,#8BA690);border-radius:var(--r) var(--r) 0 0;
 }
 .proj-card.off{opacity:.55;}
+
+/* 桌機：群組區塊左到右盡量塞、塞不下才換行，同一群的卡片永遠留在
+   同一個 .group-block 裡（見 renderGroupedGrid 註解），不會被拆到
+   別的群組中間。卡片改成固定寬度（不再撐滿整列），這樣小群組才不會
+   硬佔一整排空間，多個小群組可以並排在同一列，讓畫面利用率提高。
+   單一群組項目多到超過可用寬度時，該群組的格子會自動換行變兩排，
+   但仍然是同一個 .group-block，不會影響其他群組的排列。 */
+@media(min-width:641px){
+  .group-row{display:flex;flex-wrap:wrap;align-items:flex-start;gap:20px;}
+  .group-block{flex:0 0 auto;max-width:100%;margin-bottom:0;}
+  .group-block .proj-grid{grid-template-columns:repeat(auto-fill,260px);}
+}
+
 .badge{
   display:inline-block;font-size:10px;font-weight:700;
   padding:2px 8px;border-radius:5px;margin-bottom:8px;
@@ -663,17 +679,46 @@ function groupByBoardGroup(list){
   return order.map(function(g){ return {group:g, items:map[g]}; });
 }
 
+/* 群組自動配色：跟看板類型的 autoStyle() 邏輯一樣（同名稱永遠配到
+   同一色），但用另一組獨立的色盤，避免跟卡片本身的看板類型顏色混淆
+   —— 這裡的顏色是「這幾張卡片屬於同一群」的提示，不是卡片內容本身
+   的分類色。 */
+var GROUP_PALETTE=['#6B8F71','#3E7CB1','#C99A3B','#8B5FBF','#C15C6B','#3FA7A0','#B9763F','#6E7BC4'];
+function groupAutoColor(name){
+  var s=String(name||''), h=0;
+  for(var i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))|0; }
+  var accent=GROUP_PALETTE[Math.abs(h)%GROUP_PALETTE.length];
+  return {accent:accent, tint:hexToRgba(accent,0.05)};
+}
+
+/* 每個群組包成一個獨立的 .group-block（小標題＋該群的卡片格），
+   同一群的卡片永遠待在同一個 block 裡、不會被拆開。外層 .group-row
+   在桌機用 flex-wrap 讓多個 block 左到右排、排不下才換行，盡量把
+   小群組塞進同一列，空間利用率比「每群強制獨佔一整列」高很多；
+   手機版維持原本每群獨佔一列、卡片撐滿寬度的排法（見 CSS）。 */
 function renderGroupedGrid(container, list, isOff){
-  var groups = groupByBoardGroup(list);
+  var row=document.createElement('div');
+  row.className='group-row';
+  var groups=groupByBoardGroup(list);
   groups.forEach(function(g){
+    var col=groupAutoColor(g.group);
+    var block=document.createElement('div');
+    block.className='group-block';
+    block.style.setProperty('--group-accent',col.accent);
+    block.style.setProperty('--group-tint',col.tint);
+
     var sub=document.createElement('div');
     sub.className='group-sublabel';
-    sub.textContent = g.group+'（'+g.items.length+'）';
-    container.appendChild(sub);
+    sub.textContent=g.group+'（'+g.items.length+'）';
+    block.appendChild(sub);
+
     var grid=document.createElement('div'); grid.className='proj-grid';
     g.items.forEach(function(p){ grid.appendChild(buildCard(p,isOff)); });
-    container.appendChild(grid);
+    block.appendChild(grid);
+
+    row.appendChild(block);
   });
+  container.appendChild(row);
 }
 
 function buildCard(proj,isOff){
