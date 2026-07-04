@@ -133,7 +133,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>覆蓋率看板</title>
 <script>
-/* \u2500\u2500 Session \u9A57\u8B49 \u2500\u2500 */
+/* ── Session 驗證 ── */
 if (localStorage.getItem('ttl_auth_v1') !== '1') {
   window.location.replace('index.html');
 }
@@ -217,6 +217,18 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .tb-act-btn:hover { background:var(--primary-bg); border-color:var(--primary); color:var(--primary); }
 .tb-act-btn.done  { border-color:var(--green); color:var(--green); background:var(--green-bg); }
 .tb-act-btn.loading { opacity:.6; pointer-events:none; }
+
+/* ── hamburger（手機專用，收納整個 toolbar-controls） ── */
+.hamburger-btn {
+  display:none;
+  align-items:center; justify-content:center;
+  width:32px; height:32px; flex-shrink:0;
+  border:1px solid var(--border); border-radius:8px;
+  background:#fff; font-size:16px; cursor:pointer; color:var(--text);
+}
+.hamburger-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+
+.toolbar-controls { display:flex; align-items:center; gap:12px; }
 
 /* ── quicknav ── */
 .quicknav {
@@ -602,18 +614,29 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   font-size:12.5px; font-weight:500; color:var(--text); word-break:break-word; line-height:1.5;
 }
 
-/* 拜訪時間軸：同一家店可能有多筆歷史紀錄，每筆各自一個區塊，由新到舊排列 */
-.store-history-list { display:flex; flex-direction:column; gap:10px; margin-top:10px; }
-.store-history-record { background:#fff; border:1px solid rgba(0,0,0,.07); border-radius:8px; padding:10px 12px; }
+/* 拜訪時間軸：同一家店可能有多筆歷史紀錄，每筆各自一個區塊，由新到舊排列
+   每筆紀錄預設收合成一行（時間徽章），點擊才展開完整問卷內容，
+   保持可查閱性的同時避免多筆紀錄把畫面撐得過長 */
+.store-history-list { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+.store-history-record { background:#fff; border:1px solid rgba(0,0,0,.07); border-radius:8px; overflow:hidden; }
 .store-history-head {
-  display:flex; align-items:center; gap:8px; margin-bottom:8px; padding-bottom:6px;
+  display:flex; align-items:center; gap:8px; padding:8px 12px;
+  cursor:pointer; user-select:none; transition:background .12s;
+}
+.store-history-head:hover { background:rgba(55,138,221,.05); }
+.store-history-record.open .store-history-head {
   border-bottom:1px dashed rgba(0,0,0,.08);
 }
 .store-history-badge {
   font-size:10px; font-weight:800; color:#fff; background:var(--primary);
-  border-radius:5px; padding:2px 7px;
+  border-radius:5px; padding:2px 7px; flex-shrink:0;
 }
-.store-history-time { font-size:12px; font-weight:700; color:var(--text); }
+.store-history-time { font-size:12px; font-weight:700; color:var(--text); flex:1; min-width:0; }
+.store-history-expand-ico {
+  display:inline-block; font-size:10px; color:var(--sub); transition:transform .15s; flex-shrink:0;
+}
+.store-history-record.open .store-history-expand-ico { transform:rotate(90deg); color:var(--primary); }
+.store-history-body { padding:10px 12px 12px; }
 .store-history-empty { padding:20px 14px; font-size:12.5px; color:var(--sub); }
 
 .raw-quiz-list { display:flex; flex-direction:column; gap:8px; }
@@ -765,24 +788,34 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     padding:0 10px;
     flex-wrap:nowrap;
     gap:6px;
-    overflow:hidden;
+    overflow:visible; /* 讓 toolbar-controls 下拉選單可以溢出顯示 */
   }
   /* 手機：隱藏看板名稱（proj-sel 已有），proj-sel 展開填空間 */
   .toolbar-title { display:none; }
   .proj-sel { font-size:11px; max-width:none; flex:1; padding:3px 6px; min-width:0; }
   .back-btn { font-size:11px; padding:3px 8px; flex-shrink:0; }
-  .view-toggle { gap:3px; flex-shrink:0; }
-  .vt-btn { font-size:11px; padding:3px 7px; }
   /* 同步時間手機隱藏 */
   .sync-note { display:none; }
-  /* 工具列右側按鈕群組（視角icon＋LINE/CSV/截圖）：按鈕數量多，允許自身橫向滑動，
-     不擠壓 proj-sel／view-toggle，也不被 .toolbar 的 overflow:hidden 裁掉 */
-  #toolbar-actions {
-    flex-shrink:1 !important; min-width:0; max-width:54vw;
-    overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch;
+
+  /* 漢堡選單：手機顯示，取代原本橫向排開的 view-toggle + toolbar-actions */
+  .hamburger-btn { display:flex; }
+  .toolbar-controls {
+    display:none;
+    position:fixed; top:48px; right:8px; left:8px;
+    background:#fff; border:1px solid var(--border); border-radius:12px;
+    box-shadow:0 10px 32px rgba(0,0,0,.22);
+    flex-direction:column; align-items:stretch; gap:10px;
+    padding:10px; z-index:80; max-height:calc(100vh - 60px); overflow-y:auto;
   }
-  #toolbar-actions::-webkit-scrollbar { display:none; }
-  .tb-act-btn { font-size:11px; padding:4px 8px; }
+  .toolbar-controls.open { display:flex; }
+  .toolbar-controls .view-toggle { width:100%; }
+  .toolbar-controls .view-toggle .vt-btn { flex:1; text-align:center; }
+  .toolbar-controls .ctrl-sep { height:1px; background:var(--border); margin:0; flex-shrink:0; }
+  #toolbar-actions { display:flex; flex-direction:column; gap:6px; width:100%; }
+  .toolbar-controls .tb-act-btn {
+    width:100%; text-align:left; padding:9px 12px; font-size:13px; flex-shrink:0;
+  }
+
   /* 燈號列移到 quicknav 同列（overflow scroll） */
   .lamp-bar { flex-shrink:0; gap:3px; }
   .lamp-chip { font-size:10px; padding:3px 7px; white-space:nowrap; }
@@ -854,19 +887,23 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   <button class="back-btn" id="back-btn" onclick="goBack()">← 返回</button>
   <span class="toolbar-title" id="tb-title">覆蓋率看板</span>
   <select class="proj-sel" id="proj-sel" style="display:none" onchange="switchProject(this.value)"></select>
-  <div class="view-toggle" id="view-toggle">
-    <button class="vt-btn active" id="vt-org"     onclick="setViewMode('org')">🏢 組織</button>
-    <button class="vt-btn"        id="vt-channel" onclick="setViewMode('channel')">🏪 通路</button>
-  </div>
   <span class="sync-note" id="tb-sync"></span>
-  <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;" id="toolbar-actions">
-    <button class="tb-act-btn" onclick="openSummaryDialog('staff')">👤 人員</button>
-    <button class="tb-act-btn" onclick="openSummaryDialog('office')">🏢 單位</button>
-    <button class="tb-act-btn" onclick="openSummaryDialog('store')">🏪 店家</button>
-    <button class="tb-act-btn" id="tb-btn-line"        onclick="toolbarCopyLine()">💬 LINE</button>
-    <button class="tb-act-btn" id="tb-btn-line-simple" onclick="toolbarCopyLineSimple()">💬 LINE精簡</button>
-    <button class="tb-act-btn" id="tb-btn-csv"         onclick="toolbarDownloadCsv()">📥 CSV</button>
-    <button class="tb-act-btn" id="tb-btn-screenshot"  onclick="toolbarScreenshot()">📸 截圖</button>
+  <button class="hamburger-btn" id="hamburger-btn" onclick="toggleMobileMenu(event)">☰</button>
+  <div class="toolbar-controls" id="toolbar-controls">
+    <div class="view-toggle" id="view-toggle">
+      <button class="vt-btn active" id="vt-org"     onclick="setViewMode('org');closeMobileMenu();">🏢 組織</button>
+      <button class="vt-btn"        id="vt-channel" onclick="setViewMode('channel');closeMobileMenu();">🏪 通路</button>
+    </div>
+    <div class="ctrl-sep"></div>
+    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;" id="toolbar-actions">
+      <button class="tb-act-btn" onclick="openSummaryDialog('staff');closeMobileMenu();">👤 人員</button>
+      <button class="tb-act-btn" onclick="openSummaryDialog('office');closeMobileMenu();">🏢 單位</button>
+      <button class="tb-act-btn" onclick="openSummaryDialog('store');closeMobileMenu();">🏪 店家</button>
+      <button class="tb-act-btn" id="tb-btn-line"        onclick="toolbarCopyLine();closeMobileMenu();">💬 LINE</button>
+      <button class="tb-act-btn" id="tb-btn-line-simple" onclick="toolbarCopyLineSimple();closeMobileMenu();">💬 LINE精簡</button>
+      <button class="tb-act-btn" id="tb-btn-csv"         onclick="toolbarDownloadCsv();closeMobileMenu();">📥 CSV</button>
+      <button class="tb-act-btn" id="tb-btn-screenshot"  onclick="toolbarScreenshot();closeMobileMenu();">📸 截圖</button>
+    </div>
   </div>
 </div>
 
@@ -925,12 +962,13 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <p>
       <b>← 返回</b>：回到專案選單<br>
       <b>專案選單</b>（下拉）：切換不同覆蓋率專案，每個專案讀取獨立的試算表<br>
+      <b>☰ 選單</b>（手機）：收納視角切換與所有輸出功能，點擊展開<br>
       <b>🏢 組織 / 🏪 通路</b>：切換鑽取視角。組織視角依「營業處→所→人員」；通路視角依「通路別→處→所」<br>
       <b>同步時間</b>：顯示資料最後更新時間（台灣時間）<br>
       <b>💬</b> 複製當前頁面的 LINE 完整版訊息（含全部店家分組明細）<br>
       <b>✉️</b> 複製 LINE 精簡版訊息（僅統計摘要，不列店家名）<br>
       <b>📥</b> 下載當前頁面資料的 CSV 檔（檔名含單位與時間戳）<br>
-      <b>📸</b> 截圖目前可見的整個頁面（含 topbar / 燈號 / 卡片）
+      <b>📸</b> 截圖目前可見的整個頁面（含 topbar / 燈號 / 卡片），直接複製到剪貼簿
     </p>
 
     <hr>
@@ -950,7 +988,8 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
       標題列顯示各狀態家數與佔比，隨燈號篩選動態更新<br>
       表格欄位依群組上色：<span style="background:rgba(52,199,89,.2);padding:0 5px;border-radius:3px;">綠 = B1 群</span>　<span style="background:rgba(0,122,255,.13);padding:0 5px;border-radius:3px;">藍 = B2 群</span>　<span style="background:rgba(255,59,48,.1);padding:0 5px;border-radius:3px;">紅 = C 群</span>（顏色數量依專案設定而異）<br>
       ✅ = 有值（已貼附）　✖ = 有值（已知無原因）　— = 無此狀態<br>
-      利用燈號可只顯示需要的類別，再操作 LINE/CSV，輸出的內容只含當前可見資料
+      利用燈號可只顯示需要的類別，再操作 LINE/CSV，輸出的內容只含當前可見資料<br>
+      點任一店家列可再展開該店的完整拜訪時間軸（同一店可能有多筆歷史紀錄，預設只展開最新一筆，其餘收合，點擊即可查閱）
     </p>
 
     <hr>
@@ -960,7 +999,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
       <b>💬 LINE 完整</b>：條列式訊息，分「已知有（各 B 群）→ 已知無（各 C 群）→ 未填寫」三大區塊，每家店占一行，尾端附各欄統計。貼到 LINE 群組直接發送<br>
       <b>✉️ LINE 精簡</b>（toolbar 專屬）：只輸出統計摘要數字，不列店家名稱，適合快速回報進度<br>
       <b>📥 CSV</b>：下載含狀態欄的完整資料，檔名格式「單位_YYYYMMDD_HHMM.csv」，以 Excel 開啟可進一步分析<br>
-      <b>📸 截圖</b>（Topbar）：截整個目前可見頁面；明細視窗內的截圖按鈕則截明細表格
+      <b>📸 截圖</b>：直接複製圖片到剪貼簿，貼上 LINE／Email 即可，不會另外下載檔案
     </p>
   </div>
 </div>
@@ -994,30 +1033,30 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 </div>
 
 <script>
-/* \u2500\u2500 \u8A2D\u5B9A\uFF08\u5BEB\u6B7B\uFF0C\u540C INDEX \u67B6\u69CB\uFF09\u2500\u2500 */
+/* ── 設定（寫死，同 INDEX 架構）── */
 var MGMT_ID    = '1PR9OR7BIGyTpcH8QSMRXkPhQTr4h3m0UK3gET29f19s';
-var MGMT_SHEET = '\u5C08\u6848\u7BA1\u7406';
-var SYNC_SHEET_DEFAULT = '\u8F14\u52A9';
+var MGMT_SHEET = '專案管理';
+var SYNC_SHEET_DEFAULT = '輔助';
 var SYNC_CELL_DEFAULT  = 'B1';
-var SHEET_NAME_DEFAULT = '\u5E97\u5BB6\u540D\u518A';
+var SHEET_NAME_DEFAULT = '店家名冊';
 /* 層級欄位名稱（組織視角） */
-var COL_AREA    = '\u71DF\u696D\u8655\u540D\u7A31';
-var COL_OFFICE  = '\u71DF\u696D\u6240/\u8AB2';
-var COL_STAFF   = '\u57F7\u884C\u4EBA\u54E1';
+var COL_AREA    = '營業處名稱';
+var COL_OFFICE  = '營業所/課';
+var COL_STAFF   = '執行人員';
 var COL_UNFILL  = null; /* 由管理分頁動態設定，null=不顯示未填寫 */
 /* 專案類型：'計數'（預設，0/1 家數）| '加總'（numVal 份數） */
-var PROJECT_TYPE = '\u8A08\u6578';
+var PROJECT_TYPE = '計數';
 /* 未知群組顯示名稱，由管理分頁 D 欄決定 */
-var UNFILL_LABEL = '\u672A\u586B\u5BEB';
-var COL_CODE    = '\u5E97\u5BB6\u4EE3\u78BC';
-var COL_NAME    = '\u5E97\u5BB6\u540D\u7A31';
+var UNFILL_LABEL = '未填寫';
+var COL_CODE    = '店家代碼';
+var COL_NAME    = '店家名稱';
 /* 店家等級欄位（店家名冊 H 欄） */
 var COL_GRADE = '店家等級';
 var selectedGrades = null; /* null = 全選，Set = 已選等級 */
 
 /* 通路視角欄位 */
-var COL_CHANNEL = '\u901A\u8DEF\u5225';   /* 通路別 */
-var COL_TYPE    = '\u5E97\u5BB6\u578B\u614B'; /* 店家型態 */
+var COL_CHANNEL = '通路別';   /* 通路別 */
+var COL_TYPE    = '店家型態'; /* 店家型態 */
 
 /* 動態桶設定（由覆蓋率型專案管理分頁載入）
    BUCKETS_B = [{label:'已貼海報', cols:['門口','四周']}, {label:'已貼冰貼', cols:['冰貼']}]
@@ -1030,19 +1069,19 @@ function ALL_B_COLS(){ return BUCKETS_B.reduce(function(a,g){ return a.concat(g.
 function ALL_C_COLS(){ return BUCKETS_C.reduce(function(a,g){ return a.concat(g.cols); },[]); }
 
 /* 覆蓋率型專案管理分頁名稱 */
-var COV_CFG_SHEET = '\u8986\u84CB\u7387\u578B\u5C08\u6848\u7BA1\u7406';
+var COV_CFG_SHEET = '覆蓋率型專案管理';
 
-/* \u2500\u2500 \u5F9E URL \u53EA\u8B80 sheetId\uFF0C\u5176\u9918\u5168\u5F9E\u7BA1\u7406\u5206\u9801\u67E5 \u2500\u2500 */
+/* ── 從 URL 只讀 sheetId，其餘全從管理分頁查 ── */
 var params   = new URLSearchParams(location.search);
 var SHEET_ID = params.get('sheetId') || '';
 
-/* \u76EE\u524D\u5C08\u6848\u8CC7\u8A0A\uFF08\u5F9E\u7BA1\u7406\u5206\u9801\u8F09\u5165\u5F8C\u586B\u5165\uFF09*/
-var PROJ_NAME  = '\u8986\u84CB\u7387\u770B\u677F';
+/* 目前專案資訊（從管理分頁載入後填入）*/
+var PROJ_NAME  = '覆蓋率看板';
 var SYNC_SHEET = SYNC_SHEET_DEFAULT;
 var SYNC_CELL  = SYNC_CELL_DEFAULT;
 var SHEET_NAME = SHEET_NAME_DEFAULT;
 
-/* \u2500\u2500 \u72C0\u614B \u2500\u2500 */
+/* ── 狀態 ── */
 var allRows    = [];
 var drillStack = [];
 var _dialogTitle = '';
@@ -1066,6 +1105,29 @@ function initChips() {
   chips['unfill'] = true;
   renderLampBar();
 }
+
+/* ── 手機漢堡選單 ── */
+function toggleMobileMenu(e){
+  if(e) e.stopPropagation();
+  var panel = document.getElementById('toolbar-controls');
+  var btn = document.getElementById('hamburger-btn');
+  var willOpen = !panel.classList.contains('open');
+  panel.classList.toggle('open', willOpen);
+  if(btn) btn.classList.toggle('active', willOpen);
+}
+function closeMobileMenu(){
+  var panel = document.getElementById('toolbar-controls');
+  var btn = document.getElementById('hamburger-btn');
+  panel.classList.remove('open');
+  if(btn) btn.classList.remove('active');
+}
+document.addEventListener('click', function(e){
+  var panel = document.getElementById('toolbar-controls');
+  var btn = document.getElementById('hamburger-btn');
+  if(!panel || !panel.classList.contains('open')) return;
+  if(panel.contains(e.target) || (btn && btn.contains(e.target))) return;
+  closeMobileMenu();
+});
 
 /* sticky 層疊高度：toolbar → lamp-row → quicknav，每層緊接上一層 */
 function updateStickyTops() {
@@ -1115,18 +1177,18 @@ function toggleLamp(key) {
   render();
 }
 
-/* \u2500\u2500 \u5DE5\u5177 \u2500\u2500 */
+/* ── 工具 ── */
 function showLoading(){ document.getElementById('loading').classList.add('show'); }
 function hideLoading(){ document.getElementById('loading').classList.remove('show'); }
 function isOne(v){ var n=Number(v); return n>=1||v===true||v==='true'||v==='1'; }
 /* 取得欄位數值：計數模式 = 有/無 (0|1)；加總模式 = 實際值 */
 function numVal(v){ var n=Number(v); return (n>=1)?n:(v===true||v==='true'||v==='1'?1:0); }
-function isSum(){ return PROJECT_TYPE==='\u52A0\u7E3D'; }
+function isSum(){ return PROJECT_TYPE==='加總'; }
 /* C 群欄位：判斷是否為業務文字敘述（非 0/1 的非空字串） */
 function isCText(v){ return v!==null && v!==undefined && v!=='' && v!==0 && v!=='0' && v!==false && !isOne(v) && typeof v==='string' && v.trim().length>0; }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-/* \u2500\u2500 \u89E3\u6790 gviz \u65E5\u671F\u683C\u5F0F \u2192 \u4EBA\u985E\u53EF\u8B80 \u2500\u2500 */
+/* ── 解析 gviz 日期格式 → 人類可讀 ── */
 function parseGvizDate(v) {
   var m = String(v).match(/Date\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)/);
   if (!m) return String(v);
@@ -1149,7 +1211,7 @@ function parseGvizDate(v) {
    依「店家代碼」分組建立索引即可；同一家店可能有多筆歷史紀錄
    （每次拜訪一筆），依時間新到舊排序，呈現成時間軸。
    ══════════════════════════════════════════════════════════════ */
-var QUESTIONNAIRE_SHEET = '\u554F\u5377\u8CC7\u6599'; /* 問卷資料 */
+var QUESTIONNAIRE_SHEET = '問卷資料'; /* 問卷資料 */
 var _qSheetCache = null;      /* { quizCols, codeToRecords } */
 var _qSheetLoading = false;
 var _qSheetWaiters = [];
@@ -1223,7 +1285,7 @@ function _fetchQuestionnaireSheet(callback){
         codeToRecords[code].push({
           base: baseData,
           sections: sectionOrder.map(function(s){ return { section:s, picks:sections[s] }; }),
-          timeKey: String(baseData['\u6253\u5361\u6642\u9593'] || baseData['\u56DE\u5831\u6642\u9593'] || baseData['\u6708\u4EFD'] || '')
+          timeKey: String(baseData['打卡時間'] || baseData['回報時間'] || baseData['月份'] || '')
         });
       }
 
@@ -1337,6 +1399,17 @@ function _renderQuizSections(sections){
 /* 店家明細基本資料要顯示的欄位，依店家名冊欄名，跟主表格用詞一致 */
 var STORE_BASIC_FIELDS = [COL_AREA, COL_OFFICE, COL_STAFF, COL_CHANNEL, COL_TYPE, COL_CODE, COL_NAME, COL_GRADE];
 
+/* 拜訪時間軸每筆紀錄預設收合，只有最新一筆自動展開；其餘點擊才展開，
+   保留完整可查閱性但不會一次把畫面撐爆 */
+function _toggleHistoryRecord(hid){
+  var rec = document.getElementById('hrec-'+hid);
+  var body = document.getElementById('hbody-'+hid);
+  if(!rec || !body) return;
+  var isOpen = rec.classList.contains('open');
+  rec.classList.toggle('open', !isOpen);
+  body.style.display = isOpen ? 'none' : 'block';
+}
+
 function _buildStoreHistoryPanel(storeRow, records, rid, errMsg, loading){
   var panelId = ' id="rawpanel-'+esc(rid)+'"';
   var actionBar = '<div data-screenshot-ignore="1" style="display:flex;gap:6px;justify-content:flex-end;margin-bottom:8px;">'
@@ -1364,13 +1437,21 @@ function _buildStoreHistoryPanel(storeRow, records, rid, errMsg, loading){
   } else if(!records || !records.length){
     histHtml = '<div class="store-history-empty">\u23F3 \u5C1A\u672A\u57F7\u884C\uFF0C\u76EE\u524D\u6C92\u6709\u4EFB\u4F55\u62DC\u8A2A\u7D00\u9304</div>';
   } else {
+    /* 每筆紀錄預設收合，只展開第一筆（最新），其餘點擊才展開 */
     histHtml = '<div class="store-history-list">' + records.map(function(rec, idx){
       var timeText = rec.base['\u6253\u5361\u6642\u9593'] || rec.base['\u56DE\u5831\u6642\u9593'] || rec.base['\u6708\u4EFD'] || '\u672A\u77E5\u6642\u9593';
       var badge = idx===0 ? '\u6700\u65B0' : ('\u7B2C '+(records.length-idx)+' \u7B46');
-      return '<div class="store-history-record">'
-        + '<div class="store-history-head"><span class="store-history-badge">'+esc(badge)+'</span>'
-        + '<span class="store-history-time">\uD83D\uDD52 '+esc(String(timeText))+'</span></div>'
-        + _renderQuizSections(rec.sections)
+      var hid = rid + '-h' + idx;
+      var isOpen = idx === 0;
+      return '<div class="store-history-record'+(isOpen?' open':'')+'" id="hrec-'+hid+'">'
+        + '<div class="store-history-head" onclick="_toggleHistoryRecord(\''+hid+'\')">'
+        +   '<span class="store-history-badge">'+esc(badge)+'</span>'
+        +   '<span class="store-history-time">\uD83D\uDD52 '+esc(String(timeText))+'</span>'
+        +   '<span class="store-history-expand-ico">\u25B6</span>'
+        + '</div>'
+        + '<div class="store-history-body" id="hbody-'+hid+'" style="display:'+(isOpen?'block':'none')+';">'
+        +   _renderQuizSections(rec.sections)
+        + '</div>'
         + '</div>';
     }).join('') + '</div>';
   }
@@ -1456,46 +1537,73 @@ function _storeDetailScreenshot(rid, btn){
   if(!el){ _flashBtn(btn,'\u26A0\uFE0F \u7121\u756B\u9762'); return; }
   _captureElement(el, btn, PROJ_NAME+'_\u62DC\u8A2A\u660E\u7D30');
 }
-/* 通用元素截圖（只複製到剪貼簿），沿用既有 html2canvas 載入方式 */
+
+/* ══ 通用截圖機制：一律優先寫入剪貼簿，不下載檔案 ══
+   關鍵技巧：ClipboardItem 可以接受「還沒解析完成的 Promise」當作內容，
+   只要 navigator.clipboard.write() 這個呼叫本身是在使用者點擊的同一個事件
+   處理常式裡「同步」呼叫（不等 html2canvas 跑完再呼叫），瀏覽器就仍然認得
+   這是一次合法的使用者操作觸發的寫入，不會因為 html2canvas 需要一點運算時間
+   就悄悄失敗、退回下載。只有在瀏覽器完全不支援 Clipboard API 時才下載檔案。 */
+var _html2canvasLoading = null;
+function _ensureHtml2Canvas(){
+  if(window.html2canvas) return Promise.resolve();
+  if(_html2canvasLoading) return _html2canvasLoading;
+  _html2canvasLoading = new Promise(function(resolve, reject){
+    var s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    s.onload=function(){ resolve(); };
+    s.onerror=function(){ _html2canvasLoading=null; reject(new Error('html2canvas 載入失敗')); };
+    document.head.appendChild(s);
+  });
+  return _html2canvasLoading;
+}
+/* buildCanvasFn: () => Promise<canvas>，呼叫時 html2canvas 保證已就緒 */
+function _clipboardFirstCapture(buildCanvasFn, btn, filename){
+  var origLabel = btn ? btn.textContent : '';
+  if(btn){ btn.classList.add('loading'); btn.textContent='\u23F3 \u622A\u5716\u4E2D...'; }
+  function restore(){ if(btn){ btn.classList.remove('loading'); btn.textContent = origLabel; } }
+  function runBuild(){ return _ensureHtml2Canvas().then(buildCanvasFn); }
+
+  if (navigator.clipboard && window.ClipboardItem) {
+    /* 立刻同步建立 ClipboardItem 並呼叫 write()，Blob 用 Promise 延後解析 */
+    var blobPromise = runBuild().then(function(canvas){
+      return new Promise(function(resolve){ canvas.toBlob(resolve, 'image/png'); });
+    });
+    try {
+      navigator.clipboard.write([ new ClipboardItem({ 'image/png': blobPromise }) ])
+        .then(function(){ restore(); _flashBtn(btn, '\u2705 \u5DF2\u8907\u88FD\uFF01'); })
+        .catch(function(){
+          /* 真的被瀏覽器拒絕才退回下載（同一份運算結果，不重跑一次） */
+          runBuild().then(function(canvas){ restore(); _downloadCanvas(canvas, filename, btn); })
+            .catch(function(){ restore(); _flashBtn(btn, '\u26A0\uFE0F \u622A\u5716\u5931\u6557'); });
+        });
+      return;
+    } catch(e) { /* 落到下方 fallback */ }
+  }
+  runBuild().then(function(canvas){ restore(); _downloadCanvas(canvas, filename, btn); })
+    .catch(function(){ restore(); _flashBtn(btn, '\u26A0\uFE0F \u622A\u5716\u5931\u6557'); });
+}
+/* 通用元素截圖（只複製到剪貼簿） */
 function _captureElement(el, btn, filename){
-  btn.classList.add('loading');
-  function doCapture(){
-    html2canvas(el, {
+  _clipboardFirstCapture(function(){
+    return html2canvas(el, {
       scale:2, backgroundColor:'#ffffff', useCORS:true,
       width:el.scrollWidth, height:el.scrollHeight,
       ignoreElements:function(node){ return node.getAttribute && node.getAttribute('data-screenshot-ignore')==='1'; }
-    }).then(function(canvas){
-      if(navigator.clipboard && window.ClipboardItem){
-        canvas.toBlob(function(blob){
-          try{
-            navigator.clipboard.write([new ClipboardItem({'image/png':blob})])
-              .then(function(){ btn.classList.remove('loading'); _flashBtn(btn,'\u2705 \u5DF2\u8907\u88FD\uFF01'); })
-              .catch(function(){ _downloadCanvas(canvas, filename, btn); });
-          }catch(e){ _downloadCanvas(canvas, filename, btn); }
-        },'image/png');
-      } else { _downloadCanvas(canvas, filename, btn); }
-    }).catch(function(){ btn.classList.remove('loading'); _flashBtn(btn,'\u26A0\uFE0F \u5931\u6557'); });
-  }
-  if(window.html2canvas) doCapture();
-  else {
-    var s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-    s.onload=doCapture;
-    s.onerror=function(){ btn.classList.remove('loading'); _flashBtn(btn,'\u26A0\uFE0F \u8F09\u5165\u5931\u6557'); };
-    document.head.appendChild(s);
-  }
+    });
+  }, btn, filename);
 }
 
-/* \u2500\u2500 \u8FD4\u56DE \u2500\u2500 */
+/* ── 返回 ── */
 function goBack() {
   window.location.href = 'index.html';
 }
 
-/* \u2500\u2500 \u7B2C\u4E00\u6B65\uFF1A\u5F9E\u7BA1\u7406\u5206\u9801\u67E5\u51FA\u6B64 sheetId \u7684\u8A2D\u5B9A\uFF0C\u518D\u555F\u52D5 \u2500\u2500 */
+/* ── 第一步：從管理分頁查出此 sheetId 的設定，再啟動 ── */
 function init() {
   if (!SHEET_ID) {
     hideLoading();
-    document.getElementById('stage').innerHTML = '<div class="empty">\u26A0\uFE0F \u7F3A\u5C11 sheetId \u53C3\u6578</div>';
+    document.getElementById('stage').innerHTML = '<div class="empty">⚠️ 缺少 sheetId 參數</div>';
     return;
   }
   /* 先讀「覆蓋率型專案管理」取得桶設定，再讀「專案管理」取得基本資料 */
@@ -1520,8 +1628,8 @@ function init() {
            J=B2標題 K=B2欄位 L=C2標題 M=C2欄位 ...（每4欄一組 B+C）
            專案類型值：「計數」= 家數統計(0/1)，「加總」= 數值加總(>=1 視為有) */
         var projType = cv(cells[2]);
-        if (projType === '\u52A0\u7E3D') PROJECT_TYPE = '\u52A0\u7E3D';
-        else PROJECT_TYPE = '\u8A08\u6578';
+        if (projType === '加總') PROJECT_TYPE = '加總';
+        else PROJECT_TYPE = '計數';
 
         /* D 欄 = 未知群組標題(選填)，E 欄 = 未知欄位(選填) */
         var unfillTitle = cv(cells[3]);
@@ -1541,8 +1649,8 @@ function init() {
           var lb = cv(cells[gi]),   cb = parseCsv(cv(cells[gi+1] || {}));
           var lc = cv(cells[gi+2] || {}), cc = parseCsv(cv(cells[gi+3] || {}));
           if (!lb && !cb.length && !lc && !cc.length) break; /* 空白即停 */
-          if (cb.length) BUCKETS_B.push({ label: lb || '\u5DF2\u6709', cols: cb });
-          if (cc.length) BUCKETS_C.push({ label: lc.trim() || '\u672A\u6709', cols: cc.filter(Boolean) });
+          if (cb.length) BUCKETS_B.push({ label: lb || '已有', cols: cb });
+          if (cc.length) BUCKETS_C.push({ label: lc.trim() || '未有', cols: cc.filter(Boolean) });
         }
       });
     })
@@ -1569,7 +1677,7 @@ function init() {
         var cell      = cv(cells[5]) || SYNC_CELL_DEFAULT;
         var boardType = cv(cells[6]);
         if (!name || !sid) return;
-        if (boardType !== '\u8986\u84CB\u7387\u578B') return;
+        if (boardType !== '覆蓋率型') return;
         if (sid === SHEET_ID) {
           PROJ_NAME  = name;
           SHEET_NAME = sheet;
@@ -1608,7 +1716,7 @@ function switchProject(sid) {
   location.href = location.pathname + '?sheetId=' + encodeURIComponent(sid);
 }
 
-/* \u2500\u2500 \u4E3B\u8CC7\u6599 \u2500\u2500 */
+/* ── 主資料 ── */
 function fetchSheet() {
   showLoading();
   var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
@@ -1684,7 +1792,7 @@ function fetchSheet() {
     })
     .catch(function(err){
       hideLoading();
-      document.getElementById('stage').innerHTML = '<div class="empty">\u26A0\uFE0F \u8F09\u5165\u5931\u6557\uFF1A' + err + '</div>';
+      document.getElementById('stage').innerHTML = '<div class="empty">⚠️ 載入失敗：' + err + '</div>';
     });
 }
 
@@ -1700,7 +1808,7 @@ function fetchSyncTime() {
       var val = '';
       try { val = json.table.rows[0].c[0].v || ''; } catch(e){}
       if (val) {
-        document.getElementById('tb-sync').textContent = '\uD83D\uDCCA \u540C\u6B65 ' + parseGvizDate(val);
+        document.getElementById('tb-sync').textContent = '📊 同步 ' + parseGvizDate(val);
       }
     })
     .catch(function(){});
@@ -1820,7 +1928,7 @@ function calcGroup(rows) {
   }
 }
 
-/* \u2500\u2500 \u7BE9\u9078 \u2500\u2500 */
+/* ── 篩選 ── */
 function getCurrentRows() {
   if(!drillStack.length) return allRows;
   /* 逐層累積過濾：每一層都在上一層的結果裡再篩 */
@@ -1846,7 +1954,7 @@ function getNextGroups(rows, col) {
   return map;
 }
 
-/* \u2500\u2500 \u5e97\u5bb6\u7b49\u7d1a\u7b5b\u9078 \u2500\u2500 */
+/* ── 店家等級篩選 ── */
 /* buildGradeBar: 只收集等級清單，實際渲染整合進 buildQuicknav */
 var _gradeList = [];
 function buildGradeBar() {
@@ -1869,7 +1977,7 @@ function applyGradeFilter(rows) {
   });
 }
 
-/* \u2500\u2500 視角切換 \u2500\u2500 */
+/* ── 視角切換 ── */
 function setViewMode(mode) {
   if (viewMode === mode) return;
   viewMode = mode;
@@ -1879,7 +1987,7 @@ function setViewMode(mode) {
   render();
 }
 
-/* \u2500\u2500 \u6E32\u67D3 \u2500\u2500 */
+/* ── 渲染 ── */
 function render() {
   hideLoading();
   buildQuicknav();
@@ -1887,29 +1995,29 @@ function render() {
   var stage=document.getElementById('stage');
   stage.innerHTML='';
   var depth=drillStack.length, rows=applyGradeFilter(getCurrentRows());
-  var overallName = depth===0 ? '\u5168\u53F0' : drillStack[drillStack.length-1].key;
+  var overallName = depth===0 ? '全台' : drillStack[drillStack.length-1].key;
 
   if (viewMode === 'channel') {
     /* 通路視角：通路別 → 店家型態 → 營業處 → 營業所/課 → dialog */
-    if      (depth===0) renderLevel(stage,rows,COL_CHANNEL,'channel','\u901A\u8DEF\u5225', overallName);
-    else if (depth===1) renderLevel(stage,rows,COL_TYPE,   'type',   '\u5E97\u5BB6\u578B\u614B', overallName);
-    else if (depth===2) renderLevel(stage,rows,COL_AREA,   'ch-area','\u71DF\u696D\u8655', overallName);
-    else if (depth===3) renderLevel(stage,rows,COL_OFFICE, 'ch-office','\u71DF\u696D\u6240/\u8AB2', overallName);
-    else stage.innerHTML='<div class="empty">\u5DF2\u5230\u6700\u7D30\u5C64\u7D1A</div>';
+    if      (depth===0) renderLevel(stage,rows,COL_CHANNEL,'channel','通路別', overallName);
+    else if (depth===1) renderLevel(stage,rows,COL_TYPE,   'type',   '店家型態', overallName);
+    else if (depth===2) renderLevel(stage,rows,COL_AREA,   'ch-area','營業處', overallName);
+    else if (depth===3) renderLevel(stage,rows,COL_OFFICE, 'ch-office','營業所/課', overallName);
+    else stage.innerHTML='<div class="empty">已到最細層級</div>';
   } else {
     /* 組織視角 */
-    if      (depth===0) renderLevel(stage,rows,COL_AREA,  'area',  '\u71DF\u696D\u8655', overallName);
-    else if (depth===1) renderLevel(stage,rows,COL_OFFICE,'office','\u71DF\u696D\u6240/\u8AB2', overallName);
-    else if (depth===2) renderLevel(stage,rows,COL_STAFF, 'staff', '\u696D\u52D9\u4EBA\u54E1', overallName);
-    else stage.innerHTML='<div class="empty">\u5DF2\u5230\u6700\u7D30\u5C64\u7D1A</div>';
+    if      (depth===0) renderLevel(stage,rows,COL_AREA,  'area',  '營業處', overallName);
+    else if (depth===1) renderLevel(stage,rows,COL_OFFICE,'office','營業所/課', overallName);
+    else if (depth===2) renderLevel(stage,rows,COL_STAFF, 'staff', '業務人員', overallName);
+    else stage.innerHTML='<div class="empty">已到最細層級</div>';
   }
 }
 
-/* \u71df\u696d\u8655\u56fa\u5b9a\u6392\u5e8f\u6e05\u55ae\uff08\u53ea\u5957\u7528\u65bc\u300c\u71df\u696d\u8655\u300d\u9019\u4e00\u5c64\uff09 */
-var AREA_ORDER = ['\u5317\u90E8','\u6843\u5712','\u81FA\u4E2D','\u5609\u7FA9','\u81FA\u5357','\u9AD8\u96C4','\u82B1\u84EE'];
+/* 營業處固定排序清單（只套用於「營業處」這一層） */
+var AREA_ORDER = ['北部','桃園','台中','嘉義','台南','高雄','花蓮'];
 
-/* \u71df\u696d\u8655\u6392\u5e8f\uff1a\u4f9d AREA_ORDER \u6392\uff0c\u6e05\u55ae\u5916\u7684\u6392\u6700\u5f8c\u9762\uff08\u4ecd\u4f9d hasDisp \u964d\u5e8f\uff09
-   groups: { key: rows[] }\uff0c\u7528\u4e8e\u8a08\u7b97\u6e05\u55ae\u5916\u540d\u7a31\u7684 hasDisp */
+/* 營業處排序：依 AREA_ORDER 排，清單外的排最後面（仍依 hasDisp 降序）
+   groups: { key: rows[] }，用於計算清單外名稱的 hasDisp */
 function sortAreaKeys(keys, groups, statCache) {
   function hasDispOf(k) {
     return statCache ? statCache[k].hasDisp : calcGroup(groups[k]).hasDisp;
@@ -1925,14 +2033,14 @@ function sortAreaKeys(keys, groups, statCache) {
 
 function renderLevel(stage, rows, col, levelKey, labelText, overallName) {
   var groups=getNextGroups(rows,col), keys=Object.keys(groups);
-  if(!keys.length){ stage.innerHTML='<div class="empty">\u7121\u8CC7\u6599</div>'; return; }
-  /* \u5feb\u53d6\u6bcf\u500b key \u7684 calcGroup \u7d50\u679c\uff0c\u907f\u514d\u6392\u5e8f\u8207\u5361\u7247\u6e32\u67d3\u91cd\u8907\u8a08\u7b97 */
+  if(!keys.length){ stage.innerHTML='<div class="empty">無資料</div>'; return; }
+  /* 快取每個 key 的 calcGroup 結果，避免排序與卡片渲染重複計算 */
   var statCache = {};
   keys.forEach(function(k){ statCache[k] = calcGroup(groups[k]); });
   if (levelKey === 'area') {
     keys = sortAreaKeys(keys, groups, statCache);
   } else {
-    /* \u5176\u4ed6\u5c64\u7d1a\uff1a\u4f9d hasDisp \u964d\u5e8f\uff08\u5df2\u6709\u6578\u91cf\u6700\u591a\u7684\u6392\u524d\u9762\uff09 */
+    /* 其他層級：依 hasDisp 降序（已有數量最多的排前面） */
     keys.sort(function(a,b){ return statCache[b].hasDisp - statCache[a].hasDisp; });
   }
   var div=document.createElement('div');
@@ -1947,7 +2055,7 @@ function renderLevel(stage, rows, col, levelKey, labelText, overallName) {
   div.appendChild(grid); stage.appendChild(div);
 }
 
-/* \u2500\u2500 Tooltip \u7D81\u5B9A\u8F14\u52A9\u51FD\u5F0F \u2500\u2500 */
+/* ── Tooltip 綁定輔助函式 ── */
 function bindTooltip(triggerEl, ttEl, card) {
   function positionTooltip() {
     var cardRect = card.getBoundingClientRect();
@@ -2008,12 +2116,12 @@ function bindTooltip(triggerEl, ttEl, card) {
   }, { passive: true });
 }
 
-/* \u2500\u2500 \u5361\u7247 \u2500\u2500 */
+/* ── 卡片 ── */
 function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
   var card=document.createElement('div');
   card.className='card'+(isOverall?' card-overall':'');
   var ttId='tt-'+name.replace(/[^a-zA-Z0-9]/g,'_')+'-'+levelKey+(isOverall?'-all':'');
-  var topLabel=isOverall?('\u6574\u9AD4\u6982\u6CC1'):labelText;
+  var topLabel=isOverall?('整體概況'):labelText;
   var T = stat.total;
   function fp(n){ return T>0 ? Math.round(n/T*100)+'%' : '—'; }
   /* 全部卡片標題都是一行：組別小字 + 名稱大字 + 右側明細按鈕 */
@@ -2028,7 +2136,7 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
     /* 加總型：合併成一格顯示總份數，tooltip 列各欄明細 */
     var _sumTotal = stat.bTotalSum || 0;
     var _allBCols = ALL_B_COLS();
-    var _allLabels = BUCKETS_B.length === 1 ? BUCKETS_B[0].label : '\u5DF2\u8DDF\u8A2A'; /* 已跟訪 */
+    var _allLabels = BUCKETS_B.length === 1 ? BUCKETS_B[0].label : '已跟訪'; /* 已跟訪 */
     var _ttSumId = 'ttbsum-'+ttId;
     var _hasMulti = _allBCols.length > 1;
     _bStatHtml = '<div class="stat-item good" id="sib0-'+ttId+'" style="position:relative">'+
@@ -2069,7 +2177,7 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
     });
   }
   var statRowHtml = '<div class="stat-row">'+
-    '<div class="stat-item"><div class="stat-label">\u7E3D\u5BB6\u6578</div><div class="stat-val">'+(isSum()?stat.hasDisp:stat.total)+'</div><div class="stat-pct hidden">&nbsp;</div></div>'+
+    '<div class="stat-item"><div class="stat-label">總家數</div><div class="stat-val">'+(isSum()?stat.hasDisp:stat.total)+'</div><div class="stat-pct hidden">&nbsp;</div></div>'+
     (COL_UNFILL ? '<div class="stat-item warn'+(chips['unfill']===false?' dim':'')+'"><div class="stat-label">'+esc(UNFILL_LABEL)+'</div><div class="stat-val">'+stat.unfilled+'</div><div class="stat-pct">'+fp(stat.unfilled)+'</div></div>' : '')+
     _bStatHtml + _cStatHtml +
   '</div>';
@@ -2119,7 +2227,7 @@ function buildTooltipHTML(label, buckets, counts, total) {
   return '<div class="tt-title">'+esc(label)+'</div>'+
     buckets.map(function(t){
       var n = counts[t]||0;
-      var unit = (isSum() && n > total) ? '' : ' \u5BB6';
+      var unit = (isSum() && n > total) ? '' : ' 家';
       var pct  = (isSum() && n > total)
         ? ' <span class="tt-pct">(sum)</span>'
         : (total>0 ? ' <span class="tt-pct">('+Math.round(n/total*100)+'%)</span>' : '');
@@ -2127,7 +2235,7 @@ function buildTooltipHTML(label, buckets, counts, total) {
     }).join('');
 }
 
-/* \u2500\u2500 drill / quicknav \u2500\u2500 */
+/* ── drill / quicknav ── */
 function drillDown(levelKey, key){ drillStack.push({level:levelKey,key:key}); render(); }
 function drillTo(idx){ drillStack=idx<0?[]:drillStack.slice(0,idx+1); render(); }
 
@@ -2181,7 +2289,7 @@ function buildQuicknav() {
     var hasActiveGrade = selectedGrades !== null;
     var dot = hasActiveGrade ? '<span style="width:5px;height:5px;border-radius:50%;background:var(--primary);display:inline-block;margin-left:3px;vertical-align:middle;flex-shrink:0;"></span>' : '';
     html += '<div class="qn-group">';
-    html += '<button class="qn-btn" style="gap:3px;font-size:10px;padding:4px 7px;" onclick="(function(){window._gradeExpanded=!(window._gradeExpanded!==false);buildQuicknav();})()"><span style="font-size:9px;color:var(--sub);font-weight:600;">等級</span> ' + (gradeExpanded ? '◀' : '▶') + dot + '</button>';
+    html += '<button class="qn-btn" style="gap:3px;font-size:10px;padding:4px 7px;" onclick="(function(){window._gradeExpanded=!(window._gradeExpanded!==false);buildQuicknav();})()"><span style="font-size:9px;color:var(--sub);font-weight:600;">等級</span> ' + (gradeExpanded ? '◀' : '▶') + dot + '</button>';
     if (gradeExpanded) {
       html += '<button class="qn-btn grade-all' + (selectedGrades===null?' active':'') + '" onclick="(function(){selectedGrades=null;buildGradeBar();render();})()">全選</button>';
       _gradeList.forEach(function(g){
@@ -2192,7 +2300,7 @@ function buildQuicknav() {
     }
     html += '</div>';
   }
-  html += '<div class="qn-group"><button class="qn-btn home' + (depth===0?' active':'') + '" onclick="drillTo(-1)">\u5168\u89BD</button></div>';
+  html += '<div class="qn-group"><button class="qn-btn home' + (depth===0?' active':'') + '" onclick="drillTo(-1)">全覽</button></div>';
 
   if (viewMode === 'org') {
     var areaGroups = getNextGroups(allRows, COL_AREA);
@@ -2248,7 +2356,7 @@ function buildQuicknav() {
 }
 
 
-/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 \u5E97\u5BB6\u660E\u7D30 Dialog \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */
+/* ══════════════ 店家明細 Dialog ══════════════ */
 
 /* 依 chips 狀態決定 dialog 要顯示哪些列，並帶排序 */
 function dialogRows(rows, levelKey) {
@@ -2265,7 +2373,7 @@ function dialogRows(rows, levelKey) {
     /* B/C 都沒有值且設有未知群組 → 視同未填寫處理 */
     if (COL_UNFILL && chips['unfill'] !== false) result.push({ r:r, grp:3, bi:-1, ci:-1 });
   });
-  /* \u6392\u5e8f\u6b04\u4f4d\u4f9d\u7576\u524d\u5c64\u7d1a\u52d5\u614b\u6c7a\u5b9a\uff08\u7d44\u7e54\u8996\u89d2\u7528\u71df\u696d\u6240/\u4eba\u54e1\uff0c\u901a\u8def\u8996\u89d2\u7528\u5c0d\u61c9\u6b04\uff09 */
+  /* 排序欄位依當前層級動態決定（組織視角用營業所/人員，通路視角用對應欄） */
   var sortCols = levelKey ? getDisplayCols(levelKey) : [COL_OFFICE, COL_STAFF];
   result.sort(function(a, b) {
     if (a.grp !== b.grp) return a.grp - b.grp;
@@ -2280,19 +2388,19 @@ function dialogRows(rows, levelKey) {
   return result;
 }
 
-/* \u5f9e dialogRows \u53d6\u51fa\u7d14 row \u7269\u4ef6\uff08\u7d66 copyLine/copyExcel \u7528\uff09 */
+/* 從 dialogRows 取出純 row 物件（給 copyLine/copyExcel 用） */
 function sortedValidRows(rows, levelKey) {
   return dialogRows(rows, levelKey)
-    .filter(function(d){ return d.grp !== 3; }) /* copyLine/Excel \u4e0d\u5305\u542b\u672a\u586b\u5beb */
+    .filter(function(d){ return d.grp !== 3; }) /* copyLine/Excel 不包含未填寫 */
     .map(function(d){ return d.r; });
 }
 
-/* \u5404\u5c64\u7d1a\u5bf9\u61c9\u7684\u9644\u52a0\u6b04\u4f4d\uff08\u7d44\u7e54/\u901a\u8def\u8996\u89d2\u901a\u7528\uff09 */
+/* 各層級對應的附加欄位（組織/通路視角通用） */
 var COL_LABELS = {
-  '\u71DF\u696D\u6240/\u8AB2': '\u71DF\u696D\u6240/\u8AB2',
-  '\u57F7\u884C\u4EBA\u54E1': '\u4E3B\u8981\u8A2A\u54E1',
-  '\u71DF\u696D\u8655\u540D\u7A31': '\u71DF\u696D\u8655',
-  '\u5E97\u5BB6\u578B\u614B': '\u5E97\u5BB6\u578B\u614B'
+  '營業所/課': '營業所/課',
+  '執行人員': '主要訪員',
+  '營業處名稱': '營業處',
+  '店家型態': '店家型態'
 };
 
 function getExtraCols(levelKey) {
@@ -2327,9 +2435,9 @@ function buildStoreTable(rows, levelKey, ridPrefix, compact){
   var showType = (levelKey === 'staff' || levelKey === 'office' || levelKey === 'area');
   var html='<div class="detail-scroll"><table class="detail-tbl"><thead><tr>';
   extraCols.forEach(function(c){ html+='<th class="th-left">'+(colLabels[c]||c)+'</th>'; });
-  html+='<th class="th-left">\u5E97\u78BC</th><th class="th-left">\u5E97\u540D</th>';
-  if(showType) html+='<th class="th-left">\u5E97\u5BB6\u578B\u614B</th>';
-  html+='<th>\u72C0\u614B</th>';
+  html+='<th class="th-left">店碼</th><th class="th-left">店名</th>';
+  if(showType) html+='<th class="th-left">店家型態</th>';
+  html+='<th>狀態</th>';
   /* B 群欄：精簡模式每群組固定一欄；一般模式群組有多個子欄則逐欄展開 */
   BUCKETS_B.forEach(function(g,gi){
     var cls=' class="th-grp-b'+gi+'"';
@@ -2339,7 +2447,7 @@ function buildStoreTable(rows, levelKey, ridPrefix, compact){
   if (!isSum()) {
     BUCKETS_C.forEach(function(g,gi){
       var cls=' class="th-grp-c'+gi+'"';
-      if(compact || g.cols.length===1) html+='<th'+cls+'>'+esc(g.label||'\u672A\u6709')+'</th>';
+      if(compact || g.cols.length===1) html+='<th'+cls+'>'+esc(g.label||'未有')+'</th>';
       else g.cols.filter(function(t){ return t; }).forEach(function(t){ html+='<th'+cls+'>'+esc(t)+'</th>'; });
     });
   }
@@ -2358,50 +2466,50 @@ function buildStoreTable(rows, levelKey, ridPrefix, compact){
     var trClass  = 'store-row' + (isUnfill ? ' row-unfill' : '');
     html += '<tr class="'+trClass+'" id="storerow-'+rid+'" onclick="_toggleStoreDetail(\''+rid+'\',\''+esc(code).replace(/'/g,"\\'")+'\')">';
     extraCols.forEach(function(c){
-      html += '<td class="td-org">' + esc(String(r[c]||'\u2014')) + '</td>';
+      html += '<td class="td-org">' + esc(String(r[c]||'—')) + '</td>';
     });
-    html += '<td class="td-code">' + esc(code||'\u2014') + '</td>';
-    html += '<td class="td-name"><span class="store-expand-ico" id="storeico-'+rid+'">\u25B6</span>' + esc(String(r[COL_NAME]||'\u2014')) + '</td>';
-    if(showType) html += '<td class="td-org">' + esc(String(r[COL_TYPE]||'\u2014')) + '</td>';
+    html += '<td class="td-code">' + esc(code||'—') + '</td>';
+    html += '<td class="td-name"><span class="store-expand-ico" id="storeico-'+rid+'">▶</span>' + esc(String(r[COL_NAME]||'—')) + '</td>';
+    if(showType) html += '<td class="td-org">' + esc(String(r[COL_TYPE]||'—')) + '</td>';
 
-    /* \u72c0\u614b\u6b04 */
+    /* 狀態欄 */
     if (isUnfill) {
       html += '<td><span class="d-unfill">'+esc(UNFILL_LABEL)+'</span></td>';
       if (compact) {
-        BUCKETS_B.forEach(function(g,gi){ html+='<td class="td-grp-b'+gi+'"><span class="d-no">\u2014</span></td>'; });
-        if (!isSum()) BUCKETS_C.forEach(function(g,gi){ html+='<td class="td-grp-c'+gi+'"><span class="d-no">\u2014</span></td>'; });
+        BUCKETS_B.forEach(function(g,gi){ html+='<td class="td-grp-b'+gi+'"><span class="d-no">—</span></td>'; });
+        if (!isSum()) BUCKETS_C.forEach(function(g,gi){ html+='<td class="td-grp-c'+gi+'"><span class="d-no">—</span></td>'; });
       } else {
-        BUCKETS_B.forEach(function(g,gi){ g.cols.forEach(function(){ html+='<td class="td-grp-b'+gi+'"><span class="d-no">\u2014</span></td>'; }); });
-        if (!isSum()) BUCKETS_C.forEach(function(g,gi){ g.cols.filter(function(t){ return t; }).forEach(function(){ html+='<td class="td-grp-c'+gi+'"><span class="d-no">\u2014</span></td>'; }); });
+        BUCKETS_B.forEach(function(g,gi){ g.cols.forEach(function(){ html+='<td class="td-grp-b'+gi+'"><span class="d-no">—</span></td>'; }); });
+        if (!isSum()) BUCKETS_C.forEach(function(g,gi){ g.cols.filter(function(t){ return t; }).forEach(function(){ html+='<td class="td-grp-c'+gi+'"><span class="d-no">—</span></td>'; }); });
       }
     } else {
       if (grp === 0) {
         if (isSum()) {
           /* 加總型狀態欄：顯示該店所有 B 群欄位的總份數 */
           var _totalShares = BUCKETS_B.reduce(function(s,g){ return s + g.cols.reduce(function(s2,t){ return s2+numVal(r[t]); },0); }, 0);
-          html += '<td><span class="d-yes" style="font-weight:700">'+_totalShares+'\u4efd</span></td>';
+          html += '<td><span class="d-yes" style="font-weight:700">'+_totalShares+'份</span></td>';
         } else {
-          html += '<td><span class="d-yes">\u2705</span></td>';
+          html += '<td><span class="d-yes">✅</span></td>';
         }
-      } else if (grp === 1) { var _lc = (BUCKETS_C[d.ci] && BUCKETS_C[d.ci].label) || '\u672A\u6709'; html += '<td><span class="d-no-label">' + esc(_lc) + '</span></td>'; }
-      else                html += '<td><span class="d-no">\u2014</span></td>';
+      } else if (grp === 1) { var _lc = (BUCKETS_C[d.ci] && BUCKETS_C[d.ci].label) || '未有'; html += '<td><span class="d-no-label">' + esc(_lc) + '</span></td>'; }
+      else                html += '<td><span class="d-no">—</span></td>';
 
       if (compact) {
         BUCKETS_B.forEach(function(g,gi){
           if (isSum()) {
             var _gShares = g.cols.reduce(function(s2,t){ return s2+numVal(r[t]); },0);
-            html += '<td class="td-grp-b'+gi+'">'+(_gShares ? '<span class="d-yes">'+_gShares+'\u4efd</span>' : '<span class="d-no">\u2014</span>')+'</td>';
+            html += '<td class="td-grp-b'+gi+'">'+(_gShares ? '<span class="d-yes">'+_gShares+'份</span>' : '<span class="d-no">—</span>')+'</td>';
           } else {
             var _gYes = g.cols.some(function(t){ return isOne(r[t]); });
-            html += '<td class="td-grp-b'+gi+'">'+(_gYes ? '<span class="d-yes">\u2705</span>' : '<span class="d-no">\u2014</span>')+'</td>';
+            html += '<td class="td-grp-b'+gi+'">'+(_gYes ? '<span class="d-yes">✅</span>' : '<span class="d-no">—</span>')+'</td>';
           }
         });
         if (!isSum()) BUCKETS_C.forEach(function(g,gi){
           var cols = g.cols.filter(function(t){ return t; });
-          var cell = '<span class="d-no">\u2014</span>';
+          var cell = '<span class="d-no">—</span>';
           for (var _k=0;_k<cols.length;_k++){
             var v = r[cols[_k]];
-            if (isOne(v)) { cell = '<span class="d-c-yes">\u2716</span>'; break; }
+            if (isOne(v)) { cell = '<span class="d-c-yes">✖</span>'; break; }
             if (isCText(v)) { cell = '<span class="d-c-text">'+esc(String(v))+'</span>'; break; }
           }
           html += '<td class="td-grp-c'+gi+'">'+cell+'</td>';
@@ -2409,7 +2517,7 @@ function buildStoreTable(rows, levelKey, ridPrefix, compact){
       } else {
         BUCKETS_B.forEach(function(g,gi){
           var cls=' class="td-grp-b'+gi+'"';
-          g.cols.forEach(function(t){ html+='<td'+cls+'>'+(isOne(r[t])?'<span class="d-yes">\u2705</span>':'<span class="d-no">\u2014</span>')+'</td>'; });
+          g.cols.forEach(function(t){ html+='<td'+cls+'>'+(isOne(r[t])?'<span class="d-yes">✅</span>':'<span class="d-no">—</span>')+'</td>'; });
         });
         if (!isSum()) BUCKETS_C.forEach(function(g,gi){
           var cls=' class="td-grp-c'+gi+'"';
@@ -2417,9 +2525,9 @@ function buildStoreTable(rows, levelKey, ridPrefix, compact){
           cols.forEach(function(t){
             var v = r[t];
             var cell;
-            if (isOne(v))       cell = '<span class="d-c-yes">\u2716</span>';
+            if (isOne(v))       cell = '<span class="d-c-yes">✖</span>';
             else if (isCText(v)) cell = '<span class="d-c-text">'+esc(String(v))+'</span>';
-            else                 cell = '<span class="d-no">\u2014</span>';
+            else                 cell = '<span class="d-no">—</span>';
             html += '<td'+cls+'>'+cell+'</td>';
           });
         });
@@ -2637,7 +2745,7 @@ function downloadSummaryCsv(){
   _flashBtn(btn,'✅ 已下載');
 }
 
-/* ── Pivot 截圖（只截目前可見的 slide 表格內容） ── */
+/* ── Pivot 截圖（只截目前可見的 slide 表格內容，直接複製到剪貼簿） ── */
 function summaryScreenshot(){
   var btn = document.getElementById('btn-sum-screenshot');
   var el = document.getElementById('pivot-slide-'+_pivotMode);
@@ -2658,10 +2766,10 @@ function refreshDialogContent() {
 
   var ctx = drillStack.map(function(d){ return d.key; });
   ctx.push(_dialogTitle);
-  var line1 = '\u3010' + ctx.join(' \u203A ') + '\u3011\u5E97\u5BB6\u660E\u7D30';
-  var parts = ['\u5171 ' + total + ' \u5BB6'];
+  var line1 = '【' + ctx.join(' › ') + '】店家明細';
+  var parts = ['共 ' + total + ' 家'];
   var unfillCnt = items.filter(function(d){ return d.grp===3; }).length;
-  if(chips['unfill']!==false && unfillCnt) parts.push('\u672A\u586B\u5BEB ' + unfillCnt + pct(unfillCnt));
+  if(chips['unfill']!==false && unfillCnt) parts.push('未填寫 ' + unfillCnt + pct(unfillCnt));
   BUCKETS_B.forEach(function(g,i){
     if(chips['b:'+i]!==false){
       var cnt = items.filter(function(d){ return d.grp===0 && d.bi===i; }).length;
@@ -2676,7 +2784,7 @@ function refreshDialogContent() {
   });
   var titleEl = document.getElementById('dlg-title');
   titleEl.innerHTML = '<div style="font-size:14px;font-weight:900;line-height:1.3;">' + line1 + '</div>'
-    + '<div style="font-size:12px;color:var(--sub);font-weight:500;margin-top:2px;">' + parts.join(' \u3000 ') + '</div>';
+    + '<div style="font-size:12px;color:var(--sub);font-weight:500;margin-top:2px;">' + parts.join('　') + '</div>';
 
   document.getElementById('dlg-body').innerHTML = buildStoreTable(rows, levelKey);
 }
@@ -2688,7 +2796,7 @@ function buildDlgFilterRow() {
   bar.innerHTML = '';
   var lbl = document.createElement('span');
   lbl.className = 'dlg-filter-label';
-  lbl.textContent = '\u7BE9\u9078';
+  lbl.textContent = '篩選';
   bar.appendChild(lbl);
 
   function makeChip(key, label, cls) {
@@ -2728,8 +2836,9 @@ function closeDialog(){
 }
 document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeDialog(); });
 
-/* \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 \u8907\u88FD / \u622A\u5716 \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 */
+/* ══════════════ 複製 / 截圖 ══════════════ */
 function _flashBtn(btn,label){
+  if(!btn) return;
   var orig=btn.textContent; btn.textContent=label; btn.classList.add('done');
   setTimeout(function(){ btn.textContent=orig; btn.classList.remove('done'); },2000);
 }
@@ -2741,14 +2850,14 @@ function fallbackCopy(text){
 }
 function _doCopy(text,btn){
   if(navigator.clipboard&&navigator.clipboard.writeText){
-    navigator.clipboard.writeText(text).then(function(){ _flashBtn(btn,'\u2705 \u5DF2\u8907\u88FD\uFF01'); })
-      .catch(function(){ fallbackCopy(text); _flashBtn(btn,'\u2705 \u5DF2\u8907\u88FD\uFF01'); });
-  } else { fallbackCopy(text); _flashBtn(btn,'\u2705 \u5DF2\u8907\u88FD\uFF01'); }
+    navigator.clipboard.writeText(text).then(function(){ _flashBtn(btn,'✅ 已複製！'); })
+      .catch(function(){ fallbackCopy(text); _flashBtn(btn,'✅ 已複製！'); });
+  } else { fallbackCopy(text); _flashBtn(btn,'✅ 已複製！'); }
 }
 
 /* ── LINE 格式（共用） ── */
 function buildLineText(dRows, lv, title, simple) {
-  var DIV = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
+  var DIV = '─────────────────';
   var allD = dialogRows(dRows, lv);
   var unfill = allD.filter(function(d){return d.grp===3;}).map(function(d){return d.r;});
   var valid  = allD.filter(function(d){return d.grp!==3;}).map(function(d){return d.r;});
@@ -2756,33 +2865,33 @@ function buildLineText(dRows, lv, title, simple) {
   var no     = valid.filter(function(r){return isNoRow(r);});
   var gcol   = getExtraCols(lv)[0]||null;
   function gh(r){return gcol?String(r[gcol]||''):null;}
-  function ss(r){var c=String(r[COL_CODE]||''),n=String(r[COL_NAME]||'\u2014');return n+(c?' ('+c+')' : '');}
+  function ss(r){var c=String(r[COL_CODE]||''),n=String(r[COL_NAME]||'—');return n+(c?' ('+c+')' : '');}
 
   /* 摘要行 */
-  var sp=['\u6709\u6548 '+valid.length+' \u5BB6'];
+  var sp=['有效 '+valid.length+' 家'];
   BUCKETS_B.forEach(function(g){
-    sp.push(g.label+' '+valid.filter(function(r){return g.cols.some(function(t){return isOne(r[t]);});}).length+' \u5BB6');
+    sp.push(g.label+' '+valid.filter(function(r){return g.cols.some(function(t){return isOne(r[t]);});}).length+' 家');
   });
   BUCKETS_C.forEach(function(g){
-    sp.push(g.label+' '+valid.filter(function(r){return g.cols.some(function(t){return isOne(r[t])||isCText(r[t]);});}).length+' \u5BB6');
+    sp.push(g.label+' '+valid.filter(function(r){return g.cols.some(function(t){return isOne(r[t])||isCText(r[t]);});}).length+' 家');
   });
-  if(unfill.length) sp.push(UNFILL_LABEL+' '+unfill.length+' \u5BB6');
+  if(unfill.length) sp.push(UNFILL_LABEL+' '+unfill.length+' 家');
 
-  var lines=['\u3010'+title+'\u3011\u5E97\u5BB6\u660E\u7D30', sp.join('\u3000'), DIV];
+  var lines=['【'+title+'】店家明細', sp.join('　'), DIV];
 
   /* B 群 */
   BUCKETS_B.forEach(function(g){
     var gr=disp.filter(function(r){return g.cols.some(function(t){return isOne(r[t]);});});
     if(!gr.length)return;
     lines.push('');
-    lines.push(' '+g.label+'\uff08'+gr.length+' \u5BB6\uff09');
+    lines.push(' '+g.label+'（'+gr.length+' 家）');
     var cur=null;
     gr.forEach(function(r){
       var gk=gh(r);
-      if(gk!==null&&gk!==cur){cur=gk;if(gk)lines.push('\u258C '+gk);}
-      lines.push('  \u2022 '+ss(r));
+      if(gk!==null&&gk!==cur){cur=gk;if(gk)lines.push('▌ '+gk);}
+      lines.push('  • '+ss(r));
       var at=g.cols.filter(function(t){return isOne(r[t]);});
-      if(at.length)lines.push('     \u2514 '+at.join('\u3001'));
+      if(at.length)lines.push('     └ '+at.join('、'));
     });
   });
 
@@ -2791,27 +2900,27 @@ function buildLineText(dRows, lv, title, simple) {
     var gr=no.filter(function(r){return g.cols.some(function(t){return isOne(r[t])||isCText(r[t]);});});
     if(!gr.length)return;
     lines.push('');
-    lines.push(' '+g.label+'\uff08'+gr.length+' \u5BB6\uff09');
+    lines.push(' '+g.label+'（'+gr.length+' 家）');
     var cur=null;
     gr.forEach(function(r){
       var gk=gh(r);
-      if(gk!==null&&gk!==cur){cur=gk;if(gk)lines.push('\u258C '+gk);}
-      lines.push('  \u2022 '+ss(r));
+      if(gk!==null&&gk!==cur){cur=gk;if(gk)lines.push('▌ '+gk);}
+      lines.push('  • '+ss(r));
       var rs=g.cols.filter(function(t){return isOne(r[t])||isCText(r[t]);})
-        .map(function(t){return isCText(r[t])?t+'\uff1a'+r[t]:t;});
-      if(rs.length)lines.push('     \u2514 '+rs.join('\u3001'));
+        .map(function(t){return isCText(r[t])?t+'：'+r[t]:t;});
+      if(rs.length)lines.push('     └ '+rs.join('、'));
     });
   });
 
   /* 未填寫 */
   if(unfill.length){
     lines.push('');
-    lines.push(' '+UNFILL_LABEL+'\uff08'+unfill.length+' \u5BB6\uff09');
+    lines.push(' '+UNFILL_LABEL+'（'+unfill.length+' 家）');
     var cur=null;
     unfill.forEach(function(r){
       var gk=gh(r);
-      if(gk!==null&&gk!==cur){cur=gk;if(gk)lines.push('\u258C '+gk);}
-      lines.push('  \u2022 '+ss(r));
+      if(gk!==null&&gk!==cur){cur=gk;if(gk)lines.push('▌ '+gk);}
+      lines.push('  • '+ss(r));
     });
   }
 
@@ -2821,15 +2930,15 @@ function buildLineText(dRows, lv, title, simple) {
     lines.push('');
     lines.push(DIV);
     BUCKETS_B.forEach(function(g){
-      lines.push('\u25A0 '+g.label);
+      lines.push('■ '+g.label);
       g.cols.forEach(function(t){
-        lines.push('  '+t+'\uff1a'+_footRows.reduce(function(s,r){return s+(isSum()?numVal(r[t]):(isOne(r[t])?1:0));},0)+(isSum()?' (\u52A0\u7E3D)':' \u5BB6'));
+        lines.push('  '+t+'：'+_footRows.reduce(function(s,r){return s+(isSum()?numVal(r[t]):(isOne(r[t])?1:0));},0)+(isSum()?' (加總)':' 家'));
       });
     });
     BUCKETS_C.forEach(function(g){
-      lines.push('\u25A0 '+g.label);
+      lines.push('■ '+g.label);
       g.cols.forEach(function(t){
-        lines.push('  '+t+'\uff1a'+_footRows.reduce(function(s,r){return s+(isSum()?numVal(r[t]):(isOne(r[t])?1:0));},0)+(isSum()?' (\u52A0\u7E3D)':' \u5BB6'));
+        lines.push('  '+t+'：'+_footRows.reduce(function(s,r){return s+(isSum()?numVal(r[t]):(isOne(r[t])?1:0));},0)+(isSum()?' (加總)':' 家'));
       });
     });
   }
@@ -2839,13 +2948,13 @@ function buildLineText(dRows, lv, title, simple) {
 
 function copyLine(){
   var btn=document.getElementById('btn-copy-line');
-  if(!_dialogRows.length){_flashBtn(btn,'\u26A0\uFE0F \u7121\u8CC7\u6599');return;}
+  if(!_dialogRows.length){_flashBtn(btn,'⚠️ 無資料');return;}
   _doCopy(buildLineText(_dialogRows,_dialogLevel,_dialogTitle,false),btn);
 }
 
 function copyLineSimple(){
   var btn=document.getElementById('btn-copy-line-simple');
-  if(!_dialogRows.length){_flashBtn(btn,'\u26A0\uFE0F \u7121\u8CC7\u6599');return;}
+  if(!_dialogRows.length){_flashBtn(btn,'⚠️ 無資料');return;}
   _doCopy(buildLineText(_dialogRows,_dialogLevel,_dialogTitle,true),btn);
 }
 
@@ -2878,13 +2987,13 @@ function buildCsvContent(dRows, lv) {
   var dynCols = [];
   BUCKETS_B.forEach(function(g){if(g.cols.length===1)dynCols.push(g.label);else g.cols.forEach(function(t){dynCols.push(t);});});
   BUCKETS_C.forEach(function(g){if(g.cols.length===1)dynCols.push(g.label);else g.cols.forEach(function(t){dynCols.push(t);});});
-  var headers = extraCols.map(function(c){return COL_LABELS[c]||c;}).concat(['\u5E97\u78BC','\u5E97\u540D','\u72C0\u614B']).concat(dynCols);
+  var headers = extraCols.map(function(c){return COL_LABELS[c]||c;}).concat(['店碼','店名','狀態']).concat(dynCols);
   var rows=[headers];
   allD.forEach(function(d){
     var r=d.r,row=[];
     extraCols.forEach(function(c){row.push(String(r[c]||''));});
     row.push(String(r[COL_CODE]||''));row.push(String(r[COL_NAME]||''));
-    row.push(d.grp===3?UNFILL_LABEL:d.grp===0?'\u5DF2\u6709':d.grp===1?'\u672A\u6709':'\u2014');
+    row.push(d.grp===3?UNFILL_LABEL:d.grp===0?'已有':d.grp===1?'未有':'—');
     BUCKETS_B.forEach(function(g){if(g.cols.length===1)row.push(isSum()?numVal(r[g.cols[0]]):(isOne(r[g.cols[0]])?1:0));else g.cols.forEach(function(t){row.push(isSum()?numVal(r[t]):(isOne(r[t])?1:0));});});
     BUCKETS_C.forEach(function(g){if(g.cols.length===1){var v=r[g.cols[0]];row.push(isOne(v)?1:(isCText(v)?String(v):0));}else g.cols.forEach(function(t){var v=r[t];row.push(isOne(v)?1:(isCText(v)?String(v):0));});});
     rows.push(row);
@@ -2906,16 +3015,16 @@ function _triggerCsvDownload(csv, title) {
 
 function downloadCsv(){
   var btn=document.getElementById('btn-copy-excel');
-  if(!_dialogRows.length){_flashBtn(btn,'\u26A0\uFE0F \u7121\u8CC7\u6599');return;}
+  if(!_dialogRows.length){_flashBtn(btn,'⚠️ 無資料');return;}
   _triggerCsvDownload(buildCsvContent(_dialogRows,_dialogLevel),_dialogTitle);
-  _flashBtn(btn,'\u2705 \u5DF2\u4E0B\u8F09');
+  _flashBtn(btn,'✅ 已下載');
 }
 
 /* ── 卡片層輔助：取得對應列資料（套用等級篩選，chip 篩選由 buildLineText/buildCsvContent 內處理） ── */
 function _getCardRows(levelKey, name){
   var colMap={
-    area:'\u71DF\u696D\u8655\u540D\u7A31', office:'\u71DF\u696D\u6240/\u8AB2', staff:'\u57F7\u884C\u4EBA\u54E1',
-    'ch-type':'\u5E97\u5BB6\u578B\u614B','ch-area':'\u71DF\u696D\u8655\u540D\u7A31','ch-office':'\u71DF\u696D\u6240/\u8AB2'
+    area:'營業處名稱', office:'營業所/課', staff:'執行人員',
+    'ch-type':'店家型態','ch-area':'營業處名稱','ch-office':'營業所/課'
   };
   var col = colMap[levelKey];
   var base = applyGradeFilter(allRows);
@@ -2931,7 +3040,7 @@ function cardCopyLine(btn,name,levelKey){
 function cardDownloadCsv(btn,name,levelKey){
   var rows=_getCardRows(levelKey,name);
   _triggerCsvDownload(buildCsvContent(rows,levelKey),name);
-  _flashBtn(btn,'\u2705');
+  _flashBtn(btn,'✅');
 }
 
 function cardScreenshot(btn,name,levelKey){
@@ -2941,12 +3050,12 @@ function cardScreenshot(btn,name,levelKey){
 }
 
 
-/* ── 截整個目前可見頁面（Topbar 按鈕用） ── */
+/* ── 截整個目前可見頁面（Topbar 按鈕用，直接複製到剪貼簿） ── */
 function takeScreenshotViewport(){
   var btn = document.getElementById('tb-btn-screenshot');
-  if(btn){ btn.classList.add('loading'); btn.textContent='\u23F3 \u622A\u5716\u4E2D...'; }
-  function doCapture(){
-    html2canvas(document.body,{
+  var titleText = PROJ_NAME || '覆蓋率';
+  _clipboardFirstCapture(function(){
+    return html2canvas(document.body, {
       scale: 2,
       backgroundColor: '#ffffff',
       useCORS: true,
@@ -2956,39 +3065,14 @@ function takeScreenshotViewport(){
       windowHeight: window.innerHeight,
       x: window.scrollX,
       y: window.scrollY
-    }).then(function(canvas){
-      var titleText = PROJ_NAME || '\u8986\u84CB\u7387';
-      if(navigator.clipboard && window.ClipboardItem){
-        canvas.toBlob(function(blob){
-          try{
-            navigator.clipboard.write([new ClipboardItem({'image/png':blob})])
-              .then(function(){
-                if(btn){ btn.classList.remove('loading'); _flashBtn(btn,'\u2705 \u5DF2\u8907\u88FD\uFF01'); }
-              })
-              .catch(function(){ _downloadCanvas(canvas, titleText, btn); });
-          }catch(e){ _downloadCanvas(canvas, titleText, btn); }
-        },'image/png');
-      } else _downloadCanvas(canvas, titleText, btn);
-    }).catch(function(err){
-      if(btn){ btn.classList.remove('loading'); btn.textContent='\uD83D\uDCF8 \u622A\u5716'; }
-      alert('\u622A\u5716\u5931\u6557\uFF1A'+err);
     });
-  }
-  if(window.html2canvas) doCapture();
-  else {
-    var s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-    s.onload=doCapture;
-    s.onerror=function(){ if(btn){ btn.classList.remove('loading'); btn.textContent='\uD83D\uDCF8 \u622A\u5716'; } alert('html2canvas \u8F09\u5165\u5931\u6557'); };
-    document.head.appendChild(s);
-  }
+  }, btn, titleText);
 }
 
 function takeScreenshot(){
   var btn=document.getElementById('btn-screenshot');
-  btn.classList.add('loading'); btn.textContent='\u23F3 \u622A\u5716\u4E2D...';
-  function doCapture(){
-    var titleText=document.getElementById('dlg-title').textContent.trim();
+  var titleText=document.getElementById('dlg-title').textContent.trim();
+  _clipboardFirstCapture(function(){
     var wrapper=document.createElement('div');
     wrapper.style.cssText='background:#fff;padding:20px 24px;font-family:Microsoft JhengHei,Noto Sans TC,sans-serif;display:inline-block;min-width:700px;position:fixed;top:-9999px;left:-9999px;';
     var h=document.createElement('div');
@@ -3013,39 +3097,21 @@ function takeScreenshot(){
     }
     var ts=document.createElement('div');
     ts.style.cssText='font-size:10px;color:#bbb;margin-top:12px;text-align:right;';
-    ts.textContent=PROJ_NAME+'\u3000'+new Date().toLocaleString('zh-TW');
+    ts.textContent=PROJ_NAME+'　'+new Date().toLocaleString('zh-TW');
     wrapper.appendChild(ts); document.body.appendChild(wrapper);
-    html2canvas(wrapper,{ scale:2, backgroundColor:'#ffffff', useCORS:true, width:wrapper.scrollWidth, height:wrapper.scrollHeight })
-      .then(function(canvas){
-        document.body.removeChild(wrapper);
-        if(navigator.clipboard&&window.ClipboardItem){
-          canvas.toBlob(function(blob){
-            try{
-              navigator.clipboard.write([new ClipboardItem({'image/png':blob})])
-                .then(function(){ btn.classList.remove('loading'); _flashBtn(btn,'\u2705 \u5DF2\u8907\u88FD\u5716\u7247\uFF01'); })
-                .catch(function(){ _downloadCanvas(canvas,titleText,btn); });
-            }catch(e){ _downloadCanvas(canvas,titleText,btn); }
-          },'image/png');
-        } else _downloadCanvas(canvas,titleText,btn);
-      }).catch(function(err){ document.body.removeChild(wrapper); btn.classList.remove('loading'); btn.textContent='\uD83D\uDCF8 \u622A\u5716'; alert('\u622A\u5716\u5931\u6557\uFF1A'+err); });
-  }
-  if(window.html2canvas) doCapture();
-  else {
-    var s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-    s.onload=doCapture;
-    s.onerror=function(){ btn.classList.remove('loading'); btn.textContent='\uD83D\uDCF8 \u622A\u5716'; alert('html2canvas \u8F09\u5165\u5931\u6557'); };
-    document.head.appendChild(s);
-  }
+    return html2canvas(wrapper,{ scale:2, backgroundColor:'#ffffff', useCORS:true, width:wrapper.scrollWidth, height:wrapper.scrollHeight })
+      .then(function(canvas){ document.body.removeChild(wrapper); return canvas; })
+      .catch(function(err){ document.body.removeChild(wrapper); throw err; });
+  }, btn, titleText);
 }
 function _downloadCanvas(canvas,titleText,btn){
   var link=document.createElement('a');
   link.download=titleText.replace(/\s+/g,'_')+'.png';
   link.href=canvas.toDataURL('image/png'); link.click();
-  btn.classList.remove('loading'); _flashBtn(btn,'\u2705 \u5DF2\u4E0B\u8F09\uFF01');
+  if(btn){ btn.classList.remove('loading'); _flashBtn(btn,'✅ 已下載！'); }
 }
 
-/* \u2500\u2500 \u555F\u52D5 \u2500\u2500 */
+/* ── 啟動 ── */
 init();
 </script>
 </body>
