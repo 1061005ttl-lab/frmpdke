@@ -247,8 +247,7 @@ body{background:var(--bg);color:var(--text);min-height:100vh;}
 }
 .section-label:first-child{margin-top:0;}
 .group-block{
-  background:var(--group-tint,rgba(0,0,0,.02));
-  border-radius:14px;padding:2px 16px 16px;margin-bottom:4px;
+  margin-bottom:4px;
 }
 .group-sublabel{
   font-size:12px;font-weight:800;color:var(--primary-d);
@@ -681,14 +680,15 @@ function groupByBoardGroup(list){
 
 /* 群組自動配色：跟看板類型的 autoStyle() 邏輯一樣（同名稱永遠配到
    同一色），但用另一組獨立的色盤，避免跟卡片本身的看板類型顏色混淆
-   —— 這裡的顏色是「這幾張卡片屬於同一群」的提示，不是卡片內容本身
-   的分類色。 */
+   —— 這裡的顏色只用在標題左側的色條上，刻意不做背景色塊：背景色塊
+   在同一列裡兩個群組高度不一致時（例如某張卡片標題換行變高），會
+   讓兩個色塊底部對不齊、看起來很突兀，拿掉背景只留色條就沒有這個
+   問題，色條本身也已經夠達到「一眼看出是不同群」的效果。 */
 var GROUP_PALETTE=['#6B8F71','#3E7CB1','#C99A3B','#8B5FBF','#C15C6B','#3FA7A0','#B9763F','#6E7BC4'];
 function groupAutoColor(name){
   var s=String(name||''), h=0;
   for(var i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))|0; }
-  var accent=GROUP_PALETTE[Math.abs(h)%GROUP_PALETTE.length];
-  return {accent:accent, tint:hexToRgba(accent,0.05)};
+  return {accent: GROUP_PALETTE[Math.abs(h)%GROUP_PALETTE.length]};
 }
 
 /* 每個群組包成一個獨立的 .group-block（小標題＋該群的卡片格），
@@ -714,11 +714,10 @@ function renderGroupedGrid(container, list, isOff){
     var block=document.createElement('div');
     block.className='group-block';
     block.style.setProperty('--group-accent',col.accent);
-    block.style.setProperty('--group-tint',col.tint);
 
     var cols = Math.min(g.items.length, GROUP_MAX_COLS);
-    var CARD_W=260, GAP=12, PAD=32; // 對應 CSS 裡卡片寬度／格間距／block 左右內距
-    block.style.maxWidth = (cols*CARD_W + (cols-1)*GAP + PAD) + 'px';
+    var CARD_W=260, GAP=12; // 對應 CSS 裡卡片寬度／格間距（block 已無內距，不用再加 padding）
+    block.style.maxWidth = (cols*CARD_W + (cols-1)*GAP) + 'px';
 
     var sub=document.createElement('div');
     sub.className='group-sublabel';
