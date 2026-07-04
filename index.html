@@ -22,6 +22,7 @@
   ├──────────┼──────────────────┼──────────────────┼────────────┼────────┤
   │ 密碼      │ ttl（可改）       │                   │            │        │
   │ 頁面對照  │ 獎勵達成型        │ award_board.html  │ #E0955D    │ 🏆     │
+  │ 同步對照  │ CVS雲泡上架       │ CVS雲泡上架調查    │            │        │
   └──────────┴──────────────────┴──────────────────┴────────────┴────────┘
   → 新增一種「看板類型」完全不用改程式碼，只要在這裡加一列：
     A欄固定填「頁面對照」，B欄填看板類型名稱（要跟專案管理表G欄打的
@@ -31,6 +32,10 @@
     用來決定看板入口卡片的 badge 顏色與圖示。兩者都不填的話，系統會
     依看板類型名稱自動配一個穩定的顏色（同名稱永遠配到同一色），不會
     報錯也不會誤用到其他類型的顏色。
+  → 「🔄 更新」按鈕能不能出現，是自動拿「看板專案名稱（去掉日期後）」
+    去同步後端的任務清單裡找同名項目，找得到就會出現，完全不用設定。
+    只有名稱真的對不上時，才需要加一列「同步對照」：B欄填看板名稱、
+    C欄填實際的同步任務名稱（見上表範例）。
 
   工作表②「專案管理」
   ┌──────┬──────────┬────────────────┬────────────┬────────┬──────┬──────────────┬────────────┐
@@ -67,22 +72,31 @@
 【卡片上的「🔄 更新」按鈕（手動觸發資料同步）】
   - 這顆按鈕跟「業務王同步中心」(sync.html) 共用同一個後端入口
     SYNC_GAS_URL（同一個 Google Apps Script Web App）。
-  - 只有「ON（進行中）」且「專案名稱（去掉括號內的日期後）」能在
-    SYNC_TASK_MAP 對照表裡找到對應任務名稱的卡片，才會顯示這顆按鈕。
-    OFF（已結束）的卡片一律不顯示，不受 SYNC_TASK_MAP 影響。
-  - 沒有列在 SYNC_TASK_MAP 裡的 ON 專案（例如彙總多張表的「進度表」類
-    專案），代表它的資料不是靠單一同步任務產生，沒有對應的按鈕可以
-    觸發，所以卡片上自然不會出現「🔄 更新」——這是預期行為，不是漏寫。
+  - 頁面載入時會向後端問一次「目前有哪些同步任務」(action=getTasks)，
+    存成 _syncTaskNames。只有「ON（進行中）」且「專案名稱（去掉括號
+    內的日期後）」能在這份清單裡直接找到同名任務的卡片，才會顯示這顆
+    按鈕——大多數專案兩邊名稱本來就一樣，完全不用另外設定。
+    OFF（已結束）的卡片一律不顯示，不受這個機制影響。
+  - 名稱對不上的少數例外（例如看板叫「CVS雲泡上架」，同步任務其實叫
+    「CVS雲泡上架調查」），在管理表「登入與頁面設定」分頁加一列：
+    A欄「同步對照」、B欄填看板名稱、C欄填實際任務名稱即可，不用改
+    這裡的程式碼（見 loadLoginConfig() 與 _syncTaskOverride）。
+  - 找不到同名任務的 ON 專案（例如彙總多張表的「進度表」類專案），
+    代表它的資料不是靠單一同步任務產生，沒有對應的按鈕可以觸發，
+    所以卡片上自然不會出現「🔄 更新」——這是預期行為，不是漏設定。
   - 點擊流程（三段式視覺回饋）：
     ① 按下：小圓按鈕切為 ⏳，同步列右側出現「同步中… Xs」計時文字
     ② 完成：按鈕閃 ✅ Xs，顯示耗時秒數，1.5s 後重新從試算表讀取
        最新同步時間，刷新卡片上的時間文字，按鈕恢復 🔄
     ③ 失敗：按鈕閃 ❌，同步列右側出現錯誤訊息，2.5s 後自動恢復
-  - 如果某個 ON 專案明明該有更新功能卻沒顯示按鈕，先檢查
-    SYNC_TASK_MAP 裡有沒有對應的項目；如果某個按鈕點了一直失敗，
-    先確認 SYNC_TASK_MAP 右邊填的任務名稱有沒有跟 sync.html 裡顯示的
-    任務名稱「一字不差」對上（沒有比對到會直接跳過、不會誤觸發其他
-    任務的同步）。
+  - 如果某個 ON 專案明明該有更新功能卻沒顯示按鈕，先確認 sync.html
+    裡有沒有同名任務；如果名稱真的不同，去補一列「同步對照」；
+    如果按鈕點了一直失敗，檢查「同步對照」C欄填的名稱有沒有跟
+    sync.html 裡顯示的名稱「一字不差」。
+  - 這份任務清單是頁面載入當下抓的快照，同步任務清單如果在你開著
+    這頁的期間被別人改了（新增/改名/刪除任務），要重新整理頁面才會
+    反映最新狀態——這跟看板專案清單、頁面對照本身的更新時機是一致的，
+    不是這個機制獨有的限制。
 
 【介面版面】
   桌機（>640px）：專案以 auto-fill 網格呈現，每格最窄 260px，隨視窗
@@ -105,8 +119,9 @@
   PROJ_SHEET   → 專案清單的工作表名稱
   SYNC_TIMEOUT → 同步時間讀取逾時（毫秒，預設 8000）
   SYNC_GAS_URL → 業務王同步工具的後端入口（跟 sync.html 共用）
-  SYNC_TASK_MAP→ 看板專案名稱 → 同步任務名稱 對照表，決定哪些卡片
-                 會出現「🔄 更新」按鈕
+  _syncTaskOverride → 看板名稱→同步任務名稱的「例外」對照，來自管理表
+                「登入與頁面設定」分頁的「同步對照」列，只有名稱對不上
+                時才需要填，日常新增專案完全不用碰這裡
 
 ================================================================================
 -->
@@ -403,20 +418,40 @@ var SYNC_TIMEOUT = 8000;
 /* 業務王同步工具的後端入口，跟 sync.html 共用同一個 GAS Web App */
 var SYNC_GAS_URL = 'https://script.google.com/macros/s/AKfycbwNmy6uS6NiOzMNJfVeWn7R98tub-DWHPNaj2FW5BnVneq-KbSZ82yYDuIvVLEk_dKPaA/exec';
 
-/* 「看板專案名稱(去掉括號日期後)」→「業務王同步工具裡的任務名稱」對照表。
-   只有 ON 的專案、且名稱能在這裡找到對應項目，卡片才會顯示「🔄 更新」
-   按鈕；沒列在這裡的 ON 專案，代表它的資料是用別的方式產生（例如彙總
-   多張表的進度表），沒有單一同步任務可以觸發，所以不會出現按鈕，這是
-   正常現象。日後新增/調整對應關係，改這個物件就好，不用動其他邏輯。
-   右邊的任務名稱必須跟 sync.html 上顯示的名稱「一字不差」。 */
-var SYNC_TASK_MAP = {
-  'CVS米酒PET商化':   'CVS米酒PET商化',
-  'CVS雲泡上架':      'CVS雲泡上架調查',
-  'CVS雲泡二位陳列':  'CVS雲泡二位陳列',
-  '全聯A級巡補':          '全聯A級巡補',
-  '餐飲開瓶有獎&黃董廣宣':          '餐飲開瓶有獎&黃董廣宣',
-  '量販A級巡補':      '量販A級巡補'
-};
+/* ══ 同步任務自動比對 ══
+   以前這裡是一個寫死的 SYNC_TASK_MAP 物件，每加一個需要「🔄 更新」
+   按鈕的專案，都要回來改這份程式碼，還要求名稱「一字不差」，很容易
+   漏改或打錯字。
+
+   改成：頁面載入時直接向同步後端問一次「目前有哪些同步任務」
+   （action=getTasks，跟 sync.html 用的是同一份清單），把名稱存起來。
+   之後要不要顯示「🔄 更新」按鈕，就看「看板專案名稱（去掉日期後）」
+   能不能在這份清單裡直接找到同名任務——大多數專案兩邊名稱本來就一樣
+   （例如「全聯A級巡補」），完全不用設定就會自動配對成功。
+
+   只有名稱真的對不上的少數案例（例如看板叫「CVS雲泡上架」，但同步
+   任務其實叫「CVS雲泡上架調查」），才需要在管理表「登入與頁面設定」
+   分頁加一列：A欄「同步對照」、B欄「CVS雲泡上架」、C欄「CVS雲泡上架
+   調查」，不用改這裡的程式碼。 */
+var _syncTaskOverride = {}; // 由 loadLoginConfig() 讀「同步對照」列填入，只收「對不上」的例外
+var _syncTasks = [];        // 同步後端回傳的完整任務清單（含 _originalIndex）
+var _syncTaskNames = {};    // 上面清單依名稱建的索引，方便快速查詢
+
+function fetchSyncTaskList(){
+  return fetch(SYNC_GAS_URL + '?action=getTasks')
+    .then(function(r){ return r.json(); })
+    .then(function(json){
+      _syncTasks = (json && json.ok && json.data) || [];
+      _syncTaskNames = {};
+      _syncTasks.forEach(function(t){ _syncTaskNames[t.name] = t; });
+    })
+    .catch(function(){
+      /* 抓不到同步任務清單就安全降級：所有卡片一律不顯示「🔄 更新」
+         按鈕，但不影響專案清單本身正常顯示——看板還是看得到，只是
+         這次沒辦法手動觸發同步，重新整理通常就會恢復。 */
+      _syncTasks=[]; _syncTaskNames={};
+    });
+}
 
 /* ══ 狀態 ══ */
 var _password = 'ttl';
@@ -431,7 +466,7 @@ var _surveys = { on:[], off:[] };
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 /* 去掉專案名稱尾端的括號日期，例如「CVS米酒PET商化(26.6.1-6.30)」→
-   「CVS米酒PET商化」，用來跟 SYNC_TASK_MAP 的左邊鍵值比對。 */
+   「CVS米酒PET商化」，用來跟同步任務清單比對。 */
 function stripDateSuffix(name){
   return String(name||'').replace(/[\(（][^\)）]*[\)）]\s*$/, '').trim();
 }
@@ -511,6 +546,11 @@ function loadLoginConfig(){
         var b=String(cv(cells[1])).trim();
         var c=String(cv(cells[2])).trim();
         if(key==='密碼') _password=b.toLowerCase();
+        /* 同步對照：只有「看板專案名稱（去掉日期後）」跟「sync.html
+           實際任務名稱」對不上時才需要填這一列。B欄＝看板名稱、
+           C欄＝實際任務名稱。大部分專案兩邊名稱本來就一樣，不用填
+           也會自動比對到（見 buildCard() 與 fetchSyncTaskList()）。 */
+        if(key==='同步對照'&&b&&c) _syncTaskOverride[b]=c;
         if(key==='頁面對照'&&b&&c){
           _pageMap[b]=c;
           /* D欄(顏色)、E欄都選填：留空就交給 autoStyle() 依名稱自動配一個
@@ -559,8 +599,9 @@ function doLogout(){
 
 /* ══ 讀專案清單 ══ */
 function loadProjects(){
-  gvizFetch(MGMT_ID, PROJ_SHEET)
-    .then(function(json){
+  Promise.all([ gvizFetch(MGMT_ID, PROJ_SHEET), fetchSyncTaskList() ])
+    .then(function(results){
+      var json = results[0]; // fetchSyncTaskList() 已把結果存進 _syncTaskNames，這裡不用理會第二個結果
       var rows=(json.table&&json.table.rows)||[];
       var onList=[],offList=[];
       rows.forEach(function(row){
@@ -741,7 +782,9 @@ function buildCard(proj,isOff){
   card.id='card-'+proj.id;
   card.style.cssText='--accent:'+sty.accent+';--badge-bg:'+sty.badgeBg+';--badge-fg:'+sty.badgeFg+';';
 
-  var taskName = isOff ? null : SYNC_TASK_MAP[stripDateSuffix(proj.name)];
+  var stripped = stripDateSuffix(proj.name);
+  var effectiveTaskName = _syncTaskOverride[stripped] || stripped;
+  var taskName = (isOff || !_syncTaskNames[effectiveTaskName]) ? null : effectiveTaskName;
   var updateBtnHtml = taskName
     ? '<button class="proj-update-btn" type="button" title="更新「'+esc(taskName)+'」資料">🔄</button>'
     : '';
@@ -803,11 +846,18 @@ function handleUpdateClick(btn, proj, taskName){
     if(statusEl) statusEl.textContent = '同步中… '+secs+'s';
   }, 1000);
 
-  fetch(SYNC_GAS_URL + '?action=getTasks')
-    .then(function(r){ return r.json(); })
-    .then(function(json){
-      if(!json.ok) throw new Error('讀取同步任務清單失敗');
-      var match = (json.data||[]).filter(function(t){ return t.name===taskName; })[0];
+  /* 按鈕會顯示，代表載入頁面時 _syncTaskNames 裡已經有這個任務，
+     正常情況下直接用快取就好，不用每次點擊都重新問一次後端「有哪些
+     任務」——sync.html 本身開著才需要即時清單，這裡只是觸發，用頁面
+     載入時的快照即可。只有極少數「快取裡剛好找不到」的情況（例如
+     使用者開著這頁很久，後端當中任務被改名/移除）才保險性地重新問
+     一次最新清單，而不是直接判定失敗。 */
+  var lookup = _syncTaskNames[taskName]
+    ? Promise.resolve(_syncTaskNames[taskName])
+    : fetchSyncTaskList().then(function(){ return _syncTaskNames[taskName]; });
+
+  lookup
+    .then(function(match){
       if(!match) throw new Error('在同步工具裡找不到任務：'+taskName);
       return fetch(SYNC_GAS_URL, {
         method:'POST',
@@ -895,8 +945,14 @@ document.addEventListener('keydown', function(e){
   if(hasAuth()){
     document.getElementById('loading-screen').classList.add('show');
     document.getElementById('loading-text').textContent='載入專案清單…';
-    loadLoginConfig();
-    loadProjects();
+    /* 【2026/7/5 修正】原本這裡是 loadLoginConfig() 和 loadProjects()
+       各自平行呼叫，沒有先後順序保證。大部分時候看不出問題，但
+       「頁面對照」「同步對照」這些覆寫設定必須在 loadProjects()
+       算完 buildCard() 之前就讀到才有用——如果專案清單那個 gviz
+       請求剛好比登入設定那個快，就會用「還沒套用覆寫」的舊資料畫出
+       第一版卡片（例如「CVS雲泡上架」的更新按鈕在這個時間差裡不會
+       出現）。改成串接，確保覆寫設定一定先到位。 */
+    loadLoginConfig().then(loadProjects);
     return;
   }
   document.getElementById('loading-screen').classList.add('show');
