@@ -281,7 +281,7 @@ body{background:var(--bg);color:var(--text);min-height:100vh;}
 @media(min-width:641px){
   .group-row{display:flex;flex-wrap:wrap;align-items:flex-start;gap:20px;}
   .group-block{flex:0 0 auto;max-width:100%;margin-bottom:0;}
-  .group-block .proj-grid{grid-template-columns:repeat(auto-fill,260px);}
+  .group-block .proj-grid{grid-template-columns:repeat(var(--group-cols,1),260px);}
 }
 
 .badge{
@@ -695,7 +695,16 @@ function groupAutoColor(name){
    同一群的卡片永遠待在同一個 block 裡、不會被拆開。外層 .group-row
    在桌機用 flex-wrap 讓多個 block 左到右排、排不下才換行，盡量把
    小群組塞進同一列，空間利用率比「每群強制獨佔一整列」高很多；
-   手機版維持原本每群獨佔一列、卡片撐滿寬度的排法（見 CSS）。 */
+   手機版維持原本每群獨佔一列、卡片撐滿寬度的排法（見 CSS）。
+
+   ★ 這裡刻意不用 grid-template-columns:repeat(auto-fill,260px)：
+   auto-fill 在「寬度不確定」的情境下（這裡的 block 寬度是由 flex
+   排列動態決定，不是固定值）會整個失效、直接退化成單欄，導致一群
+   4 張卡變成直的疊 4 排，而不是橫的排一列——這正是你上一張截圖看到
+   的狀況。改成直接算出「這群卡片橫著排一列需要多寬」，用明確的
+   max-width 告訴瀏覽器這個 block 該有多寬，瀏覽器才會正確地先橫向
+   排滿、真的放不下整群才整塊換到下一行。 */
+var GROUP_MAX_COLS = 4; // 單一群組最多橫向排幾張卡，超過這個數量會在同一個 block 內自動換行（仍算同一群，不影響其他群組排列）
 function renderGroupedGrid(container, list, isOff){
   var row=document.createElement('div');
   row.className='group-row';
@@ -707,12 +716,17 @@ function renderGroupedGrid(container, list, isOff){
     block.style.setProperty('--group-accent',col.accent);
     block.style.setProperty('--group-tint',col.tint);
 
+    var cols = Math.min(g.items.length, GROUP_MAX_COLS);
+    var CARD_W=260, GAP=12, PAD=32; // 對應 CSS 裡卡片寬度／格間距／block 左右內距
+    block.style.maxWidth = (cols*CARD_W + (cols-1)*GAP + PAD) + 'px';
+
     var sub=document.createElement('div');
     sub.className='group-sublabel';
     sub.textContent=g.group+'（'+g.items.length+'）';
     block.appendChild(sub);
 
     var grid=document.createElement('div'); grid.className='proj-grid';
+    grid.style.setProperty('--group-cols', cols);
     g.items.forEach(function(p){ grid.appendChild(buildCard(p,isOff)); });
     block.appendChild(grid);
 
