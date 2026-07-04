@@ -454,7 +454,9 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .pivot-tabs {
   display:flex; gap:0; padding:12px 20px 0; background:#fafaf8;
   border-bottom:1px solid rgba(0,0,0,.09); flex-shrink:0;
+  overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch;
 }
+.pivot-tabs::-webkit-scrollbar { display:none; }
 .pivot-tab {
   padding:8px 20px; border-radius:10px 10px 0 0; font-size:13px; font-weight:700;
   border:1px solid transparent; border-bottom:none; cursor:pointer;
@@ -511,6 +513,18 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .pivot-expand-icon.open { transform:rotate(90deg); }
 .pivot-child-row > td { padding:0 !important; background:#fbfaf8; }
 .pivot-banner-block { padding:8px 16px; background:rgba(55,138,221,.08); border-top:2px solid rgba(55,138,221,.2); font-weight:900; font-size:13px; }
+
+/* ── 照片牆（長官流水線視角） ── */
+.photo-gallery-summary { padding:10px 16px; font-size:13px; font-weight:700; color:var(--text); background:#f5f3ee; border-bottom:1px solid var(--border); }
+.photo-gallery-summary strong { color:var(--primary); font-size:15px; }
+.photo-gallery-loading { padding:40px 20px; text-align:center; color:var(--sub); font-size:13px; }
+.photo-store-card { border-bottom:1px solid var(--border); padding:12px 16px 14px; }
+.photo-store-card:hover { background:rgba(55,138,221,.03); }
+.photo-store-head { display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 10px; margin-bottom:8px; }
+.photo-store-name { font-size:14px; font-weight:800; color:var(--text); }
+.photo-store-meta { font-size:11.5px; color:var(--sub); font-weight:500; }
+.photo-gallery-sections { display:flex; flex-direction:column; gap:8px; }
+
 @media (max-width:640px){
   .pivot-tab { padding:6px 12px; font-size:12px; }
   .pivot-tbl { font-size:12px; min-width:400px; }
@@ -899,6 +913,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
       <button class="tb-act-btn" onclick="openSummaryDialog('staff');closeMobileMenu();">👤 人員</button>
       <button class="tb-act-btn" onclick="openSummaryDialog('office');closeMobileMenu();">🏢 單位</button>
       <button class="tb-act-btn" onclick="openSummaryDialog('store');closeMobileMenu();">🏪 店家</button>
+      <button class="tb-act-btn" onclick="openSummaryDialog('photos');closeMobileMenu();">🖼️ 照片牆</button>
       <button class="tb-act-btn" id="tb-btn-line"        onclick="toolbarCopyLine();closeMobileMenu();">💬 LINE</button>
       <button class="tb-act-btn" id="tb-btn-line-simple" onclick="toolbarCopyLineSimple();closeMobileMenu();">💬 LINE精簡</button>
       <button class="tb-act-btn" id="tb-btn-csv"         onclick="toolbarDownloadCsv();closeMobileMenu();">📥 CSV</button>
@@ -907,7 +922,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   </div>
 </div>
 
-<!-- Pivot Dialog：彙整看板，三種視角（人員／單位／店家）快速切換 -->
+<!-- Pivot Dialog：彙整看板，四種視角（人員／單位／店家／照片牆）快速切換 -->
 <div id="summary-dialog" style="display:none" onclick="if(event.target===this)closeSummaryDialog()">
   <div class="dlg-box">
     <div class="dlg-header">
@@ -922,16 +937,19 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
       <button class="pivot-tab active" onclick="switchPivotTab('staff',this)">👤 人員</button>
       <button class="pivot-tab"        onclick="switchPivotTab('office',this)">🏢 單位</button>
       <button class="pivot-tab"        onclick="switchPivotTab('store',this)">🏪 店家</button>
+      <button class="pivot-tab"        onclick="switchPivotTab('photos',this)">🖼️ 照片牆</button>
     </div>
     <div class="pivot-viewport">
-      <div class="pivot-slides" id="pivot-slides" style="width:300%;">
-        <div class="pivot-slide" id="pivot-slide-staff"  style="width:calc(100%/3);"></div>
-        <div class="pivot-slide" id="pivot-slide-office" style="width:calc(100%/3);"></div>
-        <div class="pivot-slide" id="pivot-slide-store"  style="width:calc(100%/3);"></div>
+      <div class="pivot-slides" id="pivot-slides" style="width:400%;">
+        <div class="pivot-slide" id="pivot-slide-staff"  style="width:calc(100%/4);"></div>
+        <div class="pivot-slide" id="pivot-slide-office" style="width:calc(100%/4);"></div>
+        <div class="pivot-slide" id="pivot-slide-store"  style="width:calc(100%/4);"></div>
+        <div class="pivot-slide" id="pivot-slide-photos" style="width:calc(100%/4);"></div>
       </div>
     </div>
   </div>
 </div>
+
 
 <!-- 說明文件展開內容（lamp-row 下方） -->
 <div id="manual-bar">
@@ -964,6 +982,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
       <b>專案選單</b>（下拉）：切換不同覆蓋率專案，每個專案讀取獨立的試算表<br>
       <b>☰ 選單</b>（手機）：收納視角切換與所有輸出功能，點擊展開<br>
       <b>🏢 組織 / 🏪 通路</b>：切換鑽取視角。組織視角依「營業處→所→人員」；通路視角依「通路別→處→所」<br>
+      <b>🖼️ 照片牆</b>：長官流水線視角，把目前範圍內所有拜訪紀錄攤平成一份時間軸，只列出有拍照的紀錄，新到舊排序，一眼看完業務員今天去了哪、拍了什麼<br>
       <b>同步時間</b>：顯示資料最後更新時間（台灣時間）<br>
       <b>💬</b> 複製當前頁面的 LINE 完整版訊息（含全部店家分組明細）<br>
       <b>✉️</b> 複製 LINE 精簡版訊息（僅統計摘要，不列店家名）<br>
@@ -1309,6 +1328,23 @@ function _fetchQuestionnaireSheet(callback){
     _qSheetWaiters.forEach(function(cb){ cb(errResult); });
     _qSheetWaiters = [];
   }
+}
+
+/* 背景預先載入問卷資料（拜訪紀錄），讓：
+   1) 店家明細/彙整看板的「依最新時間排序」一開始就有資料可用，不用等使用者
+      點開某一家店才觸發載入；
+   2) 照片牆能直接掃描目前範圍內所有店家，而不是逐店現點現抓。
+   載入完成後，若當下正好有 dialog 開著，重新渲染套用正確排序／照片牆內容。 */
+function _warmQuestionnaireCache(){
+  _fetchQuestionnaireSheet(function(){
+    var detailDlg = document.getElementById('detail-dialog');
+    var summaryDlg = document.getElementById('summary-dialog');
+    if(detailDlg && detailDlg.classList.contains('open')) refreshDialogContent();
+    if(summaryDlg && summaryDlg.classList.contains('open')){
+      _renderPivotSlide('staff'); _renderPivotSlide('office');
+      _renderPivotSlide('store'); _renderPivotSlide('photos');
+    }
+  });
 }
 
 /* ── 照片欄位渲染（規則與 audit_board 完全一致）──
@@ -1746,7 +1782,7 @@ function fetchSheet() {
         if (c.type === 'number' || c.type === 'boolean') nullColIndexes.push(i);
       });
       if (!nullColIndexes.length) {
-        buildGradeBar(); render(); return;
+        buildGradeBar(); render(); _warmQuestionnaireCache(); return;
       }
       /* 把欄 index 轉成試算表欄字母（A=0, B=1...） */
       function colLetter(n){
@@ -1758,7 +1794,7 @@ function fetchSheet() {
       var cGroupCols = [];
       (BUCKETS_C||[]).forEach(function(g){ cGroupCols = cGroupCols.concat(g.cols||[]); });
       var cIndexes = cGroupCols.map(function(name){ return cols.indexOf(name); }).filter(function(i){ return i>=0; });
-      if (!cIndexes.length) { buildGradeBar(); render(); return; }
+      if (!cIndexes.length) { buildGradeBar(); render(); _warmQuestionnaireCache(); return; }
       /* 組成範圍，如 N:N,P:P */
       var ranges = cIndexes.map(function(i){ var l=colLetter(i); return l+':'+l; });
       var promises = ranges.map(function(range, ri){
@@ -1788,7 +1824,7 @@ function fetchSheet() {
         });
       });
       return Promise.all(promises).then(function(){
-        buildGradeBar(); render();
+        buildGradeBar(); render(); _warmQuestionnaireCache();
         setTimeout(updateStickyTops, 100);
       });
     })
@@ -2375,19 +2411,25 @@ function dialogRows(rows, levelKey) {
     /* B/C 都沒有值且設有未知群組 → 視同未填寫處理 */
     if (COL_UNFILL && chips['unfill'] !== false) result.push({ r:r, grp:3, bi:-1, ci:-1 });
   });
-  /* 排序欄位依當前層級動態決定（組織視角用營業所/人員，通路視角用對應欄） */
-  var sortCols = levelKey ? getDisplayCols(levelKey) : [COL_OFFICE, COL_STAFF];
+  /* 排序：同狀態分組內一律依「最新拜訪時間」新到舊排序（長官想看的是最新動態，
+     不是店名字母順序）。問卷資料尚未載入完成時 _latestVisitTimeKey 一律回傳空字串，
+     此時退回店名排序；資料載入後 _warmQuestionnaireCache 會觸發重新渲染套用正確排序。 */
   result.sort(function(a, b) {
     if (a.grp !== b.grp) return a.grp - b.grp;
-    for (var i = 0; i < sortCols.length; i++) {
-      var c = sortCols[i];
-      var va = String(a.r[c]||''), vb = String(b.r[c]||'');
-      if (va !== vb) return va > vb ? 1 : -1;
-    }
+    var ta = _latestVisitTimeKey(String(a.r[COL_CODE]||''));
+    var tb = _latestVisitTimeKey(String(b.r[COL_CODE]||''));
+    if (ta !== tb) return ta < tb ? 1 : -1; /* 時間字串較大（較新）排前面 */
     var na=String(a.r[COL_NAME]||''), nb=String(b.r[COL_NAME]||'');
     return na>nb?1:na<nb?-1:0;
   });
   return result;
+}
+function _latestVisitTimeKey(code){
+  if(_qSheetCache && _qSheetCache.codeToRecords){
+    var recs = _qSheetCache.codeToRecords[code];
+    if(recs && recs.length) return recs[0].timeKey || '';
+  }
+  return '';
 }
 
 /* 從 dialogRows 取出純 row 物件（給 copyLine/copyExcel 用） */
@@ -2553,8 +2595,9 @@ function buildStoreTable(rows, levelKey, ridPrefix, compact){
    ══════════════════════════════════════════ */
 var _pivotMode = 'staff';
 var _pivotRows = [];
-var _pivotTabIndex = { staff:0, office:1, store:2 };
-var PIVOT_TITLES = { staff:'人員視角', office:'單位視角', store:'店家視角' };
+var _pivotTabIndex = { staff:0, office:1, store:2, photos:3 };
+var _pivotTabCount = 4;
+var PIVOT_TITLES = { staff:'人員視角', office:'單位視角', store:'店家視角', photos:'照片牆' };
 
 function openSummaryDialog(mode){
   _pivotMode = mode || 'staff';
@@ -2568,6 +2611,7 @@ function openSummaryDialog(mode){
   _renderPivotSlide('staff');
   _renderPivotSlide('office');
   _renderPivotSlide('store');
+  _renderPivotSlide('photos');
   _setPivotSlide(_pivotMode, false);
 
   var dlg = document.getElementById('summary-dialog');
@@ -2593,7 +2637,7 @@ function _setPivotSlide(mode, animate){
   var idx = _pivotTabIndex[mode] || 0;
   var slides = document.getElementById('pivot-slides');
   if(!animate) slides.style.transition = 'none';
-  slides.style.transform = 'translateX(-' + (idx * 100/3) + '%)';
+  slides.style.transform = 'translateX(-' + (idx * 100/_pivotTabCount) + '%)';
   if(!animate) setTimeout(function(){ slides.style.transition=''; }, 30);
 }
 
@@ -2604,6 +2648,7 @@ function _renderPivotSlide(mode){
   if(mode === 'staff')       el.innerHTML = _buildStaffPivot(rows);
   else if(mode === 'office') el.innerHTML = _buildOfficePivot(rows);
   else if(mode === 'store')  el.innerHTML = _buildStorePivotView(rows);
+  else if(mode === 'photos') el.innerHTML = _buildPhotoWall(rows);
 }
 
 /* 依目前 BUCKETS_B / BUCKETS_C / COL_UNFILL 動態決定彙總表欄位數 */
@@ -2738,6 +2783,84 @@ function _buildStorePivotView(rows){
   return html;
 }
 
+/* ── [4] 照片牆：長官流水線視角 ──
+   把「目前篩選範圍內」所有店家的拜訪紀錄攤平成一份時間軸清單，
+   只列出「這筆紀錄裡有照片」的項目（沒有照片的不進清單，照片牆本來就是要看照片），
+   由新到舊排序，每張卡片顯示店名／單位／時間，底下依大題分組列出縮圖。
+   資料來源是 _qSheetCache（背景已預先抓取），若尚未載入完成會提示並等待。 */
+function _extractPhotosFromSections(sections){
+  var out = [];
+  (sections||[]).forEach(function(sec){
+    sec.picks.forEach(function(p){
+      var raw = String(p.value||'');
+      var urlRe = /https?:\/\/\S+/gi;
+      var urls = raw.match(urlRe) || [];
+      if(!urls.length) return;
+      urls.forEach(function(u, uIdx){
+        var label = urls.length>1 ? (p.option+'-'+(uIdx+1)) : p.option;
+        out.push({ section: sec.section, option: label, url: u });
+      });
+    });
+  });
+  return out;
+}
+function _buildPhotoWall(rows){
+  if(!rows.length) return '<div class="empty">無資料</div>';
+  if(!_qSheetCache){
+    /* 尚未載入完成：觸發載入，完成後 _warmQuestionnaireCache 會自動重繪這個分頁 */
+    _fetchQuestionnaireSheet(function(){});
+    return '<div class="photo-gallery-loading">⏳ 讀取拜訪紀錄中，稍候會自動顯示…</div>';
+  }
+  if(_qSheetCache.error){
+    return '<div class="empty">⚠️ '+esc(_qSheetCache.error)+'</div>';
+  }
+  var codeMap = {};
+  rows.forEach(function(r){ var c=String(r[COL_CODE]||'').trim(); if(c && !codeMap[c]) codeMap[c]=r; });
+
+  var cards = [];
+  Object.keys(codeMap).forEach(function(code){
+    var storeRow = codeMap[code];
+    var records = (_qSheetCache.codeToRecords && _qSheetCache.codeToRecords[code]) || [];
+    records.forEach(function(rec){
+      var photos = _extractPhotosFromSections(rec.sections);
+      if(!photos.length) return;
+      cards.push({ storeRow:storeRow, rec:rec, photos:photos });
+    });
+  });
+  if(!cards.length) return '<div class="empty">目前範圍內的拜訪紀錄都沒有找到照片</div>';
+
+  /* 新到舊排序，跟其他清單的排序習慣一致 */
+  cards.sort(function(a,b){ return a.rec.timeKey < b.rec.timeKey ? 1 : (a.rec.timeKey > b.rec.timeKey ? -1 : 0); });
+  var totalPhotos = cards.reduce(function(s,c){ return s+c.photos.length; }, 0);
+
+  var html = '<div class="photo-gallery-summary">📸 共 <strong>'+cards.length+'</strong> 筆拜訪　🖼️ 共 <strong>'+totalPhotos+'</strong> 張照片'
+    + '　<span style="font-weight:500;opacity:.7;">（僅列出目前篩選範圍內、且有照片的拜訪紀錄，新到舊排序）</span></div>';
+
+  cards.forEach(function(c){
+    var r = c.storeRow;
+    var timeText = c.rec.base['打卡時間'] || c.rec.base['回報時間'] || c.rec.base['月份'] || '未知時間';
+    var bySection = {}, order = [];
+    c.photos.forEach(function(p){
+      if(!bySection[p.section]){ bySection[p.section]=[]; order.push(p.section); }
+      bySection[p.section].push(p);
+    });
+    var sectionsHtml = order.map(function(sec){
+      var photosHtml = bySection[sec].map(function(p){ return _renderPhotoChip(p.option, p.url); }).join('');
+      return '<div class="raw-quiz-section"><div class="raw-quiz-title">📋 '+esc(sec)+'</div>'
+        + '<div class="raw-quiz-photos">'+photosHtml+'</div></div>';
+    }).join('');
+    var metaParts = [r[COL_AREA], r[COL_OFFICE], r[COL_STAFF]].filter(function(v){ return v; });
+    html += '<div class="photo-store-card">'
+      + '<div class="photo-store-head">'
+      + '<span class="photo-store-name">🏪 '+esc(String(r[COL_NAME]||'—'))+'</span>'
+      + '<span class="photo-store-meta">🕒 '+esc(String(timeText))+'　'+esc(metaParts.join(' · '))+'</span>'
+      + '</div>'
+      + '<div class="photo-gallery-sections">'+sectionsHtml+'</div>'
+      + '</div>';
+  });
+  return html;
+}
+
 /* ── Pivot CSV 匯出（依目前 tab 對應維度） ── */
 function downloadSummaryCsv(){
   var btn = document.getElementById('btn-sum-csv');
@@ -2788,7 +2911,7 @@ function refreshDialogContent() {
   titleEl.innerHTML = '<div style="font-size:14px;font-weight:900;line-height:1.3;">' + line1 + '</div>'
     + '<div style="font-size:12px;color:var(--sub);font-weight:500;margin-top:2px;">' + parts.join('　') + '</div>';
 
-  document.getElementById('dlg-body').innerHTML = buildStoreTable(rows, levelKey);
+  document.getElementById('dlg-body').innerHTML = buildStoreTable(rows, levelKey, '', true);
 }
 
 /* ── buildDlgFilterRow: 在 dialog 內建篩選列 ── */
