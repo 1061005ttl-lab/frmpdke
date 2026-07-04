@@ -656,11 +656,11 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .raw-quiz-list { display:flex; flex-direction:column; gap:8px; }
 .raw-quiz-section { background:#FAFAF8; border:1px solid rgba(0,0,0,.06); border-radius:8px; padding:8px 12px; }
 .raw-quiz-title { font-size:12px; font-weight:700; color:var(--green,#3B6D11); margin-bottom:6px; }
-.raw-quiz-picks { display:flex; flex-direction:row; flex-wrap:wrap; gap:6px; }
+.raw-quiz-picks { display:flex; flex-direction:column; gap:6px; }
 .raw-quiz-chip {
-  display:inline-block; background:var(--green-bg,#EAF3DE);
+  display:block; background:var(--green-bg,#EAF3DE);
   border:1px solid var(--green-bd,rgba(59,109,17,.25));
-  border-radius:6px; padding:5px 10px; vertical-align:top;
+  border-radius:6px; padding:5px 10px;
 }
 .raw-quiz-chip-q { font-size:10.5px; font-weight:700; color:var(--green,#3B6D11); letter-spacing:.5px; margin-bottom:3px; opacity:.8; }
 .raw-quiz-chip-a { font-size:13px; font-weight:600; color:#1a1a1a; line-height:1.5; word-break:break-word; }
@@ -1596,15 +1596,32 @@ function _ensureHtml2Canvas(){
   return _html2canvasLoading;
 }
 /* buildCanvasFn: () => Promise<canvas>，呼叫時 html2canvas 保證已就緒 */
+/* 依內容實際尺寸動態調整 scale，避免超大內容（例如上千列的全台明細表）
+   乘以 scale 後超過瀏覽器 canvas 尺寸上限，導致 html2canvas 靜默失敗、
+   又退回下載這種「看起來像剪貼簿失敗」的假象。14000px 是跨瀏覽器/裝置
+   都安全的保守值（Chrome 實際上限更高，但手機瀏覽器普遍較低）。 */
+function _safeCanvasScale(width, height, desiredScale){
+  var maxDim = 14000;
+  var scale = desiredScale || 2;
+  var w = width * scale, h = height * scale;
+  if (w > maxDim || h > maxDim) {
+    /* 不設人為下限：內容多高就該縮多小，唯一目標是確保絕對不超過瀏覽器 canvas 尺寸上限。
+       只留一個極低地板值（0.05）純粹防止數學上出現 0 或負值。 */
+    scale = Math.max(0.05, Math.min(maxDim / width, maxDim / height));
+  }
+  return scale;
+}
 function _clipboardFirstCapture(buildCanvasFn, btn, filename){
   var origLabel = btn ? btn.textContent : '';
   if(btn){ btn.classList.add('loading'); btn.textContent='\u23F3 \u622A\u5716\u4E2D...'; }
   function restore(){ if(btn){ btn.classList.remove('loading'); btn.textContent = origLabel; } }
-  function runBuild(){ return _ensureHtml2Canvas().then(buildCanvasFn); }
+  /* canvasPromise 只建立一次，clipboard 成功／失敗退回下載都共用同一份結果，
+     不會因為重跑 html2canvas 而讓大表格screenshot多花一倍時間 */
+  var canvasPromise = _ensureHtml2Canvas().then(buildCanvasFn);
 
   if (navigator.clipboard && window.ClipboardItem) {
     /* 立刻同步建立 ClipboardItem 並呼叫 write()，Blob 用 Promise 延後解析 */
-    var blobPromise = runBuild().then(function(canvas){
+    var blobPromise = canvasPromise.then(function(canvas){
       return new Promise(function(resolve){ canvas.toBlob(resolve, 'image/png'); });
     });
     try {
@@ -1612,20 +1629,21 @@ function _clipboardFirstCapture(buildCanvasFn, btn, filename){
         .then(function(){ restore(); _flashBtn(btn, '\u2705 \u5DF2\u8907\u88FD\uFF01'); })
         .catch(function(){
           /* 真的被瀏覽器拒絕才退回下載（同一份運算結果，不重跑一次） */
-          runBuild().then(function(canvas){ restore(); _downloadCanvas(canvas, filename, btn); })
+          canvasPromise.then(function(canvas){ restore(); _downloadCanvas(canvas, filename, btn); })
             .catch(function(){ restore(); _flashBtn(btn, '\u26A0\uFE0F \u622A\u5716\u5931\u6557'); });
         });
       return;
     } catch(e) { /* 落到下方 fallback */ }
   }
-  runBuild().then(function(canvas){ restore(); _downloadCanvas(canvas, filename, btn); })
+  canvasPromise.then(function(canvas){ restore(); _downloadCanvas(canvas, filename, btn); })
     .catch(function(){ restore(); _flashBtn(btn, '\u26A0\uFE0F \u622A\u5716\u5931\u6557'); });
 }
 /* 通用元素截圖（只複製到剪貼簿） */
 function _captureElement(el, btn, filename){
   _clipboardFirstCapture(function(){
+    var scale = _safeCanvasScale(el.scrollWidth, el.scrollHeight, 2);
     return html2canvas(el, {
-      scale:2, backgroundColor:'#ffffff', useCORS:true,
+      scale:scale, backgroundColor:'#ffffff', useCORS:true,
       width:el.scrollWidth, height:el.scrollHeight,
       ignoreElements:function(node){ return node.getAttribute && node.getAttribute('data-screenshot-ignore')==='1'; }
     });
@@ -3180,8 +3198,9 @@ function takeScreenshotViewport(){
   var btn = document.getElementById('tb-btn-screenshot');
   var titleText = PROJ_NAME || '覆蓋率';
   _clipboardFirstCapture(function(){
+    var scale = _safeCanvasScale(window.innerWidth, window.innerHeight, 2);
     return html2canvas(document.body, {
-      scale: 2,
+      scale: scale,
       backgroundColor: '#ffffff',
       useCORS: true,
       width:  window.innerWidth,
@@ -3224,7 +3243,8 @@ function takeScreenshot(){
     ts.style.cssText='font-size:10px;color:#bbb;margin-top:12px;text-align:right;';
     ts.textContent=PROJ_NAME+'　'+new Date().toLocaleString('zh-TW');
     wrapper.appendChild(ts); document.body.appendChild(wrapper);
-    return html2canvas(wrapper,{ scale:2, backgroundColor:'#ffffff', useCORS:true, width:wrapper.scrollWidth, height:wrapper.scrollHeight })
+    var scale = _safeCanvasScale(wrapper.scrollWidth, wrapper.scrollHeight, 2);
+    return html2canvas(wrapper,{ scale:scale, backgroundColor:'#ffffff', useCORS:true, width:wrapper.scrollWidth, height:wrapper.scrollHeight })
       .then(function(canvas){ document.body.removeChild(wrapper); return canvas; })
       .catch(function(err){ document.body.removeChild(wrapper); throw err; });
   }, btn, titleText);
