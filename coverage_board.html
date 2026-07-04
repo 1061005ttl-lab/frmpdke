@@ -642,11 +642,11 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .raw-quiz-list { display:flex; flex-direction:column; gap:8px; }
 .raw-quiz-section { background:#FAFAF8; border:1px solid rgba(0,0,0,.06); border-radius:8px; padding:8px 12px; }
 .raw-quiz-title { font-size:12px; font-weight:700; color:var(--green,#3B6D11); margin-bottom:6px; }
-.raw-quiz-picks { display:flex; flex-direction:column; gap:6px; }
+.raw-quiz-picks { display:flex; flex-direction:row; flex-wrap:wrap; gap:6px; }
 .raw-quiz-chip {
-  display:block; background:var(--green-bg,#EAF3DE);
+  display:inline-block; background:var(--green-bg,#EAF3DE);
   border:1px solid var(--green-bd,rgba(59,109,17,.25));
-  border-radius:6px; padding:5px 10px;
+  border-radius:6px; padding:5px 10px; vertical-align:top;
 }
 .raw-quiz-chip-q { font-size:10.5px; font-weight:700; color:var(--green,#3B6D11); letter-spacing:.5px; margin-bottom:3px; opacity:.8; }
 .raw-quiz-chip-a { font-size:13px; font-weight:600; color:#1a1a1a; line-height:1.5; word-break:break-word; }
@@ -1371,7 +1371,9 @@ function _renderQuizSections(sections){
           var label = urls.length > 1 ? (p.option + '-' + (uIdx+1)) : p.option;
           photosHtml += _renderPhotoChip(label, u);
         });
-        if(textOnly){
+        /* 純打勾標記（v/V/✓）不算有意義的文字內容，有照片時直接省略不顯示 */
+        var isJustCheckmark = /^[vV\u2713]$/.test(textOnly);
+        if(textOnly && !isJustCheckmark){
           picksHtml += '<span class="raw-quiz-chip"><span class="raw-quiz-chip-q">'+esc(p.option)+'</span>'
             + '<span class="raw-quiz-chip-a">\u2192 '+esc(textOnly)+'</span></span>';
         }
