@@ -789,6 +789,34 @@ function toolbarScreenshot(){
   _captureElement(el, btn, PROJ_NAME || 'CONTRACT看板');
 }
 
+/* ════ 共用層載入防呆 ════
+   shared/*.js 若因路徑錯誤(404)沒載入成功，esc/gvizParse/_flashBtn 等全域函式
+   會是 undefined，之後每個按鈕/下拉選單背後呼叫都會直接拋錯、畫面看起來像
+   「怎麼點都沒反應」但主控台其實滿滿 ReferenceError。這裡在最開頭就先擋下來，
+   直接告訴使用者是哪裡沒載到，不要讓它繼續往下跑然後到處靜默失敗。 */
+(function _checkSharedLoaded(){
+  var missing = [];
+  if(typeof esc !== 'function') missing.push('core-utils.js（esc）');
+  if(typeof gvizParse !== 'function') missing.push('core-utils.js（gvizParse）');
+  if(typeof _flashBtn !== 'function') missing.push('copy-utils.js（_flashBtn）');
+  if(typeof _doCopy !== 'function') missing.push('copy-utils.js（_doCopy）');
+  if(typeof _triggerCsvDownload !== 'function') missing.push('csv-export.js');
+  if(typeof _captureElement !== 'function') missing.push('capture-clipboard.js');
+  if(typeof openSummaryDialog !== 'function') missing.push('pivot-dialog.js');
+  if(typeof updateStickyTops !== 'function') missing.push('ui-chrome.js');
+  if(missing.length){
+    document.body.innerHTML = '<div style="padding:40px;font-family:sans-serif;line-height:1.8;">'
+      + '<h2 style="color:#A32020;">⚠️ 共用層檔案沒有載入成功</h2>'
+      + '<p>以下檔案讀不到，通常是因為 <code>shared/</code> 資料夾沒有跟 <code>contract_board.html</code> 放在同一層目錄：</p>'
+      + '<ul>' + missing.map(function(m){ return '<li>'+m+'</li>'; }).join('') + '</ul>'
+      + '<p>請確認資料夾結構長這樣，兩者要在同一層：</p>'
+      + '<pre style="background:#f0efe9;padding:12px;border-radius:8px;">你的資料夾/\n  contract_board.html\n  shared/\n    core-utils.js\n    copy-utils.js\n    csv-export.js\n    capture-clipboard.js\n    photo-viewer.js\n    ui-chrome.js\n    pivot-dialog.js\n    dashboard-common.css</pre>'
+      + '<p>打開瀏覽器開發者工具（F12）→ Console／Network 分頁，也能直接看到是哪支檔案 404。</p>'
+      + '</div>';
+    throw new Error('shared 層未載入：' + missing.join('、'));
+  }
+})();
+
 init();
 </script>
 </body>
