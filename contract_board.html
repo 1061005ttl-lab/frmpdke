@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CONTRACT 看板</title>
+<!--
+════════════════════════════════════════════════════════════
+  contract_board.html ─ 品項達成型看板
+  版本：Ver. 1.0.0 ｜ 建立：2026-07-05
+
+【這個檔案是什麼】
+  單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 直接讀取
+  一份 Google 試算表裡的三個分頁，在瀏覽器端組成「一家店，它自己該
+  簽的合約品項，這個月收齊了沒」的儀表板。跟 audit_board.html／
+  achievement_board.html 是各自獨立的系統，只共用 shared/*.js 技術骨架
+  （gviz 抓表、CSV/複製/截圖/Pivot Dialog/UI Chrome），業務邏輯完全
+  不共用（無「應達成」概念的累加統計 vs 一案一冊 vs 本檔的「每店多
+  品項、品項因店而異」，三者資料模型、計算邏輯都不同）。
+
+【讀取的三份資料來源（同一份 SHEET_ID 試算表裡的三個分頁）】
+  1. 「店家名冊」── 母體：由 combineQuestionnaires() 產生。
+     欄位：營業處／營業所/課／通路別／店家型態／店家／店家代碼／
+     業務員／菸／啤酒／烈酒／系統店。菸/啤酒/烈酒/系統店四欄有值
+     （非空）代表這家店有簽該品項合約，這就是這家店本月的「應達成
+     清單」。1~4項不等（實務上目前是1~3項）。
+  2. 「處理層」── 比對資料：由 extractSurveyDataToMasterRegistry()
+     產生。欄位：來源分頁+行數／營業處名稱／營業所/課／執行人員／
+     通路別／店家型態／店家代碼／店家名稱／店家等級／分類／子分類／
+     日期。查「這個月、這家店、這個品項有沒有回收」＝查這張表：
+     店家代碼符合 ＋ 分類符合該品項 ＋ 日期落在該月份內。
+     【重要】「分類」欄用字（菸/啤酒/烈酒/系統店）跟「店家名冊」
+     品項欄用字已確認完全一致（2026-07-05 母體欄位已改成全名），
+     不需要字串對照表，直接比對即可。
+  3. 「單位名冊」── 組織骨架（處/所），欄位：營業處名稱／營業所/課，
+     用來讓篩選下拉選單即使當月完全沒資料也能顯示完整單位清單。
+
+  三者皆讀自同一個 SHEET_ID（跟 audit 用網址參數 ?sheetId= 動態帶入
+  的模式一致）。另外透過 MGMT_ID「專案管理」分頁做多專案切換，
+  只挑 boardType==='品項達成型' 的列（沿用 audit 的專案登錄機制，
+  實際登錄時 boardType 欄位要填這四個字，否則專案選單不會列出）。
+
+【核心比對邏輯】
+  對「店家名冊」每一列：
+    1. 讀菸/啤酒/烈酒/系統店四欄，非空的即為「應達成品項」，N=項目數。
+    2. 對每個應達成品項，查「處理層」是否有 店家代碼相符 ＋ 分類相符
+       ＋ 日期落在目前選定月份 的列，有→已收，無→未收。
+    3. 完成度 = 已收項目數 / N。未勾選的品項完全不顯示（不是這家店
+       的合約範圍，不放「—」佔位）。
+  月份採「每月重跑」模式（非起訖日區間），下拉選單預設當月，可切換
+  查看歷史月份（選項由「處理層」實際出現過的年月 + 當月組成）。
+
+【畫面設計】
+  ‧ 上方摘要列：目前篩選範圍的 總店數／已收齊／未收齊／達成率。
+  ‧ 篩選列（quicknav 樣式）：營業處／營業所／完成度／品項／月份／
+    關鍵字搜尋／未收優先排序開關。
+  ‧ 主畫面：店家卡片列表（分頁載入，一次 60 張，「顯示更多」按鈕），
+    卡片：店代碼＋店名／單位＋業務員／x/N 完成度／品項清單
+    （只列有勾選的品項，各自 ✅已收／❌未收）。
+  ‧ 📊彙整：Pivot Dialog，三分頁「依單位」「依業務員」「未達成清單」，
+    沿用 shared/pivot-dialog.js 分頁/滑動骨架，內容為本檔專屬邏輯。
+  ‧ 📥CSV／📋複製LINE／📸截圖：皆針對「目前篩選後的完整結果」
+    （不受分頁載入 60 筆的視覺限制影響）。
+
+【視覺優化（規劃書 4.3，已套用）】
+  .raw-detail-grid 欄寬 minmax(180px,1fr)；.raw-detail-val 顏色統一
+  var(--text)（本檔目前用不到明細面板，先備著，未來若加店家逐筆
+  問卷明細可直接沿用 dashboard-common.css 既有樣式，不用重寫）。
+
+【已知待確認事項（見對話紀錄，非本檔程式問題）】
+  ‧ MGMT「專案管理」分頁的 boardType 欄位需要新增一列填「品項達成型」
+    並指到正確的 SHEET_ID，多專案切換下拉選單才會出現。
+  ‧ 若「店家名冊」品項欄位未來又改回縮寫（菸/啤/酒/系），
+    ITEM_KEYS 常數需要同步改回對照表模式，目前先以全名直接比對。
+
+【版本紀錄】
+  1.0.0  2026-07-05  首版
+════════════════════════════════════════════════════════════
+-->
+<link rel="stylesheet" href="shared/dashboard-common.css">
+<style>
+:root {
+  --primary: #378ADD;
+  --primary-bg: rgba(55,138,221,.08);
+  --bg: #F0EDE6;
+  --card: #FFFFFF;
+  --text: #2D2D2D;
+  --sub: #2D2D2D;
+  --border: rgba(0,0,0,0.09);
+  --green: #3B6D11;
+  --green-bg: #EAF3DE;
+  --green-bd: rgba(59,109,17,.25);
+  --amber: #7B4F00;
+  --amber-bg: #FFF3DC;
+  --red: #A32020;
+  --red-bg: #FBEAEA;
+  --red-bd: rgba(163,32,32,.25);
+  --r: 12px;
+  --dur: .32s;
+  --ease: cubic-bezier(.34,1.05,.64,1);
+}
+*,*::before,*::after { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif; min-height:100vh; }
+
+/* ── loading ── */
+.loading { position:fixed; inset:0; background:rgba(240,237,230,.85); display:none; align-items:center; justify-content:center; z-index:999; font-size:15px; font-weight:600; color:var(--sub); }
+.loading.show { display:flex; }
+
+/* ── toolbar ── */
+.toolbar { background:#fff; border-bottom:1px solid var(--border); padding:0 20px; height:52px; display:flex; align-items:center; gap:12px; position:sticky; top:0; z-index:50; }
+.toolbar-title { font-size:15px; font-weight:600; flex-shrink:0; }
+.back-btn { background:none; border:1px solid var(--border); border-radius:8px; padding:5px 12px; font-size:13px; cursor:pointer; color:var(--text); transition:background .15s; flex-shrink:0; }
+.back-btn:hover { background:var(--bg); }
+.proj-sel { display:none; padding:5px 10px; border:1px solid var(--border); border-radius:8px; background:rgba(255,255,255,.7); color:var(--text); font-size:13px; font-weight:600; font-family:inherit; cursor:pointer; max-width:220px; outline:none; }
+.sync-note { font-size:11px; color:var(--sub); white-space:nowrap; }
+.tb-act-btn { padding:5px 12px; border:1px solid var(--border); border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; color:var(--text); background:#fff; font-family:inherit; white-space:nowrap; transition:all .15s; flex-shrink:0; }
+.tb-act-btn:hover { background:var(--primary-bg); border-color:var(--primary); color:var(--primary); }
+.tb-act-btn.done { border-color:var(--green); color:var(--green); background:var(--green-bg); }
+.tb-act-btn.loading { opacity:.6; pointer-events:none; }
+.toolbar-spacer { flex:1; }
+
+/* ── filter bar ── */
+.filterbar { background:#fff; border-bottom:1px solid var(--border); padding:10px 20px; display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; position:sticky; top:52px; z-index:40; }
+.fb-group { display:flex; align-items:center; gap:6px; }
+.fb-label { font-size:11px; color:var(--sub); font-weight:600; opacity:.65; letter-spacing:.03em; }
+.fb-sel { padding:5px 8px; border:1px solid var(--border); border-radius:8px; background:#fff; color:var(--text); font-size:12.5px; font-family:inherit; cursor:pointer; outline:none; }
+.fb-sel:focus { border-color:var(--primary); }
+.fb-input { padding:5px 10px; border:1px solid var(--border); border-radius:8px; background:#fff; color:var(--text); font-size:12.5px; font-family:inherit; outline:none; width:150px; }
+.fb-input:focus { border-color:var(--primary); }
+.fb-chip-row { display:flex; gap:4px; }
+.fb-chip { padding:4px 10px; border-radius:16px; font-size:12px; font-weight:600; cursor:pointer; border:1px solid var(--border); background:#fff; color:var(--sub); font-family:inherit; white-space:nowrap; transition:all .15s; }
+.fb-chip:hover { background:var(--primary-bg); color:var(--primary); }
+.fb-chip.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+.fb-toggle { display:flex; align-items:center; gap:5px; font-size:12px; color:var(--sub); cursor:pointer; user-select:none; }
+.fb-toggle input { cursor:pointer; }
+
+/* ── summary row ── */
+.summary-row { padding:14px 20px 0; display:flex; gap:12px; flex-wrap:wrap; }
+.sum-card { flex:1; min-width:120px; background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:12px 16px; }
+.sum-card .sc-label { font-size:11px; color:var(--sub); opacity:.65; font-weight:600; margin-bottom:4px; }
+.sum-card .sc-val { font-size:24px; font-weight:800; letter-spacing:-1px; }
+.sum-card.ok .sc-val { color:var(--green); }
+.sum-card.bad .sc-val { color:var(--red); }
+.sum-card.rate .sc-val { color:var(--primary); }
+
+/* ── stage ── */
+.stage { padding:16px 20px 40px; }
+.empty { padding:60px 20px; text-align:center; color:var(--sub); font-size:14px; }
+
+/* ── store card grid ── */
+.store-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px; }
+.store-card { background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:14px 16px; transition:transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease); }
+.store-card:hover { transform:translateY(-2px); box-shadow:0 6px 18px rgba(0,0,0,.08); }
+.store-card.complete { border-color:var(--green-bd); }
+.store-card.incomplete { border-color:var(--red-bd); }
+.sc-top { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:6px; }
+.sc-code { font-size:11px; color:var(--sub); font-weight:600; opacity:.7; }
+.sc-name { font-size:15px; font-weight:800; color:var(--text); line-height:1.25; margin-top:1px; }
+.sc-badge { flex-shrink:0; font-size:13px; font-weight:800; padding:3px 9px; border-radius:8px; white-space:nowrap; }
+.sc-badge.complete { color:var(--green); background:var(--green-bg); }
+.sc-badge.incomplete { color:var(--red); background:var(--red-bg); }
+.sc-meta { font-size:11.5px; color:var(--sub); opacity:.75; margin-bottom:10px; }
+.sc-items { display:flex; flex-wrap:wrap; gap:5px; }
+.sc-item { font-size:11.5px; font-weight:600; padding:3px 8px; border-radius:6px; white-space:nowrap; }
+.sc-item.ok { color:var(--green); background:var(--green-bg); }
+.sc-item.no { color:var(--red); background:var(--red-bg); }
+
+.loadmore-wrap { text-align:center; margin-top:20px; }
+.loadmore-btn { padding:8px 22px; border:1px solid var(--border); border-radius:20px; background:#fff; font-size:13px; font-weight:600; color:var(--text); cursor:pointer; font-family:inherit; }
+.loadmore-btn:hover { border-color:var(--primary); color:var(--primary); }
+.result-count { font-size:12px; color:var(--sub); opacity:.7; margin-bottom:10px; }
+
+/* ── pivot dialog table ── */
+.pivot-tbl { width:100%; border-collapse:collapse; font-size:12.5px; }
+.pivot-tbl th,.pivot-tbl td { padding:7px 10px; border-bottom:1px solid var(--border); text-align:right; }
+.pivot-tbl th.th-left,.pivot-tbl td.td-left { text-align:left; }
+.pivot-tbl thead th { background:var(--bg); font-weight:700; color:var(--sub); position:sticky; top:0; cursor:pointer; }
+.pivot-tbl tbody tr:hover { background:var(--primary-bg); }
+.pivot-tbl .sum-footer td { font-weight:700; background:var(--bg); }
+.miss-tag { display:inline-block; font-size:11px; font-weight:700; color:var(--red); background:var(--red-bg); padding:1px 6px; border-radius:5px; margin:1px 2px 1px 0; }
+</style>
+</head>
+<body>
+
+<div class="loading" id="loading">載入中…</div>
+
+<div class="toolbar">
+  <button class="back-btn" onclick="goBack()">← 返回</button>
+  <div class="toolbar-title" id="tb-title">CONTRACT 看板</div>
+  <select class="proj-sel" id="proj-sel" onchange="switchProject(this.value)"></select>
+  <div class="toolbar-spacer"></div>
+  <div class="sync-note" id="tb-sync"></div>
+  <div class="toolbar-controls" id="toolbar-controls">
+    <button class="tb-act-btn" id="tb-btn-pivot" onclick="openSummaryDialog('office', getFilteredStores)">📊 彙整</button>
+    <button class="tb-act-btn" id="tb-btn-csv" onclick="toolbarDownloadCsv()">📥 CSV</button>
+    <button class="tb-act-btn" id="tb-btn-line" onclick="toolbarCopyLine()">📋 複製</button>
+    <button class="tb-act-btn" id="tb-btn-screenshot" onclick="toolbarScreenshot()">📸 截圖</button>
+  </div>
+  <button class="hamburger-btn" id="hamburger-btn" onclick="toggleMobileMenu(event)">☰</button>
+</div>
+
+<div class="filterbar" id="filterbar">
+  <div class="fb-group">
+    <span class="fb-label">處</span>
+    <select class="fb-sel" id="fb-area" onchange="onAreaChange()"></select>
+  </div>
+  <div class="fb-group">
+    <span class="fb-label">所</span>
+    <select class="fb-sel" id="fb-office" onchange="onFilterChange()"></select>
+  </div>
+  <div class="fb-group">
+    <span class="fb-label">月份</span>
+    <select class="fb-sel" id="fb-month" onchange="onMonthChange()"></select>
+  </div>
+  <div class="fb-group">
+    <span class="fb-label">完成度</span>
+    <div class="fb-chip-row" id="fb-completion"></div>
+  </div>
+  <div class="fb-group">
+    <span class="fb-label">品項</span>
+    <div class="fb-chip-row" id="fb-item"></div>
+  </div>
+  <div class="fb-group">
+    <input class="fb-input" id="fb-keyword" placeholder="搜尋店名/代碼/業務員" oninput="onFilterChange()">
+  </div>
+  <div class="fb-group">
+    <label class="fb-toggle"><input type="checkbox" id="fb-priority" checked onchange="onFilterChange()"> 未收優先</label>
+  </div>
+</div>
+
+<div class="summary-row" id="summary-row"></div>
+
+<div class="stage" id="stage"></div>
+
+<!-- ════ Pivot Dialog（彙整看板） ════ -->
+<div id="summary-dialog">
+  <div class="dlg-box">
+    <div class="dlg-header">
+      <div id="sum-title" style="font-size:15px;font-weight:700;">彙整看板</div>
+      <div style="flex:1;"></div>
+      <button class="tb-act-btn" id="btn-dlg-csv" onclick="downloadDialogCsv()">📥 CSV</button>
+      <button class="tb-act-btn" onclick="closeSummaryDialog()">✕ 關閉</button>
+    </div>
+    <div class="pivot-tabs">
+      <div class="pivot-tab active" onclick="switchPivotTab('office',this)">依單位</div>
+      <div class="pivot-tab" onclick="switchPivotTab('staff',this)">依業務員</div>
+      <div class="pivot-tab" onclick="switchPivotTab('missing',this)">未達成清單</div>
+    </div>
+    <div class="pivot-viewport">
+      <div class="pivot-slides" id="pivot-slides" style="width:300%;">
+        <div class="pivot-slide" id="pivot-slide-office" style="width:calc(100%/3);"></div>
+        <div class="pivot-slide" id="pivot-slide-staff" style="width:calc(100%/3);"></div>
+        <div class="pivot-slide" id="pivot-slide-missing" style="width:calc(100%/3);"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="shared/core-utils.js"></script>
+<script src="shared/copy-utils.js"></script>
+<script src="shared/csv-export.js"></script>
+<script src="shared/capture-clipboard.js"></script>
+<script src="shared/photo-viewer.js"></script>
+<script src="shared/ui-chrome.js"></script>
+<script src="shared/pivot-dialog.js"></script>
+<script>
+window._STICKY_IDS = ['filterbar'];
+
+/* ════ 常數 ════ */
+var MGMT_ID     = '1PR9OR7BIGyTpcH8QSMRXkPhQTr4h3m0UK3gET29f19s';
+var MGMT_SHEET  = '專案管理';
+var BOARD_TYPE  = '品項達成型';
+var SYNC_SHEET_DEFAULT = '輔助';
+var SYNC_CELL_DEFAULT  = 'B1';
+
+var POP_SHEET_DEFAULT  = '店家名冊';   /* 母體：combineQuestionnaires() 產生 */
+var PROC_SHEET_DEFAULT = '處理層';     /* 比對資料：extractSurveyDataToMasterRegistry() 產生 */
+var ORG_SHEET_NAME     = '單位名冊';
+
+/* 母體欄名 */
+var P_AREA='營業處', P_OFFICE='營業所/課', P_CHANNEL='通路別', P_STORETYPE='店家型態',
+    P_STORENAME='店家', P_CODE='店家代碼', P_STAFF='業務員';
+/* 品項欄＝應達成清單來源，欄名已跟「處理層」分類欄用字對齊，直接比對，不需要對照表 */
+var ITEM_KEYS = ['菸','啤酒','烈酒','系統店'];
+
+/* 處理層欄名 */
+var R_CODE='店家代碼', R_CATEGORY='分類', R_DATE='日期';
+
+var params    = new URLSearchParams(location.search);
+var SHEET_ID  = params.get('sheetId') || '';
+var PROJ_NAME = 'CONTRACT 看板';
+var SYNC_SHEET = SYNC_SHEET_DEFAULT, SYNC_CELL = SYNC_CELL_DEFAULT;
+var POP_SHEET = POP_SHEET_DEFAULT, PROC_SHEET = PROC_SHEET_DEFAULT;
+
+var STORE_ROWS   = [];      /* 母體，未含月度比對結果 */
+var PROCESS_SET  = {};      /* key: code+'||'+category+'||'+ym → true */
+var PROCESS_YMS  = [];      /* 出現過的年月，供月份下拉使用（新到舊） */
+var ORG_SKELETON = {};      /* { area: [office,...] } */
+
+var CUR_YM = '';            /* 目前選定月份 'YYYY-MM' */
+var RENDER_LIMIT = 60;
+var _renderedCount = 60;
+
+var FILTER = { area:'', office:'', completion:'all', item:'all', keyword:'' };
+
+function showLoading(){ document.getElementById('loading').classList.add('show'); }
+function hideLoading(){ document.getElementById('loading').classList.remove('show'); }
+function goBack(){ window.location.href = 'index.html'; }
+function switchProject(sid){ if(sid) location.href = location.pathname + '?sheetId=' + encodeURIComponent(sid); }
+
+/* ════ 初始化 ════ */
+function init(){
+  if(!SHEET_ID){
+    hideLoading();
+    document.getElementById('stage').innerHTML = '<div class="empty">⚠️ 缺少 sheetId 參數</div>';
+    return;
+  }
+  var urlMgmt = 'https://docs.google.com/spreadsheets/d/' + MGMT_ID +
+    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(MGMT_SHEET);
+  fetch(urlMgmt).then(function(r){ return r.text(); }).then(function(txt){
+    var json = gvizParse(txt);
+    var rows = (json.table && json.table.rows) || [];
+    var projs = [];
+    rows.forEach(function(row){
+      var cells = row.c || [];
+      function cv(c){ return c ? String(c.v!==null&&c.v!==undefined?c.v:c.f||'').trim() : ''; }
+      var active = cv(cells[0]).toUpperCase()==='ON';
+      var name = cv(cells[1]), sid = cv(cells[2]);
+      var sheet = cv(cells[3]) || POP_SHEET_DEFAULT;
+      var sync  = cv(cells[4]) || SYNC_SHEET_DEFAULT;
+      var cell  = cv(cells[5]) || SYNC_CELL_DEFAULT;
+      var boardType = cv(cells[6]);
+      if(!name || !sid) return;
+      if(boardType !== BOARD_TYPE) return;
+      if(sid === SHEET_ID){ PROJ_NAME=name; POP_SHEET=sheet; SYNC_SHEET=sync; SYNC_CELL=cell; }
+      projs.push({name:name, id:sid, active:active});
+    });
+    document.getElementById('tb-title').textContent = PROJ_NAME;
+    document.title = PROJ_NAME;
+    var onProjs = projs.filter(function(p){ return p.active; });
+    if(onProjs.length > 1){
+      var sel = document.getElementById('proj-sel');
+      sel.innerHTML = onProjs.map(function(p){
+        return '<option value="'+esc(p.id)+'"'+(p.id===SHEET_ID?' selected':'')+'>'+esc(p.name)+'</option>';
+      }).join('');
+      sel.style.display = '';
+    }
+    loadAll();
+  }).catch(function(){
+    document.getElementById('tb-title').textContent = PROJ_NAME;
+    loadAll();
+  });
+}
+
+function loadAll(){
+  showLoading();
+  fetchOrgSkeleton(function(){
+    fetchPopulation(function(){
+      fetchProcessLayer(function(){
+        buildMonthOptions();
+        buildFilterUI();
+        hideLoading();
+        onFilterChange();
+      });
+    });
+  });
+  fetchSyncTime();
+}
+
+/* ════ 讀單位名冊骨架 ════ */
+function fetchOrgSkeleton(callback){
+  var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(ORG_SHEET_NAME);
+  fetch(url).then(function(r){ return r.text(); }).then(function(txt){
+    var json = gvizParse(txt);
+    var rows = (json.table && json.table.rows) || [];
+    var skel = {};
+    rows.forEach(function(row){
+      var c = row.c || [];
+      var area = c[0] ? String(c[0].v||c[0].f||'').trim() : '';
+      var office = c[1] ? String(c[1].v||c[1].f||'').trim() : '';
+      if(!area || !office) return;
+      if(!skel[area]) skel[area] = [];
+      if(skel[area].indexOf(office)===-1) skel[area].push(office);
+    });
+    ORG_SKELETON = skel;
+  }).catch(function(){ ORG_SKELETON = {}; }).then(function(){ callback(); });
+}
+
+/* ════ 讀母體「店家名冊」════ */
+function fetchPopulation(callback){
+  var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(POP_SHEET);
+  fetch(url).then(function(r){ return r.text(); }).then(function(txt){
+    var json = gvizParse(txt);
+    var tbl = json.table || {};
+    var cols = (tbl.cols||[]).map(function(c){ return c.label||''; });
+    STORE_ROWS = (tbl.rows||[]).map(function(row){
+      var obj = {};
+      (row.c||[]).forEach(function(cell,i){
+        var colName = cols[i];
+        if(!colName) return;
+        if(!cell){ obj[colName]=''; return; }
+        var v=(cell.v!==null&&cell.v!==undefined)?cell.v:'';
+        obj[colName] = (v!==''&&v!==null&&v!==undefined) ? v : (cell.f||'');
+      });
+      var needed = ITEM_KEYS.filter(function(it){ return String(obj[it]||'').trim()!==''; });
+      return {
+        area: String(obj[P_AREA]||'').trim(),
+        office: String(obj[P_OFFICE]||'').trim(),
+        channel: String(obj[P_CHANNEL]||'').trim(),
+        storeType: String(obj[P_STORETYPE]||'').trim(),
+        storeName: String(obj[P_STORENAME]||'').trim(),
+        code: String(obj[P_CODE]||'').trim(),
+        staff: String(obj[P_STAFF]||'').trim(),
+        needed: needed
+      };
+    }).filter(function(r){ return r.code && r.needed.length>0; });
+  }).catch(function(err){
+    STORE_ROWS = [];
+    document.getElementById('stage').innerHTML = '<div class="empty">⚠️ 店家名冊載入失敗：'+err+'</div>';
+  }).then(function(){ callback(); });
+}
+
+/* ════ 讀比對資料「處理層」════ */
+function _cellYM(cell){
+  if(!cell) return '';
+  var v = cell.v;
+  if(typeof v === 'string'){
+    var m = v.match(/Date\((\d+),(\d+),(\d+)/);
+    if(m) return m[1] + '-' + String(+m[2]+1).padStart(2,'0');
+  }
+  var f = cell.f || '';
+  var m2 = String(f).match(/(\d{4})[\/\-](\d{1,2})/);
+  if(m2) return m2[1] + '-' + String(+m2[2]).padStart(2,'0');
+  return '';
+}
+function fetchProcessLayer(callback){
+  var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(PROC_SHEET);
+  fetch(url).then(function(r){ return r.text(); }).then(function(txt){
+    var json = gvizParse(txt);
+    var tbl = json.table || {};
+    var cols = (tbl.cols||[]).map(function(c){ return c.label||''; });
+    var idxCode = cols.indexOf(R_CODE), idxCat = cols.indexOf(R_CATEGORY), idxDate = cols.indexOf(R_DATE);
+    var set = {}; var ymSeen = {};
+    (tbl.rows||[]).forEach(function(row){
+      var c = row.c || [];
+      var code = (c[idxCode] && (c[idxCode].v!=null?c[idxCode].v:c[idxCode].f)) || '';
+      var cat  = (c[idxCat]  && (c[idxCat].v!=null?c[idxCat].v:c[idxCat].f))  || '';
+      code = String(code).trim(); cat = String(cat).trim();
+      var ym = _cellYM(c[idxDate]);
+      if(!code || !cat || !ym) return;
+      set[code+'||'+cat+'||'+ym] = true;
+      ymSeen[ym] = true;
+    });
+    PROCESS_SET = set;
+    PROCESS_YMS = Object.keys(ymSeen).sort().reverse();
+  }).catch(function(){ PROCESS_SET = {}; PROCESS_YMS = []; }).then(function(){ callback(); });
+}
+
+function fetchSyncTime(){
+  var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+    '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(SYNC_SHEET) + '&range=' + SYNC_CELL;
+  fetch(url).then(function(r){ return r.text(); }).then(function(txt){
+    var json = gvizParse(txt);
+    var val=''; try{ val=json.table.rows[0].c[0].v||''; }catch(e){}
+    if(val) document.getElementById('tb-sync').textContent = '📊 同步 '+parseGvizDate(val);
+  }).catch(function(){});
+}
+
+/* ════ 月份/篩選 UI 建置 ════ */
+function _currentYM(){
+  var tp = new Intl.DateTimeFormat('en-US',{timeZone:'Asia/Taipei',year:'numeric',month:'numeric'}).formatToParts(new Date());
+  var y = (tp.find(function(p){return p.type==='year';})||{}).value;
+  var m = (tp.find(function(p){return p.type==='month';})||{}).value;
+  return y && m ? (y+'-'+String(+m).padStart(2,'0')) : '';
+}
+function buildMonthOptions(){
+  var cur = _currentYM();
+  var yms = PROCESS_YMS.slice();
+  if(cur && yms.indexOf(cur)===-1) yms.unshift(cur);
+  yms.sort().reverse();
+  CUR_YM = cur && yms.indexOf(cur)!==-1 ? cur : (yms[0]||'');
+  var sel = document.getElementById('fb-month');
+  sel.innerHTML = yms.map(function(ym){
+    return '<option value="'+ym+'"'+(ym===CUR_YM?' selected':'')+'>'+ym.replace('-','/')+'</option>';
+  }).join('');
+}
+function onMonthChange(){
+  CUR_YM = document.getElementById('fb-month').value;
+  onFilterChange();
+}
+function buildFilterUI(){
+  var areas = Object.keys(ORG_SKELETON);
+  STORE_ROWS.forEach(function(r){ if(r.area && areas.indexOf(r.area)===-1) areas.push(r.area); });
+  var areaSel = document.getElementById('fb-area');
+  areaSel.innerHTML = '<option value="">全部</option>' + areas.map(function(a){ return '<option value="'+esc(a)+'">'+esc(a)+'</option>'; }).join('');
+  onAreaChange(true);
+
+  var compRow = document.getElementById('fb-completion');
+  compRow.innerHTML = ['all:全部','incomplete:未收齊','complete:已收齊'].map(function(kv){
+    var p = kv.split(':');
+    return '<div class="fb-chip'+(p[0]==='all'?' active':'')+'" data-v="'+p[0]+'" onclick="setChip(this,\'completion\')">'+p[1]+'</div>';
+  }).join('');
+
+  var itemRow = document.getElementById('fb-item');
+  var items = ['all'].concat(ITEM_KEYS);
+  itemRow.innerHTML = items.map(function(it){
+    return '<div class="fb-chip'+(it==='all'?' active':'')+'" data-v="'+esc(it)+'" onclick="setChip(this,\'item\')">'+(it==='all'?'全部':esc(it))+'</div>';
+  }).join('');
+}
+function onAreaChange(skipFilter){
+  var area = document.getElementById('fb-area').value;
+  FILTER.area = area;
+  var offices = area ? (ORG_SKELETON[area]||[]).slice() : [];
+  STORE_ROWS.forEach(function(r){
+    if((!area || r.area===area) && r.office && offices.indexOf(r.office)===-1) offices.push(r.office);
+  });
+  var offSel = document.getElementById('fb-office');
+  offSel.innerHTML = '<option value="">全部</option>' + offices.map(function(o){ return '<option value="'+esc(o)+'">'+esc(o)+'</option>'; }).join('');
+  FILTER.office = '';
+  if(!skipFilter) onFilterChange();
+}
+function setChip(el, key){
+  var parent = el.parentElement;
+  Array.from(parent.children).forEach(function(c){ c.classList.remove('active'); });
+  el.classList.add('active');
+  FILTER[key] = el.getAttribute('data-v');
+  onFilterChange();
+}
+function onFilterChange(){
+  FILTER.office = document.getElementById('fb-office').value;
+  FILTER.keyword = document.getElementById('fb-keyword').value.trim();
+  _renderedCount = RENDER_LIMIT;
+  render();
+}
+
+/* ════ 計算單店狀態（依 CUR_YM）════ */
+function _storeStatus(store){
+  var collected = [], missing = [];
+  store.needed.forEach(function(it){
+    var key = store.code+'||'+it+'||'+CUR_YM;
+    if(PROCESS_SET[key]) collected.push(it); else missing.push(it);
+  });
+  return { n: store.needed.length, k: collected.length, collected: collected, missing: missing, isComplete: missing.length===0 };
+}
+
+/* ════ 取得目前篩選後的完整店家清單（含狀態），不受分頁載入限制 ════ */
+function getFilteredStores(){
+  var kw = (FILTER.keyword||'').toLowerCase();
+  var list = STORE_ROWS.filter(function(r){
+    if(FILTER.area && r.area!==FILTER.area) return false;
+    if(FILTER.office && r.office!==FILTER.office) return false;
+    if(FILTER.item!=='all' && r.needed.indexOf(FILTER.item)===-1) return false;
+    if(kw){
+      var hay = (r.storeName+' '+r.code+' '+r.staff).toLowerCase();
+      if(hay.indexOf(kw)===-1) return false;
+    }
+    return true;
+  }).map(function(r){
+    var st = _storeStatus(r);
+    return Object.assign({}, r, { _status: st });
+  }).filter(function(r){
+    if(FILTER.completion==='complete') return r._status.isComplete;
+    if(FILTER.completion==='incomplete') return !r._status.isComplete;
+    return true;
+  });
+
+  var priority = document.getElementById('fb-priority') ? document.getElementById('fb-priority').checked : true;
+  list.sort(function(a,b){
+    if(priority){
+      var ai = a._status.isComplete?1:0, bi = b._status.isComplete?1:0;
+      if(ai!==bi) return ai-bi;
+    }
+    var cols = ['area','office','staff','code'];
+    for(var i=0;i<cols.length;i++){
+      var va=String(a[cols[i]]||''), vb=String(b[cols[i]]||'');
+      if(va!==vb) return va>vb?1:-1;
+    }
+    return 0;
+  });
+  return list;
+}
+
+/* ════ 渲染 ════ */
+function render(){
+  var all = getFilteredStores();
+  renderSummary(all);
+  renderStage(all);
+}
+function renderSummary(all){
+  var total = all.length;
+  var complete = all.filter(function(r){ return r._status.isComplete; }).length;
+  var incomplete = total - complete;
+  var rate = total ? Math.round(complete/total*1000)/10 : 0;
+  document.getElementById('summary-row').innerHTML =
+    '<div class="sum-card"><div class="sc-label">總店數</div><div class="sc-val">'+total+'</div></div>'+
+    '<div class="sum-card ok"><div class="sc-label">已收齊</div><div class="sc-val">'+complete+'</div></div>'+
+    '<div class="sum-card bad"><div class="sc-label">未收齊</div><div class="sc-val">'+incomplete+'</div></div>'+
+    '<div class="sum-card rate"><div class="sc-label">達成率</div><div class="sc-val">'+rate+'%</div></div>';
+}
+function renderStage(all){
+  var stage = document.getElementById('stage');
+  if(!all.length){ stage.innerHTML = '<div class="empty">目前篩選條件下沒有符合的店家</div>'; return; }
+  var shown = all.slice(0, _renderedCount);
+  var html = '<div class="result-count">共 '+all.length+' 家，顯示 '+shown.length+' 家</div>';
+  html += '<div class="store-grid">' + shown.map(buildStoreCard).join('') + '</div>';
+  if(all.length > shown.length){
+    html += '<div class="loadmore-wrap"><button class="loadmore-btn" onclick="loadMore()">顯示更多（還有 '+(all.length-shown.length)+' 家）</button></div>';
+  }
+  stage.innerHTML = html;
+}
+function loadMore(){ _renderedCount += RENDER_LIMIT; renderStage(getFilteredStores()); }
+
+function buildStoreCard(store){
+  var st = store._status;
+  var cls = st.isComplete ? 'complete' : 'incomplete';
+  var itemsHtml = store.needed.map(function(it){
+    var ok = st.collected.indexOf(it)!==-1;
+    return '<span class="sc-item '+(ok?'ok':'no')+'">'+(ok?'✅':'❌')+' '+esc(it)+'</span>';
+  }).join('');
+  return '<div class="store-card '+cls+'">'
+    + '<div class="sc-top">'
+    +   '<div><div class="sc-code">'+esc(store.code)+'</div><div class="sc-name">'+esc(store.storeName)+'</div></div>'
+    +   '<div class="sc-badge '+cls+'">'+st.k+'/'+st.n+'</div>'
+    + '</div>'
+    + '<div class="sc-meta">'+esc(store.area)+' · '+esc(store.office)+' · '+esc(store.staff)+'</div>'
+    + '<div class="sc-items">'+itemsHtml+'</div>'
+    + '</div>';
+}
+
+/* ════════════════════════════════════════════════════════════
+   PIVOT DIALOG（彙整看板）
+   ════════════════════════════════════════════════════════════ */
+var _pivotMode = 'office';
+var _pivotTabIndex = { office:0, staff:1, missing:2 };
+var PIVOT_TITLES = { office:'依單位', staff:'依業務員', missing:'未達成清單' };
+
+function _aggBy(rows, keyFn){
+  var map = {};
+  rows.forEach(function(r){
+    var k = keyFn(r);
+    if(!map[k]) map[k] = { key:k, stores:0, complete:0, incomplete:0, missingCount:0 };
+    map[k].stores++;
+    if(r._status.isComplete) map[k].complete++; else { map[k].incomplete++; map[k].missingCount += r._status.missing.length; }
+  });
+  return Object.keys(map).sort().map(function(k){ return map[k]; });
+}
+function _renderAggTable(rows, keyFn, keyLabel){
+  var agg = _aggBy(rows, keyFn);
+  var html = '<table class="pivot-tbl"><thead><tr>'
+    + '<th class="th-left">'+esc(keyLabel)+'</th><th>總店數</th><th>已收齊</th><th>未收齊</th><th>達成率</th>'
+    + '</tr></thead><tbody>';
+  var totS=0, totC=0, totI=0;
+  agg.forEach(function(a){
+    var rate = a.stores ? Math.round(a.complete/a.stores*1000)/10 : 0;
+    totS+=a.stores; totC+=a.complete; totI+=a.incomplete;
+    html += '<tr><td class="td-left">'+esc(a.key)+'</td><td>'+a.stores+'</td><td>'+a.complete+'</td><td>'+a.incomplete+'</td><td>'+rate+'%</td></tr>';
+  });
+  var totRate = totS ? Math.round(totC/totS*1000)/10 : 0;
+  html += '<tr class="sum-footer"><td class="td-left">合計</td><td>'+totS+'</td><td>'+totC+'</td><td>'+totI+'</td><td>'+totRate+'%</td></tr>';
+  html += '</tbody></table>';
+  return html;
+}
+function _renderMissingTable(rows){
+  var missRows = rows.filter(function(r){ return !r._status.isComplete; });
+  var html = '<table class="pivot-tbl"><thead><tr>'
+    + '<th class="th-left">單位</th><th class="th-left">業務員</th><th class="th-left">店代碼</th><th class="th-left">店名</th><th class="th-left">未收品項</th>'
+    + '</tr></thead><tbody>';
+  missRows.forEach(function(r){
+    html += '<tr><td class="td-left">'+esc(r.area)+' '+esc(r.office)+'</td><td class="td-left">'+esc(r.staff)+'</td>'
+      + '<td class="td-left">'+esc(r.code)+'</td><td class="td-left">'+esc(r.storeName)+'</td>'
+      + '<td class="td-left">'+r._status.missing.map(function(m){ return '<span class="miss-tag">'+esc(m)+'</span>'; }).join('')+'</td></tr>';
+  });
+  html += '<tr class="sum-footer"><td class="td-left" colspan="5">共 '+missRows.length+' 家未收齊</td></tr>';
+  html += '</tbody></table>';
+  return html;
+}
+function _renderPivotSlide(mode){
+  var el = document.getElementById('pivot-slide-'+mode);
+  if(!el) return;
+  var rows = _pivotRows || [];
+  if(mode==='office') el.innerHTML = _renderAggTable(rows, function(r){ return r.area+' '+r.office; }, '單位');
+  else if(mode==='staff') el.innerHTML = _renderAggTable(rows, function(r){ return r.staff; }, '業務員');
+  else if(mode==='missing') el.innerHTML = _renderMissingTable(rows);
+}
+function downloadDialogCsv(){
+  var btn = document.getElementById('btn-dlg-csv');
+  var el = document.getElementById('pivot-slide-'+_pivotMode);
+  var tbl = el ? el.querySelector('table') : null;
+  if(!tbl){ _flashBtn(btn,'⚠️ 無資料'); return; }
+  var csv = Array.from(tbl.querySelectorAll('tr')).map(function(tr){
+    return Array.from(tr.querySelectorAll('th,td')).map(function(td){
+      var s = td.textContent.trim().replace(/\s+/g,' ');
+      return /[,"\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+    }).join(',');
+  }).join('\n');
+  _triggerCsvDownload('\uFEFF'+csv, PROJ_NAME+'_'+PIVOT_TITLES[_pivotMode]);
+  _flashBtn(btn,'✅ 已下載');
+}
+
+/* ════ 主工具列 CSV／複製／截圖 ════ */
+function buildCsvContent(rows){
+  var headers = ['營業處','營業所/課','業務員','店家代碼','店家名稱','應達成品項','已收品項','未收品項','完成度'];
+  var out = [headers];
+  rows.forEach(function(r){
+    out.push([
+      r.area, r.office, r.staff, r.code, r.storeName,
+      r.needed.join('/'), r._status.collected.join('/'), r._status.missing.join('/'),
+      r._status.k+'/'+r._status.n
+    ]);
+  });
+  return '\uFEFF'+out.map(function(row){
+    return row.map(function(c){ var s=String(c==null?'':c); return /[,"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join(',');
+  }).join('\n');
+}
+function toolbarDownloadCsv(){
+  var btn = document.getElementById('tb-btn-csv');
+  var rows = getFilteredStores();
+  if(!rows.length){ _flashBtn(btn,'⚠️ 無資料'); return; }
+  _triggerCsvDownload(buildCsvContent(rows), PROJ_NAME+'_'+CUR_YM);
+  _flashBtn(btn,'✅ 已下載');
+}
+function toolbarCopyLine(){
+  var btn = document.getElementById('tb-btn-line');
+  var rows = getFilteredStores();
+  if(!rows.length){ _flashBtn(btn,'⚠️ 無資料'); return; }
+  var total = rows.length, complete = rows.filter(function(r){return r._status.isComplete;}).length;
+  var lines = ['【'+PROJ_NAME+'】'+CUR_YM.replace('-','/')+' 品項達成', '總店數 '+total+'／已收齊 '+complete+'／未收齊 '+(total-complete), ''];
+  rows.filter(function(r){ return !r._status.isComplete; }).slice(0,50).forEach(function(r){
+    lines.push('❌ '+r.storeName+'('+r.code+') '+r.staff+' 缺：'+r._status.missing.join('、'));
+  });
+  if(total-complete > 50) lines.push('…其餘 '+(total-complete-50)+' 家略');
+  _doCopy(lines.join('\n'), btn);
+}
+function toolbarScreenshot(){
+  var btn = document.getElementById('tb-btn-screenshot');
+  var el = document.getElementById('stage');
+  _captureElement(el, btn, PROJ_NAME || 'CONTRACT看板');
+}
+
+init();
+</script>
+</body>
+</html>
