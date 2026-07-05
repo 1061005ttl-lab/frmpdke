@@ -206,7 +206,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   </div>
   <div class="fb-group">
     <span class="fb-label">所</span>
-    <select class="fb-sel" id="fb-office" onchange="onFilterChange()"></select>
+    <select class="fb-sel" id="fb-office" onchange="onOfficeChange()"></select>
   </div>
   <div class="fb-group">
     <span class="fb-label">月份</span>
@@ -301,9 +301,13 @@ var CUR_YM = '';            /* 目前選定月份 'YYYY-MM' */
 var RENDER_LIMIT = 60;
 var _renderedCount = 60;
 
-var FILTER = { area:'', office:'', completion:'all', item:'all', keyword:'' };
+var FILTER = { completion:'all', item:'all', keyword:'' };
 var AREA_ORDER = ['北部','桃園','臺中','嘉義','臺南','高雄','花蓮'];
-var drillArea = null; /* null = 總覽(7處卡片)；非null = 已鑽入該處，顯示店家卡片 */
+/* 三層鑽層狀態，跟 audit/coverage 同一套 drillStack 慣例：
+   []                                  → 第一層：7處總覽卡片
+   [{level:'area',key:區}]              → 第二層：該處底下的營業所/課卡片
+   [{level:'area',key:區},{level:'office',key:所}] → 第三層（leaf）：該所店家卡片列表 */
+var drillStack = [];
 
 function showLoading(){ document.getElementById('loading').classList.add('show'); }
 function hideLoading(){ document.getElementById('loading').classList.remove('show'); }
@@ -496,9 +500,15 @@ function onMonthChange(){
 function buildFilterUI(){
   var areas = Object.keys(ORG_SKELETON);
   STORE_ROWS.forEach(function(r){ if(r.area && areas.indexOf(r.area)===-1) areas.push(r.area); });
+  areas.sort(function(a,b){
+    var ia=AREA_ORDER.indexOf(a), ib=AREA_ORDER.indexOf(b);
+    if(ia===-1&&ib===-1) return 0;
+    if(ia===-1) return 1; if(ib===-1) return -1;
+    return ia-ib;
+  });
   var areaSel = document.getElementById('fb-area');
   areaSel.innerHTML = '<option value="">全部</option>' + areas.map(function(a){ return '<option value="'+esc(a)+'">'+esc(a)+'</option>'; }).join('');
-  onAreaChange(true);
+  rebuildOfficeOptions();
 
   var compRow = document.getElementById('fb-completion');
   compRow.innerHTML = ['all:全部','incomplete:未收齊','complete:已收齊'].map(function(kv){
@@ -512,32 +522,58 @@ function buildFilterUI(){
     return '<div class="fb-chip'+(it==='all'?' active':'')+'" data-v="'+esc(it)+'" onclick="setChip(this,\'item\')">'+(it==='all'?'全部':esc(it))+'</div>';
   }).join('');
 }
-function onAreaChange(skipFilter){
-  var area = document.getElementById('fb-area').value;
-  drillArea = area || null;
-  FILTER.area = area;
-  var offices = area ? (ORG_SKELETON[area]||[]).slice() : [];
-  STORE_ROWS.forEach(function(r){
-    if((!area || r.area===area) && r.office && offices.indexOf(r.office)===-1) offices.push(r.office);
-  });
+/* 所/課下拉的選項依「目前選定的處」動態決定，沒選處之前禁用，
+   強制走 處→所/課→店家 這條固定鑽層路徑，跟卡片鑽層是同一套狀態、互相同步 */
+function rebuildOfficeOptions(){
+  var area = drillStack[0] ? drillStack[0].key : '';
   var offSel = document.getElementById('fb-office');
-  offSel.innerHTML = '<option value="">全部</option>' + offices.map(function(o){ return '<option value="'+esc(o)+'">'+esc(o)+'</option>'; }).join('');
-  FILTER.office = '';
-  if(!skipFilter) onFilterChange();
+  if(!area){
+    offSel.innerHTML = '<option value="">全部</option>';
+    offSel.disabled = true;
+    return;
+  }
+  offSel.disabled = false;
+  var offices = (ORG_SKELETON[area]||[]).slice();
+  STORE_ROWS.forEach(function(r){ if(r.area===area && r.office && offices.indexOf(r.office)===-1) offices.push(r.office); });
+  var curOffice = drillStack[1] ? drillStack[1].key : '';
+  offSel.innerHTML = '<option value="">全部</option>' + offices.map(function(o){ return '<option value="'+esc(o)+'"'+(o===curOffice?' selected':'')+'>'+esc(o)+'</option>'; }).join('');
+}
+/* ════ 三層鑽層：處(fb-area) → 所/課(fb-office) → 店家卡片，
+   下拉選單跟卡片點擊鑽層是同一套 drillStack 狀態，選哪個都會同步 ════ */
+function onAreaChange(){
+  var area = document.getElementById('fb-area').value;
+  drillStack = area ? [{level:'area',key:area}] : [];
+  rebuildOfficeOptions();
+  onFilterChange();
+}
+function onOfficeChange(){
+  var office = document.getElementById('fb-office').value;
+  var area = drillStack[0] ? drillStack[0].key : '';
+  drillStack = office ? [{level:'area',key:area},{level:'office',key:office}] : (area ? [{level:'area',key:area}] : []);
+  onFilterChange();
 }
 function drillIntoArea(area){
-  drillArea = area;
-  FILTER.area = area;
   document.getElementById('fb-area').value = area;
-  onAreaChange(true);
+  drillStack = [{level:'area',key:area}];
+  rebuildOfficeOptions();
+  onFilterChange();
+}
+function drillIntoOffice(office){
+  var area = drillStack[0] ? drillStack[0].key : '';
+  document.getElementById('fb-office').value = office;
+  drillStack = [{level:'area',key:area},{level:'office',key:office}];
   onFilterChange();
 }
 function drillBackToOverview(){
-  drillArea = null;
-  FILTER.area = '';
-  FILTER.office = '';
+  drillStack = [];
   document.getElementById('fb-area').value = '';
-  onAreaChange(true);
+  rebuildOfficeOptions();
+  onFilterChange();
+}
+function drillBackToOffice(){
+  var area = drillStack[0] ? drillStack[0].key : '';
+  drillStack = area ? [{level:'area',key:area}] : [];
+  document.getElementById('fb-office').value = '';
   onFilterChange();
 }
 function setChip(el, key){
@@ -548,7 +584,6 @@ function setChip(el, key){
   onFilterChange();
 }
 function onFilterChange(){
-  FILTER.office = document.getElementById('fb-office').value;
   FILTER.keyword = document.getElementById('fb-keyword').value.trim();
   _renderedCount = RENDER_LIMIT;
   render();
@@ -567,9 +602,11 @@ function _storeStatus(store){
 /* ════ 取得目前篩選後的完整店家清單（含狀態），不受分頁載入限制 ════ */
 function getFilteredStores(){
   var kw = (FILTER.keyword||'').toLowerCase();
+  var area = drillStack[0] ? drillStack[0].key : '';
+  var office = drillStack[1] ? drillStack[1].key : '';
   var list = STORE_ROWS.filter(function(r){
-    if(FILTER.area && r.area!==FILTER.area) return false;
-    if(FILTER.office && r.office!==FILTER.office) return false;
+    if(area && r.area!==area) return false;
+    if(office && r.office!==office) return false;
     if(FILTER.item!=='all' && r.needed.indexOf(FILTER.item)===-1) return false;
     if(kw){
       var hay = (r.storeName+' '+r.code+' '+r.staff).toLowerCase();
@@ -620,7 +657,9 @@ function renderSummary(all){
 }
 function renderStage(all){
   var stage = document.getElementById('stage');
-  if(!drillArea){ renderAreaOverview(); return; }
+  var depth = drillStack.length;
+  if(depth===0){ renderAreaOverview(); return; }
+  if(depth===1){ renderOfficeOverview(); return; }
   if(!all.length){ stage.innerHTML = buildBreadcrumb() + '<div class="empty">目前篩選條件下沒有符合的店家</div>'; return; }
   var shown = all.slice(0, _renderedCount);
   var html = buildBreadcrumb();
@@ -632,15 +671,19 @@ function renderStage(all){
   stage.innerHTML = html;
 }
 function buildBreadcrumb(){
-  return '<div style="margin-bottom:14px;"><button class="back-btn" onclick="drillBackToOverview()">← 返回7處總覽</button> '
-    + '<span style="font-size:13px;font-weight:700;margin-left:8px;">'+esc(drillArea)+'</span></div>';
+  var depth = drillStack.length;
+  var backFn = depth>=2 ? 'drillBackToOffice()' : 'drillBackToOverview()';
+  var backLabel = depth>=2 ? ('← 返回 '+esc(drillStack[0].key)+' 所/課列表') : '← 返回7處總覽';
+  var crumb = drillStack.map(function(d){ return esc(d.key); }).join(' › ');
+  return '<div style="margin-bottom:14px;"><button class="back-btn" onclick="'+backFn+'">'+backLabel+'</button> '
+    + '<span style="font-size:13px;font-weight:700;margin-left:8px;">'+crumb+'</span></div>';
 }
 function renderAreaOverview(){
   var stage = document.getElementById('stage');
   var areas = AREA_ORDER.filter(function(a){ return ORG_SKELETON[a] || STORE_ROWS.some(function(r){ return r.area===a; }); });
   STORE_ROWS.forEach(function(r){ if(r.area && areas.indexOf(r.area)===-1) areas.push(r.area); });
   if(!areas.length){ stage.innerHTML = '<div class="empty">沒有可顯示的營業處資料</div>'; return; }
-  var html = '<div class="level-label" style="font-size:11px;color:var(--sub);opacity:.65;margin-bottom:10px;">依營業處總覽 · 點卡片看該處店家</div>';
+  var html = '<div class="level-label" style="font-size:11px;color:var(--sub);opacity:.65;margin-bottom:10px;">依營業處總覽 · 點卡片看該處營業所/課</div>';
   html += '<div class="store-grid">';
   areas.forEach(function(area){
     var rows = STORE_ROWS.filter(function(r){ return r.area===area; }).map(function(r){ return Object.assign({}, r, {_status:_storeStatus(r)}); });
@@ -650,6 +693,35 @@ function renderAreaOverview(){
     var rate = total ? Math.round(complete/total*1000)/10 : 0;
     html += '<div class="store-card" style="cursor:pointer;" onclick="drillIntoArea(\''+esc(area).replace(/'/g,"\\'")+'\')">'
       + '<div class="sc-top"><div class="sc-name" style="font-size:17px;">'+esc(area)+'</div>'
+      + '<div class="sc-badge '+(incomplete>0?'incomplete':'complete')+'">'+rate+'%</div></div>'
+      + '<div class="sc-items">'
+      +   '<span class="sc-item ok">✅ 已收齊 '+complete+'</span>'
+      +   '<span class="sc-item no">❌ 未收齊 '+incomplete+'</span>'
+      +   '<span class="sc-item" style="color:var(--sub);background:var(--bg);">共 '+total+' 家</span>'
+      + '</div></div>';
+  });
+  html += '</div>';
+  stage.innerHTML = html;
+}
+/* 第二層：鑽入某一處之後，改看該處底下的營業所/課卡片（縮小卡片顆粒度，
+   避免像「北部696家」直接攤開變成一次要滑一大片店家卡片） */
+function renderOfficeOverview(){
+  var stage = document.getElementById('stage');
+  var area = drillStack[0].key;
+  var offices = (ORG_SKELETON[area]||[]).slice();
+  STORE_ROWS.forEach(function(r){ if(r.area===area && r.office && offices.indexOf(r.office)===-1) offices.push(r.office); });
+  if(!offices.length){ stage.innerHTML = buildBreadcrumb() + '<div class="empty">這個處目前沒有可顯示的營業所/課資料</div>'; return; }
+  var html = buildBreadcrumb();
+  html += '<div class="level-label" style="font-size:11px;color:var(--sub);opacity:.65;margin:4px 0 10px;">'+esc(area)+' · 依營業所/課總覽 · 點卡片看該所店家</div>';
+  html += '<div class="store-grid">';
+  offices.forEach(function(office){
+    var rows = STORE_ROWS.filter(function(r){ return r.area===area && r.office===office; }).map(function(r){ return Object.assign({}, r, {_status:_storeStatus(r)}); });
+    var total = rows.length;
+    var complete = rows.filter(function(r){ return r._status.isComplete; }).length;
+    var incomplete = total - complete;
+    var rate = total ? Math.round(complete/total*1000)/10 : 0;
+    html += '<div class="store-card" style="cursor:pointer;" onclick="drillIntoOffice(\''+esc(office).replace(/'/g,"\\'")+'\')">'
+      + '<div class="sc-top"><div class="sc-name" style="font-size:16px;">'+esc(office)+'</div>'
       + '<div class="sc-badge '+(incomplete>0?'incomplete':'complete')+'">'+rate+'%</div></div>'
       + '<div class="sc-items">'
       +   '<span class="sc-item ok">✅ 已收齊 '+complete+'</span>'
