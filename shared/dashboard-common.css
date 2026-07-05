@@ -1,0 +1,253 @@
+/* ════════════════════════════════════════════════════════════
+   dashboard-common.css — 看板系統共用樣式
+   版本：Ver. 1.0.0 ｜ 建立：2026-07-05
+
+   給哪些看板用：所有看板。
+   依賴：呼叫端自己的 <style> 裡要有 :root 色票（--primary/--green/
+        --sub/--border/--text/--r/--dur/--ease 等），這支檔案完全依賴
+        這些變數、不自己重新定義一份——coverage 跟 audit 目前用的色票
+        數值剛好一致，但這支故意不假設「一定相同」，往後哪個板的主色
+        想換，只要改自己的 :root，不用動這支檔案。
+
+   【這支只收「跟資料模型無關」的骨架樣式，範圍刻意收得比較窄】
+   卡片(.card)、統計格(.stat-row/.stat-item)、quicknav(.qn-*)、
+   grid 欄數(.grid) 這些「看起來像 UI 骨架」的東西，故意沒收進來——
+   實際比對後發現這些跟各板的資料欄位數、分類方式綁很深（例如
+   .grid 的欄數、.stat-item 的配色規則，coverage 是圍繞 B/C 桶燈號在
+   設計，audit 是圍繞分類/子分類），這些留在各板自己的 <style> 裡。
+
+   這支只收確定「不管哪個板，內容形狀都一樣」的部分：
+     - 全螢幕 Dialog 外殼（.dlg-*、#detail-dialog、#summary-dialog）
+     - Pivot Dialog 分頁/滑動骨架（.pivot-tabs/.pivot-tab/.pivot-viewport/
+       .pivot-slides/.pivot-slide/.pivot-tbl，不含欄數，欄數由各板
+       用 inline style 覆蓋，例如 style="width:calc(100%/4)"）
+     - 手機漢堡選單按鈕（.hamburger-btn）——audit 目前沒接這個功能，
+       但樣式先備著，之後要加不用重寫
+     - Tooltip（.tooltip 系列）
+     - 照片牆／問卷原始回答渲染（.raw-quiz-*／.photo-gallery-*／
+       .photo-store-*／.photo-lightbox-*，對應 shared/photo-viewer.js）
+
+   【版本紀錄】
+   1.0.0  2026-07-05  首版，從 coverage_board.html 抽出，
+                       pivot-slides/pivot-slide 拿掉寫死的 300%／
+                       calc(100%/3)，因為兩板實際分頁數不同
+                       （coverage 4 個、audit 4 個但內容不同），
+                       這兩個尺寸一律由各板在 HTML 用 inline style
+                       依實際分頁數設定，避免共用層的預設值誤導
+                       未來只有 3 分頁或 5 分頁的看板
+   ════════════════════════════════════════════════════════════ */
+
+/* ── hamburger（手機專用，收納整個 toolbar-controls） ── */
+.hamburger-btn {
+  display:none;
+  align-items:center; justify-content:center;
+  width:32px; height:32px; flex-shrink:0;
+  border:1px solid var(--border); border-radius:8px;
+  background:#fff; font-size:16px; cursor:pointer; color:var(--text);
+}
+.hamburger-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+.toolbar-controls { display:flex; align-items:center; gap:12px; }
+@media (max-width:640px){
+  .hamburger-btn { display:flex; }
+}
+
+/* ── tooltip ── */
+.tooltip {
+  position:absolute;
+  bottom:calc(100% + 8px);
+  left:50%;
+  transform:translateX(-50%);
+  background:#fff;
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:10px 14px;
+  min-width:200px;
+  max-width:320px;
+  width:max-content;
+  z-index:200;
+  pointer-events:none;
+  opacity:0;
+  transition:opacity .15s;
+  box-shadow:0 4px 16px rgba(0,0,0,.10);
+}
+.tooltip.show { opacity:1; }
+.tooltip.flip { bottom:auto; top:calc(100% + 8px); }
+.tt-title { font-size:11px; font-weight:700; color:var(--sub); margin-bottom:7px; letter-spacing:.03em; text-align:left; }
+.tt-row { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; padding:4px 0; }
+.tt-label { font-size:13px; color:var(--sub); flex:1; line-height:1.4; white-space:normal; word-break:keep-all; text-align:left; }
+.tt-val { font-size:13px; font-weight:700; color:var(--text); white-space:nowrap; flex-shrink:0; text-align:right; }
+.tt-pct { font-size:11px; font-weight:500; color:var(--sub); margin-left:3px; }
+/* 手機：長按 stat-item 才觸發 tooltip，阻止立即鑽層 */
+.stat-item .tooltip { pointer-events:none; }
+.stat-item.tt-active .tooltip { display:block !important; pointer-events:auto; }
+
+/* ── 全螢幕 Dialog 外殼（detail-dialog／summary-dialog 共用） ── */
+#detail-dialog, #summary-dialog {
+  position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:500;
+  display:flex; align-items:center; justify-content:center;
+  opacity:0; transition:opacity .2s;
+}
+#detail-dialog.open, #summary-dialog.open { opacity:1; }
+.dlg-box {
+  background:#fff; border-radius:14px;
+  width:95vw; height:92vh;
+  display:flex; flex-direction:column; overflow:hidden;
+  box-shadow:0 20px 80px rgba(0,0,0,.35);
+  transform:translateY(16px); transition:transform .22s;
+}
+#detail-dialog.open .dlg-box, #summary-dialog.open .dlg-box { transform:translateY(0); }
+.dlg-header {
+  padding:14px 20px; border-bottom:1px solid rgba(0,0,0,.09);
+  display:flex; align-items:center; justify-content:space-between;
+  font-size:15px; font-weight:900; color:var(--text); flex-shrink:0;
+  background:rgba(248,250,248,1);
+}
+.dlg-close {
+  cursor:pointer; font-size:14px; color:var(--sub); padding:4px 12px;
+  border-radius:7px; border:1px solid rgba(0,0,0,.12); background:#fff;
+  font-family:inherit; font-weight:700; transition:all .14s;
+}
+.dlg-close:hover { border-color:var(--primary); color:var(--primary); }
+.dlg-action-btn {
+  cursor:pointer; font-size:13px; color:var(--sub); padding:4px 11px;
+  border-radius:7px; border:1px solid rgba(0,0,0,.12); background:#fff;
+  font-family:inherit; font-weight:700; transition:all .14s; white-space:nowrap;
+}
+.dlg-action-btn:hover { border-color:var(--primary); color:var(--primary); }
+.dlg-action-btn.done { border-color:var(--green); color:var(--green); background:var(--green-bg); }
+.dlg-action-btn.loading { opacity:.6; pointer-events:none; }
+/* dlg-body 的 overflow 各板自己決定（滑動式 pivot 內容要 hidden，
+   單純捲動明細要 auto），故意不在共用層寫死，由各板 <style> 覆蓋 */
+.dlg-body { flex:1; min-height:0; padding:0; }
+
+/* ── Dialog 內篩選列 ── */
+.dlg-filter-row {
+  display:flex; align-items:center; gap:6px;
+  padding:8px 20px 6px; flex-wrap:nowrap; overflow-x:auto;
+  border-bottom:1px solid var(--border); background:rgba(248,249,248,1);
+  scrollbar-width:none; flex-shrink:0;
+}
+.dlg-filter-row::-webkit-scrollbar { display:none; }
+.dlg-filter-label {
+  font-size:10px; color:var(--sub); font-weight:700; letter-spacing:.04em;
+  opacity:.6; white-space:nowrap; flex-shrink:0; margin-right:2px;
+}
+
+/* ── Pivot Dialog 分頁／滑動骨架 ──
+   .pivot-slides 的 width（例：400%）跟 .pivot-slide 的 width
+   （例：calc(100%/4)）依實際分頁數不同，一律由各板在 HTML 用
+   inline style 設定，這裡不寫預設值。 */
+.pivot-tabs {
+  display:flex; gap:0; padding:12px 20px 0; background:#fafaf8;
+  border-bottom:1px solid rgba(0,0,0,.09); flex-shrink:0;
+  overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch;
+}
+.pivot-tabs::-webkit-scrollbar { display:none; }
+.pivot-tab {
+  padding:8px 20px; border-radius:10px 10px 0 0; font-size:13px; font-weight:700;
+  border:1px solid transparent; border-bottom:none; cursor:pointer;
+  font-family:inherit; background:transparent; color:var(--sub);
+  transition:all .18s; position:relative; top:1px; white-space:nowrap;
+}
+.pivot-tab:hover { color:var(--primary); background:rgba(55,138,221,.06); }
+.pivot-tab.active {
+  background:#fff; color:var(--primary);
+  border-color:rgba(0,0,0,.09); border-bottom-color:#fff;
+}
+.pivot-viewport { flex:1; overflow:hidden; position:relative; }
+.pivot-slides { display:flex; height:100%; transition:transform .36s cubic-bezier(.4,0,.2,1); }
+.pivot-slide { height:100%; overflow:auto; flex-shrink:0; padding:0; }
+
+.pivot-tbl { border-collapse:collapse; width:100%; min-width:520px; font-size:14px; }
+.pivot-tbl thead th {
+  position:sticky; top:0; z-index:5;
+  padding:9px 14px; font-size:12px; font-weight:800; color:var(--text);
+  background:#f0ede8; border-bottom:2px solid #d8d4cc;
+  white-space:nowrap; user-select:none;
+}
+.pivot-tbl thead th.th-left { text-align:left; }
+.pivot-tbl thead th.th-num  { text-align:right; }
+.pivot-tbl thead th.sortable { cursor:pointer; }
+.pivot-tbl thead th.sortable:hover { background:#eef4ff; color:var(--primary); }
+.pivot-tbl thead th.th-total { background:rgba(55,138,221,.12) !important; color:var(--primary) !important; }
+.pivot-tbl thead th.th-total.sortable:hover { background:rgba(55,138,221,.22) !important; }
+.pivot-tbl tbody td {
+  padding:9px 14px; border-bottom:1px solid #ebebea; white-space:nowrap;
+  font-size:14px; color:var(--text);
+}
+.pivot-tbl tbody td.td-num { text-align:right; font-weight:700; color:var(--green); }
+.pivot-tbl tbody td.td-total {
+  text-align:right; font-weight:900; color:var(--primary);
+  background:rgba(55,138,221,.05);
+}
+.pivot-tbl tbody td.td-left { text-align:left; }
+.pivot-tbl .sum-footer td {
+  font-weight:900; background:#e8e4dc; border-top:2px solid #bbb; font-size:14px; color:#111;
+}
+.pivot-tbl .sum-footer .td-total { font-size:16px; color:var(--primary); }
+.pivot-area-row td {
+  background:rgba(55,138,221,.08) !important;
+  border-top:2px solid rgba(55,138,221,.2) !important;
+  padding:8px 14px !important; font-weight:900; letter-spacing:.02em;
+}
+.pivot-expand-row { cursor:pointer; transition:background .12s; }
+.pivot-expand-row:hover td { background:rgba(55,138,221,.06) !important; }
+.pivot-expand-icon { display:inline-block; margin-right:7px; font-size:11px; transition:transform .2s; color:var(--primary); }
+.pivot-expand-icon.open { transform:rotate(90deg); }
+.pivot-child-row > td { padding:0 !important; background:#fbfaf8; }
+.pivot-banner-block { padding:8px 16px; background:rgba(55,138,221,.08); border-top:2px solid rgba(55,138,221,.2); font-weight:900; font-size:13px; }
+
+@media (max-width:640px){
+  .pivot-tab { padding:6px 12px; font-size:12px; }
+  .pivot-tbl { font-size:12px; min-width:400px; }
+  .pivot-tbl thead th { font-size:10px; padding:6px 8px; }
+  .pivot-tbl tbody td { padding:5px 8px; font-size:12px; }
+}
+
+/* ── 照片牆／原始問卷回答渲染（對應 shared/photo-viewer.js） ── */
+.photo-gallery-wrap { padding:14px 20px 30px; }
+.photo-gallery-summary { padding:10px 16px; font-size:13px; font-weight:700; color:var(--text); background:#f5f3ee; border-bottom:1px solid var(--border); }
+.photo-gallery-summary strong { color:var(--primary); font-size:15px; }
+.photo-gallery-loading { padding:40px 20px; text-align:center; color:var(--sub); font-size:13px; }
+.photo-gallery-empty { padding:60px 20px; text-align:center; color:var(--sub); font-size:13px; }
+.photo-store-card { border-bottom:1px solid var(--border); padding:12px 16px 14px; }
+.photo-store-card:hover { background:rgba(55,138,221,.03); }
+.photo-store-head { display:flex; align-items:baseline; flex-wrap:wrap; gap:4px 10px; margin-bottom:8px; }
+.photo-store-name { font-size:14px; font-weight:800; color:var(--text); }
+.photo-store-meta { font-size:11.5px; color:var(--sub); font-weight:500; }
+.photo-gallery-sections { display:flex; flex-direction:column; gap:8px; }
+
+.raw-quiz-list { display:flex; flex-direction:column; gap:8px; }
+.raw-quiz-section { background:#FAFAF8; border:1px solid rgba(0,0,0,.06); border-radius:8px; padding:8px 12px; }
+.raw-quiz-title { font-size:12px; font-weight:700; color:var(--green,#3B6D11); margin-bottom:6px; }
+/* .raw-quiz-picks 是 flex-direction:column，故意的——只有照片才並排，
+   有意義的文字答案永遠獨立一行顯示，這是設計決定，不要改成 wrap 並排 */
+.raw-quiz-picks { display:flex; flex-direction:column; gap:6px; }
+.raw-quiz-chip {
+  display:block; background:#fff; border:1px solid rgba(0,0,0,.07);
+  border-radius:7px; padding:6px 10px;
+}
+.raw-quiz-chip-q { font-size:10.5px; font-weight:700; color:var(--green,#3B6D11); letter-spacing:.5px; margin-bottom:3px; opacity:.8; }
+.raw-quiz-chip-a { font-size:13px; font-weight:600; color:#1a1a1a; line-height:1.5; word-break:break-word; }
+.raw-quiz-chip.is-simple { display:inline-block; padding:4px 10px; }
+.raw-quiz-chip.is-simple .raw-quiz-chip-a { font-size:12.5px; font-weight:600; }
+.raw-quiz-photos { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+.raw-quiz-chip.raw-quiz-photo { display:inline-block; padding:6px 8px; vertical-align:top; margin:0; }
+.raw-quiz-photo-img {
+  display:block; margin-top:4px; width:100px; height:100px; object-fit:cover;
+  border-radius:6px; border:1px solid rgba(0,0,0,.08); cursor:zoom-in; background:#f0f0ee;
+}
+.raw-quiz-photo-fail { display:block; margin-top:4px; font-size:11px; color:#B23A3A; max-width:100px; }
+.raw-quiz-photo-note { display:block; margin-top:4px; font-size:11px; font-weight:600; color:#B2650A; max-width:100px; line-height:1.4; word-break:break-word; }
+
+.photo-lightbox-backdrop {
+  display:none; position:fixed; inset:0; background:rgba(0,0,0,.75);
+  z-index:9999; align-items:center; justify-content:center; padding:24px; cursor:zoom-out;
+}
+.photo-lightbox-backdrop.show { display:flex; }
+.photo-lightbox-img { max-width:min(1600px,96vw); max-height:min(900px,94vh); width:auto; height:auto; cursor:zoom-out; }
+.photo-lightbox-close {
+  position:absolute; top:18px; right:24px; width:36px; height:36px; border-radius:50%;
+  background:rgba(255,255,255,.15); color:#fff; border:none; font-size:20px; cursor:pointer; line-height:36px;
+}
+.photo-lightbox-close:hover { background:rgba(255,255,255,.3); }
