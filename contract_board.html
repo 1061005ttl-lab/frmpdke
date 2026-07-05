@@ -302,6 +302,8 @@ var RENDER_LIMIT = 60;
 var _renderedCount = 60;
 
 var FILTER = { area:'', office:'', completion:'all', item:'all', keyword:'' };
+var AREA_ORDER = ['北部','桃園','臺中','嘉義','臺南','高雄','花蓮'];
+var drillArea = null; /* null = 總覽(7處卡片)；非null = 已鑽入該處，顯示店家卡片 */
 
 function showLoading(){ document.getElementById('loading').classList.add('show'); }
 function hideLoading(){ document.getElementById('loading').classList.remove('show'); }
@@ -512,6 +514,7 @@ function buildFilterUI(){
 }
 function onAreaChange(skipFilter){
   var area = document.getElementById('fb-area').value;
+  drillArea = area || null;
   FILTER.area = area;
   var offices = area ? (ORG_SKELETON[area]||[]).slice() : [];
   STORE_ROWS.forEach(function(r){
@@ -521,6 +524,21 @@ function onAreaChange(skipFilter){
   offSel.innerHTML = '<option value="">全部</option>' + offices.map(function(o){ return '<option value="'+esc(o)+'">'+esc(o)+'</option>'; }).join('');
   FILTER.office = '';
   if(!skipFilter) onFilterChange();
+}
+function drillIntoArea(area){
+  drillArea = area;
+  FILTER.area = area;
+  document.getElementById('fb-area').value = area;
+  onAreaChange(true);
+  onFilterChange();
+}
+function drillBackToOverview(){
+  drillArea = null;
+  FILTER.area = '';
+  FILTER.office = '';
+  document.getElementById('fb-area').value = '';
+  onAreaChange(true);
+  onFilterChange();
 }
 function setChip(el, key){
   var parent = el.parentElement;
@@ -602,13 +620,44 @@ function renderSummary(all){
 }
 function renderStage(all){
   var stage = document.getElementById('stage');
-  if(!all.length){ stage.innerHTML = '<div class="empty">目前篩選條件下沒有符合的店家</div>'; return; }
+  if(!drillArea){ renderAreaOverview(); return; }
+  if(!all.length){ stage.innerHTML = buildBreadcrumb() + '<div class="empty">目前篩選條件下沒有符合的店家</div>'; return; }
   var shown = all.slice(0, _renderedCount);
-  var html = '<div class="result-count">共 '+all.length+' 家，顯示 '+shown.length+' 家</div>';
+  var html = buildBreadcrumb();
+  html += '<div class="result-count">共 '+all.length+' 家，顯示 '+shown.length+' 家</div>';
   html += '<div class="store-grid">' + shown.map(buildStoreCard).join('') + '</div>';
   if(all.length > shown.length){
     html += '<div class="loadmore-wrap"><button class="loadmore-btn" onclick="loadMore()">顯示更多（還有 '+(all.length-shown.length)+' 家）</button></div>';
   }
+  stage.innerHTML = html;
+}
+function buildBreadcrumb(){
+  return '<div style="margin-bottom:14px;"><button class="back-btn" onclick="drillBackToOverview()">← 返回7處總覽</button> '
+    + '<span style="font-size:13px;font-weight:700;margin-left:8px;">'+esc(drillArea)+'</span></div>';
+}
+function renderAreaOverview(){
+  var stage = document.getElementById('stage');
+  var areas = AREA_ORDER.filter(function(a){ return ORG_SKELETON[a] || STORE_ROWS.some(function(r){ return r.area===a; }); });
+  STORE_ROWS.forEach(function(r){ if(r.area && areas.indexOf(r.area)===-1) areas.push(r.area); });
+  if(!areas.length){ stage.innerHTML = '<div class="empty">沒有可顯示的營業處資料</div>'; return; }
+  var html = '<div class="level-label" style="font-size:11px;color:var(--sub);opacity:.65;margin-bottom:10px;">依營業處總覽 · 點卡片看該處店家</div>';
+  html += '<div class="store-grid">';
+  areas.forEach(function(area){
+    var rows = STORE_ROWS.filter(function(r){ return r.area===area; }).map(function(r){ return Object.assign({}, r, {_status:_storeStatus(r)}); });
+    var total = rows.length;
+    var complete = rows.filter(function(r){ return r._status.isComplete; }).length;
+    var incomplete = total - complete;
+    var rate = total ? Math.round(complete/total*1000)/10 : 0;
+    html += '<div class="store-card" style="cursor:pointer;" onclick="drillIntoArea(\''+esc(area).replace(/'/g,"\\'")+'\')">'
+      + '<div class="sc-top"><div class="sc-name" style="font-size:17px;">'+esc(area)+'</div>'
+      + '<div class="sc-badge '+(incomplete>0?'incomplete':'complete')+'">'+rate+'%</div></div>'
+      + '<div class="sc-items">'
+      +   '<span class="sc-item ok">✅ 已收齊 '+complete+'</span>'
+      +   '<span class="sc-item no">❌ 未收齊 '+incomplete+'</span>'
+      +   '<span class="sc-item" style="color:var(--sub);background:var(--bg);">共 '+total+' 家</span>'
+      + '</div></div>';
+  });
+  html += '</div>';
   stage.innerHTML = html;
 }
 function loadMore(){ _renderedCount += RENDER_LIMIT; renderStage(getFilteredStores()); }
