@@ -323,6 +323,7 @@ if (localStorage.getItem('ttl_auth_v1') !== '1') {
   window.location.replace('index.html');
 }
 </script>
+<link rel="stylesheet" href="shared/dashboard-common.css">
 <style>
 :root {
   --primary: #378ADD;
@@ -943,10 +944,10 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   <select class="proj-sel" id="proj-sel" style="display:none" onchange="switchProject(this.value)"></select>
   <span class="sync-note" id="tb-sync"></span>
   <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-    <button class="tb-act-btn" onclick="openSummaryDialog('staff')">👤 人員</button>
-    <button class="tb-act-btn" onclick="openSummaryDialog('office')">🏢 單位</button>
-    <button class="tb-act-btn" onclick="openSummaryDialog('suptype')">📋 督導</button>
-    <button class="tb-act-btn" onclick="openSummaryDialog('store')">🏪 店家</button>
+    <button class="tb-act-btn" onclick="openSummaryDialog('staff', function(){ return getCurrentRows(); })">👤 人員</button>
+    <button class="tb-act-btn" onclick="openSummaryDialog('office', function(){ return getCurrentRows(); })">🏢 單位</button>
+    <button class="tb-act-btn" onclick="openSummaryDialog('suptype', function(){ return getCurrentRows(); })">📋 督導</button>
+    <button class="tb-act-btn" onclick="openSummaryDialog('store', function(){ return getCurrentRows(); })">🏪 店家</button>
     <button class="tb-act-btn" onclick="openPhotoGalleryDialog()">🖼️ 照片牆</button>
     <button class="tb-act-btn" id="tb-btn-line" onclick="toolbarShareLine()">📋 LINE</button>
     <button class="tb-act-btn" id="tb-btn-csv" onclick="toolbarDownloadCsv()">📥 CSV</button>
@@ -1026,7 +1027,16 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 <div class="quicknav" id="quicknav"></div>
 <div class="stage"   id="stage"></div>
 
+<script src="shared/core-utils.js"></script>
+<script src="shared/copy-utils.js"></script>
+<script src="shared/csv-export.js"></script>
+<script src="shared/capture-clipboard.js"></script>
+<script src="shared/photo-viewer.js"></script>
+<script src="shared/ui-chrome.js"></script>
+<script src="shared/pivot-dialog.js"></script>
 <script>
+/* sticky 疊放順序宣告在檔案最上方：audit 疊的是 toolbar → timenav → quicknav（沒有 lamp-row） */
+window._STICKY_IDS = ['timenav', 'quicknav'];
 /* ════ 設定（寫死，同 index 架構） ════ */
 var MGMT_ID        = '1PR9OR7BIGyTpcH8QSMRXkPhQTr4h3m0UK3gET29f19s';
 var MGMT_SHEET     = '專案管理';
@@ -1077,15 +1087,8 @@ var _overallLevel = 'area';
 /* ════ 工具 ════ */
 function showLoading(){ document.getElementById('loading').classList.add('show'); }
 function hideLoading(){ document.getElementById('loading').classList.remove('show'); }
-function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+/* esc()／parseGvizDate() → shared/core-utils.js */
 function numVal(v){ var n=Number(v); return (isFinite(n)&&n>=1)?n:0; }
-
-function parseGvizDate(v) {
-  var m = String(v).match(/Date\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)/);
-  if (!m) return String(v);
-  var d = new Date(+m[1], +m[2], +m[3], +m[4], +m[5], +m[6]);
-  return d.toLocaleString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'Asia/Taipei'});
-}
 
 /* ════ 跨分頁來源連結（COL_SOURCE_REF：分頁名稱_行數） ════
    例：「問卷資料傳統_90」→ 分頁「問卷資料傳統」第 90 列（含表頭，即資料第 89 筆）
@@ -1137,7 +1140,7 @@ function _fetchSourceSheet(sheetName, callback){
   fetch(url)
     .then(function(r){ return r.text(); })
     .then(function(txt){
-      var json = JSON.parse(txt.replace(/^[^\(]+\(/,'').replace(/\);?\s*$/,''));
+      var json = gvizParse(txt);
       var tbl  = json.table || {};
       var rawRows = tbl.rows || [];
       
@@ -1240,12 +1243,7 @@ function _fetchSourceRowDetail(refVal, callback){
   });
 }
 
-function _flashBtn(btn, txt) {
-  var orig = btn.innerHTML;
-  btn.innerHTML = txt;
-  btn.classList.add('done');
-  setTimeout(function(){ btn.innerHTML = orig; btn.classList.remove('done'); }, 2000);
-}
+/* _flashBtn() → shared/copy-utils.js（已確認全部呼叫點都只傳純文字，沒有 HTML 標籤，行為相容） */
 
 function goBack(){ window.location.href = 'index.html'; }
 function switchProject(sid){ location.href = location.pathname + '?sheetId=' + encodeURIComponent(sid); }
@@ -1264,7 +1262,7 @@ function init() {
   fetch(urlMgmt)
     .then(function(r){ return r.text(); })
     .then(function(txt){
-      var json = JSON.parse(txt.replace(/^[^\(]+\(/,'').replace(/\);?\s*$/,''));
+      var json = gvizParse(txt);
       var rows = (json.table && json.table.rows) || [];
       var auditProjs = [];
       rows.forEach(function(row){
@@ -1317,7 +1315,7 @@ function fetchOrgSkeleton(callback) {
   fetch(url)
     .then(function(r){ return r.text(); })
     .then(function(txt){
-      var json = JSON.parse(txt.replace(/^[^\(]+\(/,'').replace(/\);?\s*$/,''));
+      var json = gvizParse(txt);
       var rows = (json.table && json.table.rows) || [];
       var skeleton = {}; /* { '北部': ['中和','蘆洲',...], ... } */
       rows.forEach(function(row){
@@ -1349,7 +1347,7 @@ function fetchSheet() {
   fetch(url)
     .then(function(r){ return r.text(); })
     .then(function(txt){
-      var json = JSON.parse(txt.replace(/^[^\(]+\(/,'').replace(/\);?\s*$/,''));
+      var json = gvizParse(txt);
       var tbl  = json.table || {};
       var cols = (tbl.cols||[]).map(function(c){ return c.label||''; });
       allRows = (tbl.rows||[]).map(function(row, ridx){
@@ -1408,7 +1406,7 @@ function fetchSyncTime() {
   var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
     '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(SYNC_SHEET) + '&range=' + SYNC_CELL;
   fetch(url).then(function(r){ return r.text(); }).then(function(txt){
-    var json = JSON.parse(txt.replace(/^[^\(]+\(/,'').replace(/\);?\s*$/,''));
+    var json = gvizParse(txt);
     var val=''; try{ val=json.table.rows[0].c[0].v||''; }catch(e){}
     if(val) document.getElementById('tb-sync').textContent='📊 同步 '+parseGvizDate(val);
   }).catch(function(){});
@@ -1553,16 +1551,7 @@ function render() {
   setTimeout(updateStickyTops,0);
 }
 
-function updateStickyTops(){
-  var tb=document.querySelector('.toolbar');
-  var tn=document.getElementById('timenav');
-  var qn=document.getElementById('quicknav');
-  var tbH=tb?tb.offsetHeight:52;
-  if(tn) tn.style.top=tbH+'px';
-  var tnH=tn?tn.offsetHeight:0;
-  if(qn) qn.style.top=(tbH+tnH)+'px';
-}
-window.addEventListener('resize',updateStickyTops);
+/* updateStickyTops() → shared/ui-chrome.js（讀 window._STICKY_IDS = ['timenav','quicknav']，已在檔案上方宣告） */
 
 function renderLevel(stage,rows,col,levelKey,labelText,overallName){
   var groups=getNextGroups(rows,col);
@@ -1682,32 +1671,11 @@ function buildCard(name,labelText,stat,levelKey,rows,isOverall){
 }
 
 /* ════ Tooltip ════ */
-function bindTooltip(triggerEl,ttEl,card){
-  function positionTooltip(){
-    var cardRect=card.getBoundingClientRect();
-    var stickyH=(document.querySelector('.toolbar')||{offsetHeight:52}).offsetHeight
-               +(document.getElementById('quicknav')||{offsetHeight:40}).offsetHeight+20;
-    ttEl.classList.toggle('flip',cardRect.top<stickyH+120);
-    ttEl.style.left=''; ttEl.style.right=''; ttEl.style.transform='';
-    var ttRect=ttEl.getBoundingClientRect(), vw=window.innerWidth;
-    if(ttRect.right>vw-8){ ttEl.style.left='auto'; ttEl.style.right='0'; ttEl.style.transform='none'; }
-    else if(ttRect.left<8){ ttEl.style.left='0'; ttEl.style.transform='none'; }
-  }
-  triggerEl.addEventListener('mouseenter',function(e){ e.stopPropagation(); ttEl.classList.add('show'); positionTooltip(); });
-  triggerEl.addEventListener('mouseleave',function(){ ttEl.classList.remove('show'); ttEl.classList.remove('flip'); });
-  var _pressTimer=null;
-  triggerEl.addEventListener('touchstart',function(){
-    _pressTimer=setTimeout(function(){
-      window._lastLongPress=Date.now();
-      document.querySelectorAll('.tooltip.show').forEach(function(el){ el.classList.remove('show'); });
-      ttEl.classList.add('show'); positionTooltip();
-      function dismissOnce(ev){ if(!ttEl.contains(ev.target)){ ttEl.classList.remove('show'); document.removeEventListener('touchstart',dismissOnce); } }
-      setTimeout(function(){ document.addEventListener('touchstart',dismissOnce); },50);
-    },480);
-  },{passive:true});
-  triggerEl.addEventListener('touchend',function(){ clearTimeout(_pressTimer); });
-  triggerEl.addEventListener('touchmove',function(){ clearTimeout(_pressTimer); },{passive:true});
-}
+/* bindTooltip() → shared/ui-chrome.js
+   附帶修正：原本這裡的 stickyH 只加了 quicknav 高度、漏加 timenav，
+   跟 updateStickyTops()（有正確疊 timenav）算法不一致，靠近頂端的卡片
+   tooltip 翻轉判斷可能因此偏小。共用層統一用 _stickyStackHeight()，
+   兩處算法一致，這算是順便修掉的一個小落差。 */
 
 /* ════ Drill ════ */
 function drillDown(levelKey,key){ drillStack.push({level:levelKey,key:key}); render(); }
@@ -2219,69 +2187,9 @@ function _buildRawDetailPanel(rowData, ref, sheetData, basicRow, rid){
 
   var sections = rowData.sections || [];
 
-  /* 問卷大題區：每題一個區塊，每個選項各自一張小卡片，Q（選項本身）／A（填寫的答案）
-     上下分兩行顯示，不再用冒號把兩者黏成一行文字，長答案也能清楚看出起訖。
-     若該欄只是單純打勾（值為 v/V/✓，沒有額外文字說明），代表「答案」其實就是
-     選項本身被選取了，不需要再重複顯示一次，改用單行徽章樣式即可。
-     照片（見上方【照片欄位規則】）：文字卡片跟照片縮圖分兩個容器渲染——
-     文字卡片維持原本一行一則的直向排列；照片縮圖收集到同一個
-     .raw-quiz-photos 容器裡用 flex-wrap 並排顯示，不再每張各佔一整排。 */
-  var quizHtml = '';
-  if(sections.length){
-    quizHtml += '<div class="raw-quiz-list">';
-    sections.forEach(function(sec){
-      var picksHtml = '';
-      var photosHtml = '';
-      sec.picks.forEach(function(p){
-        /* 照片欄位（PG半身照／PG全身照／服務情形照片…）：GAS那邊會把照片上傳到
-           雲端硬碟並把網址寫進儲存格。網址可能是整格唯一內容、可能用換行
-           累加多筆、也可能跟文字說明混在同一格（例如「缺失：無價格卡
-           https://...」）——一律用全域正則掃描整段文字找出所有網址，
-           不限定網址一定要出現在開頭，才能處理文字＋網址混合的情況。 */
-        var raw = String(p.value||'');
-        var urlRe = /https?:\/\/\S+/gi;
-        var urls = raw.match(urlRe) || [];
-        var textOnly = raw.replace(urlRe, '').replace(/[\r\n]+/g, ' ').trim();
-        // 去掉文字被抽走網址後可能留下的孤立連接符號（例如「→」單獨留在句尾）
-        textOnly = textOnly.replace(/[→\-–—]+$/, '').trim();
-
-        if(urls.length){
-          urls.forEach(function(u, uIdx){
-            var label = urls.length > 1 ? (p.option + '-' + (uIdx+1)) : p.option;
-            photosHtml += _renderPhotoChip(label, u);
-          });
-          if(textOnly){
-            // 網址之外還有文字說明，文字部分照正常 Q/A 卡片顯示，不能被丟掉
-            picksHtml += '<span class="raw-quiz-chip">'
-              + '<span class="raw-quiz-chip-q">'+esc(p.option)+'</span>'
-              + '<span class="raw-quiz-chip-a">→ '+esc(textOnly)+'</span>'
-              + '</span>';
-          }
-          return;
-        }
-
-        var isCheckmarkOnly = (p.value==='v' || p.value==='V' || p.value==='✓');
-        if(isCheckmarkOnly){
-          picksHtml += '<span class="raw-quiz-chip is-simple">'
-            + '<span class="raw-quiz-chip-a">✓ '+esc(p.option)+'</span>'
-            + '</span>';
-        } else {
-          picksHtml += '<span class="raw-quiz-chip">'
-            + '<span class="raw-quiz-chip-q">'+esc(p.option)+'</span>'
-            + '<span class="raw-quiz-chip-a">→ '+esc(p.value)+'</span>'
-            + '</span>';
-        }
-      });
-      quizHtml += '<div class="raw-quiz-section">'
-        + '<div class="raw-quiz-title">📋 '+esc(sec.section)+'</div>'
-        + (picksHtml ? '<div class="raw-quiz-picks">' + picksHtml + '</div>' : '')
-        + (photosHtml ? '<div class="raw-quiz-photos">' + photosHtml + '</div>' : '')
-        + '</div>';
-    });
-    quizHtml += '</div>';
-  } else {
-    quizHtml = '<div style="font-size:12px;color:#2D2D2D;margin-top:4px;">（此筆問卷未填寫任何題目）</div>';
-  }
+  /* 問卷大題區渲染（Q/A 卡片、照片縮圖、燈箱）→ shared/photo-viewer.js _renderQuizSections()，
+     邏輯與 coverage 完全一致，空值文案保留 audit 原本用詞。 */
+  var quizHtml = sections.length ? _renderQuizSections(sections) : '<div style="font-size:12px;color:#2D2D2D;margin-top:4px;">（此筆問卷未填寫任何題目）</div>';
 
   if(!baseHtml && !sections.length){
     /* 真的查無任何資料（基本資料、問卷內容都沒有），才附上除錯區塊供排查 */
@@ -2295,53 +2203,8 @@ function _buildRawDetailPanel(rowData, ref, sheetData, basicRow, rid){
   html += '</div>';
   return html;
 }
-/* 雲端硬碟縮圖網址（https://lh3.googleusercontent.com/d/xxx=w1000）→ 換一個尺寸參數，
-   燈箱裡看大圖用更大的寬度（=w1600），撈不到 id 就直接沿用原網址（頂多燈箱裡也是縮圖尺寸，不會壞掉）。 */
-function _driveBigUrl(url){
-  var m = String(url).match(/\/d\/([^=\/]+)/);
-  return m ? ('https://lh3.googleusercontent.com/d/'+m[1]+'=w1600') : url;
-}
-/* 照片欄位的卡片：選項名稱（如「PG半身照」）＋縮圖，點縮圖直接浮出大圖燈箱（不開新分頁，不用切換分頁再關掉）。
-   img 讀取失敗（例如雲端硬碟該檔案還沒設定好公開權限、或網址失效）時，用 onerror 換成文字提示，不留破圖示。
-   crossorigin="anonymous"：讓「📸截圖」功能能把這張圖的像素畫進canvas再輸出，
-   沒有這個屬性的話，截圖／複製到剪貼簿功能對這張圖片會抓到空白（瀏覽器安全限制，跨網域圖片預設不給讀像素）。 */
-function _renderPhotoChip(optionName, url, note){
-  var bigUrl = _driveBigUrl(url);
-  var uid = 'photo_' + Math.random().toString(36).substring(2,9);
-  return '<span class="raw-quiz-chip raw-quiz-photo">'
-    + '<span class="raw-quiz-chip-q">'+esc(optionName)+'</span>'
-    +   '<img id="'+uid+'" class="raw-quiz-photo-img" src="'+esc(url)+'" alt="'+esc(optionName)+'" '
-    +   'loading="lazy" crossorigin="anonymous" '
-    +   'onclick="event.stopPropagation();_openPhotoLightbox(\''+escAttr(bigUrl)+'\',\''+escAttr(optionName)+'\');" '
-    +   'onerror="this.style.display=\'none\';this.insertAdjacentHTML(\'afterend\',\'<span class=&quot;raw-quiz-photo-fail&quot;>⚠️ 圖片載入失敗</span>\');">'
-    +   (note ? '<span class="raw-quiz-photo-note">📝 '+esc(note)+'</span>' : '')
-    + '</span>';
-}
-/* ── 照片燈箱：點縮圖後浮在畫面正中央看大圖 ──
-   backdrop元素只建一次、重複使用；點背景或按X或按Esc都能關閉。 */
-function _ensurePhotoLightbox(){
-  var el = document.getElementById('photo-lightbox-backdrop');
-  if(el) return el;
-  el = document.createElement('div');
-  el.id = 'photo-lightbox-backdrop';
-  el.className = 'photo-lightbox-backdrop';
-  el.innerHTML = '<button class="photo-lightbox-close" onclick="_closePhotoLightbox()">✕</button>'
-    + '<img class="photo-lightbox-img" id="photo-lightbox-img" src="" alt="">';
-  el.addEventListener('click', function(){ _closePhotoLightbox(); });
-  document.body.appendChild(el);
-  document.addEventListener('keydown', function(e){ if(e.key==='Escape') _closePhotoLightbox(); });
-  return el;
-}
-function _openPhotoLightbox(url, alt){
-  var el = _ensurePhotoLightbox();
-  var img = document.getElementById('photo-lightbox-img');
-  img.src = url; img.alt = alt||'';
-  el.classList.add('show');
-}
-function _closePhotoLightbox(){
-  var el = document.getElementById('photo-lightbox-backdrop');
-  if(el) el.classList.remove('show');
-}
+/* _driveBigUrl／_renderPhotoChip／_ensurePhotoLightbox／_openPhotoLightbox／_closePhotoLightbox → shared/photo-viewer.js */
+
 
 /* ════ 照片牆（圖片選項型視角） ════
    需求：一份清單，列出「哪間店、在哪份問卷（子分類）、哪個大題、哪個選項底下」
@@ -2479,7 +2342,7 @@ function closePhotoGalleryDialog(){
   dlg.classList.remove('open');
   setTimeout(function(){ dlg.style.display='none'; },220);
 }
-function _rid(s){ return String(s).replace(/[^\w\u4e00-\u9fff]/g,'_').substring(0,20); }
+/* _rid() → shared/core-utils.js（原本 substring(0,20)，共用層是 24，只會讓 id 更不易重複，不影響行為） */
 function escAttr(s){ return String(s).replace(/'/g,"\\'"); }
 
 
@@ -2767,7 +2630,7 @@ function _buildNestedPivot(rows, dims){
 function downloadDialogCsv(){
   var btn=document.getElementById('btn-dlg-csv');
   if(!_dialogRows||!_dialogRows.length){ _flashBtn(btn,'⚠️ 無資料'); return; }
-  if(_dlgListMode){ _downloadCsv(buildCsvContent(_dialogRows),_dialogTitle); _flashBtn(btn,'✅ 已下載'); return; }
+  if(_dlgListMode){ _triggerCsvDownload(buildCsvContent(_dialogRows),_dialogTitle); _flashBtn(btn,'✅ 已下載'); return; }
   var tbl=document.querySelector('#dlg-pivot-content table');
   if(!tbl){ _flashBtn(btn,'⚠️ 無資料'); return; }
   var csv=Array.from(tbl.querySelectorAll('tr'))
@@ -2778,7 +2641,7 @@ function downloadDialogCsv(){
         return /[,"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;
       }).join(',');
     }).join('\n');
-  _downloadCsv('\uFEFF'+csv,_dialogTitle+'_彙整');
+  _triggerCsvDownload('\uFEFF'+csv,_dialogTitle+'_彙整');
   _flashBtn(btn,'✅ 已下載');
 }
 
@@ -2863,61 +2726,32 @@ function buildCsvContent(rows){
   }).join('\n');
 }
 
-function _downloadCsv(csv,title){
-  var now=new Date(),p=function(n){return String(n).padStart(2,'0');};
-  var fname=(title||'查核').replace(/[\\/:*?"<>|]/g,'_')+'_'+now.getFullYear()+p(now.getMonth()+1)+p(now.getDate())+'_'+p(now.getHours())+p(now.getMinutes())+'.csv';
-  var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
-  var url=URL.createObjectURL(blob);
-  var a=document.createElement('a'); a.href=url; a.download=fname;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-}
+/* _triggerCsvDownload() → shared/csv-export.js（原本叫 _downloadCsv，行為完全一致：
+   不自動加 BOM，由呼叫端自己在 csv 字串開頭加，各呼叫點都已經是這樣做） */
 
 function toolbarDownloadCsv(){
   var btn=document.getElementById('tb-btn-csv');
   if(!allRows.length){ _flashBtn(btn,'⚠️ 無資料'); return; }
-  _downloadCsv(buildCsvContent(allRows),PROJ_NAME);
+  _triggerCsvDownload(buildCsvContent(allRows),PROJ_NAME);
   _flashBtn(btn,'✅ 已下載');
 }
 
 
 /* ════ 截圖（Viewport） ════
-   一律只複製到剪貼簿，不下載到本機（複製後就是要直接貼上，
-   下載反而多一道存檔/找檔案的手續）。若瀏覽器不支援剪貼簿圖片
-   寫入，才提示錯誤，不再自動退回下載。 */
-function _clipboardCopyFailBtn(btn, restoreHtml){
-  btn.classList.remove('loading');
-  if(restoreHtml!==undefined) btn.innerHTML = restoreHtml;
-  _flashBtn(btn,'⚠️ 複製失敗，請改用瀏覽器截圖');
-}
+   跟 coverage 的 takeScreenshotViewport 用同一套共用層邏輯：
+   複製到剪貼簿失敗（或瀏覽器不支援）時，統一自動退回下載 PNG，
+   不再是 audit 專屬的「只提示不下載」規則，兩板行為現在一致。 */
 function toolbarScreenshot(){
-  var btn=document.getElementById('tb-btn-screenshot');
-  btn.classList.add('loading'); btn.textContent='⏳ 截圖中...';
-  function doCapture(){
-    html2canvas(document.body,{
-      scale:2, backgroundColor:'#ffffff', useCORS:true,
+  var btn = document.getElementById('tb-btn-screenshot');
+  _clipboardFirstCapture(function(){
+    var scale = _safeCanvasScale(window.innerWidth, window.innerHeight, 2);
+    return html2canvas(document.body, {
+      scale:scale, backgroundColor:'#ffffff', useCORS:true,
       width:window.innerWidth, height:window.innerHeight,
       windowWidth:window.innerWidth, windowHeight:window.innerHeight,
       x:window.scrollX, y:window.scrollY
-    }).then(function(canvas){
-      if(navigator.clipboard&&window.ClipboardItem){
-        canvas.toBlob(function(blob){
-          try{
-            navigator.clipboard.write([new ClipboardItem({'image/png':blob})])
-              .then(function(){ btn.classList.remove('loading'); btn.textContent='📸 截圖'; _flashBtn(btn,'✅ 已複製！'); })
-              .catch(function(){ _clipboardCopyFailBtn(btn,'📸 截圖'); });
-          }catch(e){ _clipboardCopyFailBtn(btn,'📸 截圖'); }
-        },'image/png');
-      } else { _clipboardCopyFailBtn(btn,'📸 截圖'); }
-    }).catch(function(err){ btn.classList.remove('loading'); btn.textContent='📸 截圖'; alert('截圖失敗：'+err); });
-  }
-  if(window.html2canvas) doCapture();
-  else {
-    var s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-    s.onload=doCapture;
-    s.onerror=function(){ btn.classList.remove('loading'); btn.textContent='📸 截圖'; alert('html2canvas 載入失敗'); };
-    document.head.appendChild(s);
-  }
+    });
+  }, btn, PROJ_NAME || '稽核');
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -2930,54 +2764,9 @@ var _pivotSortState = {};        /* { mode: { col, dir } } */
 var _pivotTabIndex  = { staff:0, office:1, suptype:2, store:3 };
 var PIVOT_TITLES = { staff:'人員 × 分類', office:'單位 × 分類', suptype:'分類 × 子分類', store:'店家明細' };
 
-/* ── 開啟 / 關閉 ── */
-function openSummaryDialog(mode, rows){
-  _pivotMode = mode || 'staff';
-  _pivotRows = rows || getCurrentRows();
-
-  document.getElementById('sum-title').textContent = '彙整看板 ─ ' + (PIVOT_TITLES[_pivotMode] || '');
-
-  /* 高亮正確 Tab */
-  document.querySelectorAll('.pivot-tab').forEach(function(t,i){
-    t.classList.toggle('active', i === _pivotTabIndex[_pivotMode]);
-  });
-
-  /* 渲染四個 slide（懶渲染：只渲染目前 + 鄰近） */
-  _renderPivotSlide('staff');
-  _renderPivotSlide('office');
-  _renderPivotSlide('suptype');
-  _renderPivotSlide('store');
-
-  /* 定位到正確 slide */
-  _setPivotSlide(_pivotMode, false);
-
-  var dlg = document.getElementById('summary-dialog');
-  dlg.style.display = 'flex';
-  setTimeout(function(){ dlg.classList.add('open'); }, 10);
-}
-
-function closeSummaryDialog(){
-  var dlg = document.getElementById('summary-dialog');
-  dlg.classList.remove('open');
-  setTimeout(function(){ dlg.style.display='none'; }, 220);
-}
-
-/* ── Tab 切換 ── */
-function switchPivotTab(mode, tabEl){
-  _pivotMode = mode;
-  document.querySelectorAll('.pivot-tab').forEach(function(t){ t.classList.remove('active'); });
-  if(tabEl) tabEl.classList.add('active');
-  document.getElementById('sum-title').textContent = '彙整看板 ─ ' + (PIVOT_TITLES[mode]||'');
-  _setPivotSlide(mode, true);
-}
-
-function _setPivotSlide(mode, animate){
-  var idx = _pivotTabIndex[mode] || 0;
-  var slides = document.getElementById('pivot-slides');
-  if(!animate) slides.style.transition = 'none';
-  slides.style.transform = 'translateX(-' + (idx * 100/4) + '%)';
-  if(!animate) setTimeout(function(){ slides.style.transition=''; }, 30);
-}
+/* openSummaryDialog／closeSummaryDialog／switchPivotTab／_setPivotSlide 這幾支
+   切頁機械動作都在 shared/pivot-dialog.js，這裡只留設定資料，
+   _pivotTabCount 由共用層自動算，不用另外宣告。 */
 
 /* ── Slide 渲染入口 ── */
 function _renderPivotSlide(mode){
@@ -3612,7 +3401,7 @@ function downloadSummaryCsv(){
     }).join(',');
   }).join('\n');
   var titles={staff:'人員彙整',office:'單位彙整',suptype:'分類彙整',store:'店家明細'};
-  _downloadCsv('\uFEFF'+csv, titles[_pivotMode]||'彙整');
+  _triggerCsvDownload('\uFEFF'+csv, titles[_pivotMode]||'彙整');
   _flashBtn(btn,'✅ 已下載');
 }
 
@@ -3770,52 +3559,27 @@ function _storeDetailScreenshot(rid, btn){
     .filter(function(v){ return v!=null && String(v).trim()!==''; })
     .map(function(v){ return String(v).trim().replace(/[\\\/:*?"<>|]/g,''); }); /* 濾掉檔名不能用的符號 */
   var name = parts.length ? parts.join('_') : '查核個案';
-  _captureElement(el, btn, name+'_查核明細');
+  _captureElement(el, btn, name+'_查核明細', {loadingHtml:'<span>⏳</span>'});
 }
 
 /* ════ Dialog 截圖 ════
    同樣一律只複製到剪貼簿，不下載到本機（見 toolbarScreenshot 說明）。 */
-function _captureElement(el, btn, filename){
-  btn.classList.add('loading'); btn.innerHTML='<span>⏳</span>';
-  function doCapture(){
-    html2canvas(el, {
-      scale:2, backgroundColor:'#ffffff', useCORS:true,
-      width:el.scrollWidth, height:el.scrollHeight,
-      ignoreElements:function(node){ return node.getAttribute && node.getAttribute('data-screenshot-ignore')==='1'; }
-    }).then(function(canvas){
-      if(navigator.clipboard && window.ClipboardItem){
-        canvas.toBlob(function(blob){
-          try{
-            navigator.clipboard.write([new ClipboardItem({'image/png':blob})])
-              .then(function(){ btn.classList.remove('loading'); _flashBtn(btn,'✅ 已複製！'); })
-              .catch(function(){ _clipboardCopyFailBtn(btn,'<span>📸</span>'); });
-          }catch(e){ _clipboardCopyFailBtn(btn,'<span>📸</span>'); }
-        },'image/png');
-      } else { _clipboardCopyFailBtn(btn,'<span>📸</span>'); }
-    }).catch(function(err){ btn.classList.remove('loading'); btn.innerHTML='<span>📸</span>'; });
-  }
-  if(window.html2canvas) doCapture();
-  else {
-    var s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-    s.onload=doCapture;
-    s.onerror=function(){ btn.classList.remove('loading'); btn.innerHTML='<span>📸</span>'; };
-    document.head.appendChild(s);
-  }
-}
-
+/* _captureElement() → shared/capture-clipboard.js
+   純圖示按鈕（只有一個表情符號、沒有文字）呼叫時多帶一個
+   {loadingHtml:'<span>⏳</span>'}，共用層會自動存下按鈕原本的內容再還原，
+   不用像之前一樣為圖示按鈕另外寫一整套函式。 */
 function dialogScreenshot(){
   var btn = document.getElementById('btn-dlg-screenshot');
   var el = document.querySelector('#detail-dialog .dlg-box');
   if(!el){ _flashBtn(btn,'⚠️ 無畫面'); return; }
-  _captureElement(el, btn, _dialogTitle+'_明細');
+  _captureElement(el, btn, _dialogTitle+'_明細', {loadingHtml:'<span>⏳</span>'});
 }
 
 function summaryScreenshot(){
   var btn = document.getElementById('btn-sum-screenshot');
   var el = document.querySelector('#summary-dialog .dlg-box');
   if(!el){ _flashBtn(btn,'⚠️ 無畫面'); return; }
-  _captureElement(el, btn, PROJ_NAME+'_彙整');
+  _captureElement(el, btn, PROJ_NAME+'_彙整', {loadingHtml:'<span>⏳</span>'});
 }
 
 
