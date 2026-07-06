@@ -148,19 +148,46 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .empty { padding:60px 20px; text-align:center; color:var(--sub); font-size:14px; }
 
 /* ── store card grid ── */
-.store-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:12px; }
-.store-card { background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:14px 16px; transition:transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease); }
-.store-card:hover { transform:translateY(-2px); box-shadow:0 6px 18px rgba(0,0,0,.08); }
-.store-card.complete { border-color:var(--green-bd); }
-.store-card.incomplete { border-color:var(--red-bd); }
-.sc-top { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:6px; }
-.sc-code { font-size:11px; color:var(--sub); font-weight:600; opacity:.7; }
-.sc-name { font-size:15px; font-weight:800; color:var(--text); line-height:1.25; margin-top:1px; }
-.sc-badge { flex-shrink:0; font-size:13px; font-weight:800; padding:3px 9px; border-radius:8px; white-space:nowrap; }
-.sc-badge.complete { color:var(--green); background:var(--green-bg); }
-.sc-badge.incomplete { color:var(--red); background:var(--red-bg); }
-.sc-meta { font-size:11.5px; color:var(--sub); opacity:.75; margin-bottom:10px; }
-.sc-items { display:flex; flex-wrap:wrap; gap:5px; }
+/* ── 分層總覽卡片（audit_board 同款視覺語言：整體概況卡＋大數字統計格）── */
+.stage { padding:4px 0 40px; }
+.level-label { font-size:11px; color:var(--sub); opacity:.65; letter-spacing:.05em; margin-bottom:10px; }
+.grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:28px; }
+.card {
+  background:var(--card); border:1px solid var(--border);
+  border-radius:var(--r); padding:20px 22px 16px;
+  cursor:pointer; transition:transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+  position:relative; overflow:visible;
+}
+.card:hover { transform:translateY(-3px); box-shadow:0 8px 24px rgba(0,0,0,.10); z-index:10; }
+.card-overall { border-color:var(--primary); background:var(--primary-bg); }
+.card-top-inline { font-size:11px; color:var(--sub); font-weight:500; display:flex; align-items:center; gap:5px; margin-bottom:14px; }
+.card-overall .card-top-inline { color:var(--primary); font-weight:700; }
+.card-name-inline { font-size:18px; font-weight:800; color:var(--text); line-height:1.1; flex:1; min-width:0; }
+.card-overall .card-name-inline { color:var(--primary); }
+.card-detail-btn {
+  flex-shrink:0; font-size:11px; font-weight:600; padding:2px 8px; border-radius:6px;
+  border:1px solid rgba(0,0,0,.12); background:rgba(255,255,255,.75);
+  color:var(--sub); cursor:pointer; font-family:inherit; transition:all .14s;
+  white-space:nowrap; line-height:1.6; margin-left:auto;
+}
+.card-detail-btn:hover { border-color:var(--primary); color:var(--primary); background:#fff; }
+.stat-row { display:flex; gap:6px; margin-top:4px; flex-wrap:wrap; }
+.stat-item { flex:1; min-width:0; background:var(--bg); border-radius:10px; padding:10px 6px; text-align:center; user-select:none; -webkit-user-select:none; }
+.stat-item.grp { background:var(--green-bg); }
+.stat-item.warn { background:var(--red-bg); }
+.stat-item.rate { background:var(--primary-bg); }
+.stat-label { font-size:10px; font-weight:600; color:var(--sub); margin-bottom:6px; word-break:keep-all; line-height:1.3; min-height:2.6em; display:flex; align-items:center; justify-content:center; }
+.stat-item.grp .stat-label { color:var(--green); }
+.stat-item.warn .stat-label { color:var(--red); }
+.stat-item.rate .stat-label { color:var(--primary); }
+.stat-val { font-size:24px; font-weight:800; color:var(--text); line-height:1; letter-spacing:-1px; }
+.stat-item.grp .stat-val { color:var(--green); }
+.stat-item.warn .stat-val { color:var(--red); }
+.stat-item.rate .stat-val { color:var(--primary); }
+
+/* ── 店家 leaf 卡片：頂部沿用 .card 大卡風格，底下品項用小 chip 列出（品項數本來就少，chip 比再開一組 stat-item 更省空間且清楚） ── */
+.store-meta-line { font-size:11.5px; color:var(--sub); opacity:.8; margin:2px 0 10px; }
+.sc-items { display:flex; flex-wrap:wrap; gap:5px; margin-top:10px; }
 .sc-item { font-size:11.5px; font-weight:600; padding:3px 8px; border-radius:6px; white-space:nowrap; }
 .sc-item.ok { color:var(--green); background:var(--green-bg); }
 .sc-item.no { color:var(--red); background:var(--red-bg); }
@@ -170,6 +197,16 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .loadmore-btn:hover { border-color:var(--primary); color:var(--primary); }
 .result-count { font-size:12px; color:var(--sub); opacity:.7; margin-bottom:10px; }
 
+@media (max-width:640px) {
+  .grid { grid-template-columns:1fr !important; gap:8px; }
+  .card { padding:12px 12px 10px; }
+  .card-name-inline { font-size:16px; }
+  .stat-row { gap:5px; }
+  .stat-item { padding:8px 5px; border-radius:9px; }
+  .stat-val { font-size:20px !important; }
+  .stat-label { font-size:9px; min-height:2.4em; }
+}
+
 /* ── pivot dialog table ── */
 .pivot-tbl { width:100%; border-collapse:collapse; font-size:12.5px; }
 .pivot-tbl th,.pivot-tbl td { padding:7px 10px; border-bottom:1px solid var(--border); text-align:right; }
@@ -178,6 +215,8 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .pivot-tbl tbody tr:hover { background:var(--primary-bg); }
 .pivot-tbl .sum-footer td { font-weight:700; background:var(--bg); }
 .miss-tag { display:inline-block; font-size:11px; font-weight:700; color:var(--red); background:var(--red-bg); padding:1px 6px; border-radius:5px; margin:1px 2px 1px 0; }
+.d-yes { color:var(--green); font-weight:700; }
+.d-no-label { font-size:11px; font-weight:700; color:var(--red); background:var(--red-bg); padding:2px 7px; border-radius:6px; }
 </style>
 </head>
 <body>
@@ -191,7 +230,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   <div class="toolbar-spacer"></div>
   <div class="sync-note" id="tb-sync"></div>
   <div class="toolbar-controls" id="toolbar-controls">
-    <button class="tb-act-btn" id="tb-btn-pivot" onclick="openSummaryDialog('office', getFilteredStores)">📊 彙整</button>
+    <button class="tb-act-btn" id="tb-btn-pivot" onclick="openSummaryDialog('staff', getFilteredStores)">📊 彙整</button>
     <button class="tb-act-btn" id="tb-btn-csv" onclick="toolbarDownloadCsv()">📥 CSV</button>
     <button class="tb-act-btn" id="tb-btn-line" onclick="toolbarCopyLine()">📋 複製</button>
     <button class="tb-act-btn" id="tb-btn-screenshot" onclick="toolbarScreenshot()">📸 截圖</button>
@@ -232,8 +271,23 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 
 <div class="stage" id="stage"></div>
 
-<!-- ════ Pivot Dialog（彙整看板） ════ -->
-<div id="summary-dialog">
+<!-- ════ 店家個案明細 Dialog（原本完全沒有，補上——點店家卡片可看逐店狀態與原始紀錄時間軸） ════ -->
+<div id="detail-dialog" style="display:none" onclick="if(event.target===this)closeStoreDetail()">
+  <div class="dlg-box">
+    <div class="dlg-header">
+      <span id="dlg-title" style="font-size:14px;font-weight:900;flex:1;min-width:0;"></span>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+        <button class="dlg-action-btn" id="btn-dlg-line" onclick="storeDetailCopyLine()"><span>💬</span><span class="btn-txt"> LINE</span></button>
+        <button class="dlg-action-btn" id="btn-dlg-screenshot" onclick="storeDetailScreenshot()"><span>📸</span><span class="btn-txt"> 截圖</span></button>
+        <button class="dlg-close" onclick="closeStoreDetail()">✕</button>
+      </div>
+    </div>
+    <div class="dlg-body" id="dlg-body" style="overflow:auto;padding:16px 20px;"></div>
+  </div>
+</div>
+
+<!-- ════ Pivot Dialog（彙整看板）：人員／單位／店家／未達成清單／照片牆 ════ -->
+<div id="summary-dialog" style="display:none" onclick="if(event.target===this)closeSummaryDialog()">
   <div class="dlg-box">
     <div class="dlg-header">
       <div id="sum-title" style="font-size:15px;font-weight:700;">彙整看板</div>
@@ -242,15 +296,19 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
       <button class="tb-act-btn" onclick="closeSummaryDialog()">✕ 關閉</button>
     </div>
     <div class="pivot-tabs">
-      <div class="pivot-tab active" onclick="switchPivotTab('office',this)">依單位</div>
-      <div class="pivot-tab" onclick="switchPivotTab('staff',this)">依業務員</div>
-      <div class="pivot-tab" onclick="switchPivotTab('missing',this)">未達成清單</div>
+      <div class="pivot-tab active" onclick="switchPivotTab('staff',this)">👤 人員</div>
+      <div class="pivot-tab" onclick="switchPivotTab('office',this)">🏢 單位</div>
+      <div class="pivot-tab" onclick="switchPivotTab('store',this)">🏪 店家</div>
+      <div class="pivot-tab" onclick="switchPivotTab('missing',this)">⚠️ 未達成清單</div>
+      <div class="pivot-tab" onclick="switchPivotTab('photos',this)">🖼️ 照片牆</div>
     </div>
     <div class="pivot-viewport">
-      <div class="pivot-slides" id="pivot-slides" style="width:300%;">
-        <div class="pivot-slide" id="pivot-slide-office" style="width:calc(100%/3);"></div>
-        <div class="pivot-slide" id="pivot-slide-staff" style="width:calc(100%/3);"></div>
-        <div class="pivot-slide" id="pivot-slide-missing" style="width:calc(100%/3);"></div>
+      <div class="pivot-slides" id="pivot-slides" style="width:500%;">
+        <div class="pivot-slide" id="pivot-slide-staff"   style="width:calc(100%/5);"></div>
+        <div class="pivot-slide" id="pivot-slide-office"  style="width:calc(100%/5);"></div>
+        <div class="pivot-slide" id="pivot-slide-store"   style="width:calc(100%/5);"></div>
+        <div class="pivot-slide" id="pivot-slide-missing" style="width:calc(100%/5);"></div>
+        <div class="pivot-slide" id="pivot-slide-photos"  style="width:calc(100%/5);"></div>
       </div>
     </div>
   </div>
@@ -564,6 +622,14 @@ function drillIntoOffice(office){
   drillStack = [{level:'area',key:area},{level:'office',key:office}];
   onFilterChange();
 }
+/* 第三層：鑽入某個所/課之後，改看該所底下的人員卡片（跟 audit/coverage 一致的
+   處→所→人員→明細 四段式鑽層，原本漏了這一層，人員底下才是店家 leaf 卡片） */
+function drillIntoStaff(staff){
+  var area = drillStack[0] ? drillStack[0].key : '';
+  var office = drillStack[1] ? drillStack[1].key : '';
+  drillStack = [{level:'area',key:area},{level:'office',key:office},{level:'staff',key:staff}];
+  onFilterChange();
+}
 function drillBackToOverview(){
   drillStack = [];
   document.getElementById('fb-area').value = '';
@@ -574,6 +640,12 @@ function drillBackToOffice(){
   var area = drillStack[0] ? drillStack[0].key : '';
   drillStack = area ? [{level:'area',key:area}] : [];
   document.getElementById('fb-office').value = '';
+  onFilterChange();
+}
+function drillBackToStaffList(){
+  var area = drillStack[0] ? drillStack[0].key : '';
+  var office = drillStack[1] ? drillStack[1].key : '';
+  drillStack = [{level:'area',key:area},{level:'office',key:office}];
   onFilterChange();
 }
 function setChip(el, key){
@@ -604,9 +676,11 @@ function getFilteredStores(){
   var kw = (FILTER.keyword||'').toLowerCase();
   var area = drillStack[0] ? drillStack[0].key : '';
   var office = drillStack[1] ? drillStack[1].key : '';
+  var staff = drillStack[2] ? drillStack[2].key : '';
   var list = STORE_ROWS.filter(function(r){
     if(area && r.area!==area) return false;
     if(office && r.office!==office) return false;
+    if(staff && r.staff!==staff) return false;
     if(FILTER.item!=='all' && r.needed.indexOf(FILTER.item)===-1) return false;
     if(kw){
       var hay = (r.storeName+' '+r.code+' '+r.staff).toLowerCase();
@@ -655,16 +729,40 @@ function renderSummary(all){
     '<div class="sum-card bad"><div class="sc-label">未收齊</div><div class="sc-val">'+incomplete+'</div></div>'+
     '<div class="sum-card rate"><div class="sc-label">達成率</div><div class="sc-val">'+rate+'%</div></div>';
 }
+
+/* 統一的分層卡片產生器（跟 audit/coverage 的 buildCard 同一套視覺語言）：
+   isOverall=true 時渲染成「整體概況」卡（不可點擊，純資訊），否則渲染成可鑽層的下一層卡片。
+   rows 需已經是套用過 _storeStatus 的陣列（每筆有 ._status）。 */
+function buildLevelCard(name, topLabel, rows, isOverall, onclickAttr){
+  var total = rows.length;
+  var complete = rows.filter(function(r){ return r._status.isComplete; }).length;
+  var incomplete = total - complete;
+  var rate = total ? Math.round(complete/total*1000)/10 : 0;
+  var topText = isOverall ? '整體概況' : topLabel;
+  var styleAttr = onclickAttr ? '' : ' style="cursor:default;"';
+  return '<div class="card'+(isOverall?' card-overall':'')+'"'+styleAttr+' '+(onclickAttr||'')+'>'
+    + '<div class="card-top-inline">'+esc(topText)+' <span class="card-name-inline">'+esc(name)+'</span></div>'
+    + '<div class="stat-row">'
+    +   '<div class="stat-item"><div class="stat-label">總店數</div><div class="stat-val">'+total+'</div></div>'
+    +   '<div class="stat-item grp"><div class="stat-label">已收齊</div><div class="stat-val">'+complete+'</div></div>'
+    +   '<div class="stat-item warn"><div class="stat-label">未收齊</div><div class="stat-val">'+incomplete+'</div></div>'
+    +   '<div class="stat-item rate"><div class="stat-label">達成率</div><div class="stat-val">'+rate+'%</div></div>'
+    + '</div></div>';
+}
+
 function renderStage(all){
   var stage = document.getElementById('stage');
   var depth = drillStack.length;
   if(depth===0){ renderAreaOverview(); return; }
   if(depth===1){ renderOfficeOverview(); return; }
-  if(!all.length){ stage.innerHTML = buildBreadcrumb() + '<div class="empty">目前篩選條件下沒有符合的店家</div>'; return; }
-  var shown = all.slice(0, _renderedCount);
+  if(depth===2){ renderStaffOverview(); return; }
+  /* depth===3：某位人員底下的店家 leaf 卡片，整體概況卡（該人員彙總）放最前面 */
   var html = buildBreadcrumb();
+  if(!all.length){ stage.innerHTML = html + '<div class="empty">目前篩選條件下沒有符合的店家</div>'; return; }
+  var shown = all.slice(0, _renderedCount);
+  html += '<div class="grid">' + buildLevelCard(drillStack[2].key, '人員', all, true, '') + '</div>';
   html += '<div class="result-count">共 '+all.length+' 家，顯示 '+shown.length+' 家</div>';
-  html += '<div class="store-grid">' + shown.map(buildStoreCard).join('') + '</div>';
+  html += '<div class="grid">' + shown.map(buildStoreCard).join('') + '</div>';
   if(all.length > shown.length){
     html += '<div class="loadmore-wrap"><button class="loadmore-btn" onclick="loadMore()">顯示更多（還有 '+(all.length-shown.length)+' 家）</button></div>';
   }
@@ -672,8 +770,10 @@ function renderStage(all){
 }
 function buildBreadcrumb(){
   var depth = drillStack.length;
-  var backFn = depth>=2 ? 'drillBackToOffice()' : 'drillBackToOverview()';
-  var backLabel = depth>=2 ? ('← 返回 '+esc(drillStack[0].key)+' 所/課列表') : '← 返回7處總覽';
+  var backFn = depth>=3 ? 'drillBackToStaffList()' : (depth>=2 ? 'drillBackToOffice()' : 'drillBackToOverview()');
+  var backLabel = depth>=3 ? ('← 返回 '+esc(drillStack[1].key)+' 人員列表')
+                : depth>=2 ? ('← 返回 '+esc(drillStack[0].key)+' 所/課列表')
+                : '← 返回全處總覽';
   var crumb = drillStack.map(function(d){ return esc(d.key); }).join(' › ');
   return '<div style="margin-bottom:14px;"><button class="back-btn" onclick="'+backFn+'">'+backLabel+'</button> '
     + '<span style="font-size:13px;font-weight:700;margin-left:8px;">'+crumb+'</span></div>';
@@ -683,80 +783,90 @@ function renderAreaOverview(){
   var areas = AREA_ORDER.filter(function(a){ return ORG_SKELETON[a] || STORE_ROWS.some(function(r){ return r.area===a; }); });
   STORE_ROWS.forEach(function(r){ if(r.area && areas.indexOf(r.area)===-1) areas.push(r.area); });
   if(!areas.length){ stage.innerHTML = '<div class="empty">沒有可顯示的營業處資料</div>'; return; }
-  var html = '<div class="level-label" style="font-size:11px;color:var(--sub);opacity:.65;margin-bottom:10px;">依營業處總覽 · 點卡片看該處營業所/課</div>';
-  html += '<div class="store-grid">';
+  var allRows = STORE_ROWS.map(function(r){ return Object.assign({}, r, {_status:_storeStatus(r)}); });
+  var html = '<div class="level-label">依營業處總覽 · 點卡片看該處營業所/課</div>';
+  html += '<div class="grid">';
+  html += buildLevelCard('全台', '', allRows, true, '');
   areas.forEach(function(area){
     var rows = STORE_ROWS.filter(function(r){ return r.area===area; }).map(function(r){ return Object.assign({}, r, {_status:_storeStatus(r)}); });
-    var total = rows.length;
-    var complete = rows.filter(function(r){ return r._status.isComplete; }).length;
-    var incomplete = total - complete;
-    var rate = total ? Math.round(complete/total*1000)/10 : 0;
-    html += '<div class="store-card" style="cursor:pointer;" onclick="drillIntoArea(\''+esc(area).replace(/'/g,"\\'")+'\')">'
-      + '<div class="sc-top"><div class="sc-name" style="font-size:17px;">'+esc(area)+'</div>'
-      + '<div class="sc-badge '+(incomplete>0?'incomplete':'complete')+'">'+rate+'%</div></div>'
-      + '<div class="sc-items">'
-      +   '<span class="sc-item ok">✅ 已收齊 '+complete+'</span>'
-      +   '<span class="sc-item no">❌ 未收齊 '+incomplete+'</span>'
-      +   '<span class="sc-item" style="color:var(--sub);background:var(--bg);">共 '+total+' 家</span>'
-      + '</div></div>';
+    html += buildLevelCard(area, '營業處', rows, false, 'onclick="drillIntoArea(\''+esc(area).replace(/'/g,"\\'")+'\')"');
   });
   html += '</div>';
   stage.innerHTML = html;
 }
-/* 第二層：鑽入某一處之後，改看該處底下的營業所/課卡片（縮小卡片顆粒度，
-   避免像「北部696家」直接攤開變成一次要滑一大片店家卡片） */
+/* 第二層：鑽入某一處之後，改看該處底下的營業所/課卡片，整體概況卡（該處彙總）放最前面 */
 function renderOfficeOverview(){
   var stage = document.getElementById('stage');
   var area = drillStack[0].key;
   var offices = (ORG_SKELETON[area]||[]).slice();
   STORE_ROWS.forEach(function(r){ if(r.area===area && r.office && offices.indexOf(r.office)===-1) offices.push(r.office); });
-  if(!offices.length){ stage.innerHTML = buildBreadcrumb() + '<div class="empty">這個處目前沒有可顯示的營業所/課資料</div>'; return; }
+  var areaRows = STORE_ROWS.filter(function(r){ return r.area===area; }).map(function(r){ return Object.assign({}, r, {_status:_storeStatus(r)}); });
   var html = buildBreadcrumb();
-  html += '<div class="level-label" style="font-size:11px;color:var(--sub);opacity:.65;margin:4px 0 10px;">'+esc(area)+' · 依營業所/課總覽 · 點卡片看該所店家</div>';
-  html += '<div class="store-grid">';
+  if(!offices.length){ stage.innerHTML = html + '<div class="empty">這個處目前沒有可顯示的營業所/課資料</div>'; return; }
+  html += '<div class="level-label">'+esc(area)+' · 依營業所/課總覽 · 點卡片看該所人員</div>';
+  html += '<div class="grid">';
+  html += buildLevelCard(area, '', areaRows, true, '');
   offices.forEach(function(office){
     var rows = STORE_ROWS.filter(function(r){ return r.area===area && r.office===office; }).map(function(r){ return Object.assign({}, r, {_status:_storeStatus(r)}); });
-    var total = rows.length;
-    var complete = rows.filter(function(r){ return r._status.isComplete; }).length;
-    var incomplete = total - complete;
-    var rate = total ? Math.round(complete/total*1000)/10 : 0;
-    html += '<div class="store-card" style="cursor:pointer;" onclick="drillIntoOffice(\''+esc(office).replace(/'/g,"\\'")+'\')">'
-      + '<div class="sc-top"><div class="sc-name" style="font-size:16px;">'+esc(office)+'</div>'
-      + '<div class="sc-badge '+(incomplete>0?'incomplete':'complete')+'">'+rate+'%</div></div>'
-      + '<div class="sc-items">'
-      +   '<span class="sc-item ok">✅ 已收齊 '+complete+'</span>'
-      +   '<span class="sc-item no">❌ 未收齊 '+incomplete+'</span>'
-      +   '<span class="sc-item" style="color:var(--sub);background:var(--bg);">共 '+total+' 家</span>'
-      + '</div></div>';
+    html += buildLevelCard(office, '營業所/課', rows, false, 'onclick="drillIntoOffice(\''+esc(office).replace(/'/g,"\\'")+'\')"');
+  });
+  html += '</div>';
+  stage.innerHTML = html;
+}
+/* 第三層（原本完全沒有這一層）：鑽入某個所/課之後，改看該所底下的人員卡片，
+   整體概況卡（該所彙總）放最前面，點人員卡片才進到店家 leaf 卡片 */
+function renderStaffOverview(){
+  var stage = document.getElementById('stage');
+  var area = drillStack[0].key, office = drillStack[1].key;
+  var officeRows = STORE_ROWS.filter(function(r){ return r.area===area && r.office===office; });
+  var staffList = [];
+  officeRows.forEach(function(r){ if(r.staff && staffList.indexOf(r.staff)===-1) staffList.push(r.staff); });
+  staffList.sort();
+  var statusRows = officeRows.map(function(r){ return Object.assign({}, r, {_status:_storeStatus(r)}); });
+  var html = buildBreadcrumb();
+  if(!staffList.length){ stage.innerHTML = html + '<div class="empty">這個所/課目前沒有可顯示的人員資料</div>'; return; }
+  html += '<div class="level-label">'+esc(area)+' › '+esc(office)+' · 依人員總覽 · 點卡片看該人員負責店家</div>';
+  html += '<div class="grid">';
+  html += buildLevelCard(office, '', statusRows, true, '');
+  staffList.forEach(function(staff){
+    var rows = statusRows.filter(function(r){ return r.staff===staff; });
+    html += buildLevelCard(staff, '人員', rows, false, 'onclick="drillIntoStaff(\''+esc(staff).replace(/'/g,"\\'")+'\')"');
   });
   html += '</div>';
   stage.innerHTML = html;
 }
 function loadMore(){ _renderedCount += RENDER_LIMIT; renderStage(getFilteredStores()); }
 
+/* 店家 leaf 卡片：大卡片風格＋可點擊開個案明細 Dialog（原本這裡是死路，點了沒反應） */
 function buildStoreCard(store){
   var st = store._status;
-  var cls = st.isComplete ? 'complete' : 'incomplete';
+  var rate = st.n ? Math.round(st.k/st.n*1000)/10 : 0;
   var itemsHtml = store.needed.map(function(it){
     var ok = st.collected.indexOf(it)!==-1;
     return '<span class="sc-item '+(ok?'ok':'no')+'">'+(ok?'✅':'❌')+' '+esc(it)+'</span>';
   }).join('');
-  return '<div class="store-card '+cls+'">'
-    + '<div class="sc-top">'
-    +   '<div><div class="sc-code">'+esc(store.code)+'</div><div class="sc-name">'+esc(store.storeName)+'</div></div>'
-    +   '<div class="sc-badge '+cls+'">'+st.k+'/'+st.n+'</div>'
+  var safeCode = esc(store.code).replace(/'/g,"\\'");
+  return '<div class="card" onclick="openStoreDetail(\''+safeCode+'\')">'
+    + '<div class="card-top-inline">'+esc(store.office)+' <span class="card-name-inline">'+esc(store.storeName)+'</span>'
+    +   '<button class="card-detail-btn" onclick="event.stopPropagation();openStoreDetail(\''+safeCode+'\')">📋 明細</button>'
     + '</div>'
-    + '<div class="sc-meta">'+esc(store.area)+' · '+esc(store.office)+' · '+esc(store.staff)+'</div>'
+    + '<div class="store-meta-line">'+esc(store.code)+' · '+esc(store.staff)+'</div>'
+    + '<div class="stat-row">'
+    +   '<div class="stat-item"><div class="stat-label">應達成</div><div class="stat-val">'+st.n+'</div></div>'
+    +   '<div class="stat-item grp"><div class="stat-label">已收</div><div class="stat-val">'+st.k+'</div></div>'
+    +   '<div class="stat-item warn"><div class="stat-label">未收</div><div class="stat-val">'+(st.n-st.k)+'</div></div>'
+    +   '<div class="stat-item rate"><div class="stat-label">達成率</div><div class="stat-val">'+rate+'%</div></div>'
+    + '</div>'
     + '<div class="sc-items">'+itemsHtml+'</div>'
     + '</div>';
 }
 
 /* ════════════════════════════════════════════════════════════
-   PIVOT DIALOG（彙整看板）
+   PIVOT DIALOG（彙整看板）—— 人員／單位／店家／未達成清單／照片牆
    ════════════════════════════════════════════════════════════ */
-var _pivotMode = 'office';
-var _pivotTabIndex = { office:0, staff:1, missing:2 };
-var PIVOT_TITLES = { office:'依單位', staff:'依業務員', missing:'未達成清單' };
+var _pivotMode = 'staff';
+var _pivotTabIndex = { staff:0, office:1, store:2, missing:3, photos:4 };
+var PIVOT_TITLES = { staff:'人員視角', office:'單位視角', store:'店家視角', missing:'未達成清單', photos:'照片牆' };
 
 function _aggBy(rows, keyFn){
   var map = {};
@@ -798,13 +908,32 @@ function _renderMissingTable(rows){
   html += '</tbody></table>';
   return html;
 }
+/* 店家視角：不分單位/人員分組，逐店攤平列出，方便直接掃視整份清單、點列可開個案明細 */
+function _renderStoreTable(rows){
+  var html = '<table class="pivot-tbl"><thead><tr>'
+    + '<th class="th-left">營業處</th><th class="th-left">所/課</th><th class="th-left">人員</th>'
+    + '<th class="th-left">店碼</th><th class="th-left">店名</th><th>已收/應達成</th><th>達成率</th>'
+    + '</tr></thead><tbody>';
+  rows.forEach(function(r){
+    var rate = r._status.n ? Math.round(r._status.k/r._status.n*1000)/10 : 0;
+    var safeCode = esc(r.code).replace(/'/g,"\\'");
+    html += '<tr class="pivot-expand-row" onclick="closeSummaryDialog();openStoreDetail(\''+safeCode+'\')">'
+      + '<td class="td-left">'+esc(r.area)+'</td><td class="td-left">'+esc(r.office)+'</td><td class="td-left">'+esc(r.staff)+'</td>'
+      + '<td class="td-left">'+esc(r.code)+'</td><td class="td-left">'+esc(r.storeName)+'</td>'
+      + '<td>'+r._status.k+'/'+r._status.n+'</td><td>'+rate+'%</td></tr>';
+  });
+  html += '</tbody></table>';
+  return html;
+}
 function _renderPivotSlide(mode){
   var el = document.getElementById('pivot-slide-'+mode);
   if(!el) return;
   var rows = _pivotRows || [];
-  if(mode==='office') el.innerHTML = _renderAggTable(rows, function(r){ return r.area+' '+r.office; }, '單位');
-  else if(mode==='staff') el.innerHTML = _renderAggTable(rows, function(r){ return r.staff; }, '業務員');
+  if(mode==='staff') el.innerHTML = _renderAggTable(rows, function(r){ return r.staff; }, '業務員');
+  else if(mode==='office') el.innerHTML = _renderAggTable(rows, function(r){ return r.area+' '+r.office; }, '單位');
+  else if(mode==='store') el.innerHTML = _renderStoreTable(rows);
   else if(mode==='missing') el.innerHTML = _renderMissingTable(rows);
+  else if(mode==='photos') el.innerHTML = _buildPhotoWall(rows);
 }
 function downloadDialogCsv(){
   var btn = document.getElementById('btn-dlg-csv');
@@ -819,6 +948,220 @@ function downloadDialogCsv(){
   }).join('\n');
   _triggerCsvDownload('\uFEFF'+csv, PROJ_NAME+'_'+PIVOT_TITLES[_pivotMode]);
   _flashBtn(btn,'✅ 已下載');
+}
+
+/* ════════════════════════════════════════════════════════════
+   照片牆 —— ⚠️ 假設性資料源，等真正的照片欄位/分頁確定後要回來對一次
+   ────────────────────────────────────────────────────────────
+   「處理層」分頁目前只有 店家代碼/分類/日期，沒有任何照片欄位。這裡先比照
+   coverage_board 的「問卷資料」分頁慣例假設一份來源：整頁抓回、依「店家代碼」
+   建立索引，欄名走「大題_選項(上傳照片)」規則，這樣就能直接共用
+   shared/photo-viewer.js 的 _renderQuizSections()／_extractPhotosFromSections()，
+   不用另外重寫一套解析規則。
+   真正接上真實資料時，只需要確認：
+     1. PHOTO_SHEET_NAME 是否就是真正的分頁名稱
+     2. 該分頁是否真的有「店家代碼」欄可以當索引鍵
+     3. 大題欄名是否符合「大題_選項(上傳照片)」的底線切分格式
+   三項都符合的話，下面完全不用改。
+   ════════════════════════════════════════════════════════════ */
+var PHOTO_SHEET_NAME = '問卷資料'; /* ⚠️ 假設值，待確認真正分頁名稱 */
+var _photoSheetCache = null;
+var _photoSheetLoading = false;
+var _photoSheetWaiters = [];
+
+function _fetchPhotoSheet(callback){
+  if(_photoSheetCache){ callback(_photoSheetCache); return; }
+  if(_photoSheetLoading){ _photoSheetWaiters.push(callback); return; }
+  _photoSheetLoading = true;
+  var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+    '/gviz/tq?tqx=out:json&headers=0&sheet=' + encodeURIComponent(PHOTO_SHEET_NAME);
+  fetch(url).then(function(r){ return r.text(); }).then(function(txt){
+    var json = gvizParse(txt);
+    var rawRows = (json.table && json.table.rows) || [];
+    if(rawRows.length < 1){ _fail('分頁「'+PHOTO_SHEET_NAME+'」沒有資料（或分頁名稱要再確認）'); return; }
+
+    function cellVal(row, i){
+      if(!row) return '';
+      var c = row.c && row.c[i];
+      if(!c) return '';
+      var v=(c.v!==null&&c.v!==undefined)?c.v:'';
+      var f=c.f||'';
+      return (v!==''&&v!==null&&v!==undefined)?v:f;
+    }
+    var headerRow = rawRows[0];
+    var colCount = (headerRow.c||[]).length;
+    var baseCols = [], quizCols = [], codeColIdx = -1;
+    for(var i=0;i<colCount;i++){
+      var h = String(cellVal(headerRow,i)||'').trim();
+      if(!h) continue;
+      if(h.indexOf('_')!==-1){
+        var parts = h.split('_');
+        quizCols.push({ col:i, section:parts[0].trim(), option:parts.slice(1).join('_').trim() });
+      } else {
+        baseCols.push({ name:h, col:i });
+        if(h==='店家代碼') codeColIdx = i;
+      }
+    }
+    var codeToRecords = {};
+    for(var ri=1; ri<rawRows.length; ri++){
+      var row = rawRows[ri];
+      if(!row || !row.c) continue;
+      var code = codeColIdx!==-1 ? String(cellVal(row,codeColIdx)||'').trim() : '';
+      if(!code) continue;
+      var base = {};
+      baseCols.forEach(function(b){ base[b.name] = cellVal(row,b.col); });
+      var sections = {}, order = [];
+      quizCols.forEach(function(qc){
+        var v = String(cellVal(row,qc.col)||'').trim();
+        if(!v) return;
+        if(!sections[qc.section]){ sections[qc.section]=[]; order.push(qc.section); }
+        sections[qc.section].push({ option:qc.option, value:v });
+      });
+      if(!codeToRecords[code]) codeToRecords[code]=[];
+      codeToRecords[code].push({
+        base: base,
+        sections: order.map(function(s){ return { section:s, picks:sections[s] }; }),
+        timeKey: String(base['日期']||base['回報時間']||'')
+      });
+    }
+    Object.keys(codeToRecords).forEach(function(code){
+      codeToRecords[code].sort(function(a,b){ return a.timeKey<b.timeKey?1:(a.timeKey>b.timeKey?-1:0); });
+    });
+    _photoSheetCache = { codeToRecords: codeToRecords };
+    _photoSheetLoading = false;
+    callback(_photoSheetCache);
+    _photoSheetWaiters.forEach(function(cb){ cb(_photoSheetCache); });
+    _photoSheetWaiters = [];
+  }).catch(function(err){ _fail(String(err)); });
+
+  function _fail(msg){
+    _photoSheetLoading = false;
+    var errResult = { error: msg };
+    callback(errResult);
+    _photoSheetWaiters.forEach(function(cb){ cb(errResult); });
+    _photoSheetWaiters = [];
+  }
+}
+function _buildPhotoWall(rows){
+  if(!rows.length) return '<div class="photo-gallery-empty">無資料</div>';
+  if(!_photoSheetCache){
+    _fetchPhotoSheet(function(){
+      /* 載入完成後，如果照片牆分頁還開著就重繪一次 */
+      var dlg = document.getElementById('summary-dialog');
+      if(dlg && dlg.classList.contains('open') && _pivotMode==='photos') _renderPivotSlide('photos');
+    });
+    return '<div class="photo-gallery-loading">⏳ 讀取照片紀錄中，稍候會自動顯示…</div>';
+  }
+  if(_photoSheetCache.error){
+    return '<div class="photo-gallery-empty">⚠️ '+esc(_photoSheetCache.error)+'（照片來源分頁尚未確定，這是假設性功能）</div>';
+  }
+  var codeMap = {};
+  rows.forEach(function(r){ if(!codeMap[r.code]) codeMap[r.code]=r; });
+  var cards = [];
+  Object.keys(codeMap).forEach(function(code){
+    var store = codeMap[code];
+    var records = (_photoSheetCache.codeToRecords && _photoSheetCache.codeToRecords[code]) || [];
+    records.forEach(function(rec){
+      var photos = _extractPhotosFromSections(rec.sections);
+      if(!photos.length) return;
+      cards.push({ store:store, rec:rec, photos:photos });
+    });
+  });
+  if(!cards.length) return '<div class="photo-gallery-empty">目前範圍內的紀錄都沒有找到照片</div>';
+  cards.sort(function(a,b){ return a.rec.timeKey<b.rec.timeKey?1:(a.rec.timeKey>b.rec.timeKey?-1:0); });
+  var totalPhotos = cards.reduce(function(s,c){ return s+c.photos.length; },0);
+  var html = '<div class="photo-gallery-summary">📸 共 <strong>'+cards.length+'</strong> 筆紀錄　🖼️ 共 <strong>'+totalPhotos+'</strong> 張照片'
+    + '　<span style="font-weight:500;opacity:.7;">（假設性資料源，待確認真正照片分頁後接上即可）</span></div>';
+  cards.forEach(function(c){
+    var timeText = c.rec.base['日期'] || c.rec.base['回報時間'] || '未知時間';
+    var bySection = {}, order = [];
+    c.photos.forEach(function(p){ if(!bySection[p.section]){bySection[p.section]=[];order.push(p.section);} bySection[p.section].push(p); });
+    var sectionsHtml = order.map(function(sec){
+      var photosHtml = bySection[sec].map(function(p){ return _renderPhotoChip(p.option, p.url); }).join('');
+      return '<div class="raw-quiz-section"><div class="raw-quiz-title">📋 '+esc(sec)+'</div><div class="raw-quiz-photos">'+photosHtml+'</div></div>';
+    }).join('');
+    html += '<div class="photo-store-card">'
+      + '<div class="photo-store-head"><span class="photo-store-name">🏪 '+esc(c.store.storeName)+'</span>'
+      + '<span class="photo-store-meta">🕒 '+esc(String(timeText))+'　'+esc([c.store.area,c.store.office,c.store.staff].filter(Boolean).join(' · '))+'</span></div>'
+      + '<div class="photo-gallery-sections">'+sectionsHtml+'</div></div>';
+  });
+  return html;
+}
+
+/* ════════════════════════════════════════════════════════════
+   店家個案明細 Dialog（原本完全沒有，補上——回答「為什麼看不到個案的資料」）
+   ════════════════════════════════════════════════════════════ */
+var _detailStore = null;
+function openStoreDetail(code){
+  var store = STORE_ROWS.find(function(r){ return r.code===code; });
+  if(!store) return;
+  var st = _storeStatus(store);
+  _detailStore = Object.assign({}, store, {_status:st});
+  document.getElementById('dlg-title').innerHTML =
+    '<div style="font-size:15px;font-weight:900;">'+esc(store.storeName)+'（'+esc(store.code)+'）</div>'
+    + '<div style="font-size:12px;color:var(--sub);font-weight:500;margin-top:2px;">'
+    + esc(store.area)+' · '+esc(store.office)+' · '+esc(store.staff)+'　'+CUR_YM.replace('-','/')+'　已收 '+st.k+'/'+st.n+'</div>';
+
+  var itemsHtml = '<table class="pivot-tbl" style="min-width:0;"><thead><tr><th class="th-left">品項</th><th>狀態</th></tr></thead><tbody>'
+    + store.needed.map(function(it){
+        var ok = st.collected.indexOf(it)!==-1;
+        return '<tr><td class="td-left">'+esc(it)+'</td><td>'+(ok?'<span class="d-yes">✅ 已收</span>':'<span class="d-no-label">❌ 未收</span>')+'</td></tr>';
+      }).join('')
+    + '</tbody></table>';
+
+  var body = document.getElementById('dlg-body');
+  body.innerHTML = itemsHtml
+    + '<div id="detail-history-slot" style="margin-top:16px;">'
+    +   '<div class="raw-quiz-title" style="margin-bottom:8px;">📋 拜訪／登記時間軸</div>'
+    +   '<div id="detail-history-body" style="font-size:12.5px;color:var(--sub);">⏳ 讀取中…</div>'
+    + '</div>';
+
+  var dlg = document.getElementById('detail-dialog');
+  dlg.style.display = 'flex';
+  requestAnimationFrame(function(){ dlg.classList.add('open'); });
+
+  /* 個案時間軸：假設性照片來源（見 PHOTO_SHEET_NAME 說明），沒有的話至少不會整個 dialog 打不開 */
+  _fetchPhotoSheet(function(qData){
+    var slot = document.getElementById('detail-history-body');
+    if(!slot || !_detailStore || _detailStore.code!==code) return;
+    if(qData && qData.error){
+      slot.innerHTML = '<div style="padding:8px 0;">⚠️ '+esc(qData.error)+'（照片/時間軸來源尚未確定，此區塊為假設性功能）</div>';
+      return;
+    }
+    var records = (qData.codeToRecords && qData.codeToRecords[code]) || [];
+    if(!records.length){
+      slot.innerHTML = '<div style="padding:8px 0;">⏳ 目前查不到這家店的原始紀錄</div>';
+      return;
+    }
+    slot.innerHTML = records.map(function(rec, idx){
+      var timeText = rec.base['日期'] || rec.base['回報時間'] || '未知時間';
+      return '<div style="margin-bottom:10px;">'
+        + '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;">🕒 '+esc(String(timeText))+(idx===0?'（最新）':'')+'</div>'
+        + _renderQuizSections(rec.sections)
+        + '</div>';
+    }).join('');
+  });
+}
+function closeStoreDetail(){
+  var dlg = document.getElementById('detail-dialog');
+  dlg.classList.remove('open');
+  setTimeout(function(){ dlg.style.display='none'; },220);
+}
+function storeDetailCopyLine(){
+  var btn = document.getElementById('btn-dlg-line');
+  if(!_detailStore){ _flashBtn(btn,'⚠️ 無資料'); return; }
+  var st = _detailStore._status;
+  var lines = ['【'+esc(_detailStore.storeName)+'（'+_detailStore.code+'）】', _detailStore.area+' · '+_detailStore.office+' · '+_detailStore.staff, ''];
+  lines.push('已收 '+st.k+'/'+st.n);
+  _detailStore.needed.forEach(function(it){
+    lines.push((st.collected.indexOf(it)!==-1?'✅ ':'❌ ')+it);
+  });
+  _doCopy(lines.join('\n'), btn);
+}
+function storeDetailScreenshot(){
+  var btn = document.getElementById('btn-dlg-screenshot');
+  var el = document.getElementById('dlg-body');
+  _captureElement(el, btn, (_detailStore?_detailStore.storeName:PROJ_NAME)+'_個案明細');
 }
 
 /* ════ 主工具列 CSV／複製／截圖 ════ */
