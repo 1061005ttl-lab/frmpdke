@@ -44,19 +44,19 @@
   對「店家名冊」每一列：
     1. 讀菸/啤酒/烈酒/系統店四欄，非空的即為「應達成品項」，N=項目數。
     2. 對每個應達成品項，查「處理層」是否有 店家代碼相符 ＋ 分類相符
-       ＋ 日期落在目前選定月份 的列，有→已收，無→未收。
-    3. 完成度 = 已收項目數 / N。未勾選的品項完全不顯示（不是這家店
+       ＋ 日期落在目前選定月份 的列，有→已查核，無→未查核。
+    3. 完成度 = 已查核項目數 / N。未勾選的品項完全不顯示（不是這家店
        的合約範圍，不放「—」佔位）。
   月份採「每月重跑」模式（非起訖日區間），下拉選單預設當月，可切換
   查看歷史月份（選項由「處理層」實際出現過的年月 + 當月組成）。
 
 【畫面設計】
-  ‧ 上方摘要列：目前篩選範圍的 總店數／已收齊／未收齊／達成率。
+  ‧ 上方摘要列：目前篩選範圍的 總店數／已查核／未查核／達成率。
   ‧ 篩選列（quicknav 樣式）：營業處／營業所／完成度／品項／月份／
-    關鍵字搜尋／未收優先排序開關。
+    關鍵字搜尋／未查核優先排序開關。
   ‧ 主畫面：店家卡片列表（分頁載入，一次 60 張，「顯示更多」按鈕），
     卡片：店代碼＋店名／單位＋業務員／x/N 完成度／品項清單
-    （只列有勾選的品項，各自 ✅已收／❌未收）。
+    （只列有勾選的品項，各自 ✅已查核／❌未查核）。
   ‧ 📊彙整：Pivot Dialog，三分頁「依單位」「依業務員」「未達成清單」，
     沿用 shared/pivot-dialog.js 分頁/滑動骨架，內容為本檔專屬邏輯。
   ‧ 📥CSV／📋複製LINE／📸截圖：皆針對「目前篩選後的完整結果」
@@ -230,7 +230,11 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   <div class="toolbar-spacer"></div>
   <div class="sync-note" id="tb-sync"></div>
   <div class="toolbar-controls" id="toolbar-controls">
-    <button class="tb-act-btn" id="tb-btn-pivot" onclick="openSummaryDialog('staff', getFilteredStores)">📊 彙整</button>
+    <button class="tb-act-btn" onclick="openSummaryDialog('staff', getFilteredStores)">👤 人員</button>
+    <button class="tb-act-btn" onclick="openSummaryDialog('office', getFilteredStores)">🏢 單位</button>
+    <button class="tb-act-btn" onclick="openSummaryDialog('store', getFilteredStores)">🏪 店家</button>
+    <button class="tb-act-btn" onclick="openSummaryDialog('missing', getFilteredStores)">⚠️ 未查核清單</button>
+    <button class="tb-act-btn" onclick="openSummaryDialog('photos', getFilteredStores)">🖼️ 照片牆</button>
     <button class="tb-act-btn" id="tb-btn-csv" onclick="toolbarDownloadCsv()">📥 CSV</button>
     <button class="tb-act-btn" id="tb-btn-line" onclick="toolbarCopyLine()">📋 複製</button>
     <button class="tb-act-btn" id="tb-btn-screenshot" onclick="toolbarScreenshot()">📸 截圖</button>
@@ -263,7 +267,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <input class="fb-input" id="fb-keyword" placeholder="搜尋店名/代碼/業務員" oninput="onFilterChange()">
   </div>
   <div class="fb-group">
-    <label class="fb-toggle"><input type="checkbox" id="fb-priority" checked onchange="onFilterChange()"> 未收優先</label>
+    <label class="fb-toggle"><input type="checkbox" id="fb-priority" checked onchange="onFilterChange()"> 未查核優先</label>
   </div>
 </div>
 
@@ -569,7 +573,7 @@ function buildFilterUI(){
   rebuildOfficeOptions();
 
   var compRow = document.getElementById('fb-completion');
-  compRow.innerHTML = ['all:全部','incomplete:未收齊','complete:已收齊'].map(function(kv){
+  compRow.innerHTML = ['all:全部','incomplete:未查核','complete:已查核'].map(function(kv){
     var p = kv.split(':');
     return '<div class="fb-chip'+(p[0]==='all'?' active':'')+'" data-v="'+p[0]+'" onclick="setChip(this,\'completion\')">'+p[1]+'</div>';
   }).join('');
@@ -671,16 +675,16 @@ function _storeStatus(store){
   return { n: store.needed.length, k: collected.length, collected: collected, missing: missing, isComplete: missing.length===0 };
 }
 
-/* ════ 取得目前篩選後的完整店家清單（含狀態），不受分頁載入限制 ════ */
-function getFilteredStores(){
+/* 套用「品項」「完成度」「關鍵字」這三個 chip/輸入框篩選（不含鑽層範圍），
+   drill 範圍另外由呼叫端傳入 scopeArea/scopeOffice/scopeStaff。
+   這支是唯一的篩選真相來源——不管是店家 leaf 卡片、還是每一層的整體概況卡／
+   下一層子卡片，全部都要經過這裡，chip 改變才會讓所有層級的數字一起變動。 */
+function getScopedStores(scopeArea, scopeOffice, scopeStaff){
   var kw = (FILTER.keyword||'').toLowerCase();
-  var area = drillStack[0] ? drillStack[0].key : '';
-  var office = drillStack[1] ? drillStack[1].key : '';
-  var staff = drillStack[2] ? drillStack[2].key : '';
   var list = STORE_ROWS.filter(function(r){
-    if(area && r.area!==area) return false;
-    if(office && r.office!==office) return false;
-    if(staff && r.staff!==staff) return false;
+    if(scopeArea && r.area!==scopeArea) return false;
+    if(scopeOffice && r.office!==scopeOffice) return false;
+    if(scopeStaff && r.staff!==scopeStaff) return false;
     if(FILTER.item!=='all' && r.needed.indexOf(FILTER.item)===-1) return false;
     if(kw){
       var hay = (r.storeName+' '+r.code+' '+r.staff).toLowerCase();
@@ -695,6 +699,15 @@ function getFilteredStores(){
     if(FILTER.completion==='incomplete') return !r._status.isComplete;
     return true;
   });
+  return list;
+}
+
+/* ════ 取得目前篩選後的完整店家清單（含狀態），不受分頁載入限制 ════ */
+function getFilteredStores(){
+  var area = drillStack[0] ? drillStack[0].key : '';
+  var office = drillStack[1] ? drillStack[1].key : '';
+  var staff = drillStack[2] ? drillStack[2].key : '';
+  var list = getScopedStores(area, office, staff);
 
   var priority = document.getElementById('fb-priority') ? document.getElementById('fb-priority').checked : true;
   list.sort(function(a,b){
@@ -725,8 +738,8 @@ function renderSummary(all){
   var rate = total ? Math.round(complete/total*1000)/10 : 0;
   document.getElementById('summary-row').innerHTML =
     '<div class="sum-card"><div class="sc-label">總店數</div><div class="sc-val">'+total+'</div></div>'+
-    '<div class="sum-card ok"><div class="sc-label">已收齊</div><div class="sc-val">'+complete+'</div></div>'+
-    '<div class="sum-card bad"><div class="sc-label">未收齊</div><div class="sc-val">'+incomplete+'</div></div>'+
+    '<div class="sum-card ok"><div class="sc-label">已查核</div><div class="sc-val">'+complete+'</div></div>'+
+    '<div class="sum-card bad"><div class="sc-label">未查核</div><div class="sc-val">'+incomplete+'</div></div>'+
     '<div class="sum-card rate"><div class="sc-label">達成率</div><div class="sc-val">'+rate+'%</div></div>';
 }
 
@@ -744,8 +757,8 @@ function buildLevelCard(name, topLabel, rows, isOverall, onclickAttr){
     + '<div class="card-top-inline">'+esc(topText)+' <span class="card-name-inline">'+esc(name)+'</span></div>'
     + '<div class="stat-row">'
     +   '<div class="stat-item"><div class="stat-label">總店數</div><div class="stat-val">'+total+'</div></div>'
-    +   '<div class="stat-item grp"><div class="stat-label">已收齊</div><div class="stat-val">'+complete+'</div></div>'
-    +   '<div class="stat-item warn"><div class="stat-label">未收齊</div><div class="stat-val">'+incomplete+'</div></div>'
+    +   '<div class="stat-item grp"><div class="stat-label">已查核</div><div class="stat-val">'+complete+'</div></div>'
+    +   '<div class="stat-item warn"><div class="stat-label">未查核</div><div class="stat-val">'+incomplete+'</div></div>'
     +   '<div class="stat-item rate"><div class="stat-label">達成率</div><div class="stat-val">'+rate+'%</div></div>'
     + '</div></div>';
 }
@@ -783,12 +796,12 @@ function renderAreaOverview(){
   var areas = AREA_ORDER.filter(function(a){ return ORG_SKELETON[a] || STORE_ROWS.some(function(r){ return r.area===a; }); });
   STORE_ROWS.forEach(function(r){ if(r.area && areas.indexOf(r.area)===-1) areas.push(r.area); });
   if(!areas.length){ stage.innerHTML = '<div class="empty">沒有可顯示的營業處資料</div>'; return; }
-  var allRows = STORE_ROWS.map(function(r){ return Object.assign({}, r, {_status:_storeStatus(r)}); });
+  var allRows = getScopedStores();
   var html = '<div class="level-label">依營業處總覽 · 點卡片看該處營業所/課</div>';
   html += '<div class="grid">';
   html += buildLevelCard('全台', '', allRows, true, '');
   areas.forEach(function(area){
-    var rows = STORE_ROWS.filter(function(r){ return r.area===area; }).map(function(r){ return Object.assign({}, r, {_status:_storeStatus(r)}); });
+    var rows = getScopedStores(area);
     html += buildLevelCard(area, '營業處', rows, false, 'onclick="drillIntoArea(\''+esc(area).replace(/'/g,"\\'")+'\')"');
   });
   html += '</div>';
@@ -800,14 +813,14 @@ function renderOfficeOverview(){
   var area = drillStack[0].key;
   var offices = (ORG_SKELETON[area]||[]).slice();
   STORE_ROWS.forEach(function(r){ if(r.area===area && r.office && offices.indexOf(r.office)===-1) offices.push(r.office); });
-  var areaRows = STORE_ROWS.filter(function(r){ return r.area===area; }).map(function(r){ return Object.assign({}, r, {_status:_storeStatus(r)}); });
+  var areaRows = getScopedStores(area);
   var html = buildBreadcrumb();
   if(!offices.length){ stage.innerHTML = html + '<div class="empty">這個處目前沒有可顯示的營業所/課資料</div>'; return; }
   html += '<div class="level-label">'+esc(area)+' · 依營業所/課總覽 · 點卡片看該所人員</div>';
   html += '<div class="grid">';
   html += buildLevelCard(area, '', areaRows, true, '');
   offices.forEach(function(office){
-    var rows = STORE_ROWS.filter(function(r){ return r.area===area && r.office===office; }).map(function(r){ return Object.assign({}, r, {_status:_storeStatus(r)}); });
+    var rows = getScopedStores(area, office);
     html += buildLevelCard(office, '營業所/課', rows, false, 'onclick="drillIntoOffice(\''+esc(office).replace(/'/g,"\\'")+'\')"');
   });
   html += '</div>';
@@ -822,14 +835,14 @@ function renderStaffOverview(){
   var staffList = [];
   officeRows.forEach(function(r){ if(r.staff && staffList.indexOf(r.staff)===-1) staffList.push(r.staff); });
   staffList.sort();
-  var statusRows = officeRows.map(function(r){ return Object.assign({}, r, {_status:_storeStatus(r)}); });
+  var officeScoped = getScopedStores(area, office);
   var html = buildBreadcrumb();
   if(!staffList.length){ stage.innerHTML = html + '<div class="empty">這個所/課目前沒有可顯示的人員資料</div>'; return; }
   html += '<div class="level-label">'+esc(area)+' › '+esc(office)+' · 依人員總覽 · 點卡片看該人員負責店家</div>';
   html += '<div class="grid">';
-  html += buildLevelCard(office, '', statusRows, true, '');
+  html += buildLevelCard(office, '', officeScoped, true, '');
   staffList.forEach(function(staff){
-    var rows = statusRows.filter(function(r){ return r.staff===staff; });
+    var rows = getScopedStores(area, office, staff);
     html += buildLevelCard(staff, '人員', rows, false, 'onclick="drillIntoStaff(\''+esc(staff).replace(/'/g,"\\'")+'\')"');
   });
   html += '</div>';
@@ -853,8 +866,8 @@ function buildStoreCard(store){
     + '<div class="store-meta-line">'+esc(store.code)+' · '+esc(store.staff)+'</div>'
     + '<div class="stat-row">'
     +   '<div class="stat-item"><div class="stat-label">應達成</div><div class="stat-val">'+st.n+'</div></div>'
-    +   '<div class="stat-item grp"><div class="stat-label">已收</div><div class="stat-val">'+st.k+'</div></div>'
-    +   '<div class="stat-item warn"><div class="stat-label">未收</div><div class="stat-val">'+(st.n-st.k)+'</div></div>'
+    +   '<div class="stat-item grp"><div class="stat-label">已查核</div><div class="stat-val">'+st.k+'</div></div>'
+    +   '<div class="stat-item warn"><div class="stat-label">未查核</div><div class="stat-val">'+(st.n-st.k)+'</div></div>'
     +   '<div class="stat-item rate"><div class="stat-label">達成率</div><div class="stat-val">'+rate+'%</div></div>'
     + '</div>'
     + '<div class="sc-items">'+itemsHtml+'</div>'
@@ -881,7 +894,7 @@ function _aggBy(rows, keyFn){
 function _renderAggTable(rows, keyFn, keyLabel){
   var agg = _aggBy(rows, keyFn);
   var html = '<table class="pivot-tbl"><thead><tr>'
-    + '<th class="th-left">'+esc(keyLabel)+'</th><th>總店數</th><th>已收齊</th><th>未收齊</th><th>達成率</th>'
+    + '<th class="th-left">'+esc(keyLabel)+'</th><th>總店數</th><th>已查核</th><th>未查核</th><th>達成率</th>'
     + '</tr></thead><tbody>';
   var totS=0, totC=0, totI=0;
   agg.forEach(function(a){
@@ -897,14 +910,14 @@ function _renderAggTable(rows, keyFn, keyLabel){
 function _renderMissingTable(rows){
   var missRows = rows.filter(function(r){ return !r._status.isComplete; });
   var html = '<table class="pivot-tbl"><thead><tr>'
-    + '<th class="th-left">單位</th><th class="th-left">業務員</th><th class="th-left">店代碼</th><th class="th-left">店名</th><th class="th-left">未收品項</th>'
+    + '<th class="th-left">單位</th><th class="th-left">業務員</th><th class="th-left">店代碼</th><th class="th-left">店名</th><th class="th-left">未查核品項</th>'
     + '</tr></thead><tbody>';
   missRows.forEach(function(r){
     html += '<tr><td class="td-left">'+esc(r.area)+' '+esc(r.office)+'</td><td class="td-left">'+esc(r.staff)+'</td>'
       + '<td class="td-left">'+esc(r.code)+'</td><td class="td-left">'+esc(r.storeName)+'</td>'
       + '<td class="td-left">'+r._status.missing.map(function(m){ return '<span class="miss-tag">'+esc(m)+'</span>'; }).join('')+'</td></tr>';
   });
-  html += '<tr class="sum-footer"><td class="td-left" colspan="5">共 '+missRows.length+' 家未收齊</td></tr>';
+  html += '<tr class="sum-footer"><td class="td-left" colspan="5">共 '+missRows.length+' 家未查核</td></tr>';
   html += '</tbody></table>';
   return html;
 }
@@ -912,7 +925,7 @@ function _renderMissingTable(rows){
 function _renderStoreTable(rows){
   var html = '<table class="pivot-tbl"><thead><tr>'
     + '<th class="th-left">營業處</th><th class="th-left">所/課</th><th class="th-left">人員</th>'
-    + '<th class="th-left">店碼</th><th class="th-left">店名</th><th>已收/應達成</th><th>達成率</th>'
+    + '<th class="th-left">店碼</th><th class="th-left">店名</th><th>已查核/應達成</th><th>達成率</th>'
     + '</tr></thead><tbody>';
   rows.forEach(function(r){
     var rate = r._status.n ? Math.round(r._status.k/r._status.n*1000)/10 : 0;
@@ -1100,12 +1113,12 @@ function openStoreDetail(code){
   document.getElementById('dlg-title').innerHTML =
     '<div style="font-size:15px;font-weight:900;">'+esc(store.storeName)+'（'+esc(store.code)+'）</div>'
     + '<div style="font-size:12px;color:var(--sub);font-weight:500;margin-top:2px;">'
-    + esc(store.area)+' · '+esc(store.office)+' · '+esc(store.staff)+'　'+CUR_YM.replace('-','/')+'　已收 '+st.k+'/'+st.n+'</div>';
+    + esc(store.area)+' · '+esc(store.office)+' · '+esc(store.staff)+'　'+CUR_YM.replace('-','/')+'　已查核 '+st.k+'/'+st.n+'</div>';
 
   var itemsHtml = '<table class="pivot-tbl" style="min-width:0;"><thead><tr><th class="th-left">品項</th><th>狀態</th></tr></thead><tbody>'
     + store.needed.map(function(it){
         var ok = st.collected.indexOf(it)!==-1;
-        return '<tr><td class="td-left">'+esc(it)+'</td><td>'+(ok?'<span class="d-yes">✅ 已收</span>':'<span class="d-no-label">❌ 未收</span>')+'</td></tr>';
+        return '<tr><td class="td-left">'+esc(it)+'</td><td>'+(ok?'<span class="d-yes">✅ 已查核</span>':'<span class="d-no-label">❌ 未查核</span>')+'</td></tr>';
       }).join('')
     + '</tbody></table>';
 
@@ -1152,7 +1165,7 @@ function storeDetailCopyLine(){
   if(!_detailStore){ _flashBtn(btn,'⚠️ 無資料'); return; }
   var st = _detailStore._status;
   var lines = ['【'+esc(_detailStore.storeName)+'（'+_detailStore.code+'）】', _detailStore.area+' · '+_detailStore.office+' · '+_detailStore.staff, ''];
-  lines.push('已收 '+st.k+'/'+st.n);
+  lines.push('已查核 '+st.k+'/'+st.n);
   _detailStore.needed.forEach(function(it){
     lines.push((st.collected.indexOf(it)!==-1?'✅ ':'❌ ')+it);
   });
@@ -1166,7 +1179,7 @@ function storeDetailScreenshot(){
 
 /* ════ 主工具列 CSV／複製／截圖 ════ */
 function buildCsvContent(rows){
-  var headers = ['營業處','營業所/課','業務員','店家代碼','店家名稱','應達成品項','已收品項','未收品項','完成度'];
+  var headers = ['營業處','營業所/課','業務員','店家代碼','店家名稱','應達成品項','已查核品項','未查核品項','完成度'];
   var out = [headers];
   rows.forEach(function(r){
     out.push([
@@ -1191,7 +1204,7 @@ function toolbarCopyLine(){
   var rows = getFilteredStores();
   if(!rows.length){ _flashBtn(btn,'⚠️ 無資料'); return; }
   var total = rows.length, complete = rows.filter(function(r){return r._status.isComplete;}).length;
-  var lines = ['【'+PROJ_NAME+'】'+CUR_YM.replace('-','/')+' 品項達成', '總店數 '+total+'／已收齊 '+complete+'／未收齊 '+(total-complete), ''];
+  var lines = ['【'+PROJ_NAME+'】'+CUR_YM.replace('-','/')+' 品項達成', '總店數 '+total+'／已查核 '+complete+'／未查核 '+(total-complete), ''];
   rows.filter(function(r){ return !r._status.isComplete; }).slice(0,50).forEach(function(r){
     lines.push('❌ '+r.storeName+'('+r.code+') '+r.staff+' 缺：'+r._status.missing.join('、'));
   });
