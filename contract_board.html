@@ -346,7 +346,7 @@ var P_AREA='營業處', P_OFFICE='營業所/課', P_CHANNEL='通路別', P_STORE
 var ITEM_KEYS = ['菸','啤酒','烈酒','系統店'];
 
 /* 處理層欄名 */
-var R_CODE='店家代碼', R_CATEGORY='分類', R_DATE='日期';
+var R_CODE='店家代碼', R_CATEGORY='分類', R_DATE='日期', R_SOURCEREF='來源分頁+行數';
 
 var params    = new URLSearchParams(location.search);
 var SHEET_ID  = params.get('sheetId') || '';
@@ -356,6 +356,7 @@ var POP_SHEET = POP_SHEET_DEFAULT, PROC_SHEET = PROC_SHEET_DEFAULT;
 
 var STORE_ROWS   = [];      /* 母體，未含月度比對結果 */
 var PROCESS_SET  = {};      /* key: code+'||'+category+'||'+ym → true */
+var PROCESS_REFS = {};      /* key: code → [{category, ym, ref, dateText}, ...]（依「來源分頁+行數」回溯原始問卷用） */
 var PROCESS_YMS  = [];      /* 出現過的年月，供月份下拉使用（新到舊） */
 var ORG_SKELETON = {};      /* { area: [office,...] } */
 
@@ -511,20 +512,31 @@ function fetchProcessLayer(callback){
     var tbl = json.table || {};
     var cols = (tbl.cols||[]).map(function(c){ return c.label||''; });
     var idxCode = cols.indexOf(R_CODE), idxCat = cols.indexOf(R_CATEGORY), idxDate = cols.indexOf(R_DATE);
-    var set = {}; var ymSeen = {};
+    var idxRef = cols.indexOf(R_SOURCEREF);
+    var set = {}; var ymSeen = {}; var refs = {};
+    function cv(c){ return (c && (c.v!=null?c.v:c.f)) || ''; }
     (tbl.rows||[]).forEach(function(row){
       var c = row.c || [];
-      var code = (c[idxCode] && (c[idxCode].v!=null?c[idxCode].v:c[idxCode].f)) || '';
-      var cat  = (c[idxCat]  && (c[idxCat].v!=null?c[idxCat].v:c[idxCat].f))  || '';
-      code = String(code).trim(); cat = String(cat).trim();
+      var code = String(cv(c[idxCode])).trim();
+      var cat  = String(cv(c[idxCat])).trim();
       var ym = _cellYM(c[idxDate]);
       if(!code || !cat || !ym) return;
       set[code+'||'+cat+'||'+ym] = true;
       ymSeen[ym] = true;
+      var refVal = idxRef!==-1 ? String(cv(c[idxRef])).trim() : '';
+      if(refVal){
+        if(!refs[code]) refs[code] = [];
+        refs[code].push({ category:cat, ym:ym, ref:refVal, dateText: cv(c[idxDate]) });
+      }
+    });
+    /* 同一家店多筆紀錄，新到舊排序（跟 audit/coverage 的時間軸排序習慣一致） */
+    Object.keys(refs).forEach(function(code){
+      refs[code].sort(function(a,b){ return a.ym<b.ym?1:(a.ym>b.ym?-1:0); });
     });
     PROCESS_SET = set;
+    PROCESS_REFS = refs;
     PROCESS_YMS = Object.keys(ymSeen).sort().reverse();
-  }).catch(function(){ PROCESS_SET = {}; PROCESS_YMS = []; }).then(function(){ callback(); });
+  }).catch(function(){ PROCESS_SET = {}; PROCESS_REFS = {}; PROCESS_YMS = []; }).then(function(){ callback(); });
 }
 
 function fetchSyncTime(){
@@ -964,34 +976,36 @@ function downloadDialogCsv(){
 }
 
 /* ════════════════════════════════════════════════════════════
-   照片牆 —— ⚠️ 假設性資料源，等真正的照片欄位/分頁確定後要回來對一次
+   原始問卷回溯 —— 跟 AUDIT 完全同一套「來源分頁+行數」跨分頁連結鍵機制
    ────────────────────────────────────────────────────────────
-   「處理層」分頁目前只有 店家代碼/分類/日期，沒有任何照片欄位。這裡先比照
-   coverage_board 的「問卷資料」分頁慣例假設一份來源：整頁抓回、依「店家代碼」
-   建立索引，欄名走「大題_選項(上傳照片)」規則，這樣就能直接共用
-   shared/photo-viewer.js 的 _renderQuizSections()／_extractPhotosFromSections()，
-   不用另外重寫一套解析規則。
-   真正接上真實資料時，只需要確認：
-     1. PHOTO_SHEET_NAME 是否就是真正的分頁名稱
-     2. 該分頁是否真的有「店家代碼」欄可以當索引鍵
-     3. 大題欄名是否符合「大題_選項(上傳照片)」的底線切分格式
-   三項都符合的話，下面完全不用改。
+   處理層的 A 欄「來源分頁+行數」（格式：分頁名稱_行數，例：問卷資料查傳菸_1654）
+   指向真正的原始問卷資料在哪一份分頁的哪一列。每個分類/地區各自一份原始
+   問卷分頁（問卷資料查傳菸、問卷資料查北啤…），不是單一集中分頁——
+   之前假設一份叫「問卷資料」的單一分頁是錯的，已經改掉。
    ════════════════════════════════════════════════════════════ */
-var PHOTO_SHEET_NAME = '問卷資料'; /* ⚠️ 假設值，待確認真正分頁名稱 */
-var _photoSheetCache = null;
-var _photoSheetLoading = false;
-var _photoSheetWaiters = [];
+var _sourceSheetCache = {};
 
-function _fetchPhotoSheet(callback){
-  if(_photoSheetCache){ callback(_photoSheetCache); return; }
-  if(_photoSheetLoading){ _photoSheetWaiters.push(callback); return; }
-  _photoSheetLoading = true;
+function _parseSourceRef(val){
+  var s = String(val||'').trim();
+  if(!s) return null;
+  var idx = s.lastIndexOf('_');
+  if(idx===-1) return null;
+  var sheetName = s.substring(0, idx);
+  var rowNum = parseInt(s.substring(idx+1), 10);
+  if(!sheetName || !rowNum || isNaN(rowNum)) return null;
+  return { sheet: sheetName, row: rowNum };
+}
+
+/* 抓某一份原始問卷分頁整頁資料，解析成「基本資料欄」+「大題_選項」問卷欄，
+   依 Sheet 實際列號索引，跟 audit_board._fetchSourceSheet 邏輯完全一致 */
+function _fetchSourceSheet(sheetName, callback){
+  if(_sourceSheetCache[sheetName]){ callback(_sourceSheetCache[sheetName]); return; }
   var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
-    '/gviz/tq?tqx=out:json&headers=0&sheet=' + encodeURIComponent(PHOTO_SHEET_NAME);
+    '/gviz/tq?tqx=out:json&headers=0&sheet=' + encodeURIComponent(sheetName);
   fetch(url).then(function(r){ return r.text(); }).then(function(txt){
     var json = gvizParse(txt);
     var rawRows = (json.table && json.table.rows) || [];
-    if(rawRows.length < 1){ _fail('分頁「'+PHOTO_SHEET_NAME+'」沒有資料（或分頁名稱要再確認）'); return; }
+    if(rawRows.length < 1){ callback(null, '分頁「'+sheetName+'」完全沒有資料'); return; }
 
     function cellVal(row, i){
       if(!row) return '';
@@ -999,11 +1013,12 @@ function _fetchPhotoSheet(callback){
       if(!c) return '';
       var v=(c.v!==null&&c.v!==undefined)?c.v:'';
       var f=c.f||'';
+      if(typeof v==='string' && /^Date\(/.test(v)) return f || parseGvizDate(v);
       return (v!==''&&v!==null&&v!==undefined)?v:f;
     }
     var headerRow = rawRows[0];
     var colCount = (headerRow.c||[]).length;
-    var baseCols = [], quizCols = [], codeColIdx = -1;
+    var baseColNames = [], quizCols = [];
     for(var i=0;i<colCount;i++){
       var h = String(cellVal(headerRow,i)||'').trim();
       if(!h) continue;
@@ -1011,18 +1026,22 @@ function _fetchPhotoSheet(callback){
         var parts = h.split('_');
         quizCols.push({ col:i, section:parts[0].trim(), option:parts.slice(1).join('_').trim() });
       } else {
-        baseCols.push({ name:h, col:i });
-        if(h==='店家代碼') codeColIdx = i;
+        baseColNames.push(h);
       }
     }
-    var codeToRecords = {};
+    if(quizCols.length===0){
+      callback(null, '分頁「'+sheetName+'」沒有偵測到任何「大題_選項」格式的欄位');
+      return;
+    }
+    var rowsByNum = {};
     for(var ri=1; ri<rawRows.length; ri++){
       var row = rawRows[ri];
-      if(!row || !row.c) continue;
-      var code = codeColIdx!==-1 ? String(cellVal(row,codeColIdx)||'').trim() : '';
-      if(!code) continue;
       var base = {};
-      baseCols.forEach(function(b){ base[b.name] = cellVal(row,b.col); });
+      baseColNames.forEach(function(name){
+        var bi=-1;
+        for(var cIdx=0; cIdx<colCount; cIdx++){ if(String(cellVal(headerRow,cIdx)||'').trim()===name){ bi=cIdx; break; } }
+        base[name] = bi!==-1 ? cellVal(row,bi) : '';
+      });
       var sections = {}, order = [];
       quizCols.forEach(function(qc){
         var v = String(cellVal(row,qc.col)||'').trim();
@@ -1030,75 +1049,98 @@ function _fetchPhotoSheet(callback){
         if(!sections[qc.section]){ sections[qc.section]=[]; order.push(qc.section); }
         sections[qc.section].push({ option:qc.option, value:v });
       });
-      if(!codeToRecords[code]) codeToRecords[code]=[];
-      codeToRecords[code].push({
-        base: base,
-        sections: order.map(function(s){ return { section:s, picks:sections[s] }; }),
-        timeKey: String(base['日期']||base['回報時間']||'')
-      });
+      var sheetRowNum = ri+1; /* rawRows[0]=Sheet第1列(標題)，故 rawRows[ri] 對應 Sheet 第 ri+1 列 */
+      rowsByNum[sheetRowNum] = { base:base, sections: order.map(function(s){ return {section:s, picks:sections[s]}; }) };
     }
-    Object.keys(codeToRecords).forEach(function(code){
-      codeToRecords[code].sort(function(a,b){ return a.timeKey<b.timeKey?1:(a.timeKey>b.timeKey?-1:0); });
-    });
-    _photoSheetCache = { codeToRecords: codeToRecords };
-    _photoSheetLoading = false;
-    callback(_photoSheetCache);
-    _photoSheetWaiters.forEach(function(cb){ cb(_photoSheetCache); });
-    _photoSheetWaiters = [];
-  }).catch(function(err){ _fail(String(err)); });
-
-  function _fail(msg){
-    _photoSheetLoading = false;
-    var errResult = { error: msg };
-    callback(errResult);
-    _photoSheetWaiters.forEach(function(cb){ cb(errResult); });
-    _photoSheetWaiters = [];
-  }
+    var result = { rowsByNum: rowsByNum };
+    _sourceSheetCache[sheetName] = result;
+    callback(result);
+  }).catch(function(err){ callback(null, String(err)); });
 }
+
+/* 依「來源分頁+行數」抓單筆完整內容 */
+function _fetchSourceRowDetail(refVal, callback){
+  var ref = _parseSourceRef(refVal);
+  if(!ref){ callback(null, null, '「來源分頁+行數」格式不符：'+refVal); return; }
+  _fetchSourceSheet(ref.sheet, function(sheetData, err){
+    if(err || !sheetData){ callback(null, ref, '讀取分頁「'+ref.sheet+'」失敗：'+(err||'')); return; }
+    var rowData = sheetData.rowsByNum[ref.row];
+    if(!rowData){ callback(null, ref, '分頁「'+ref.sheet+'」第 '+ref.row+' 列查無資料（可能超出範圍或該列已被刪除）'); return; }
+    callback(rowData, ref, null);
+  });
+}
+
+/* ════ 照片牆：用 PROCESS_REFS（處理層的「來源分頁+行數」）逐一回溯原始問卷 ════
+   跟單一分頁不同，這裡範圍內的店家可能分散在好幾份不同的原始問卷分頁裡，
+   先取不重複的分頁名稱各抓一次（沿用 _fetchSourceSheet 的分頁層級快取，
+   同一分頁不會因為好幾家店都指向它就重複發請求），全部抓完才彙整成清單。 */
 function _buildPhotoWall(rows){
   if(!rows.length) return '<div class="photo-gallery-empty">無資料</div>';
-  if(!_photoSheetCache){
-    _fetchPhotoSheet(function(){
-      /* 載入完成後，如果照片牆分頁還開著就重繪一次 */
-      var dlg = document.getElementById('summary-dialog');
-      if(dlg && dlg.classList.contains('open') && _pivotMode==='photos') _renderPivotSlide('photos');
-    });
-    return '<div class="photo-gallery-loading">⏳ 讀取照片紀錄中，稍候會自動顯示…</div>';
-  }
-  if(_photoSheetCache.error){
-    return '<div class="photo-gallery-empty">⚠️ '+esc(_photoSheetCache.error)+'（照片來源分頁尚未確定，這是假設性功能）</div>';
-  }
   var codeMap = {};
   rows.forEach(function(r){ if(!codeMap[r.code]) codeMap[r.code]=r; });
-  var cards = [];
+
+  var allRefs = [];
   Object.keys(codeMap).forEach(function(code){
-    var store = codeMap[code];
-    var records = (_photoSheetCache.codeToRecords && _photoSheetCache.codeToRecords[code]) || [];
-    records.forEach(function(rec){
-      var photos = _extractPhotosFromSections(rec.sections);
+    (PROCESS_REFS[code]||[]).forEach(function(rr){ allRefs.push({ code:code, rr:rr }); });
+  });
+  if(!allRefs.length) return '<div class="photo-gallery-empty">目前範圍內的「處理層」紀錄沒有「來源分頁+行數」可回溯（請確認處理層該欄有值）</div>';
+
+  var sheetNames = [];
+  allRefs.forEach(function(a){
+    var ref = _parseSourceRef(a.rr.ref);
+    if(ref && sheetNames.indexOf(ref.sheet)===-1) sheetNames.push(ref.sheet);
+  });
+
+  var containerId = 'photo-wall-' + Date.now();
+  var pending = sheetNames.length;
+  var errs = [];
+
+  function renderNow(){
+    var el = document.getElementById(containerId);
+    if(!el) return; /* 使用者可能已經切走分頁 */
+    var cards = [];
+    allRefs.forEach(function(a){
+      var ref = _parseSourceRef(a.rr.ref);
+      if(!ref) return;
+      var sheetData = _sourceSheetCache[ref.sheet];
+      if(!sheetData) return;
+      var rowData = sheetData.rowsByNum[ref.row];
+      if(!rowData) return;
+      var photos = _extractPhotosFromSections(rowData.sections);
       if(!photos.length) return;
-      cards.push({ store:store, rec:rec, photos:photos });
+      cards.push({ store: codeMap[a.code], rr: a.rr, photos: photos });
+    });
+    if(!cards.length){
+      el.innerHTML = '<div class="photo-gallery-empty">目前範圍內的紀錄都沒有找到照片'
+        + (errs.length ? '（部分分頁讀取失敗：'+esc(errs.join('；'))+'）' : '')
+        + '</div>';
+      return;
+    }
+    cards.sort(function(a,b){ return a.rr.ym<b.rr.ym?1:(a.rr.ym>b.rr.ym?-1:0); });
+    var totalPhotos = cards.reduce(function(s,c){ return s+c.photos.length; },0);
+    var html = '<div class="photo-gallery-summary">📸 共 <strong>'+cards.length+'</strong> 筆紀錄　🖼️ 共 <strong>'+totalPhotos+'</strong> 張照片</div>';
+    cards.forEach(function(c){
+      var bySection = {}, order = [];
+      c.photos.forEach(function(p){ if(!bySection[p.section]){bySection[p.section]=[];order.push(p.section);} bySection[p.section].push(p); });
+      var sectionsHtml = order.map(function(sec){
+        var photosHtml = bySection[sec].map(function(p){ return _renderPhotoChip(p.option, p.url); }).join('');
+        return '<div class="raw-quiz-section"><div class="raw-quiz-title">📋 '+esc(sec)+'</div><div class="raw-quiz-photos">'+photosHtml+'</div></div>';
+      }).join('');
+      html += '<div class="photo-store-card">'
+        + '<div class="photo-store-head"><span class="photo-store-name">🏪 '+esc(c.store?c.store.storeName:c.rr.category)+'</span>'
+        + '<span class="photo-store-meta">🕒 '+esc(c.rr.ym)+'　'+esc(c.store?[c.store.area,c.store.office,c.store.staff].filter(Boolean).join(' · '):'')+'</span></div>'
+        + '<div class="photo-gallery-sections">'+sectionsHtml+'</div></div>';
+    });
+    el.innerHTML = html;
+  }
+  sheetNames.forEach(function(sn){
+    _fetchSourceSheet(sn, function(data, err){
+      if(err) errs.push(sn+'：'+err);
+      pending--;
+      if(pending<=0) renderNow();
     });
   });
-  if(!cards.length) return '<div class="photo-gallery-empty">目前範圍內的紀錄都沒有找到照片</div>';
-  cards.sort(function(a,b){ return a.rec.timeKey<b.rec.timeKey?1:(a.rec.timeKey>b.rec.timeKey?-1:0); });
-  var totalPhotos = cards.reduce(function(s,c){ return s+c.photos.length; },0);
-  var html = '<div class="photo-gallery-summary">📸 共 <strong>'+cards.length+'</strong> 筆紀錄　🖼️ 共 <strong>'+totalPhotos+'</strong> 張照片'
-    + '　<span style="font-weight:500;opacity:.7;">（假設性資料源，待確認真正照片分頁後接上即可）</span></div>';
-  cards.forEach(function(c){
-    var timeText = c.rec.base['日期'] || c.rec.base['回報時間'] || '未知時間';
-    var bySection = {}, order = [];
-    c.photos.forEach(function(p){ if(!bySection[p.section]){bySection[p.section]=[];order.push(p.section);} bySection[p.section].push(p); });
-    var sectionsHtml = order.map(function(sec){
-      var photosHtml = bySection[sec].map(function(p){ return _renderPhotoChip(p.option, p.url); }).join('');
-      return '<div class="raw-quiz-section"><div class="raw-quiz-title">📋 '+esc(sec)+'</div><div class="raw-quiz-photos">'+photosHtml+'</div></div>';
-    }).join('');
-    html += '<div class="photo-store-card">'
-      + '<div class="photo-store-head"><span class="photo-store-name">🏪 '+esc(c.store.storeName)+'</span>'
-      + '<span class="photo-store-meta">🕒 '+esc(String(timeText))+'　'+esc([c.store.area,c.store.office,c.store.staff].filter(Boolean).join(' · '))+'</span></div>'
-      + '<div class="photo-gallery-sections">'+sectionsHtml+'</div></div>';
-  });
-  return html;
+  return '<div id="'+containerId+'" class="photo-gallery-loading">⏳ 讀取 '+sheetNames.length+' 份來源分頁中…</div>';
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -1133,26 +1175,36 @@ function openStoreDetail(code){
   dlg.style.display = 'flex';
   requestAnimationFrame(function(){ dlg.classList.add('open'); });
 
-  /* 個案時間軸：假設性照片來源（見 PHOTO_SHEET_NAME 說明），沒有的話至少不會整個 dialog 打不開 */
-  _fetchPhotoSheet(function(qData){
+  /* 個案時間軸：依「處理層」記下的「來源分頁+行數」，逐筆回溯原始問卷分頁的完整內容。
+     同一家店可能橫跨好幾個分類/月份，各自可能指向不同的來源分頁，所以逐筆各自查詢。 */
+  var refs = PROCESS_REFS[code] || [];
+  var slotEl = document.getElementById('detail-history-body');
+  if(!refs.length){
+    slotEl.innerHTML = '<div style="padding:8px 0;">⏳ 「處理層」目前查不到這家店的「來源分頁+行數」紀錄</div>';
+    return;
+  }
+  var results = new Array(refs.length);
+  var pending = refs.length;
+  function renderHistory(){
     var slot = document.getElementById('detail-history-body');
-    if(!slot || !_detailStore || _detailStore.code!==code) return;
-    if(qData && qData.error){
-      slot.innerHTML = '<div style="padding:8px 0;">⚠️ '+esc(qData.error)+'（照片/時間軸來源尚未確定，此區塊為假設性功能）</div>';
-      return;
-    }
-    var records = (qData.codeToRecords && qData.codeToRecords[code]) || [];
-    if(!records.length){
-      slot.innerHTML = '<div style="padding:8px 0;">⏳ 目前查不到這家店的原始紀錄</div>';
-      return;
-    }
-    slot.innerHTML = records.map(function(rec, idx){
-      var timeText = rec.base['日期'] || rec.base['回報時間'] || '未知時間';
+    if(!slot || !_detailStore || _detailStore.code!==code) return; /* 使用者可能已切換到別家店 */
+    slot.innerHTML = results.map(function(r, idx){
+      if(!r) return '';
+      if(r.error){
+        return '<div style="margin-bottom:10px;padding:8px 0;color:#B23A3A;font-size:12px;">⚠️ '+esc(refs[idx].category)+' '+esc(refs[idx].ym)+'：'+esc(r.error)+'</div>';
+      }
       return '<div style="margin-bottom:10px;">'
-        + '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;">🕒 '+esc(String(timeText))+(idx===0?'（最新）':'')+'</div>'
-        + _renderQuizSections(rec.sections)
+        + '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;">🕒 '+esc(refs[idx].ym)+'　'+esc(refs[idx].category)+(idx===0?'（最新）':'')+'</div>'
+        + _renderQuizSections(r.sections)
         + '</div>';
     }).join('');
+  }
+  refs.forEach(function(rr, idx){
+    _fetchSourceRowDetail(rr.ref, function(rowData, ref, err){
+      results[idx] = err ? { error: err } : rowData;
+      pending--;
+      if(pending<=0) renderHistory();
+    });
   });
 }
 function closeStoreDetail(){
