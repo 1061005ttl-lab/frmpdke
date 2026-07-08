@@ -7,6 +7,26 @@
         務必排在所有其他 shared script 之前載入。
 
    【版本紀錄】
+   1.0.2  2026-07-08  parseGvizDate 再加強（實測 "Date(2026,6,3)" 已可
+                       正確解析成 2026/07/03，見下方測試備註）：
+                       A) 呼叫前先 String(v).trim()，清掉頭尾不可見空白
+                          （全形空白／\u00A0 等複製貼上常見雜訊），避免
+                          極端情況下影響比對。
+                       B) 秒數後面允許多一組「毫秒」數字（部分環境的
+                          gviz 回應會多帶第 7 個數字），原本 regex 只認到
+                          第 6 個數字為止，後面若還有逗號＋數字，會導致
+                          整串 Date(...) 比對失敗、直接原樣印出。毫秒抓到
+                          但不使用（畫面仍只顯示到秒）。
+                       【重要】若畫面仍顯示未解析的原始字串 "Date(...)"，
+                       代表瀏覽器當下載入的 shared/core-utils.js 不是這個
+                       版本，通常是快取或部署資料夾沒更新到，不是本檔邏輯
+                       問題（用 Node 直接測試 parseGvizDate('Date(2026,6,3)')
+                       已確認回傳 '2026/07/03'）。排查順序：
+                       1) 瀏覽器強制重新整理（Ctrl/Cmd+Shift+R）；
+                       2) 「檢視原始碼」開 shared/core-utils.js 確認檔頭
+                          版本號確實是 1.0.2；
+                       3) 確認部署的 shared/ 資料夾裡沒有同名但內容不同的
+                          舊檔案殘留。
    1.0.1  2026-07-08  parseGvizDate 修正：改成可接受 Date(y,m,d) 純日期
                        格式（不再強制要求 6 個數字才算合法），修好
                        contract_board「上次回報」「拜訪／登記時間軸」
@@ -33,8 +53,11 @@ function _rid(s){ return String(s).replace(/[^\w\u4e00-\u9fff]/g,'_').substring(
    畫面上（contract_board 的「上次回報」「拜訪／登記時間軸」都踩到這個
    坑）。後3個時分秒改成可省略，省略時視為純日期，不補時間文字。 */
 function parseGvizDate(v) {
-  var m = String(v).match(/Date\((\d+),(\d+),(\d+)(?:,(\d+),(\d+),(\d+))?\)/);
-  if (!m) return String(v);
+  var s = String(v).trim();
+  /* 秒數後面的毫秒群組 (?:,\d+)? 允許有可以沒有，抓到但不使用，
+     避免部分環境多帶第 7 個數字時讓整個 Date(...) 比對失敗 */
+  var m = s.match(/Date\((\d+),(\d+),(\d+)(?:,(\d+),(\d+),(\d+)(?:,\d+)?)?\)/);
+  if (!m) return s;
   var y = +m[1], mo = +m[2], day = +m[3];
   var hasTime = m[4] !== undefined;
   var pad = function(n){ return String(n).padStart(2,'0'); };
