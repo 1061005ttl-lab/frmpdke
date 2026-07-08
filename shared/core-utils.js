@@ -1,12 +1,17 @@
 /* ════════════════════════════════════════════════════════════
    core-utils.js — 業務王看板系統共用核心工具
-   版本：Ver. 1.0.0 ｜ 建立：2026-07-04
+   版本：Ver. 1.0.1 ｜ 建立：2026-07-04
 
    給哪些看板用：所有看板（audit / coverage / achievement / award...）
    內容：跟資料模型完全無關的最底層工具函式，其他 shared/*.js 都可能依賴這支，
         務必排在所有其他 shared script 之前載入。
 
    【版本紀錄】
+   1.0.1  2026-07-08  parseGvizDate 修正：改成可接受 Date(y,m,d) 純日期
+                       格式（不再強制要求 6 個數字才算合法），修好
+                       contract_board「上次回報」「拜訪／登記時間軸」
+                       顯示成原始字串 "Date(2026,6,3)" 沒被解析的問題。
+                       純日期不補時分秒文字；有時分秒的欄位行為不變。
    1.0.0  2026-07-04  首版，從 coverage_board.html Ver.3.0.0 抽出
                        esc / _rid / parseGvizDate 三支完全相同，
                        另外新增 gvizParse / gvizFetchJson 取代各板重複 5 次以上的
@@ -19,13 +24,28 @@ function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,
 /* 把任意字串轉成安全的 DOM id 片段（中文/英數保留，其餘轉底線，截到24字避免id過長） */
 function _rid(s){ return String(s).replace(/[^\w\u4e00-\u9fff]/g,'_').substring(0,24); }
 
-/* 解析 gviz 回傳的 Date(y,m,d,h,i,s) 格式字串 → 人類可讀（台灣時區） */
+/* 解析 gviz 回傳的 Date(...) 格式字串 → 人類可讀（台灣時區）
+   gviz 依 Sheet 欄位格式不同，實際回傳兩種長相：
+     - 該欄是「日期」格式：Date(y,m,d)          ← 只有 3 個數字，沒有時分秒
+     - 該欄是「日期時間」格式：Date(y,m,d,h,i,s) ← 完整 6 個數字
+   舊版正規式寫死要求 6 個數字，遇到純日期欄位（只有3個數字）會整個
+   match 失敗、直接把原始字串 "Date(2026,6,3)" 原封不動吐回去顯示在
+   畫面上（contract_board 的「上次回報」「拜訪／登記時間軸」都踩到這個
+   坑）。後3個時分秒改成可省略，省略時視為純日期，不補時間文字。 */
 function parseGvizDate(v) {
-  var m = String(v).match(/Date\((\d+),(\d+),(\d+),(\d+),(\d+),(\d+)\)/);
+  var m = String(v).match(/Date\((\d+),(\d+),(\d+)(?:,(\d+),(\d+),(\d+))?\)/);
   if (!m) return String(v);
+  var y = +m[1], mo = +m[2], day = +m[3];
+  var hasTime = m[4] !== undefined;
+  var pad = function(n){ return String(n).padStart(2,'0'); };
+  if (!hasTime) {
+    /* 純日期沒有時間資訊，直接用年月日組字串即可，不需要經過
+       Date 物件＋時區換算（省得反而因瀏覽器時區不同產生跨日誤差） */
+    return y + '/' + pad(mo+1) + '/' + pad(day);
+  }
   /* gviz 回傳的 Date() 已是本地時間（瀏覽器時區），直接用 Date constructor 即可
      但為確保不同時區的瀏覽器都顯示台灣時間（UTC+8），明確指定 timeZone */
-  var d = new Date(+m[1], +m[2], +m[3], +m[4], +m[5], +m[6]);
+  var d = new Date(y, mo, day, +m[4], +m[5], +m[6]);
   return d.toLocaleString('zh-TW', {
     year:'numeric', month:'2-digit', day:'2-digit',
     hour:'2-digit', minute:'2-digit',
