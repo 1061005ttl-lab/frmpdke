@@ -119,8 +119,29 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .tb-act-btn.loading { opacity:.6; pointer-events:none; }
 .toolbar-spacer { flex:1; }
 
+/* ── quicknav（AREA/OFFICE 麵包屑，雙向鑽取）── */
+.quicknav {
+  padding:6px 16px 0; display:flex; align-items:center;
+  gap:0; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none;
+  -webkit-overflow-scrolling:touch; border-bottom:1px solid var(--border);
+  background:#fff; position:sticky; top:52px; z-index:45;
+}
+.quicknav::-webkit-scrollbar { display:none; }
+.qn-group { display:flex; align-items:center; gap:3px; padding:0 10px 6px 0; flex-shrink:0; border-right:1px solid var(--border); margin-right:8px; }
+.qn-group:last-child { border-right:none; padding-right:0; }
+.qn-btn {
+  padding:4px 10px; border-radius:16px; font-size:12px; font-weight:600;
+  cursor:pointer; border:1px solid transparent; background:transparent;
+  color:var(--sub); font-family:inherit; white-space:nowrap;
+  transition:all .15s; flex-shrink:0;
+}
+.qn-btn:hover { background:rgba(55,138,221,.08); color:var(--primary); }
+.qn-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+.qn-btn.home { font-weight:700; }
+.qn-label { font-size:10px; color:var(--sub); font-weight:600; white-space:nowrap; padding-right:3px; letter-spacing:.04em; opacity:.6; flex-shrink:0; }
+
 /* ── filter bar ── */
-.filterbar { background:#fff; border-bottom:1px solid var(--border); padding:10px 20px; display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; position:sticky; top:52px; z-index:40; }
+.filterbar { background:#fff; border-bottom:1px solid var(--border); padding:10px 20px; display:flex; flex-wrap:wrap; align-items:center; gap:8px 14px; position:sticky; top:90px; z-index:40; }
 .fb-group { display:flex; align-items:center; gap:6px; }
 .fb-label { font-size:11px; color:var(--sub); font-weight:600; opacity:.65; letter-spacing:.03em; }
 .fb-sel { padding:5px 8px; border:1px solid var(--border); border-radius:8px; background:#fff; color:var(--text); font-size:12.5px; font-family:inherit; cursor:pointer; outline:none; }
@@ -205,6 +226,37 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   .stat-item { padding:8px 5px; border-radius:9px; }
   .stat-val { font-size:20px !important; }
   .stat-label { font-size:9px; min-height:2.4em; }
+  .toolbar-controls {
+    display:none; position:absolute; top:52px; left:0; right:0; z-index:60;
+    background:#fff; border-bottom:1px solid var(--border); padding:10px 16px;
+    flex-direction:column; align-items:stretch; gap:6px;
+    box-shadow:0 8px 20px rgba(0,0,0,.10);
+  }
+  .toolbar-controls.mobile-open { display:flex; }
+  .toolbar-controls .tb-act-btn { width:100%; text-align:left; }
+}
+
+/* ── 店家個案明細 Dialog：高密度 Grid 版面＋回報時間戳＋品項 Chip 篩選 ── */
+.dd-toprow { display:flex; flex-wrap:wrap; gap:4px 18px; align-items:baseline; margin-top:4px; }
+.dd-lasttime { font-size:12px; color:var(--sub); font-weight:600; }
+.dd-lasttime b { color:var(--primary); font-weight:800; }
+.dd-chip-row { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
+.dd-chip { padding:5px 14px; border-radius:16px; font-size:12.5px; font-weight:700; cursor:pointer; border:1px solid var(--border); background:#fff; color:var(--sub); font-family:inherit; transition:all .15s; white-space:nowrap; }
+.dd-chip:hover { border-color:var(--primary); color:var(--primary); }
+.dd-chip.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+.dd-item-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px; margin-bottom:18px; }
+.dd-item-card { border-radius:10px; padding:10px 12px; border:1px solid var(--border); background:var(--bg); transition:opacity .15s; }
+.dd-item-card.ok { background:var(--green-bg); border-color:var(--green-bd); }
+.dd-item-card.no { background:var(--red-bg); border-color:var(--red-bd); }
+.dd-item-card.dim { opacity:.32; }
+.dd-item-name { font-size:13px; font-weight:800; color:var(--text); margin-bottom:4px; }
+.dd-item-card.ok .dd-item-name { color:var(--green); }
+.dd-item-card.no .dd-item-name { color:var(--red); }
+.dd-item-status { font-size:11.5px; font-weight:700; }
+.dd-item-time { font-size:10.5px; color:var(--sub); opacity:.75; margin-top:4px; }
+@media (max-width:640px){
+  .dd-item-grid { grid-template-columns:repeat(2,1fr); }
+  .dd-toprow { flex-direction:column; gap:2px; }
 }
 
 /* ── pivot dialog table ── */
@@ -235,12 +287,16 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <button class="tb-act-btn" onclick="openSummaryDialog('store', getFilteredStores)">🏪 店家</button>
     <button class="tb-act-btn" onclick="openSummaryDialog('missing', getFilteredStores)">⚠️ 未查核清單</button>
     <button class="tb-act-btn" onclick="openSummaryDialog('photos', getFilteredStores)">🖼️ 照片牆</button>
+    <button class="tb-act-btn" id="tb-btn-line" onclick="toolbarCopyLine()">📋 LINE</button>
+    <button class="tb-act-btn" id="tb-btn-line-brief" onclick="toolbarCopyLineBrief()">✂️ LINE精簡</button>
     <button class="tb-act-btn" id="tb-btn-csv" onclick="toolbarDownloadCsv()">📥 CSV</button>
-    <button class="tb-act-btn" id="tb-btn-line" onclick="toolbarCopyLine()">📋 複製</button>
     <button class="tb-act-btn" id="tb-btn-screenshot" onclick="toolbarScreenshot()">📸 截圖</button>
   </div>
   <button class="hamburger-btn" id="hamburger-btn" onclick="toggleMobileMenu(event)">☰</button>
 </div>
+
+<!-- ════ AREA/OFFICE 麵包屑（雙向鑽取：點任一層級直接跳轉，Home 回全區）════ -->
+<div class="quicknav" id="crumbnav"></div>
 
 <div class="filterbar" id="filterbar">
   <div class="fb-group">
@@ -282,6 +338,8 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
       <span id="dlg-title" style="font-size:14px;font-weight:900;flex:1;min-width:0;"></span>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
         <button class="dlg-action-btn" id="btn-dlg-line" onclick="storeDetailCopyLine()"><span>💬</span><span class="btn-txt"> LINE</span></button>
+        <button class="dlg-action-btn" id="btn-dlg-line-brief" onclick="storeDetailCopyLineBrief()"><span>✂️</span><span class="btn-txt"> 精簡</span></button>
+        <button class="dlg-action-btn" id="btn-dlg-csv" onclick="storeDetailDownloadCsv()"><span>📥</span><span class="btn-txt"> CSV</span></button>
         <button class="dlg-action-btn" id="btn-dlg-screenshot" onclick="storeDetailScreenshot()"><span>📸</span><span class="btn-txt"> 截圖</span></button>
         <button class="dlg-close" onclick="closeStoreDetail()">✕</button>
       </div>
@@ -296,7 +354,10 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <div class="dlg-header">
       <div id="sum-title" style="font-size:15px;font-weight:700;">彙整看板</div>
       <div style="flex:1;"></div>
-      <button class="tb-act-btn" id="btn-dlg-csv" onclick="downloadDialogCsv()">📥 CSV</button>
+      <button class="dlg-action-btn" id="btn-sum-line" onclick="summaryShareLine()"><span>📋</span><span class="btn-txt"> LINE</span></button>
+      <button class="dlg-action-btn" id="btn-sum-line-brief" onclick="summaryShareLineBrief()"><span>✂️</span><span class="btn-txt"> 精簡</span></button>
+      <button class="tb-act-btn" id="btn-sum-csv" onclick="downloadDialogCsv()">📥 CSV</button>
+      <button class="dlg-action-btn" id="btn-sum-screenshot" onclick="summaryScreenshot()"><span>📸</span><span class="btn-txt"> 截圖</span></button>
       <button class="tb-act-btn" onclick="closeSummaryDialog()">✕ 關閉</button>
     </div>
     <div class="pivot-tabs">
@@ -326,7 +387,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 <script src="shared/ui-chrome.js"></script>
 <script src="shared/pivot-dialog.js"></script>
 <script>
-window._STICKY_IDS = ['filterbar'];
+window._STICKY_IDS = ['crumbnav', 'filterbar'];
 
 /* ════ 常數 ════ */
 var MGMT_ID     = '1PR9OR7BIGyTpcH8QSMRXkPhQTr4h3m0UK3gET29f19s';
@@ -740,8 +801,49 @@ function getFilteredStores(){
 /* ════ 渲染 ════ */
 function render(){
   var all = getFilteredStores();
+  buildCrumbNav();
   renderSummary(all);
   renderStage(all);
+}
+/* AREA/OFFICE 麵包屑：Home 回全區；處層永遠列出全部處供跨區直接跳轉；
+   鑽入某一處後再列出該處底下全部所/課供跨所直接跳轉。雙向鑽取
+   （往下：點卡片/chip；往上：點 Home 或再點一次目前所在的處）都經過
+   drillIntoArea/drillIntoOffice/drillBackToOverview，跟卡片鑽層、
+   fb-area/fb-office 下拉選單共用同一套 drillStack 狀態，永遠同步。 */
+function buildCrumbNav(){
+  var nav = document.getElementById('crumbnav');
+  if(!nav) return;
+  var depth = drillStack.length;
+  var areas = AREA_ORDER.filter(function(a){ return ORG_SKELETON[a] || STORE_ROWS.some(function(r){ return r.area===a; }); });
+  STORE_ROWS.forEach(function(r){ if(r.area && areas.indexOf(r.area)===-1) areas.push(r.area); });
+
+  var html = '<div class="qn-group">'
+    + '<div class="qn-btn home'+(depth===0?' active':'')+'" onclick="drillBackToOverview()">🏠 全台</div>'
+    + '</div>';
+
+  if(areas.length){
+    html += '<div class="qn-group"><span class="qn-label">處</span>';
+    areas.forEach(function(a){
+      var active = depth>=1 && drillStack[0].key===a;
+      html += '<div class="qn-btn'+(active?' active':'')+'" onclick="drillIntoArea(\''+esc(a).replace(/'/g,"\\'")+'\')">'+esc(a)+'</div>';
+    });
+    html += '</div>';
+  }
+
+  if(depth>=1){
+    var area = drillStack[0].key;
+    var offices = (ORG_SKELETON[area]||[]).slice();
+    STORE_ROWS.forEach(function(r){ if(r.area===area && r.office && offices.indexOf(r.office)===-1) offices.push(r.office); });
+    if(offices.length){
+      html += '<div class="qn-group"><span class="qn-label">所/課</span>';
+      offices.forEach(function(o){
+        var active = depth>=2 && drillStack[1].key===o;
+        html += '<div class="qn-btn'+(active?' active':'')+'" onclick="drillIntoOffice(\''+esc(o).replace(/'/g,"\\'")+'\')">'+esc(o)+'</div>';
+      });
+      html += '</div>';
+    }
+  }
+  nav.innerHTML = html;
 }
 function renderSummary(all){
   var total = all.length;
@@ -758,21 +860,32 @@ function renderSummary(all){
 /* 統一的分層卡片產生器（跟 audit/coverage 的 buildCard 同一套視覺語言）：
    isOverall=true 時渲染成「整體概況」卡（不可點擊，純資訊），否則渲染成可鑽層的下一層卡片。
    rows 需已經是套用過 _storeStatus 的陣列（每筆有 ._status）。 */
-function buildLevelCard(name, topLabel, rows, isOverall, onclickAttr){
+function buildLevelCard(name, topLabel, rows, isOverall, onclickAttr, scopeArea, scopeOffice, scopeStaff){
   var total = rows.length;
   var complete = rows.filter(function(r){ return r._status.isComplete; }).length;
   var incomplete = total - complete;
   var rate = total ? Math.round(complete/total*1000)/10 : 0;
   var topText = isOverall ? '整體概況' : topLabel;
   var styleAttr = onclickAttr ? '' : ' style="cursor:default;"';
+  var sa = scopeArea ? esc(scopeArea).replace(/'/g,"\\'") : '';
+  var so = scopeOffice ? esc(scopeOffice).replace(/'/g,"\\'") : '';
+  var ss = scopeStaff ? esc(scopeStaff).replace(/'/g,"\\'") : '';
+  var detailBtn = '<button class="card-detail-btn" onclick="event.stopPropagation();openLevelStoreDetail(\''+sa+'\',\''+so+'\',\''+ss+'\',\''+esc(name).replace(/'/g,"\\'")+'\')">📋 店家明細</button>';
   return '<div class="card'+(isOverall?' card-overall':'')+'"'+styleAttr+' '+(onclickAttr||'')+'>'
-    + '<div class="card-top-inline">'+esc(topText)+' <span class="card-name-inline">'+esc(name)+'</span></div>'
+    + '<div class="card-top-inline">'+esc(topText)+' <span class="card-name-inline">'+esc(name)+'</span>'+detailBtn+'</div>'
     + '<div class="stat-row">'
     +   '<div class="stat-item"><div class="stat-label">總店數</div><div class="stat-val">'+total+'</div></div>'
     +   '<div class="stat-item grp"><div class="stat-label">已查核</div><div class="stat-val">'+complete+'</div></div>'
     +   '<div class="stat-item warn"><div class="stat-label">未查核</div><div class="stat-val">'+incomplete+'</div></div>'
     +   '<div class="stat-item rate"><div class="stat-label">達成率</div><div class="stat-val">'+rate+'%</div></div>'
     + '</div></div>';
+}
+/* 每一層卡片的「📋 店家明細」按鈕都走這支——不需要先鑽層到底才能看店家清單，
+   直接依這張卡片代表的範圍（處／所／人員）重新算一次篩選結果，開 Pivot Dialog
+   並定位到「店家」分頁，滿足需求書 A 項「路徑直達」。 */
+function openLevelStoreDetail(scopeArea, scopeOffice, scopeStaff, label){
+  var rows = getScopedStores(scopeArea||'', scopeOffice||'', scopeStaff||'');
+  openSummaryDialog('store', function(){ return rows; });
 }
 
 function renderStage(all){
@@ -785,7 +898,7 @@ function renderStage(all){
   var html = buildBreadcrumb();
   if(!all.length){ stage.innerHTML = html + '<div class="empty">目前篩選條件下沒有符合的店家</div>'; return; }
   var shown = all.slice(0, _renderedCount);
-  html += '<div class="grid">' + buildLevelCard(drillStack[2].key, '人員', all, true, '') + '</div>';
+  html += '<div class="grid">' + buildLevelCard(drillStack[2].key, '人員', all, true, '', drillStack[0].key, drillStack[1].key, drillStack[2].key) + '</div>';
   html += '<div class="result-count">共 '+all.length+' 家，顯示 '+shown.length+' 家</div>';
   html += '<div class="grid">' + shown.map(buildStoreCard).join('') + '</div>';
   if(all.length > shown.length){
@@ -814,7 +927,7 @@ function renderAreaOverview(){
   html += buildLevelCard('全台', '', allRows, true, '');
   areas.forEach(function(area){
     var rows = getScopedStores(area);
-    html += buildLevelCard(area, '營業處', rows, false, 'onclick="drillIntoArea(\''+esc(area).replace(/'/g,"\\'")+'\')"');
+    html += buildLevelCard(area, '營業處', rows, false, 'onclick="drillIntoArea(\''+esc(area).replace(/'/g,"\\'")+'\')"', area);
   });
   html += '</div>';
   stage.innerHTML = html;
@@ -830,10 +943,10 @@ function renderOfficeOverview(){
   if(!offices.length){ stage.innerHTML = html + '<div class="empty">這個處目前沒有可顯示的營業所/課資料</div>'; return; }
   html += '<div class="level-label">'+esc(area)+' · 依營業所/課總覽 · 點卡片看該所人員</div>';
   html += '<div class="grid">';
-  html += buildLevelCard(area, '', areaRows, true, '');
+  html += buildLevelCard(area, '', areaRows, true, '', area);
   offices.forEach(function(office){
     var rows = getScopedStores(area, office);
-    html += buildLevelCard(office, '營業所/課', rows, false, 'onclick="drillIntoOffice(\''+esc(office).replace(/'/g,"\\'")+'\')"');
+    html += buildLevelCard(office, '營業所/課', rows, false, 'onclick="drillIntoOffice(\''+esc(office).replace(/'/g,"\\'")+'\')"', area, office);
   });
   html += '</div>';
   stage.innerHTML = html;
@@ -852,10 +965,10 @@ function renderStaffOverview(){
   if(!staffList.length){ stage.innerHTML = html + '<div class="empty">這個所/課目前沒有可顯示的人員資料</div>'; return; }
   html += '<div class="level-label">'+esc(area)+' › '+esc(office)+' · 依人員總覽 · 點卡片看該人員負責店家</div>';
   html += '<div class="grid">';
-  html += buildLevelCard(office, '', officeScoped, true, '');
+  html += buildLevelCard(office, '', officeScoped, true, '', area, office);
   staffList.forEach(function(staff){
     var rows = getScopedStores(area, office, staff);
-    html += buildLevelCard(staff, '人員', rows, false, 'onclick="drillIntoStaff(\''+esc(staff).replace(/'/g,"\\'")+'\')"');
+    html += buildLevelCard(staff, '人員', rows, false, 'onclick="drillIntoStaff(\''+esc(staff).replace(/'/g,"\\'")+'\')"', area, office, staff);
   });
   html += '</div>';
   stage.innerHTML = html;
@@ -961,7 +1074,7 @@ function _renderPivotSlide(mode){
   else if(mode==='photos') el.innerHTML = _buildPhotoWall(rows);
 }
 function downloadDialogCsv(){
-  var btn = document.getElementById('btn-dlg-csv');
+  var btn = document.getElementById('btn-sum-csv');
   var el = document.getElementById('pivot-slide-'+_pivotMode);
   var tbl = el ? el.querySelector('table') : null;
   if(!tbl){ _flashBtn(btn,'⚠️ 無資料'); return; }
@@ -973,6 +1086,38 @@ function downloadDialogCsv(){
   }).join('\n');
   _triggerCsvDownload('\uFEFF'+csv, PROJ_NAME+'_'+PIVOT_TITLES[_pivotMode]);
   _flashBtn(btn,'✅ 已下載');
+}
+/* LINE（完整）：直接把目前分頁已經渲染好的表格逐列轉成文字，跟表格內容
+   完全一致，不用為每個分頁另外各寫一份格式（分頁一多容易漏改、對不齊）。 */
+function summaryShareLine(){
+  var btn = document.getElementById('btn-sum-line');
+  var el = document.getElementById('pivot-slide-'+_pivotMode);
+  var tbl = el ? el.querySelector('table') : null;
+  if(!tbl){ _flashBtn(btn,'⚠️ 無資料'); return; }
+  var lines = ['📊 彙整看板 ─ '+PROJ_NAME, '📑 維度：'+(PIVOT_TITLES[_pivotMode]||_pivotMode), ''];
+  Array.from(tbl.querySelectorAll('tr')).forEach(function(tr){
+    var cells = Array.from(tr.querySelectorAll('th,td')).map(function(td){ return td.textContent.trim(); });
+    lines.push(cells.join('　'));
+  });
+  lines.push('');
+  lines.push('📅 '+new Date().toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}));
+  _doCopy(lines.join('\n'), btn);
+}
+/* LINE 精簡：只有這個分頁範圍的總量與達成率一行 */
+function summaryShareLineBrief(){
+  var btn = document.getElementById('btn-sum-line-brief');
+  var rows = _pivotRows || [];
+  if(!rows.length){ _flashBtn(btn,'⚠️ 無資料'); return; }
+  var total = rows.length, complete = rows.filter(function(r){ return r._status.isComplete; }).length;
+  var rate = total ? Math.round(complete/total*1000)/10 : 0;
+  var text = '📊 '+PROJ_NAME+'　'+(PIVOT_TITLES[_pivotMode]||_pivotMode)+'　總店數 '+total+'／已查核 '+complete+'／達成率 '+rate+'%';
+  _doCopy(text, btn);
+}
+function summaryScreenshot(){
+  var btn = document.getElementById('btn-sum-screenshot');
+  var el = document.querySelector('#summary-dialog .dlg-box');
+  if(!el){ _flashBtn(btn,'⚠️ 無畫面'); return; }
+  _captureElement(el, btn, PROJ_NAME+'_彙整', {loadingHtml:'<span>⏳</span>'});
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -1144,32 +1289,55 @@ function _buildPhotoWall(rows){
 }
 
 /* ════════════════════════════════════════════════════════════
-   店家個案明細 Dialog（原本完全沒有，補上——回答「為什麼看不到個案的資料」）
+   店家個案明細 Dialog（規劃書 D/E：高密度 Grid 版面＋完整回報時間戳＋
+   品項 Chip 篩選——督導可能只負責特定品項，點 Chip 切換成該品項專屬視角）
    ════════════════════════════════════════════════════════════ */
 var _detailStore = null;
+var _detailRefs = [];        /* PROCESS_REFS[code]，新到舊排序 */
+var _detailHistoryResults = []; /* 逐筆時間軸內容，跟 _detailRefs 同索引對齊 */
+var _detailItemFilter = 'all';
+
+/* 某品項最近一次回報的原始日期值（未格式化），找不到回傳 null */
+function _itemLatestRef(item){
+  for(var i=0;i<_detailRefs.length;i++){ if(_detailRefs[i].category===item) return _detailRefs[i]; }
+  return null;
+}
+/* 統一的日期顯示：優先用 parseGvizDate 解析完整 Date(y,m,d,h,i,s)，
+   拿不到完整時間就退回原始值，至少不會整格空白 */
+function _fmtRefTime(ref){
+  if(!ref) return '—';
+  var t = parseGvizDate(ref.dateText);
+  return (t && t!==String(ref.dateText)) ? t : (ref.dateText || ref.ym);
+}
+
 function openStoreDetail(code){
   var store = STORE_ROWS.find(function(r){ return r.code===code; });
   if(!store) return;
   var st = _storeStatus(store);
   _detailStore = Object.assign({}, store, {_status:st});
+  _detailRefs = PROCESS_REFS[code] || [];
+  _detailHistoryResults = new Array(_detailRefs.length);
+  _detailItemFilter = 'all';
+
+  var lastRef = _detailRefs[0] || null;
   document.getElementById('dlg-title').innerHTML =
     '<div style="font-size:15px;font-weight:900;">'+esc(store.storeName)+'（'+esc(store.code)+'）</div>'
-    + '<div style="font-size:12px;color:var(--sub);font-weight:500;margin-top:2px;">'
-    + esc(store.area)+' · '+esc(store.office)+' · '+esc(store.staff)+'　'+CUR_YM.replace('-','/')+'　已查核 '+st.k+'/'+st.n+'</div>';
-
-  var itemsHtml = '<table class="pivot-tbl" style="min-width:0;"><thead><tr><th class="th-left">品項</th><th>狀態</th></tr></thead><tbody>'
-    + store.needed.map(function(it){
-        var ok = st.collected.indexOf(it)!==-1;
-        return '<tr><td class="td-left">'+esc(it)+'</td><td>'+(ok?'<span class="d-yes">✅ 已查核</span>':'<span class="d-no-label">❌ 未查核</span>')+'</td></tr>';
-      }).join('')
-    + '</tbody></table>';
+    + '<div class="dd-toprow">'
+    +   '<span style="font-size:12px;color:var(--sub);font-weight:500;">'+esc(store.area)+' · '+esc(store.office)+' · '+esc(store.staff)+'　'+CUR_YM.replace('-','/')+'　已查核 '+st.k+'/'+st.n+'</span>'
+    +   '<span class="dd-lasttime">🕒 上次回報：<b>'+esc(_fmtRefTime(lastRef))+'</b>'+(lastRef?'（'+esc(lastRef.category)+'）':'')+'</span>'
+    + '</div>';
 
   var body = document.getElementById('dlg-body');
-  body.innerHTML = itemsHtml
-    + '<div id="detail-history-slot" style="margin-top:16px;">'
+  body.innerHTML =
+      '<div class="dd-chip-row" id="dd-chip-row"></div>'
+    + '<div class="dd-item-grid" id="dd-item-grid"></div>'
+    + '<div id="detail-history-slot" style="margin-top:6px;">'
     +   '<div class="raw-quiz-title" style="margin-bottom:8px;">📋 拜訪／登記時間軸</div>'
     +   '<div id="detail-history-body" style="font-size:12.5px;color:var(--sub);">⏳ 讀取中…</div>'
     + '</div>';
+
+  _renderDetailChips();
+  _renderDetailItemGrid();
 
   var dlg = document.getElementById('detail-dialog');
   dlg.style.display = 'flex';
@@ -1177,35 +1345,74 @@ function openStoreDetail(code){
 
   /* 個案時間軸：依「處理層」記下的「來源分頁+行數」，逐筆回溯原始問卷分頁的完整內容。
      同一家店可能橫跨好幾個分類/月份，各自可能指向不同的來源分頁，所以逐筆各自查詢。 */
-  var refs = PROCESS_REFS[code] || [];
   var slotEl = document.getElementById('detail-history-body');
-  if(!refs.length){
+  if(!_detailRefs.length){
     slotEl.innerHTML = '<div style="padding:8px 0;">⏳ 「處理層」目前查不到這家店的「來源分頁+行數」紀錄</div>';
     return;
   }
-  var results = new Array(refs.length);
-  var pending = refs.length;
-  function renderHistory(){
-    var slot = document.getElementById('detail-history-body');
-    if(!slot || !_detailStore || _detailStore.code!==code) return; /* 使用者可能已切換到別家店 */
-    slot.innerHTML = results.map(function(r, idx){
-      if(!r) return '';
-      if(r.error){
-        return '<div style="margin-bottom:10px;padding:8px 0;color:#B23A3A;font-size:12px;">⚠️ '+esc(refs[idx].category)+' '+esc(refs[idx].ym)+'：'+esc(r.error)+'</div>';
-      }
-      return '<div style="margin-bottom:10px;">'
-        + '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;">🕒 '+esc(refs[idx].ym)+'　'+esc(refs[idx].category)+(idx===0?'（最新）':'')+'</div>'
-        + _renderQuizSections(r.sections)
-        + '</div>';
-    }).join('');
-  }
-  refs.forEach(function(rr, idx){
+  var pending = _detailRefs.length;
+  _detailRefs.forEach(function(rr, idx){
     _fetchSourceRowDetail(rr.ref, function(rowData, ref, err){
-      results[idx] = err ? { error: err } : rowData;
+      _detailHistoryResults[idx] = err ? { error: err } : rowData;
       pending--;
-      if(pending<=0) renderHistory();
+      if(pending<=0) _renderDetailHistory();
     });
   });
+}
+
+/* 品項 Chip 列：全部＋這家店實際要簽的每個品項。點擊只切換「顯示範圍」，
+   不影響已抓回來的資料，所以切換不需要重新打 API。 */
+function _renderDetailChips(){
+  var row = document.getElementById('dd-chip-row');
+  if(!row) return;
+  var chips = ['all'].concat(_detailStore.needed);
+  row.innerHTML = chips.map(function(it){
+    var active = _detailItemFilter===it;
+    var label = it==='all' ? '全部品項' : it;
+    return '<div class="dd-chip'+(active?' active':'')+'" onclick="filterDetailItem(\''+esc(it).replace(/'/g,"\\'")+'\')">'+esc(label)+'</div>';
+  }).join('');
+}
+function filterDetailItem(item){
+  _detailItemFilter = item;
+  _renderDetailChips();
+  _renderDetailItemGrid();
+  _renderDetailHistory();
+}
+/* 高密度品項卡片 Grid（規劃書 D）：取代舊版一項品項吃一整行的表格，
+   多欄排列＋色彩區隔已查核/未查核，並直接秀出該品項最近一次回報時間。 */
+function _renderDetailItemGrid(){
+  var grid = document.getElementById('dd-item-grid');
+  if(!grid || !_detailStore) return;
+  var st = _detailStore._status;
+  grid.innerHTML = _detailStore.needed.map(function(it){
+    var ok = st.collected.indexOf(it)!==-1;
+    var dim = _detailItemFilter!=='all' && _detailItemFilter!==it;
+    var ref = _itemLatestRef(it);
+    return '<div class="dd-item-card '+(ok?'ok':'no')+(dim?' dim':'')+'">'
+      + '<div class="dd-item-name">'+esc(it)+'</div>'
+      + '<div class="dd-item-status">'+(ok?'✅ 已查核':'❌ 未查核')+'</div>'
+      + '<div class="dd-item-time">🕒 '+esc(ref?_fmtRefTime(ref):'尚無紀錄')+'</div>'
+      + '</div>';
+  }).join('');
+}
+/* 時間軸依目前選定的品項 Chip 篩選，'all' 時不過濾 */
+function _renderDetailHistory(){
+  var slot = document.getElementById('detail-history-body');
+  if(!slot || !_detailStore) return;
+  var pairs = _detailRefs.map(function(ref, idx){ return { ref: ref, result: _detailHistoryResults[idx], idx: idx }; })
+    .filter(function(p){ return _detailItemFilter==='all' || p.ref.category===_detailItemFilter; });
+  if(!pairs.length){ slot.innerHTML = '<div style="padding:8px 0;">（此品項目前沒有時間軸紀錄）</div>'; return; }
+  slot.innerHTML = pairs.map(function(p){
+    var r = p.result;
+    if(!r) return '<div style="padding:8px 0;color:var(--sub);">⏳ 讀取中…</div>';
+    if(r.error){
+      return '<div style="margin-bottom:10px;padding:8px 0;color:#B23A3A;font-size:12px;">⚠️ '+esc(p.ref.category)+' '+esc(p.ref.ym)+'：'+esc(r.error)+'</div>';
+    }
+    return '<div style="margin-bottom:10px;">'
+      + '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;">🕒 '+esc(_fmtRefTime(p.ref))+'　'+esc(p.ref.category)+(p.idx===0?'（最新）':'')+'</div>'
+      + _renderQuizSections(r.sections)
+      + '</div>';
+  }).join('');
 }
 function closeStoreDetail(){
   var dlg = document.getElementById('detail-dialog');
@@ -1216,18 +1423,39 @@ function storeDetailCopyLine(){
   var btn = document.getElementById('btn-dlg-line');
   if(!_detailStore){ _flashBtn(btn,'⚠️ 無資料'); return; }
   var st = _detailStore._status;
+  var lastRef = _detailRefs[0] || null;
   var lines = ['【'+esc(_detailStore.storeName)+'（'+_detailStore.code+'）】', _detailStore.area+' · '+_detailStore.office+' · '+_detailStore.staff, ''];
-  lines.push('已查核 '+st.k+'/'+st.n);
+  lines.push('已查核 '+st.k+'/'+st.n+'　上次回報：'+_fmtRefTime(lastRef));
   _detailStore.needed.forEach(function(it){
-    lines.push((st.collected.indexOf(it)!==-1?'✅ ':'❌ ')+it);
+    var ref = _itemLatestRef(it);
+    lines.push((st.collected.indexOf(it)!==-1?'✅ ':'❌ ')+it+(ref?'（'+_fmtRefTime(ref)+'）':''));
   });
+  lines.push('');
+  lines.push('📅 '+new Date().toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}));
   _doCopy(lines.join('\n'), btn);
+}
+/* LINE 精簡：單店一行摘要，適合快速轉貼 */
+function storeDetailCopyLineBrief(){
+  var btn = document.getElementById('btn-dlg-line-brief');
+  if(!_detailStore){ _flashBtn(btn,'⚠️ 無資料'); return; }
+  var st = _detailStore._status;
+  var rate = st.n ? Math.round(st.k/st.n*1000)/10 : 0;
+  var text = '【'+_detailStore.storeName+'（'+_detailStore.code+'）】已查核 '+st.k+'/'+st.n+'（'+rate+'%）'
+    + (st.missing.length ? '　缺：'+st.missing.join('、') : '　✅ 全數完成');
+  _doCopy(text, btn);
+}
+function storeDetailDownloadCsv(){
+  var btn = document.getElementById('btn-dlg-csv');
+  if(!_detailStore){ _flashBtn(btn,'⚠️ 無資料'); return; }
+  _triggerCsvDownload(buildCsvContent([_detailStore]), _detailStore.storeName+'_'+_detailStore.code);
+  _flashBtn(btn,'✅ 已下載');
 }
 function storeDetailScreenshot(){
   var btn = document.getElementById('btn-dlg-screenshot');
   var el = document.getElementById('dlg-body');
   _captureElement(el, btn, (_detailStore?_detailStore.storeName:PROJ_NAME)+'_個案明細');
 }
+
 
 /* ════ 主工具列 CSV／複製／截圖 ════ */
 function buildCsvContent(rows){
@@ -1261,7 +1489,20 @@ function toolbarCopyLine(){
     lines.push('❌ '+r.storeName+'('+r.code+') '+r.staff+' 缺：'+r._status.missing.join('、'));
   });
   if(total-complete > 50) lines.push('…其餘 '+(total-complete-50)+' 家略');
+  lines.push('');
+  lines.push('📅 '+new Date().toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}));
   _doCopy(lines.join('\n'), btn);
+}
+/* LINE 精簡：只有總量與達成率，不列逐店清單，適合快速回報用的一行摘要 */
+function toolbarCopyLineBrief(){
+  var btn = document.getElementById('tb-btn-line-brief');
+  var rows = getFilteredStores();
+  if(!rows.length){ _flashBtn(btn,'⚠️ 無資料'); return; }
+  var total = rows.length, complete = rows.filter(function(r){return r._status.isComplete;}).length;
+  var rate = total ? Math.round(complete/total*1000)/10 : 0;
+  var ctx = drillStack.length ? drillStack.map(function(d){ return d.key; }).join(' › ') : '全台';
+  var text = '【'+PROJ_NAME+'】'+CUR_YM.replace('-','/')+'　'+ctx+'　總店數 '+total+'／已查核 '+complete+'／未查核 '+(total-complete)+'／達成率 '+rate+'%';
+  _doCopy(text, btn);
 }
 function toolbarScreenshot(){
   var btn = document.getElementById('tb-btn-screenshot');
