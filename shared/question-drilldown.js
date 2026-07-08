@@ -1,6 +1,6 @@
 /* ════════════════════════════════════════════════════════════
    question-drilldown.js — 逐題彙整（單一大題＋單一選項，全範圍集中檢視）
-   版本：Ver. 1.0.0 ｜ 建立：2026-07-08
+   版本：Ver. 1.1.0 ｜ 建立：2026-07-08
    依賴：core-utils.js（esc）、photo-viewer.js（_renderPhotoChip，因為填寫內容
         可能是照片網址，要用同一套縮圖／燈箱樣式呈現，不要另外做一套）
 
@@ -34,7 +34,7 @@
        {
          label: '一品活蝦市府店',       // 卡片標題，通常是店名
          meta:  '北部 · 行銷課 · 鄒奇蒼-1051035', // 卡片副標題，通常是單位/人員
-         timeText: '2026/07/03',       // 用來排序＋顯示，沒有就傳空字串
+         timeText: '2026/07/03',       // 用來排序＋顯示，沒有就傳空字串，畫面會退回顯示「未知時間」
          sections: [ { section:'大題名稱', picks:[ {option, value}, ... ] }, ... ]
        }, ...
      ]
@@ -55,6 +55,10 @@
    _qdRenderResults 改成逐一渲染每個選取項目即可，不需要動資料組裝那一段。
 
    【版本紀錄】
+   1.1.0  2026-07-08  結果卡片一律顯示時間（🕒），timeText 空值時退回顯示
+          「未知時間」，不再整個隱藏時間欄位——避免使用者看著一筆填寫內容
+          卻完全不知道是何時填的（跟 photo-viewer.js／店家明細既有頁面的
+          呈現方式看齊）
    1.0.0  2026-07-08  首版
    ════════════════════════════════════════════════════════════ */
 
@@ -237,7 +241,7 @@ function _qdRenderResults(){
     html += '<div class="photo-store-card">'
       + '<div class="photo-store-head">'
       +   '<span class="photo-store-name">🏪 '+esc(e.label||'—')+'</span>'
-      +   '<span class="photo-store-meta">'+(e.timeText?'🕒 '+esc(String(e.timeText))+'　':'')+esc(e.meta||'')+'</span>'
+      +   '<span class="photo-store-meta">🕒 '+esc(String(e.timeText||'未知時間'))+'　'+esc(e.meta||'')+'</span>'
       + '</div>'
       + '<div class="'+(info.hasPhoto?'raw-quiz-photos':'raw-quiz-picks')+'" style="margin-top:6px;">'+info.html+'</div>'
       + '</div>';
