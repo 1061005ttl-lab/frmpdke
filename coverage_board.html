@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 3.2.0 ｜ 最後更新：2026-07-08
+  版本：Ver. 3.3.0 ｜ 最後更新：2026-07-08
 ════════════════════════════════════════════════════════════
 
 【⚠ 版本更新作業流程】
@@ -23,6 +23,19 @@
     修改計算邏輯時兩條路徑都要確認，不要讓其中一條覆蓋另一條
 
 【版本紀錄】
+  3.3.0  2026-07-08  修正上一版誤刪、營業處排序bug、逐題彙整補時間
+         - 【還原】卡片右上角小字前綴（營業處/整體概況）：上一版誤刪，
+           使用者確認這個標籤要留著，已還原
+         - 【改刪】改刪 .level-label：格線上方獨佔一整行、跟卡片小字前綴
+           內容重複的大標題，這才是真正該刪的部分
+         - 修正 AREA_ORDER 排序 bug：原本清單寫「台中/台南」(0x53f0)，但
+           實際資料欄位是「臺中/臺南」(0x81fa)，兩個不同碼點 indexOf 永遠
+           比對不到，導致這兩個營業處被誤判成清單外、排到最後面。改用
+           正確的「臺」字，並依指定順序排列：北部/桃園/臺中/嘉義/臺南/
+           高雄/花蓮
+         - 逐題彙整（shared/question-drilldown.js 同步升級 1.1.0）：結果
+           卡片一律顯示 🕒 時間，timeText 空值時退回顯示「未知時間」，
+           不再因為抓不到時間欄位就整個不顯示，導致看不出資料是何時填的
   3.2.0  2026-07-08  介面優化：卡片瘦身、toolbar 功能分組
          - 卡片標題移除「營業處/整體概況」等層級代碼字樣，只留名稱+明細鈕
            （原本獨佔視覺一角，外部人員不需要，且浪費空間）
@@ -320,13 +333,6 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 
 /* ── stage ── */
 .stage { padding:12px 20px 32px; }
-.level-label {
-  font-size:11px;
-  color:var(--sub);
-  letter-spacing:.05em;
-  margin-bottom:6px;
-  text-transform:uppercase;
-}
 .grid {
   display:grid;
   grid-template-columns:repeat(4, 1fr);
@@ -1822,8 +1828,11 @@ function render() {
   }
 }
 
-/* 營業處固定排序清單（只套用於「營業處」這一層） */
-var AREA_ORDER = ['北部','桃園','台中','嘉義','台南','高雄','花蓮'];
+/* 營業處固定排序清單（只套用於「營業處」這一層）
+   v3.3.0 修正：原本用「台中/台南」(0x53f0) 但實際資料欄位是「臺中/臺南」
+   (0x81fa)，兩者是不同碼點，indexOf 永遠比對不到，導致這兩個營業處被誤判
+   成「清單外」而排到最後面。改用正確的「臺」字，並依指定順序排列。 */
+var AREA_ORDER = ['北部','桃園','臺中','嘉義','臺南','高雄','花蓮'];
 
 /* 營業處排序：依 AREA_ORDER 排，清單外的排最後面（仍依 hasDisp 降序）
    groups: { key: rows[] }，用於計算清單外名稱的 hasDisp */
@@ -1853,7 +1862,8 @@ function renderLevel(stage, rows, col, levelKey, labelText, overallName) {
     keys.sort(function(a,b){ return statCache[b].hasDisp - statCache[a].hasDisp; });
   }
   var div=document.createElement('div');
-  div.innerHTML='<div class="level-label">'+labelText+'</div>';
+  /* v3.3.0 移除 .level-label（格線上方獨佔一行的大標題，跟每張卡片右上角
+     已經有的小字前綴重複，使用者確認不需要） */
   var grid=document.createElement('div'); grid.className='grid';
   /* 整體卡片固定最前，點即開 dialog */
   /* 記錄整體概況資料供 toolbar 使用 */
@@ -1874,10 +1884,10 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
   var ttId='tt-'+name.replace(/[^a-zA-Z0-9]/g,'_')+'-'+levelKey+(isOverall?'-all':'');
   var T = stat.total;
   function fp(n){ return T>0 ? Math.round(n/T*100)+'%' : '—'; }
-  /* 卡片標題只顯示名稱大字 + 右側明細按鈕，不再顯示「營業處/整體概況」等
-     層級代碼字樣（v3.2.0 移除：外部人員不需要，且獨佔一行浪費空間） */
+  /* 卡片標題一行：組別小字（營業處/整體概況…）+ 名稱大字 + 右側明細按鈕 */
+  var topLabel = isOverall ? '整體概況' : labelText;
   var _safeName = name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-  var topHtml = '<div class="card-top-inline"><span class="card-name-inline'+(isOverall?' card-name-overall':'')+'">'+esc(name)+'</span>'
+  var topHtml = '<div class="card-top-inline">'+esc(topLabel)+' <span class="card-name-inline'+(isOverall?' card-name-overall':'')+'">'+esc(name)+'</span>'
     +'<div class="card-action-group">'
     +'<button class="card-detail-btn" id="dbtn-'+ttId+'">📋 明細</button>'
     +'</div></div>';
