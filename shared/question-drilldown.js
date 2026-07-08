@@ -1,6 +1,6 @@
 /* ════════════════════════════════════════════════════════════
    question-drilldown.js — 逐題彙整（單一大題＋單一選項，全範圍集中檢視）
-   版本：Ver. 1.1.0 ｜ 建立：2026-07-08
+   版本：Ver. 1.3.0 ｜ 建立：2026-07-08
    依賴：core-utils.js（esc）、photo-viewer.js（_renderPhotoChip，因為填寫內容
         可能是照片網址，要用同一套縮圖／燈箱樣式呈現，不要另外做一套）
 
@@ -55,6 +55,11 @@
    _qdRenderResults 改成逐一渲染每個選取項目即可，不需要動資料組裝那一段。
 
    【版本紀錄】
+   1.3.0  2026-07-08  _qdRenderValueInfo 新增第 3 參數 ctx（{store,section}），
+                       呼叫 _renderPhotoChip 時一併帶入，讓逐題彙整結果裡的
+                       照片也能在燈箱資訊列顯示「店名 › 大題 › 選項」，跟
+                       照片牆／店家明細的燈箱體驗一致（見 shared/photo-viewer.js
+                       1.2.0）。
    1.2.0  2026-07-08  結果卡片的 photo-store-meta 改用 shared/core-utils.js 的
                        _dateOnly() 只顯示日期（YYYY/MM/DD），不再顯示到時分秒——
                        跟照片牆（coverage_board.html _buildPhotoWall）的
@@ -181,10 +186,13 @@ function _qdFindPick(entry, section, option){
 /* 單一填寫內容渲染成 chip：跟 photo-viewer.js._renderQuizSections 同一套判斷規則
    （純打勾不算有意義文字、有網址就是照片、其餘當文字顯示），差別只在這裡已經
    鎖定單一選項，不需要再顯示一次選項名稱標籤。
+   ctx：選填 {store, section}，讓燈箱資訊列能顯示「店名 › 大題 › 選項」，不用切換
+   出燈箱就知道這張照片是誰、哪一題填的（跟 photo-viewer.js._renderQuizSections
+   的 storeName 參數是同一套機制）。
    回傳 { html, hasPhoto }：hasPhoto 決定外層要用「並排 wrap」還是「獨立一行」
    容器——這是 dashboard-common.css 裡明文記錄的設計決定（文字答案永遠獨立
    一行、只有照片才並排），這裡沿用，不要圖方便都用同一種容器。 */
-function _qdRenderValueInfo(optionLabel, rawValue){
+function _qdRenderValueInfo(optionLabel, rawValue, ctx){
   var raw = String(rawValue||'');
   var urlRe = /https?:\/\/\S+/gi;
   var urls = raw.match(urlRe) || [];
@@ -195,7 +203,7 @@ function _qdRenderValueInfo(optionLabel, rawValue){
     var html = '';
     urls.forEach(function(u, idx){
       var label = urls.length > 1 ? (optionLabel + '-' + (idx+1)) : optionLabel;
-      html += _renderPhotoChip(label, u, isJustMark ? '' : textOnly);
+      html += _renderPhotoChip(label, u, isJustMark ? '' : textOnly, ctx);
     });
     return { html:html, hasPhoto:true };
   }
@@ -243,7 +251,7 @@ function _qdRenderResults(){
 
   matched.forEach(function(m){
     var e = m.entry;
-    var info = _qdRenderValueInfo(option, m.value);
+    var info = _qdRenderValueInfo(option, m.value, { store:e.label, section:section });
     html += '<div class="photo-store-card">'
       + '<div class="photo-store-head">'
       +   '<span class="photo-store-name">🏪 '+esc(e.label||'—')+'</span>'

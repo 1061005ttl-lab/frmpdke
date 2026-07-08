@@ -1,8 +1,10 @@
 /* ════════════════════════════════════════════════════════════
    pivot-dialog.js — 彙整看板 Pivot Dialog 的分頁／滑動框架
-   版本：Ver. 1.0.0 ｜ 建立：2026-07-05
+   版本：Ver. 1.1.0 ｜ 建立：2026-07-05
    依賴：無（呼叫端需自備 DOM：#summary-dialog / #sum-title /
              #pivot-slides / #pivot-slide-{mode} / .pivot-tab）
+   軟依賴：shared/photo-viewer.js 的 _isPhotoLightboxOpen()（有載入才會生效，
+             沒載入的看板不受影響，Escape 行為退回原本「直接關 Dialog」）
 
    給哪些看板用：所有有「彙整看板」多分頁橫向滑動 dialog 的看板
    （目前 coverage 4 分頁：人員/單位/店家/照片牆，audit 4 分頁：
@@ -42,6 +44,11 @@
    數字、改分頁數時忘記同步更新其中一處。
 
    【版本紀錄】
+   1.1.0  2026-07-08  Escape 監聽器加上燈箱狀態判斷：照片牆/店家明細裡的
+                       燈箱開著時按 Escape，原本會把燈箱跟彙整看板 Dialog
+                       一起關掉（使用者要看下一張照片誤按 Esc，結果整個
+                       彙整看板都不見了），現在會先讓燈箱自己關，Dialog
+                       維持開著。
    1.0.0  2026-07-05  首版，從 coverage_board.html 抽出，
                        _pivotTabCount 從「各板手動寫死的數字」改成
                        自動從 _pivotTabIndex 算出，讓分頁數一般化成 N
@@ -104,4 +111,13 @@ function _setPivotSlide(mode, animate){
   if(!animate) setTimeout(function(){ slides.style.transition = ''; }, 30);
 }
 
-document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeSummaryDialog(); });
+/* 燈箱開著時按 Escape，應該只關燈箱、不要連彙整看板 Dialog 一起關掉。
+   _isPhotoLightboxOpen() 來自 shared/photo-viewer.js（查詢燈箱目前是否顯示），
+   這裡用「查詢狀態」而不是靠 stopPropagation，因為燈箱的 keydown 監聽器是
+   開燈箱當下才動態掛上去的，比這支在頁面載入時就掛好的監聽器晚註冊，事件
+   一定會先跑到這裡——只有主動查詢燈箱狀態才能保證不管註冊順序都正確。 */
+document.addEventListener('keydown', function(e){
+  if(e.key !== 'Escape') return;
+  if(typeof _isPhotoLightboxOpen === 'function' && _isPhotoLightboxOpen()) return;
+  closeSummaryDialog();
+});

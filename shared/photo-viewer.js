@@ -30,6 +30,39 @@
    這支檔案完全不管資料從哪來。
 
    【版本紀錄】
+   1.2.0  2026-07-08  燈箱資訊列＋跨範圍瀏覽＋ESC 層級修正：
+                       A) 燈箱新增資訊列，顯示「店名 › 大題 › 選項」，不用
+                          切換出燈箱就能看到這張照片完整脈絡。做法：
+                          _renderPhotoChip 新增第 4 參數 ctx（{store,section}），
+                          寫進縮圖的 data-lightbox-store/-section 屬性；
+                          _renderQuizSections 新增第 2 參數 storeName，往下
+                          傳給每個 _renderPhotoChip 呼叫。開燈箱時
+                          （_openPhotoLightboxFromImg）連同這兩個屬性一起
+                          收進 gallery 清單，_photoLightboxRender 渲染進新增
+                          的 .photo-lightbox-info 資訊列。store/section 任一
+                          缺值就跳過該段，不會顯示空的「›」。
+                       B) 照片牆跨店家/大題無限左右切換：_PHOTO_GALLERY_
+                          SCOPE_SELECTOR 把原本的 .photo-gallery-sections
+                          （店卡內部、每家店各自一個容器）換成
+                          .photo-gallery-wall（整個照片牆外層，由呼叫端
+                          coverage_board.html 的 _buildPhotoWall 包一層）。
+                          原本 closest() 抓到的是「同一張店卡」，導致切到
+                          底就卡住；改抓外層之後，同一次彙整結果內的所有
+                          照片（不分店家/大題）都算同一個瀏覽範圍，左右鍵
+                          可以無限跨越切換，頭尾循環（見 _photoLightboxNav）。
+                          .raw-quiz-list（單筆拜訪紀錄）／#qd-results（逐題
+                          彙整）兩個既有範圍不受影響，維持原本各自的瀏覽
+                          範圍不跨界。
+                       C) 新增 _isPhotoLightboxOpen()：讓外層（pivot-dialog.js
+                          的彙整看板 Dialog、各板自己的 detail-dialog）在自己
+                          的 Escape 監聽器裡先檢查燈箱是不是開著，開著就讓
+                          燈箱自己的 Escape 處理掉、外層不要跟著關閉——修正
+                          「燈箱開著時按 ESC 會整層退出，退到照片牆都不見了」
+                          的問題。這裡沒辦法只靠 stopPropagation 解決，因為
+                          燈箱的 keydown 監聽器是開燈箱當下才動態掛上去的，
+                          比外層 Dialog 在頁面載入時就掛好的監聽器晚註冊，
+                          事件會先跑到外層——所以改用「外層主動查詢燈箱狀態」
+                          這個方向，不管監聽器註冊順序為何都成立。
    1.1.0  2026-07-08  燈箱三項優化（智慧滿版／左右熱區／鍵盤方向鍵）：
                        A) 智慧滿版：.photo-lightbox-img 改成填滿固定尺寸的
                           .photo-lightbox-stage（96vw×94vh）＋object-fit:contain，
@@ -59,12 +92,19 @@ function _driveBigUrl(url){
 /* note：選填的附註文字（例如 audit 照片牆要顯示「這張照片旁邊寫了什麼」）。
    單獨一個 v／V／✓ 不算有意義的附註——這在原始資料裡只代表「這欄有填」，
    不是真的有話要說，所以自動排除、不會顯示成附註文字。 */
-function _renderPhotoChip(optionName, url, note){
+/* ctx：選填 {store, section}，讓開燈箱時能知道「這張照片是哪家店、哪個大題」，
+   存進 data-lightbox-store/-section 屬性，跟 data-lightbox-url/-alt 是同一套
+   作法——燈箱資訊列（.photo-lightbox-info）靠這兩個屬性組出「店名 › 大題 › 選項」
+   的脈絡文字，不用切換出燈箱就能看到完整資訊。任一個呼叫端沒傳 ctx 就照舊，
+   資訊列該段自動略過，不會顯示空字串。 */
+function _renderPhotoChip(optionName, url, note, ctx){
   var bigUrl = _driveBigUrl(url);
   var uid = 'photo_' + Math.random().toString(36).substring(2,9);
   var noteText = String(note||'').trim();
   var isJustMark = /^[vV✓]$/.test(noteText);
   var noteHtml = (noteText && !isJustMark) ? '<span class="raw-quiz-photo-note">📝 '+esc(noteText)+'</span>' : '';
+  var ctxStore = ctx && ctx.store ? String(ctx.store) : '';
+  var ctxSection = ctx && ctx.section ? String(ctx.section) : '';
   /* data-lightbox-url／data-lightbox-alt：燈箱要做「左右鍵/熱區切換上一張下一張」，
      開燈箱當下才動態去掃同一個容器內所有縮圖組成清單（見 _openPhotoLightboxFromImg），
      所以每張縮圖把自己的大圖網址／說明文字存在 data 屬性上，不要只塞進 onclick
@@ -73,6 +113,7 @@ function _renderPhotoChip(optionName, url, note){
     + '<span class="raw-quiz-chip-q">'+esc(optionName)+'</span>'
     +   '<img id="'+uid+'" class="raw-quiz-photo-img" src="'+esc(url)+'" alt="'+esc(optionName)+'" '
     +   'data-lightbox-url="'+esc(bigUrl)+'" data-lightbox-alt="'+esc(optionName)+'" '
+    +   'data-lightbox-store="'+esc(ctxStore)+'" data-lightbox-section="'+esc(ctxSection)+'" '
     +   'loading="lazy" crossorigin="anonymous" '
     +   'onclick="event.stopPropagation();_openPhotoLightboxFromImg(this);" '
     +   'onerror="this.style.display=\'none\';this.insertAdjacentHTML(\'afterend\',\'<span class=&quot;raw-quiz-photo-fail&quot;>⚠️ 圖片載入失敗</span>\');">'
@@ -81,10 +122,21 @@ function _renderPhotoChip(optionName, url, note){
 }
 
 /* 燈箱要在哪個範圍內找「上一張/下一張」，刻意用容器邊界圈住，而不是抓全頁所有照片——
-   一次拜訪紀錄（.raw-quiz-list）、照片牆一張卡片（.photo-gallery-sections）、
-   逐題彙整結果（#qd-results）各自是一組合理的瀏覽範圍，跨這些範圍切換上一張/下一張
-   使用者會看不懂「怎麼跳到別家店去了」，所以找不到明確容器才退回整頁。 */
-var _PHOTO_GALLERY_SCOPE_SELECTOR = '.raw-quiz-list, .photo-gallery-sections, #qd-results';
+   一次拜訪紀錄（.raw-quiz-list）、整個照片牆（.photo-gallery-wall）、逐題彙整結果
+   （#qd-results）各自是一組合理的瀏覽範圍，找不到明確容器才退回整頁。
+   照片牆這裡刻意用「整個照片牆」而不是「一張店卡」——使用者確認過希望在照片牆
+   模式下可以不分店家/大題一路左右切換到底（跟店家明細裡「只在這次拜訪紀錄內
+   切換」是刻意不同的兩種瀏覽情境）。呼叫端 _buildPhotoWall 要把所有店卡包在
+   一個 .photo-gallery-wall 容器裡，這支才抓得到；沒包的話會退回整頁範圍。 */
+var _PHOTO_GALLERY_SCOPE_SELECTOR = '.raw-quiz-list, .photo-gallery-wall, #qd-results';
+
+/* 燈箱目前是否開著，給外層 Dialog（pivot-dialog.js／各板 detail-dialog）自己的
+   Escape 監聽器查詢用——燈箱開著時，外層應該讓燈箱自己處理 Escape（只關燈箱），
+   不要跟著把整層 Dialog 也關掉。 */
+function _isPhotoLightboxOpen(){
+  var el = document.getElementById('photo-lightbox-backdrop');
+  return !!(el && el.classList.contains('show'));
+}
 
 function _ensurePhotoLightbox(){
   var el = document.getElementById('photo-lightbox-backdrop');
@@ -98,7 +150,8 @@ function _ensurePhotoLightbox(){
     + '<div class="photo-lightbox-stage">'
     +   '<img class="photo-lightbox-img" id="photo-lightbox-img" src="" alt="">'
     + '</div>'
-    + '<div class="photo-lightbox-counter" id="photo-lightbox-counter"></div>';
+    + '<div class="photo-lightbox-counter" id="photo-lightbox-counter"></div>'
+    + '<div class="photo-lightbox-info" id="photo-lightbox-info"></div>';
   /* 點背景／點圖片本身＝關閉（cursor:zoom-out 就是在暗示這件事，維持原行為）；
      點左右熱區／關閉鈕都各自 stopPropagation，不會被這裡的關閉邏輯吃掉 */
   el.addEventListener('click', function(){ _closePhotoLightbox(); });
@@ -120,7 +173,12 @@ function _openPhotoLightboxFromImg(imgEl){
   var imgs = Array.prototype.slice.call(scope.querySelectorAll('.raw-quiz-photo-img[data-lightbox-url]'));
   if(!imgs.length) imgs = [imgEl];
   var gallery = imgs.map(function(im){
-    return { url: im.getAttribute('data-lightbox-url'), alt: im.getAttribute('data-lightbox-alt') || '' };
+    return {
+      url: im.getAttribute('data-lightbox-url'),
+      alt: im.getAttribute('data-lightbox-alt') || '',
+      store: im.getAttribute('data-lightbox-store') || '',
+      section: im.getAttribute('data-lightbox-section') || ''
+    };
   });
   var idx = imgs.indexOf(imgEl);
   if(idx < 0) idx = 0;
@@ -142,13 +200,26 @@ function _openPhotoLightbox(url, alt, gallery, idx){
 function _photoLightboxRender(){
   var gallery = window._photoLightboxGallery || [];
   var idx = window._photoLightboxIndex || 0;
-  var item = gallery[idx] || { url:'', alt:'' };
+  var item = gallery[idx] || { url:'', alt:'', store:'', section:'' };
   var imgEl = document.getElementById('photo-lightbox-img');
   if(imgEl){ imgEl.src = item.url; imgEl.alt = item.alt; }
   var counterEl = document.getElementById('photo-lightbox-counter');
   if(counterEl) counterEl.textContent = gallery.length > 1 ? ((idx+1) + ' / ' + gallery.length) : '';
   var box = document.getElementById('photo-lightbox-backdrop');
   if(box) box.classList.toggle('has-multi', gallery.length > 1);
+  /* 資訊列：店名 › 大題 › 選項，任一段缺值就跳過，不留空的「›」；
+     三段都沒有就整個隱藏資訊列，不佔畫面空間 */
+  var infoEl = document.getElementById('photo-lightbox-info');
+  if(infoEl){
+    var parts = [item.store, item.section, item.alt].filter(function(v){ return v && String(v).trim(); });
+    if(parts.length){
+      infoEl.textContent = parts.join(' › ');
+      infoEl.style.display = '';
+    } else {
+      infoEl.textContent = '';
+      infoEl.style.display = 'none';
+    }
+  }
 }
 
 /* delta：-1 上一張／+1 下一張，頭尾循環（最後一張按下一張回到第一張），
@@ -166,8 +237,10 @@ function _closePhotoLightbox(){
 }
 
 /* 渲染一整份「標準化格式」的問卷大題／選項（見檔頭說明），
-   有網址畫縮圖、有文字純顯示文字、兩者都有則並存。 */
-function _renderQuizSections(sections){
+   有網址畫縮圖、有文字純顯示文字、兩者都有則並存。
+   storeName：選填，這筆紀錄所屬的店名，讓燈箱資訊列能顯示「店名 › 大題 › 選項」，
+   不傳就沿用舊行為（燈箱只顯示選項名稱）。 */
+function _renderQuizSections(sections, storeName){
   if(!sections || !sections.length) return '<div style="font-size:12px;color:var(--sub);">（此筆未填寫任何題目）</div>';
   var html = '<div class="raw-quiz-list">';
   sections.forEach(function(sec){
@@ -181,7 +254,7 @@ function _renderQuizSections(sections){
       if(urls.length){
         urls.forEach(function(u, uIdx){
           var label = urls.length > 1 ? (p.option + '-' + (uIdx+1)) : p.option;
-          photosHtml += _renderPhotoChip(label, u);
+          photosHtml += _renderPhotoChip(label, u, null, { store:storeName, section:sec.section });
         });
         /* 純打勾標記（v/V/✓）不算有意義的文字內容，有照片時直接省略不顯示 */
         var isJustCheckmark = /^[vV✓]$/.test(textOnly);
