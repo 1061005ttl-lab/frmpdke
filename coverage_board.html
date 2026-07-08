@@ -359,6 +359,21 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .stat-item.dim .stat-val,
 .stat-item.dim .stat-pct { color:#999 !important; }
 
+/* 已知合計：獨立一格用主色藍，跟 B(綠)/C(紅)/未填寫(紅警示) 三色都不同，
+   一眼就能抓到「總家數 vs 已知(B+C) vs 未填寫」這組最重要的對比數字，
+   不用自己心算總家數減未填寫 */
+.stat-item.known { background:var(--primary-bg); }
+.stat-item.known .stat-label { color:var(--primary); }
+.stat-item.known .stat-val { color:var(--primary); }
+.stat-item.known .stat-pct { color:var(--primary); opacity:.7; }
+
+/* 細項列（各 B 群／各 C 群）跟總覽列（總家數/已知合計/未填寫）之間用一條
+   淺色虛線隔開，並加小標籤說明「這排是已知合計的組成明細」，讀者才不會
+   把兩排數字誤當成同一層級、彼此獨立的東西 */
+.stat-row-detail { margin-top:10px; padding-top:10px; border-top:1px dashed var(--border); }
+.stat-row-detail .stat-row { margin-top:6px; }
+.stat-detail-caption { font-size:10px; color:var(--sub); font-weight:600; }
+
 /* ── 卡片右上角動作群組 ── */
 .card-action-group { display:flex; align-items:center; gap:4px; margin-left:auto; flex-shrink:0; }
 .card-act-btn { border:none; background:transparent; cursor:pointer; font-size:14px; padding:2px 4px; border-radius:6px; opacity:.5; transition:opacity .15s; line-height:1; }
@@ -1884,12 +1899,27 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
       '</div>';
     });
   }
-  var statRowHtml = '<div class="stat-row">'+
+  /* 已知(合計) = 總家數 - 未填寫，用一格直接給答案，不用讀者自己心算。
+     只在計數型 + 有設未填寫欄時才有意義：加總型的「總家數」本身已經是
+     已知家數（未填寫恆為 0），再放一格「已知」會跟總家數重複，故排除。 */
+  var _knownHtml = (COL_UNFILL && !isSum())
+    ? '<div class="stat-item known"><div class="stat-label">已知(合計)</div><div class="stat-val">'+stat.valid+'</div><div class="stat-pct">'+fp(stat.valid)+'</div></div>'
+    : '';
+  var summaryRowHtml = '<div class="stat-row">'+
     '<div class="stat-item"><div class="stat-label">總家數</div><div class="stat-val">'+(isSum()?stat.hasDisp:stat.total)+'</div><div class="stat-pct hidden">&nbsp;</div></div>'+
+    _knownHtml +
     (COL_UNFILL ? '<div class="stat-item warn'+(chips['unfill']===false?' dim':'')+'"><div class="stat-label">'+esc(UNFILL_LABEL)+'</div><div class="stat-val">'+stat.unfilled+'</div><div class="stat-pct">'+fp(stat.unfilled)+'</div></div>' : '')+
-    _bStatHtml + _cStatHtml +
   '</div>';
-  card.innerHTML = topHtml + statRowHtml;
+  /* 細項列：各 B 群／各 C 群，跟總覽列用分隔線+小標籤隔開，一眼看出
+     這排是「已知(合計)」的組成明細，不是跟總覽平行的另一組獨立數字 */
+  var _detailCaption = isSum() ? '跟訪份數細項' : '已知細項（B／C 群）';
+  var detailBlockHtml = (_bStatHtml || _cStatHtml)
+    ? '<div class="stat-row-detail">'+
+        '<div class="stat-detail-caption">'+_detailCaption+'</div>'+
+        '<div class="stat-row">'+_bStatHtml+_cStatHtml+'</div>'+
+      '</div>'
+    : '';
+  card.innerHTML = topHtml + summaryRowHtml + detailBlockHtml;
 
   /* 綁定 B 群 tooltip */
   if (isSum()) {
