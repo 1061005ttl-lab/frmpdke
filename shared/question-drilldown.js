@@ -55,6 +55,12 @@
    _qdRenderResults 改成逐一渲染每個選取項目即可，不需要動資料組裝那一段。
 
    【版本紀錄】
+   1.2.0  2026-07-08  結果卡片的 photo-store-meta 改用 shared/core-utils.js 的
+                       _dateOnly() 只顯示日期（YYYY/MM/DD），不再顯示到時分秒——
+                       跟照片牆（coverage_board.html _buildPhotoWall）的
+                       photo-store-meta 顯示規則統一。找不到值時仍顯示
+                       「未知時間」（時間值本身抓不抓得到是 _findTimeText
+                       負責的事，這裡只管顯示格式）。
    1.1.0  2026-07-08  結果卡片一律顯示時間（🕒），timeText 空值時退回顯示
           「未知時間」，不再整個隱藏時間欄位——避免使用者看著一筆填寫內容
           卻完全不知道是何時填的（跟 photo-viewer.js／店家明細既有頁面的
@@ -241,7 +247,7 @@ function _qdRenderResults(){
     html += '<div class="photo-store-card">'
       + '<div class="photo-store-head">'
       +   '<span class="photo-store-name">🏪 '+esc(e.label||'—')+'</span>'
-      +   '<span class="photo-store-meta">🕒 '+esc(String(e.timeText||'未知時間'))+'　'+esc(e.meta||'')+'</span>'
+      +   '<span class="photo-store-meta">🕒 '+esc(_dateOnly(e.timeText)||'未知時間')+'　'+esc(e.meta||'')+'</span>'
       + '</div>'
       + '<div class="'+(info.hasPhoto?'raw-quiz-photos':'raw-quiz-picks')+'" style="margin-top:6px;">'+info.html+'</div>'
       + '</div>';
