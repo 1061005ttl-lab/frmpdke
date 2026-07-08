@@ -1564,6 +1564,22 @@ function rowCGroup(r) {
   }
   return -1;
 }
+/* 不受燈號開關影響的「原始」B/C 群組判斷，只看欄位實際數值。
+   用途：判斷一列店家「真正的」狀態是否為 B/C 都沒有值（=真的未填寫），
+   不能用 rowBGroup/rowCGroup，因為那兩支會因為燈被關掉而回傳 -1，
+   跟「真的沒資料」混在一起，會導致關燈時把有資料的店誤判成未填寫。 */
+function rowBGroupRaw(r) {
+  for (var i = 0; i < BUCKETS_B.length; i++) {
+    if (BUCKETS_B[i].cols.some(function(t){ return isOne(r[t]); })) return i;
+  }
+  return -1;
+}
+function rowCGroupRaw(r) {
+  for (var j = 0; j < BUCKETS_C.length; j++) {
+    if (BUCKETS_C[j].cols.some(function(t){ return isOne(r[t]); })) return j;
+  }
+  return -1;
+}
 function isDispRow(r){ return rowBGroup(r) >= 0; }
 function isNoRow(r){ return rowCGroup(r) >= 0; }
 
@@ -2044,8 +2060,17 @@ function dialogRows(rows, levelKey) {
     if (bi >= 0) { result.push({ r:r, grp:0, bi:bi, ci:-1 }); return; }
     var ci = rowCGroup(r);
     if (ci >= 0) { result.push({ r:r, grp:1, bi:-1, ci:ci }); return; }
-    /* B/C 都沒有值且設有未知群組 → 視同未填寫處理 */
-    if (COL_UNFILL && chips['unfill'] !== false) result.push({ r:r, grp:3, bi:-1, ci:-1 });
+    /* 這裡不能再用 rowBGroup/rowCGroup 判斷「真的沒資料」，因為上面兩次呼叫
+       如果是因為對應的燈被關掉才回傳 -1（不是真的沒資料），會被誤判成未填寫。
+       改用不受燈號影響的 Raw 版本，只看欄位實際數值是否真的兩邊都沒有。 */
+    var biRaw = rowBGroupRaw(r), ciRaw = rowCGroupRaw(r);
+    if (biRaw < 0 && ciRaw < 0) {
+      /* B/C 欄位真的都沒有值且設有未知群組 → 視同未填寫處理 */
+      if (COL_UNFILL && chips['unfill'] !== false) result.push({ r:r, grp:3, bi:-1, ci:-1 });
+    }
+    /* 否則：這家店其實有資料，只是對應的燈被關掉了。維持原行為不 push，
+       讓它單純從明細清單中消失，等對應的燈重新打開才會再出現，這才是
+       「關掉的類別從明細中移除」該有的效果，也不會誤標成未填寫。 */
   });
   /* 排序：同狀態分組內一律依「最新拜訪時間」新到舊排序（長官想看的是最新動態，
      不是店名字母順序）。問卷資料尚未載入完成時 _latestVisitTimeKey 一律回傳空字串，
