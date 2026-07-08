@@ -204,7 +204,6 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   top:0;
   z-index:50;
 }
-.toolbar-title { font-size:15px; font-weight:600; flex:1; }
 .back-btn {
   background:none;
   border:1px solid var(--border);
@@ -708,8 +707,6 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     gap:6px;
     overflow:visible; /* 讓 toolbar-controls 下拉選單可以溢出顯示 */
   }
-  /* 手機：隱藏看板名稱（proj-sel 已有），proj-sel 展開填空間 */
-  .toolbar-title { display:none; }
   .proj-sel { font-size:11px; max-width:none; flex:1; padding:3px 6px; min-width:0; }
   .back-btn { font-size:11px; padding:3px 8px; flex-shrink:0; }
   /* 同步時間手機隱藏 */
@@ -805,7 +802,6 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 
 <div class="toolbar">
   <button class="back-btn" id="back-btn" onclick="goBack()">← 返回</button>
-  <span class="toolbar-title" id="tb-title">覆蓋率看板</span>
   <select class="proj-sel" id="proj-sel" style="display:none" onchange="switchProject(this.value)"></select>
   <span class="sync-note" id="tb-sync"></span>
   <button class="hamburger-btn" id="hamburger-btn" onclick="toggleMobileMenu(event)">☰</button>
@@ -1296,7 +1292,7 @@ function _buildStoreHistoryPanel(storeRow, records, rid, errMsg, loading){
         +   '<span class="store-history-expand-ico">\u25B6</span>'
         + '</div>'
         + '<div class="store-history-body" id="hbody-'+hid+'" style="display:'+(isOpen?'block':'none')+';">'
-        +   _renderQuizSections(rec.sections)
+        +   _renderQuizSections(rec.sections, storeRow ? String(storeRow[COL_NAME]||'') : '')
         + '</div>'
         + '</div>';
     }).join('') + '</div>';
@@ -1481,7 +1477,6 @@ function init() {
         coverageProjs.push({ name:name, id:sid, active:active });
       });
 
-      document.getElementById('tb-title').textContent = PROJ_NAME;
       document.title = PROJ_NAME;
 
       var onProjs = coverageProjs.filter(function(p){ return p.active; });
@@ -1499,7 +1494,6 @@ function init() {
       fetchSyncTime();
     })
     .catch(function(){
-      document.getElementById('tb-title').textContent = PROJ_NAME;
       initChips();
       fetchSheet();
       fetchSyncTime();
@@ -2523,11 +2517,17 @@ function _buildPhotoWall(rows){
   cards.sort(function(a,b){ return a.rec.timeKey < b.rec.timeKey ? 1 : (a.rec.timeKey > b.rec.timeKey ? -1 : 0); });
   var totalPhotos = cards.reduce(function(s,c){ return s+c.photos.length; }, 0);
 
-  var html = '<div class="photo-gallery-summary">📸 共 <strong>'+cards.length+'</strong> 筆拜訪　🖼️ 共 <strong>'+totalPhotos+'</strong> 張照片'
+  /* 整個照片牆包一層 .photo-gallery-wall——這是 shared/photo-viewer.js 1.2.0
+     燈箱「跨店家/大題無限左右切換」認得的範圍容器，不包這一層的話，燈箱
+     closest() 找不到就會退回整頁範圍（仍能運作，但語意上不如明確包一層清楚，
+     故意包起來對齊文件說明）。 */
+  var html = '<div class="photo-gallery-wall">'
+    + '<div class="photo-gallery-summary">📸 共 <strong>'+cards.length+'</strong> 筆拜訪　🖼️ 共 <strong>'+totalPhotos+'</strong> 張照片'
     + '　<span style="font-weight:500;opacity:.7;">（僅列出目前篩選範圍內、且有照片的拜訪紀錄，新到舊排序）</span></div>';
 
   cards.forEach(function(c){
     var r = c.storeRow;
+    var storeName = String(r[COL_NAME]||'—');
     var timeText = _dateOnly(_findTimeText(c.rec.base)) || '未知時間';
     var bySection = {}, order = [];
     c.photos.forEach(function(p){
@@ -2535,19 +2535,22 @@ function _buildPhotoWall(rows){
       bySection[p.section].push(p);
     });
     var sectionsHtml = order.map(function(sec){
-      var photosHtml = bySection[sec].map(function(p){ return _renderPhotoChip(p.option, p.url); }).join('');
+      var photosHtml = bySection[sec].map(function(p){
+        return _renderPhotoChip(p.option, p.url, null, { store:storeName, section:sec });
+      }).join('');
       return '<div class="raw-quiz-section"><div class="raw-quiz-title">📋 '+esc(sec)+'</div>'
         + '<div class="raw-quiz-photos">'+photosHtml+'</div></div>';
     }).join('');
     var metaParts = [r[COL_AREA], r[COL_OFFICE], r[COL_STAFF]].filter(function(v){ return v; });
     html += '<div class="photo-store-card">'
       + '<div class="photo-store-head">'
-      + '<span class="photo-store-name">🏪 '+esc(String(r[COL_NAME]||'—'))+'</span>'
+      + '<span class="photo-store-name">🏪 '+esc(storeName)+'</span>'
       + '<span class="photo-store-meta">🕒 '+esc(String(timeText))+'　'+esc(metaParts.join(' · '))+'</span>'
       + '</div>'
       + '<div class="photo-gallery-sections">'+sectionsHtml+'</div>'
       + '</div>';
   });
+  html += '</div>';
   return html;
 }
 
@@ -2605,7 +2608,13 @@ function summaryScreenshot(){
   _captureElement(el, btn, PROJ_NAME+'_彙整看板_'+(PIVOT_TITLES[_pivotMode]||''));
 }
 
-document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeSummaryDialog(); });
+/* 燈箱開著時按 Escape 只關燈箱，不要連彙整看板 Dialog 一起關掉
+   （_isPhotoLightboxOpen 來自 shared/photo-viewer.js） */
+document.addEventListener('keydown', function(e){
+  if(e.key!=='Escape') return;
+  if(typeof _isPhotoLightboxOpen==='function' && _isPhotoLightboxOpen()) return;
+  closeSummaryDialog();
+});
 
 /* ── refreshDialogContent: 依目前 chips 動態重繪 dialog ── */
 function refreshDialogContent() {
@@ -2686,7 +2695,12 @@ function closeDialog(){
   dlg.classList.remove('open');
   setTimeout(function(){ dlg.style.display='none'; },220);
 }
-document.addEventListener('keydown',function(e){ if(e.key==='Escape') closeDialog(); });
+/* 同上：燈箱開著時按 Escape 只關燈箱，不要連店家明細 Dialog 一起關掉 */
+document.addEventListener('keydown',function(e){
+  if(e.key!=='Escape') return;
+  if(typeof _isPhotoLightboxOpen==='function' && _isPhotoLightboxOpen()) return;
+  closeDialog();
+});
 
 /* _flashBtn／fallbackCopy／_doCopy → shared/copy-utils.js */
 
