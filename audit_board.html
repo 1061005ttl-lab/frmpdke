@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   audit_board.html  ─  稽核型看版（店家名冊版）
-  版本：Ver. 2.8.0 ｜ 最後更新：2026-07-03
+  版本：Ver. 2.9.7 ｜ 最後更新：2026-07-08
 
   🤖 給後續 AI 模組看的導讀（放最上面，優先讀這段；下面才是完整版本紀錄）
 ════════════════════════════════════════════════════════════
@@ -202,6 +202,14 @@
   Dialog：逐列明細，含通路別、店家型態、店家等級、分類、子分類
 
 【版本紀錄】
+  2.9.7  2026-07-08  個案明細內容改採 contract_board 的高密度 Grid＋Wrap 版面
+                      （訊息集中化、節省畫面空間）：_buildRawDetailPanel 產出
+                      的外層 div 新增固定 class="raw-detail-panel"（id 仍是
+                      動態 rid，不能拿來當 CSS 選擇器），CSS 只在這個 class
+                      底下覆寫 .raw-quiz-list／.raw-quiz-picks 等版面（大題
+                      排成多欄 grid、選項改同行 wrap），不動 shared/
+                      dashboard-common.css 本身，彙整看板 Pivot／照片牆等
+                      其他用到 .raw-quiz-* 的地方版面不受影響。
   2.9.6  2026-07-03  照片燈箱改成固定 px 上限（min(1600px,96vw)／min(900px,94vh)），
                       不再是純 96vw/94vh。根因：vw/vh 這種「相對視窗百分比」單位，
                       數學上會被瀏覽器縮放自動抵銷（縮放讓視窗 CSS 像素反向變化，
@@ -772,6 +780,29 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
    不再像文字卡片一樣一行一則（一張照片佔一整排太浪費版面）。 */
 .raw-quiz-photos { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
 .raw-quiz-chip.raw-quiz-photo { display:inline-block; padding:6px 8px; vertical-align:top; margin:0; }
+
+/* ── 個案明細內容改採 contract_board 的高密度 Grid＋Wrap 版面（訊息集中化、
+   節省畫面空間）。原本 .raw-quiz-list 逐一大題直排＋.raw-quiz-picks 逐一
+   選項直排（flex-direction:column），內容多為簡短勾選/數字時會留下大片
+   空白、一次只能看到 2-3 行。這裡只在 .raw-detail-panel 容器內生效
+   （_buildRawDetailPanel 產出的外層 div，class 固定、id 才是動態 rid），
+   大題排成多欄 grid 一次看到所有大題，大題內選項改成同行 wrap 排列。
+   不修改 shared/dashboard-common.css 本身，彙整看板 Pivot／照片牆
+   等其他用到 .raw-quiz-* 的地方版面不受影響。 */
+.raw-detail-panel .raw-quiz-list {
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:8px;
+}
+.raw-detail-panel .raw-quiz-section { margin:0; padding:7px 10px; }
+.raw-detail-panel .raw-quiz-title { font-size:11px; margin-bottom:5px; }
+.raw-detail-panel .raw-quiz-picks { flex-direction:row; flex-wrap:wrap; gap:5px; }
+.raw-detail-panel .raw-quiz-picks .raw-quiz-chip { display:inline-flex; flex-direction:column; width:auto; }
+.raw-detail-panel .raw-quiz-chip { padding:4px 9px; }
+.raw-detail-panel .raw-quiz-chip-q { font-size:9.5px; margin-bottom:1px; }
+.raw-detail-panel .raw-quiz-chip-a { font-size:12px; }
+.raw-detail-panel .raw-quiz-photos { margin-top:5px; }
+@media (max-width:640px){
+  .raw-detail-panel .raw-quiz-list { grid-template-columns:1fr 1fr; }
+}
 
 /* ── 照片牆（圖片選項型視角）：哪間店、哪份問卷、哪個大題、哪個選項底下放了什麼照片 ──
    店卡沿用 .raw-quiz-section／.raw-quiz-title／.raw-quiz-photos 既有樣式渲染大題/選項，
@@ -2145,7 +2176,7 @@ var BASIC_DETAIL_FIELDS = [
 function _buildRawDetailPanel(rowData, ref, sheetData, basicRow, rid){
   var srcTag = ref ? '<div style="font-size:10px;font-weight:700;color:var(--primary);margin-bottom:10px;">📄 來源：'+esc(ref.sheet)+'　第 '+ref.row+' 列</div>' : '';
   var panelId = rid ? ' id="rawpanel-'+esc(rid)+'"' : '';
-  var wrapOpen = '<div'+panelId+' style="padding:10px 16px 14px 18px;background:#FAFAF8;border-left:3px solid var(--primary-bg,rgba(55,138,221,.3));margin:2px 12px 6px 0;border-radius:0 8px 8px 0;">';
+  var wrapOpen = '<div class="raw-detail-panel"'+panelId+' style="padding:10px 16px 14px 18px;background:#FAFAF8;border-left:3px solid var(--primary-bg,rgba(55,138,221,.3));margin:2px 12px 6px 0;border-radius:0 8px 8px 0;">';
 
   /* 分享動作列：複製成 LINE 文字摘要／截圖存成個案圖片，方便逐筆拿去跟同事討論。
      只有在 rid 存在時才顯示（rid 是呼叫端傳入的店家 __rid，截圖／複製都要靠它

@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 3.0.0 ｜ 最後更新：2026-07-03
+  版本：Ver. 3.1.0 ｜ 最後更新：2026-07-08
 ════════════════════════════════════════════════════════════
 
 【⚠ 版本更新作業流程】
@@ -23,6 +23,13 @@
     修改計算邏輯時兩條路徑都要確認，不要讓其中一條覆蓋另一條
 
 【版本紀錄】
+  3.1.0  2026-07-08  店家拜訪明細內容改採 contract_board 的高密度 Grid＋Wrap
+         版面（訊息集中化、節省畫面空間）：_buildStoreHistoryPanel 產出的
+         外層 div 新增固定 class="raw-detail-panel"（id 仍是動態 rid，不能
+         拿來當 CSS 選擇器），CSS 只在這個 class 底下覆寫 .raw-quiz-list／
+         .raw-quiz-picks 等版面（大題排成多欄 grid、選項改同行 wrap），
+         不動 shared/dashboard-common.css 本身，彙整看板 Pivot／照片牆等
+         其他用到 .raw-quiz-* 的地方版面不受影響。
   3.0.0  2026-07-03  新增「店家逐筆拜訪明細」（改編自 audit_board 的來源分頁機制）
          - 明細 Dialog 表格裡的每一列店家，現在可以點擊展開，呈現這家店在
            「問卷資料」分頁裡的完整拜訪時間軸（同一店家代碼可能有多筆歷史
@@ -497,6 +504,31 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .raw-quiz-chip.is-simple .raw-quiz-chip-a { font-size:12.5px; font-weight:600; }
 .raw-quiz-photos { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
 .raw-quiz-chip.raw-quiz-photo { display:inline-block; padding:6px 8px; vertical-align:top; margin:0; }
+
+/* ── 店家拜訪明細內容改採 contract_board 的高密度 Grid＋Wrap 版面
+   （訊息集中化、節省畫面空間）。原本 .raw-quiz-list／.raw-quiz-picks
+   逐行直排，同一筆紀錄裡多個大題只能一次看 2-3 行。這裡只在
+   .raw-detail-panel 容器內生效（_buildStoreHistoryPanel 產出的外層
+   div，class 固定、id 才是動態 rid），大題排成多欄 grid、選項改成
+   同行 wrap 排列，不修改 shared/dashboard-common.css 本身，彙整看板
+   Pivot／照片牆等其他用到 .raw-quiz-* 的地方版面不受影響。
+   （.store-history-body 底下每一筆展開紀錄都在同一個 .raw-detail-panel
+   容器內，這裡的覆寫對每一筆歷史紀錄都會生效。） */
+.raw-detail-panel .raw-quiz-list {
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:8px;
+}
+.raw-detail-panel .raw-quiz-section { margin:0; padding:7px 10px; }
+.raw-detail-panel .raw-quiz-title { font-size:11px; margin-bottom:5px; }
+.raw-detail-panel .raw-quiz-picks { flex-direction:row; flex-wrap:wrap; gap:5px; }
+.raw-detail-panel .raw-quiz-picks .raw-quiz-chip { display:inline-flex; flex-direction:column; width:auto; }
+.raw-detail-panel .raw-quiz-chip { padding:4px 9px; }
+.raw-detail-panel .raw-quiz-chip-q { font-size:9.5px; margin-bottom:1px; }
+.raw-detail-panel .raw-quiz-chip-a { font-size:12px; }
+.raw-detail-panel .raw-quiz-photos { margin-top:5px; }
+@media (max-width:640px){
+  .raw-detail-panel .raw-quiz-list { grid-template-columns:1fr 1fr; }
+}
+
 .raw-quiz-photo-img {
   display:block; margin-top:4px; width:100px; height:100px; object-fit:cover;
   border-radius:6px; border:1px solid rgba(0,0,0,.08); cursor:zoom-in; background:#f0f0ee;
@@ -1204,7 +1236,7 @@ function _buildStoreHistoryPanel(storeRow, records, rid, errMsg, loading){
     }).join('') + '</div>';
   }
 
-  return '<div'+panelId+' style="padding:10px 16px 14px 18px;background:#FAFAF8;border-left:3px solid var(--primary-bg,rgba(55,138,221,.3));margin:2px 12px 6px 0;border-radius:0 8px 8px 0;">'
+  return '<div class="raw-detail-panel"'+panelId+' style="padding:10px 16px 14px 18px;background:#FAFAF8;border-left:3px solid var(--primary-bg,rgba(55,138,221,.3));margin:2px 12px 6px 0;border-radius:0 8px 8px 0;">'
     + actionBar + baseHtml + histHtml + '</div>';
 }
 
