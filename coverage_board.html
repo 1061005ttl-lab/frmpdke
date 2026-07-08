@@ -799,13 +799,15 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
       <button class="pivot-tab"        onclick="switchPivotTab('office',this)">🏢 單位</button>
       <button class="pivot-tab"        onclick="switchPivotTab('store',this)">🏪 店家</button>
       <button class="pivot-tab"        onclick="switchPivotTab('photos',this)">🖼️ 照片牆</button>
+      <button class="pivot-tab"        onclick="switchPivotTab('drilldown',this)">🔍 逐題彙整</button>
     </div>
     <div class="pivot-viewport">
-      <div class="pivot-slides" id="pivot-slides" style="width:400%;">
-        <div class="pivot-slide" id="pivot-slide-staff"  style="width:calc(100%/4);"></div>
-        <div class="pivot-slide" id="pivot-slide-office" style="width:calc(100%/4);"></div>
-        <div class="pivot-slide" id="pivot-slide-store"  style="width:calc(100%/4);"></div>
-        <div class="pivot-slide" id="pivot-slide-photos" style="width:calc(100%/4);"></div>
+      <div class="pivot-slides" id="pivot-slides" style="width:500%;">
+        <div class="pivot-slide" id="pivot-slide-staff"  style="width:calc(100%/5);"></div>
+        <div class="pivot-slide" id="pivot-slide-office" style="width:calc(100%/5);"></div>
+        <div class="pivot-slide" id="pivot-slide-store"  style="width:calc(100%/5);"></div>
+        <div class="pivot-slide" id="pivot-slide-photos" style="width:calc(100%/5);"></div>
+        <div class="pivot-slide" id="pivot-slide-drilldown" style="width:calc(100%/5);"></div>
       </div>
     </div>
   </div>
@@ -917,6 +919,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 <script src="shared/csv-export.js"></script>
 <script src="shared/capture-clipboard.js"></script>
 <script src="shared/photo-viewer.js"></script>
+<script src="shared/question-drilldown.js"></script>
 <script src="shared/ui-chrome.js"></script>
 <script src="shared/pivot-dialog.js"></script>
 <script>
@@ -1170,6 +1173,7 @@ function _warmQuestionnaireCache(){
     if(summaryDlg && summaryDlg.classList.contains('open')){
       _renderPivotSlide('staff'); _renderPivotSlide('office');
       _renderPivotSlide('store'); _renderPivotSlide('photos');
+      _renderPivotSlide('drilldown');
     }
   });
 }
@@ -2229,8 +2233,8 @@ function buildStoreTable(rows, levelKey, ridPrefix, compact){
    _setPivotSlide 這幾支切頁機械動作都在 shared/pivot-dialog.js，
    這裡只留設定資料，_pivotTabCount 由共用層自動算，不用另外宣告） */
 var _pivotMode = 'staff';
-var _pivotTabIndex = { staff:0, office:1, store:2, photos:3 };
-var PIVOT_TITLES = { staff:'人員視角', office:'單位視角', store:'店家視角', photos:'照片牆' };
+var _pivotTabIndex = { staff:0, office:1, store:2, photos:3, drilldown:4 };
+var PIVOT_TITLES = { staff:'人員視角', office:'單位視角', store:'店家視角', photos:'照片牆', drilldown:'逐題彙整' };
 
 function _renderPivotSlide(mode){
   var el = document.getElementById('pivot-slide-' + mode);
@@ -2240,6 +2244,7 @@ function _renderPivotSlide(mode){
   else if(mode === 'office') el.innerHTML = _buildOfficePivot(rows);
   else if(mode === 'store')  el.innerHTML = _buildStorePivotView(rows);
   else if(mode === 'photos') el.innerHTML = _buildPhotoWall(rows);
+  else if(mode === 'drilldown') el.innerHTML = _buildDrilldownTab(rows);
 }
 
 /* 依目前 BUCKETS_B / BUCKETS_C / COL_UNFILL 動態決定彙總表欄位數 */
@@ -2436,6 +2441,43 @@ function _buildPhotoWall(rows){
       + '</div>';
   });
   return html;
+}
+
+/* ── [5] 逐題彙整：跟照片牆同一份資料來源（_qSheetCache），差別是不篩選
+   「只有照片」，文字答案也一併收進 entries，交給 shared/question-drilldown.js
+   讓使用者自己選一個大題/選項，一次看目前範圍內所有店家怎麼填。
+   跟照片牆不同的是這裡完全同步（資料早就在 _qSheetCache 裡，不用再等
+   任何非同步請求），不需要 containerId／outerHTML 這套非同步替換寫法。 ── */
+function _buildDrilldownEntries(rows){
+  if(!_qSheetCache || _qSheetCache.error) return [];
+  var codeMap = {};
+  rows.forEach(function(r){ var c=String(r[COL_CODE]||'').trim(); if(c && !codeMap[c]) codeMap[c]=r; });
+  var entries = [];
+  Object.keys(codeMap).forEach(function(code){
+    var storeRow = codeMap[code];
+    var records = (_qSheetCache.codeToRecords && _qSheetCache.codeToRecords[code]) || [];
+    records.forEach(function(rec){
+      if(!rec.sections || !rec.sections.length) return;
+      var metaParts = [storeRow[COL_AREA], storeRow[COL_OFFICE], storeRow[COL_STAFF]].filter(function(v){ return v; });
+      var timeText = rec.base['打卡時間'] || rec.base['回報時間'] || rec.base['月份'] || '';
+      entries.push({
+        label: String(storeRow[COL_NAME]||'—'),
+        meta: metaParts.join(' · '),
+        timeText: String(timeText||''),
+        sections: rec.sections
+      });
+    });
+  });
+  return entries;
+}
+function _buildDrilldownTab(rows){
+  if(!rows.length) return '<div class="empty">無資料</div>';
+  if(!_qSheetCache){
+    _fetchQuestionnaireSheet(function(){});
+    return '<div class="photo-gallery-loading">⏳ 讀取拜訪紀錄中，稍候會自動顯示…</div>';
+  }
+  if(_qSheetCache.error) return '<div class="empty">⚠️ '+esc(_qSheetCache.error)+'</div>';
+  return _qdBuildTabHtml(_buildDrilldownEntries(rows));
 }
 
 /* ── Pivot CSV 匯出（依目前 tab 對應維度） ── */

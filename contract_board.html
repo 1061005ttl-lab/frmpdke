@@ -423,14 +423,16 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
       <div class="pivot-tab" onclick="switchPivotTab('store',this)">🏪 店家</div>
       <div class="pivot-tab" onclick="switchPivotTab('missing',this)">⚠️ 未達成清單</div>
       <div class="pivot-tab" onclick="switchPivotTab('photos',this)">🖼️ 照片牆</div>
+      <div class="pivot-tab" onclick="switchPivotTab('drilldown',this)">🔍 逐題彙整</div>
     </div>
     <div class="pivot-viewport">
-      <div class="pivot-slides" id="pivot-slides" style="width:500%;">
-        <div class="pivot-slide" id="pivot-slide-staff"   style="width:calc(100%/5);"></div>
-        <div class="pivot-slide" id="pivot-slide-office"  style="width:calc(100%/5);"></div>
-        <div class="pivot-slide" id="pivot-slide-store"   style="width:calc(100%/5);"></div>
-        <div class="pivot-slide" id="pivot-slide-missing" style="width:calc(100%/5);"></div>
-        <div class="pivot-slide" id="pivot-slide-photos"  style="width:calc(100%/5);"></div>
+      <div class="pivot-slides" id="pivot-slides" style="width:600%;">
+        <div class="pivot-slide" id="pivot-slide-staff"   style="width:calc(100%/6);"></div>
+        <div class="pivot-slide" id="pivot-slide-office"  style="width:calc(100%/6);"></div>
+        <div class="pivot-slide" id="pivot-slide-store"   style="width:calc(100%/6);"></div>
+        <div class="pivot-slide" id="pivot-slide-missing" style="width:calc(100%/6);"></div>
+        <div class="pivot-slide" id="pivot-slide-photos"  style="width:calc(100%/6);"></div>
+        <div class="pivot-slide" id="pivot-slide-drilldown" style="width:calc(100%/6);"></div>
       </div>
     </div>
   </div>
@@ -441,6 +443,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 <script src="shared/csv-export.js"></script>
 <script src="shared/capture-clipboard.js"></script>
 <script src="shared/photo-viewer.js"></script>
+<script src="shared/question-drilldown.js"></script>
 <script src="shared/ui-chrome.js"></script>
 <script src="shared/pivot-dialog.js"></script>
 <script>
@@ -1060,8 +1063,8 @@ function buildStoreCard(store){
    PIVOT DIALOG（彙整看板）—— 人員／單位／店家／未達成清單／照片牆
    ════════════════════════════════════════════════════════════ */
 var _pivotMode = 'staff';
-var _pivotTabIndex = { staff:0, office:1, store:2, missing:3, photos:4 };
-var PIVOT_TITLES = { staff:'人員視角', office:'單位視角', store:'店家視角', missing:'未達成清單', photos:'照片牆' };
+var _pivotTabIndex = { staff:0, office:1, store:2, missing:3, photos:4, drilldown:5 };
+var PIVOT_TITLES = { staff:'人員視角', office:'單位視角', store:'店家視角', missing:'未達成清單', photos:'照片牆', drilldown:'逐題彙整' };
 
 function _aggBy(rows, keyFn){
   var map = {};
@@ -1129,6 +1132,7 @@ function _renderPivotSlide(mode){
   else if(mode==='store') el.innerHTML = _renderStoreTable(rows);
   else if(mode==='missing') el.innerHTML = _renderMissingTable(rows);
   else if(mode==='photos') el.innerHTML = _buildPhotoWall(rows);
+  else if(mode==='drilldown') el.innerHTML = _buildDrilldownTab(rows);
 }
 function downloadDialogCsv(){
   var btn = document.getElementById('btn-sum-csv');
@@ -1341,6 +1345,62 @@ function _buildPhotoWall(rows){
       pending--;
       if(pending<=0) renderNow();
     });
+  });
+  return '<div id="'+containerId+'" class="photo-gallery-loading">⏳ 讀取 '+sheetNames.length+' 份來源分頁中…</div>';
+}
+
+/* ════ 逐題彙整分頁：跟照片牆（_buildPhotoWall）同一套 PROCESS_REFS 跨分頁
+   回溯機制，差別是不篩選「只有照片」，文字答案也一併收進 entries，交給
+   shared/question-drilldown.js 讓使用者自己選一個大題/選項來看。
+   一樣是非同步（要等所有來源分頁都抓完），用同一套 containerId + outerHTML
+   替換寫法。 ════ */
+function _buildDrilldownTab(rows){
+  if(!rows.length) return '<div class="empty">無資料</div>';
+  var codeMap = {};
+  rows.forEach(function(r){ if(!codeMap[r.code]) codeMap[r.code]=r; });
+
+  var allRefs = [];
+  Object.keys(codeMap).forEach(function(code){
+    (PROCESS_REFS[code]||[]).forEach(function(rr){ allRefs.push({ code:code, rr:rr }); });
+  });
+  if(!allRefs.length){
+    return '<div class="empty">目前範圍內的「處理層」紀錄沒有「來源分頁+行數」可回溯（請確認處理層該欄有值）</div>';
+  }
+
+  var sheetNames = [];
+  allRefs.forEach(function(a){
+    var ref = _parseSourceRef(a.rr.ref);
+    if(ref && sheetNames.indexOf(ref.sheet)===-1) sheetNames.push(ref.sheet);
+  });
+
+  var containerId = 'qd-wall-' + Date.now();
+  var pending = sheetNames.length;
+
+  function finish(){
+    var el = document.getElementById(containerId);
+    if(!el) return; /* 使用者已經切走分頁或關閉 dialog */
+    var entries = [];
+    allRefs.forEach(function(a){
+      var ref = _parseSourceRef(a.rr.ref);
+      if(!ref) return;
+      var sheetData = _sourceSheetCache[ref.sheet];
+      if(!sheetData) return;
+      var rowData = sheetData.rowsByNum[ref.row];
+      if(!rowData || !rowData.sections || !rowData.sections.length) return;
+      var store = codeMap[a.code];
+      entries.push({
+        label: store ? store.storeName : a.rr.category,
+        meta: store ? [store.area, store.office, store.staff].filter(Boolean).join(' · ') : '',
+        timeText: a.rr.ym || '',
+        sections: rowData.sections
+      });
+    });
+    el.outerHTML = _qdBuildTabHtml(entries);
+  }
+
+  if(pending === 0){ return _qdBuildTabHtml([]); }
+  sheetNames.forEach(function(sn){
+    _fetchSourceSheet(sn, function(){ pending--; if(pending<=0) finish(); });
   });
   return '<div id="'+containerId+'" class="photo-gallery-loading">⏳ 讀取 '+sheetNames.length+' 份來源分頁中…</div>';
 }
@@ -1581,6 +1641,7 @@ function toolbarScreenshot(){
   if(typeof _doCopy !== 'function') missing.push('copy-utils.js（_doCopy）');
   if(typeof _triggerCsvDownload !== 'function') missing.push('csv-export.js');
   if(typeof _captureElement !== 'function') missing.push('capture-clipboard.js');
+  if(typeof _qdBuildTabHtml !== 'function') missing.push('question-drilldown.js');
   if(typeof openSummaryDialog !== 'function') missing.push('pivot-dialog.js');
   if(typeof updateStickyTops !== 'function') missing.push('ui-chrome.js');
   if(missing.length){
@@ -1589,7 +1650,7 @@ function toolbarScreenshot(){
       + '<p>以下檔案讀不到，通常是因為 <code>shared/</code> 資料夾沒有跟 <code>contract_board.html</code> 放在同一層目錄：</p>'
       + '<ul>' + missing.map(function(m){ return '<li>'+m+'</li>'; }).join('') + '</ul>'
       + '<p>請確認資料夾結構長這樣，兩者要在同一層：</p>'
-      + '<pre style="background:#f0efe9;padding:12px;border-radius:8px;">你的資料夾/\n  contract_board.html\n  shared/\n    core-utils.js\n    copy-utils.js\n    csv-export.js\n    capture-clipboard.js\n    photo-viewer.js\n    ui-chrome.js\n    pivot-dialog.js\n    dashboard-common.css</pre>'
+      + '<pre style="background:#f0efe9;padding:12px;border-radius:8px;">你的資料夾/\n  contract_board.html\n  shared/\n    core-utils.js\n    copy-utils.js\n    csv-export.js\n    capture-clipboard.js\n    photo-viewer.js\n    question-drilldown.js\n    ui-chrome.js\n    pivot-dialog.js\n    dashboard-common.css</pre>'
       + '<p>打開瀏覽器開發者工具（F12）→ Console／Network 分頁，也能直接看到是哪支檔案 404。</p>'
       + '</div>';
     throw new Error('shared 層未載入：' + missing.join('、'));

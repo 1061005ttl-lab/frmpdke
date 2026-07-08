@@ -1004,14 +1004,16 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
       <button class="pivot-tab"        onclick="switchPivotTab('office',this)">🏢 單位</button>
       <button class="pivot-tab"        onclick="switchPivotTab('suptype',this)">📋 分類</button>
       <button class="pivot-tab"        onclick="switchPivotTab('store',this)">🏪 店家</button>
+      <button class="pivot-tab"        onclick="switchPivotTab('drilldown',this)">🔍 逐題彙整</button>
     </div>
     <!-- 滑動容器 -->
     <div class="pivot-viewport">
-      <div class="pivot-slides" id="pivot-slides" style="width:400%;">
-        <div class="pivot-slide" id="pivot-slide-staff"  style="width:calc(100%/4);"></div>
-        <div class="pivot-slide" id="pivot-slide-office" style="width:calc(100%/4);"></div>
-        <div class="pivot-slide" id="pivot-slide-suptype" style="width:calc(100%/4);"></div>
-        <div class="pivot-slide" id="pivot-slide-store" style="width:calc(100%/4);"></div>
+      <div class="pivot-slides" id="pivot-slides" style="width:500%;">
+        <div class="pivot-slide" id="pivot-slide-staff"  style="width:calc(100%/5);"></div>
+        <div class="pivot-slide" id="pivot-slide-office" style="width:calc(100%/5);"></div>
+        <div class="pivot-slide" id="pivot-slide-suptype" style="width:calc(100%/5);"></div>
+        <div class="pivot-slide" id="pivot-slide-store" style="width:calc(100%/5);"></div>
+        <div class="pivot-slide" id="pivot-slide-drilldown" style="width:calc(100%/5);"></div>
       </div>
     </div>
   </div>
@@ -1063,6 +1065,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 <script src="shared/csv-export.js"></script>
 <script src="shared/capture-clipboard.js"></script>
 <script src="shared/photo-viewer.js"></script>
+<script src="shared/question-drilldown.js"></script>
 <script src="shared/ui-chrome.js"></script>
 <script src="shared/pivot-dialog.js"></script>
 <script>
@@ -2359,6 +2362,65 @@ function _buildPhotoGallery(rows, callback){
   }
 }
 
+/* ════ 逐題彙整分頁（彙整看板第 5 個分頁）════
+   跟照片牆（_buildPhotoGallery）幾乎是同一套「逐一分頁抓來源資料、彙整目前
+   範圍內所有店家」的機制，差別只在：照片牆只挑「有網址」的欄位，這裡則是
+   把整筆 sections（文字＋照片都算）原封不動交給 shared/question-drilldown.js
+   去建立選題清單，讓使用者自己選要看哪個大題/選項。
+   跟照片牆一樣是非同步：先回傳一個帶 containerId 的 loading 版面，等所有
+   來源分頁都抓完才用 _qdBuildTabHtml() 的結果整個 outerHTML 換掉。 */
+function _buildDrilldownTab(rows){
+  var candidates = rows.filter(function(r){
+    return String(r[COL_CODE]||'').trim() && String(r[COL_SOURCE_REF]||'').trim();
+  }).map(function(r){
+    return { row:r, ref:_parseSourceRef(r[COL_SOURCE_REF]) };
+  }).filter(function(x){ return !!x.ref; });
+
+  if(!candidates.length){
+    return '<div class="empty">目前範圍內沒有可回溯問卷內容的資料（缺少「來源分頁+行數」）</div>';
+  }
+
+  var sheetNames = [];
+  var seenSheet = {};
+  candidates.forEach(function(x){
+    if(!seenSheet[x.ref.sheet]){ seenSheet[x.ref.sheet]=true; sheetNames.push(x.ref.sheet); }
+  });
+
+  var containerId = 'qd-wall-' + Date.now();
+  var loadedCount = 0;
+  var sheetDataMap = {};
+  sheetNames.forEach(function(sn){
+    _fetchSourceSheet(sn, function(sheetData){
+      sheetDataMap[sn] = sheetData;
+      loadedCount++;
+      if(loadedCount === sheetNames.length) _finishDrilldown();
+    });
+  });
+
+  function _finishDrilldown(){
+    var el = document.getElementById(containerId);
+    if(!el) return; /* 使用者已經切走分頁或關閉 dialog */
+    var entries = [];
+    candidates.forEach(function(x){
+      var sheetData = sheetDataMap[x.ref.sheet];
+      if(!sheetData) return;
+      var rowData = sheetData.rowsByNum[x.ref.row];
+      if(!rowData || !rowData.sections || !rowData.sections.length) return;
+      var r = x.row;
+      var metaParts = [r[COL_AREA], r[COL_OFFICE], r[COL_STAFF]].filter(function(v){ return v; });
+      entries.push({
+        label: String(r[COL_NAME]||'—'),
+        meta: metaParts.join(' · '),
+        timeText: r[COL_DATE] ? String(r[COL_DATE]) : '',
+        sections: rowData.sections
+      });
+    });
+    el.outerHTML = _qdBuildTabHtml(entries);
+  }
+
+  return '<div id="'+containerId+'" class="photo-gallery-loading">⏳ 掃描問卷內容中，分頁數量較多時可能要等幾秒…</div>';
+}
+
 function openPhotoGalleryDialog(){
   var dlg = document.getElementById('photo-dialog');
   document.getElementById('photo-dlg-content').innerHTML = '<div class="photo-gallery-loading">⏳ 掃描問卷照片中，分頁數量較多時可能要等幾秒…</div>';
@@ -2792,8 +2854,8 @@ function toolbarScreenshot(){
 var _pivotMode      = 'staff';   /* staff | office | suptype | store */
 var _pivotRows      = null;      /* 目前 pivot 使用的資料集（null = allRows） */
 var _pivotSortState = {};        /* { mode: { col, dir } } */
-var _pivotTabIndex  = { staff:0, office:1, suptype:2, store:3 };
-var PIVOT_TITLES = { staff:'人員 × 分類', office:'單位 × 分類', suptype:'分類 × 子分類', store:'店家明細' };
+var _pivotTabIndex  = { staff:0, office:1, suptype:2, store:3, drilldown:4 };
+var PIVOT_TITLES = { staff:'人員 × 分類', office:'單位 × 分類', suptype:'分類 × 子分類', store:'店家明細', drilldown:'逐題彙整' };
 
 /* openSummaryDialog／closeSummaryDialog／switchPivotTab／_setPivotSlide 這幾支
    切頁機械動作都在 shared/pivot-dialog.js，這裡只留設定資料，
@@ -2808,6 +2870,7 @@ function _renderPivotSlide(mode){
   else if(mode==='office') el.innerHTML = _buildOfficePivot(rows);
   else if(mode==='suptype') el.innerHTML = _buildSuptypePivot(rows);
   else if(mode==='store') el.innerHTML = _buildStorePivot(rows);
+  else if(mode==='drilldown') el.innerHTML = _buildDrilldownTab(rows);
 }
 
 /* ════ [1] 人員 維度 ════
