@@ -7,6 +7,22 @@
         務必排在所有其他 shared script 之前載入。
 
    【版本紀錄】
+   1.0.3  2026-07-08  新增 _findTimeText／_dateOnly 兩支共用小工具：
+                       A) _findTimeText(base)：coverage_board.html 裡「店家拜訪
+                          時間軸」「照片牆」「逐題彙整」三處都各自寫死
+                          base['打卡時間']||base['回報時間']||base['月份']，
+                          只要問卷分頁欄名跟這三個字完全不一樣（哪怕只是多一個
+                          空格、全形字、或欄位其實叫「拜訪時間」），就會直接
+                          抓空、永遠顯示「未知時間」，而且三處是各自複製貼上、
+                          修一處不會連動另外兩處。統一成這支之後：先照優先序
+                          比對常見欄名，比對不到再退而求其次，掃描 base 底下
+                          所有欄名，只要欄名裡有「時間」或「日期」或「月份」
+                          字樣且該欄有值就採用——不要求欄名完全相同，才不會
+                          再被問卷欄位命名的細微差異卡住。
+                       B) _dateOnly(str)：只取日期部份（YYYY/MM/DD），時分秒
+                          一律捨棄，給「只想看日期、不需要看到時分秒」的畫面
+                          （目前是 photo-store-meta）用；抓不到日期格式就照
+                          原字串顯示，不會讓資料整個消失不見。
    1.0.2  2026-07-08  parseGvizDate 再加強（實測 "Date(2026,6,3)" 已可
                        正確解析成 2026/07/03，見下方測試備註）：
                        A) 呼叫前先 String(v).trim()，清掉頭尾不可見空白
@@ -74,6 +90,42 @@ function parseGvizDate(v) {
     hour:'2-digit', minute:'2-digit',
     timeZone:'Asia/Taipei'
   });
+}
+
+/* 從一筆「標準化 base 物件」（gviz 問卷資料列，key 是欄位名稱）裡找出時間值。
+   不要求欄名完全等於某個寫死的字串——先照優先序試常見欄名，都沒有再退而求其次，
+   掃描所有欄名，只要欄名含「時間／日期／月份」關鍵字且該欄有值就採用。
+   這是 coverage_board.html 三個地方（店家拜訪時間軸／照片牆／逐題彙整）共用的
+   唯一時間欄位判斷邏輯，改這裡三處會一起生效，不要在各板各自重寫一份判斷。 */
+function _findTimeText(base){
+  base = base || {};
+  var exact = ['打卡時間','回報時間','拜訪時間','填寫時間','月份','日期'];
+  for (var i=0;i<exact.length;i++){
+    var v = base[exact[i]];
+    if(v!==undefined && v!==null && String(v).trim()!=='') return String(v).trim();
+  }
+  var keys = Object.keys(base);
+  for (var j=0;j<keys.length;j++){
+    var k = keys[j];
+    if(/時間|日期|月份/.test(k)){
+      var v2 = base[k];
+      if(v2!==undefined && v2!==null && String(v2).trim()!=='') return String(v2).trim();
+    }
+  }
+  return '';
+}
+
+/* 只取日期部份（YYYY/MM/DD），時分秒一律捨棄；抓不到日期格式（例如本來就是
+   純文字備註）就照原字串顯示，不會讓資料整個消失。給「只需要看日期、不需要
+   看到時分秒」的畫面用（例如 photo-store-meta），跟 _findTimeText 是分開兩件事——
+   _findTimeText 負責「找得到值」，_dateOnly 負責「顯示格式要多精簡」。 */
+function _dateOnly(str){
+  var s = String(str||'').trim();
+  if(!s) return s;
+  var m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if(!m) return s;
+  var pad = function(n){ return String(n).padStart(2,'0'); };
+  return m[1]+'/'+pad(m[2])+'/'+pad(m[3]);
 }
 
 /* gviz API 回傳的是 "google.visualization.Query.setResponse({...});" 這種 JSONP 包裝，
