@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 3.1.0 ｜ 最後更新：2026-07-08
+  版本：Ver. 3.2.0 ｜ 最後更新：2026-07-08
 ════════════════════════════════════════════════════════════
 
 【⚠ 版本更新作業流程】
@@ -23,6 +23,17 @@
     修改計算邏輯時兩條路徑都要確認，不要讓其中一條覆蓋另一條
 
 【版本紀錄】
+  3.2.0  2026-07-08  介面優化：卡片瘦身、toolbar 功能分組
+         - 卡片標題移除「營業處/整體概況」等層級代碼字樣，只留名稱+明細鈕
+           （原本獨佔視覺一角，外部人員不需要，且浪費空間）
+         - 卡片內「已知細項（B／C 群）」「跟訪份數細項」內部代號說明文字
+           整段移除，細項列跟總覽列只用一條分隔線區隔即可
+         - 卡片全面瘦身：padding／字級／間距整體收窄（.card、.stat-item、
+           .stat-val、.grid gap 等），同一螢幕可容納更多卡片、減少捲動
+         - Toolbar 右側功能鈕拆成「彙整看板」（人員/單位/店家/照片牆/
+           逐題彙整）與「分享」（LINE/LINE精簡/CSV/截圖）兩個獨立分組，
+           各自加淡底色卡槽＋小標籤，並用直向分隔線區隔，跟左側
+           組織/通路切換鈕視覺上明確區分為三種不同性質的功能
   3.1.0  2026-07-08  店家拜訪明細內容改採 contract_board 的高密度 Grid＋Wrap
          版面（訊息集中化、節省畫面空間）：_buildStoreHistoryPanel 產出的
          外層 div 新增固定 class="raw-detail-panel"（id 仍是動態 rid，不能
@@ -226,6 +237,18 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .tb-act-btn.done  { border-color:var(--green); color:var(--green); background:var(--green-bg); }
 .tb-act-btn.loading { opacity:.6; pointer-events:none; }
 
+/* ── toolbar 功能分組：彙整看板 / 分享，各自淡底色+小標籤，
+   跟 view-toggle 用直向分隔線隔開，讓使用者一眼看出這是三種不同性質的功能 ── */
+.tb-group {
+  display:flex; align-items:center; gap:5px; flex-shrink:0;
+  padding:4px 8px 4px 6px; border-radius:10px; background:var(--bg);
+}
+.tb-group-tag {
+  font-size:10px; font-weight:700; color:var(--sub);
+  white-space:nowrap; letter-spacing:.02em; padding-right:1px;
+}
+.ctrl-sep { width:1px; align-self:stretch; margin:4px 2px; background:var(--border); flex-shrink:0; }
+
 /* .hamburger-btn／.toolbar-controls → shared/dashboard-common.css */
 
 /* ── quicknav ── */
@@ -296,19 +319,19 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 }
 
 /* ── stage ── */
-.stage { padding:16px 20px 40px; }
+.stage { padding:12px 20px 32px; }
 .level-label {
   font-size:11px;
   color:var(--sub);
   letter-spacing:.05em;
-  margin-bottom:10px;
+  margin-bottom:6px;
   text-transform:uppercase;
 }
 .grid {
   display:grid;
   grid-template-columns:repeat(4, 1fr);
-  gap:12px;
-  margin-bottom:28px;
+  gap:10px;
+  margin-bottom:16px;
 }
 
 /* ── card ── */
@@ -316,7 +339,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   background:var(--card);
   border:1px solid var(--border);
   border-radius:var(--r);
-  padding:20px 22px 16px;
+  padding:12px 14px 10px;
   cursor:pointer;
   transition:transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
   position:relative;
@@ -330,22 +353,22 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .card-top-inline {
   font-size:11px; color:var(--sub); font-weight:500;
   display:flex; align-items:center; gap:5px;
-  margin-bottom:14px;
+  margin-bottom:8px;
 }
 .card-overall .card-top-inline { color:var(--primary); font-weight:700; }
-.card-name-inline { font-size:18px; font-weight:800; color:var(--text); line-height:1.1; flex:1; min-width:0; }
+.card-name-inline { font-size:16px; font-weight:800; color:var(--text); line-height:1.1; flex:1; min-width:0; }
 .card-overall .card-name-inline, .card-name-overall { color:var(--primary); }
 
 
 /* ── stat row ── */
-.stat-row { display:flex; gap:6px; margin-top:4px; }
-.stat-item { flex:1; min-width:0; background:var(--bg); border-radius:10px; padding:10px 6px; text-align:center; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
+.stat-row { display:flex; gap:5px; margin-top:3px; }
+.stat-item { flex:1; min-width:0; background:var(--bg); border-radius:8px; padding:7px 5px; text-align:center; user-select:none; -webkit-user-select:none; -webkit-touch-callout:none; }
 .stat-item.warn { background:var(--red-bg); }
 .stat-item.good { background:var(--green-bg); }
-.stat-label { font-size:10px; font-weight:500; color:var(--sub); margin-bottom:6px; word-break:keep-all; overflow-wrap:break-word; line-height:1.3; min-height:2.6em; display:flex; align-items:center; justify-content:center; }
+.stat-label { font-size:10px; font-weight:500; color:var(--sub); margin-bottom:3px; word-break:keep-all; overflow-wrap:break-word; line-height:1.25; min-height:2.2em; display:flex; align-items:center; justify-content:center; }
 .stat-item.warn .stat-label { color:var(--red); }
 .stat-item.good .stat-label { color:var(--green); }
-.stat-val { font-size:24px; font-weight:800; color:var(--text); line-height:1; letter-spacing:-1px; }
+.stat-val { font-size:20px; font-weight:800; color:var(--text); line-height:1; letter-spacing:-1px; }
 .stat-item.warn .stat-val { color:var(--red); }
 .stat-item.good .stat-val { color:var(--green); }
 
@@ -370,9 +393,8 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 /* 細項列（各 B 群／各 C 群）跟總覽列（總家數/已知合計/未填寫）之間用一條
    淺色虛線隔開，並加小標籤說明「這排是已知合計的組成明細」，讀者才不會
    把兩排數字誤當成同一層級、彼此獨立的東西 */
-.stat-row-detail { margin-top:10px; padding-top:10px; border-top:1px dashed var(--border); }
-.stat-row-detail .stat-row { margin-top:6px; }
-.stat-detail-caption { font-size:10px; color:var(--sub); font-weight:600; }
+.stat-row-detail { margin-top:6px; padding-top:6px; border-top:1px dashed var(--border); }
+.stat-row-detail .stat-row { margin-top:0; }
 
 /* ── 卡片右上角動作群組 ── */
 .card-action-group { display:flex; align-items:center; gap:4px; margin-left:auto; flex-shrink:0; }
@@ -663,7 +685,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   background:rgba(0,0,0,.15); margin:0 2px; align-self:center; flex-shrink:0;
 }
 /* ── stat-pct 百分比小字 ── */
-.stat-pct { font-size:14px; font-weight:700; color:#aaa; margin-top:4px; line-height:1; }
+.stat-pct { font-size:12px; font-weight:700; color:#aaa; margin-top:2px; line-height:1; }
 .stat-item.good .stat-pct { color:var(--green); opacity:.7; }
 .stat-item.warn .stat-pct { color:var(--red); opacity:.7; }
 .stat-pct.hidden { visibility:hidden; }
@@ -700,8 +722,9 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   .toolbar-controls.open { display:flex; }
   .toolbar-controls .view-toggle { width:100%; }
   .toolbar-controls .view-toggle .vt-btn { flex:1; text-align:center; }
-  .toolbar-controls .ctrl-sep { height:1px; background:var(--border); margin:0; flex-shrink:0; }
-  #toolbar-actions { display:flex; flex-direction:column; gap:6px; width:100%; }
+  .toolbar-controls .ctrl-sep { width:auto; height:1px; background:var(--border); margin:0; flex-shrink:0; align-self:auto; }
+  .toolbar-controls .tb-group { display:flex; flex-direction:column; align-items:stretch; gap:6px; width:100%; background:none; padding:0; border-radius:0; }
+  .toolbar-controls .tb-group-tag { padding:0 2px; }
   .toolbar-controls .tb-act-btn {
     width:100%; text-align:left; padding:9px 12px; font-size:13px; flex-shrink:0;
   }
@@ -718,16 +741,17 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   .grade-label { font-size:9px; }
   .qn-btn { font-size:11px; padding:4px 8px; }
 
-  .stage { padding:10px 8px 40px; }
-  .grid { grid-template-columns:1fr !important; gap:8px; }
+  .stage { padding:8px 8px 32px; }
+  .grid { grid-template-columns:1fr !important; gap:6px; }
 
-  .card { padding:12px 12px 10px; }
-  .card-name-inline { font-size:16px; }
+  .card { padding:10px 12px 8px; }
+  .card-top-inline { margin-bottom:6px; }
+  .card-name-inline { font-size:15px; }
   .stat-row { gap:5px; }
-  .stat-item { padding:8px 5px; border-radius:9px; }
-  .stat-val { font-size:22px !important; }
-  .stat-label { font-size:9px; min-height:2.4em; }
-  .stat-pct { font-size:12px; }
+  .stat-item { padding:6px 5px; border-radius:9px; }
+  .stat-val { font-size:20px !important; }
+  .stat-label { font-size:9px; min-height:2em; margin-bottom:2px; }
+  .stat-pct { font-size:11px; }
   .card-detail-btn { font-size:11px; padding:4px 10px; }
 
   .dlg-box { width:100vw; height:100dvh; border-radius:0; }
@@ -785,13 +809,17 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
       <button class="vt-btn"        id="vt-channel" onclick="setViewMode('channel');closeMobileMenu();">🏪 通路</button>
     </div>
     <div class="ctrl-sep"></div>
-    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;" id="toolbar-actions">
+    <div class="tb-group" id="toolbar-actions-board">
+      <span class="tb-group-tag">彙整看板</span>
       <button class="tb-act-btn" onclick="openSummaryDialog('staff', function(){ return applyGradeFilter(getCurrentRows()); });closeMobileMenu();">👤 人員</button>
       <button class="tb-act-btn" onclick="openSummaryDialog('office', function(){ return applyGradeFilter(getCurrentRows()); });closeMobileMenu();">🏢 單位</button>
       <button class="tb-act-btn" onclick="openSummaryDialog('store', function(){ return applyGradeFilter(getCurrentRows()); });closeMobileMenu();">🏪 店家</button>
       <button class="tb-act-btn" onclick="openSummaryDialog('photos', function(){ return applyGradeFilter(getCurrentRows()); });closeMobileMenu();">🖼️ 照片牆</button>
       <button class="tb-act-btn" onclick="openSummaryDialog('drilldown', function(){ return applyGradeFilter(getCurrentRows()); });closeMobileMenu();">🔍 逐題彙整</button>
-      <div class="ctrl-sep"></div>
+    </div>
+    <div class="ctrl-sep"></div>
+    <div class="tb-group" id="toolbar-actions-share">
+      <span class="tb-group-tag">分享</span>
       <button class="tb-act-btn" id="tb-btn-line"        onclick="toolbarCopyLine();closeMobileMenu();">💬 LINE</button>
       <button class="tb-act-btn" id="tb-btn-line-simple" onclick="toolbarCopyLineSimple();closeMobileMenu();">💬 LINE精簡</button>
       <button class="tb-act-btn" id="tb-btn-csv"         onclick="toolbarDownloadCsv();closeMobileMenu();">📥 CSV</button>
@@ -1844,12 +1872,12 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
   var card=document.createElement('div');
   card.className='card'+(isOverall?' card-overall':'');
   var ttId='tt-'+name.replace(/[^a-zA-Z0-9]/g,'_')+'-'+levelKey+(isOverall?'-all':'');
-  var topLabel=isOverall?('整體概況'):labelText;
   var T = stat.total;
   function fp(n){ return T>0 ? Math.round(n/T*100)+'%' : '—'; }
-  /* 全部卡片標題都是一行：組別小字 + 名稱大字 + 右側明細按鈕 */
+  /* 卡片標題只顯示名稱大字 + 右側明細按鈕，不再顯示「營業處/整體概況」等
+     層級代碼字樣（v3.2.0 移除：外部人員不需要，且獨佔一行浪費空間） */
   var _safeName = name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-  var topHtml = '<div class="card-top-inline">'+esc(topLabel)+' <span class="card-name-inline'+(isOverall?' card-name-overall':'')+'">'+esc(name)+'</span>'
+  var topHtml = '<div class="card-top-inline"><span class="card-name-inline'+(isOverall?' card-name-overall':'')+'">'+esc(name)+'</span>'
     +'<div class="card-action-group">'
     +'<button class="card-detail-btn" id="dbtn-'+ttId+'">📋 明細</button>'
     +'</div></div>';
@@ -1910,14 +1938,11 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
     _knownHtml +
     (COL_UNFILL ? '<div class="stat-item warn'+(chips['unfill']===false?' dim':'')+'"><div class="stat-label">'+esc(UNFILL_LABEL)+'</div><div class="stat-val">'+stat.unfilled+'</div><div class="stat-pct">'+fp(stat.unfilled)+'</div></div>' : '')+
   '</div>';
-  /* 細項列：各 B 群／各 C 群，跟總覽列用分隔線+小標籤隔開，一眼看出
-     這排是「已知(合計)」的組成明細，不是跟總覽平行的另一組獨立數字 */
-  var _detailCaption = isSum() ? '跟訪份數細項' : '已知細項（B／C 群）';
+  /* 細項列：各 B 群／各 C 群，跟總覽列之間僅用一條分隔線區隔，不再顯示
+     「已知細項（B／C群）」這類內部代號文字（v3.2.0 移除：外部人員看了
+     莫名其妙，且省下一行空間） */
   var detailBlockHtml = (_bStatHtml || _cStatHtml)
-    ? '<div class="stat-row-detail">'+
-        '<div class="stat-detail-caption">'+_detailCaption+'</div>'+
-        '<div class="stat-row">'+_bStatHtml+_cStatHtml+'</div>'+
-      '</div>'
+    ? '<div class="stat-row-detail"><div class="stat-row">'+_bStatHtml+_cStatHtml+'</div></div>'
     : '';
   card.innerHTML = topHtml + summaryRowHtml + detailBlockHtml;
 
