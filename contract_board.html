@@ -74,6 +74,18 @@
     ITEM_KEYS 常數需要同步改回對照表模式，目前先以全名直接比對。
 
 【版本紀錄】
+  1.0.1  2026-07-08  A) 日期顯示 bug：純日期欄位（gviz 回傳 Date(y,m,d)，
+                      沒有時分秒）被 core-utils.js 舊版 parseGvizDate 正規式
+                      要求「一定要 6 個數字」擋下來，直接把原始字串
+                      "Date(2026,6,3)" 顯示在畫面上（「上次回報」跟「拜訪／
+                      登記時間軸」的日期都中招）。已修 core-utils.js（見該檔
+                      Ver.1.0.1），純日期不補時分秒文字，本檔不用改呼叫方式。
+                      B) 「拜訪／登記時間軸」版面重新設計：shared/photo-viewer.js
+                      的預設逐行版面（一則文字一行）在 contract 這裡（內容
+                      多為簡短勾選／數字）造成大量留白、訊息密度極低。改成
+                      contract 專屬的高密度 Grid＋Wrap 版面（見本檔 CSS
+                      #detail-history-body 區塊），只在頁面層覆寫、不動
+                      shared 檔案本身，audit/coverage 兩板版面不受影響。
   1.0.0  2026-07-05  首版
 ════════════════════════════════════════════════════════════
 -->
@@ -257,6 +269,51 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 @media (max-width:640px){
   .dd-item-grid { grid-template-columns:repeat(2,1fr); }
   .dd-toprow { flex-direction:column; gap:2px; }
+}
+
+/* ── 拜訪／登記時間軸：高密度版面（contract 專屬覆寫，不動 shared 層）
+   shared/photo-viewer.js 的 _renderQuizSections 預設把每筆問卷渲染成
+   .raw-quiz-list（逐一大題直排）+ .raw-quiz-picks（逐一選項直排、
+   flex-direction:column）。這是 audit/coverage 為了「有意義的文字答案
+   永遠獨立一行」訂下的設計決定（見 dashboard-common.css 檔頭說明），
+   刻意不能改共用檔，否則會動到那兩板。
+   但 contract 這裡時間軸內容幾乎都是簡短勾選／數字（✓照片、箱數→20箱、
+   ✓菸-足20品項…），逐行直排反而讓中間、右側大片空白浪費掉，一次只能
+   看到 2-3 行內容。這裡改用「只在 #detail-history-body 容器內」生效的
+   選擇器覆寫：大題排成多欄 grid（一次看到所有大題），大題內的選項
+   改成同行自動換行（wrap），不修改 shared 檔案本身，audit/coverage
+   兩板的版面完全不受影響。 */
+#detail-history-body .ct-visit-card {
+  border:1px solid var(--border); border-radius:10px;
+  padding:10px 14px 12px; margin-bottom:10px; background:#fff;
+}
+#detail-history-body .ct-visit-card:last-child { margin-bottom:0; }
+#detail-history-body .ct-visit-head {
+  display:flex; align-items:baseline; flex-wrap:wrap; gap:6px 10px;
+  font-size:12px; font-weight:800; color:var(--text); margin-bottom:8px;
+  padding-bottom:6px; border-bottom:1px dashed var(--border);
+}
+#detail-history-body .ct-visit-cat {
+  font-size:11px; font-weight:700; color:var(--primary);
+  background:var(--primary-bg); padding:1px 9px; border-radius:9px;
+}
+#detail-history-body .raw-quiz-list {
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:8px;
+}
+#detail-history-body .raw-quiz-section { margin:0; padding:7px 10px; }
+#detail-history-body .raw-quiz-title { font-size:11px; margin-bottom:5px; }
+#detail-history-body .raw-quiz-picks {
+  flex-direction:row; flex-wrap:wrap; gap:5px;
+}
+#detail-history-body .raw-quiz-picks .raw-quiz-chip {
+  display:inline-flex; flex-direction:column; width:auto;
+}
+#detail-history-body .raw-quiz-chip { padding:4px 9px; }
+#detail-history-body .raw-quiz-chip-q { font-size:9.5px; margin-bottom:1px; }
+#detail-history-body .raw-quiz-chip-a { font-size:12px; }
+#detail-history-body .raw-quiz-photos { margin-top:5px; }
+@media (max-width:640px){
+  #detail-history-body .raw-quiz-list { grid-template-columns:1fr 1fr; }
 }
 
 /* ── pivot dialog table ── */
@@ -1408,8 +1465,9 @@ function _renderDetailHistory(){
     if(r.error){
       return '<div style="margin-bottom:10px;padding:8px 0;color:#B23A3A;font-size:12px;">⚠️ '+esc(p.ref.category)+' '+esc(p.ref.ym)+'：'+esc(r.error)+'</div>';
     }
-    return '<div style="margin-bottom:10px;">'
-      + '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;">🕒 '+esc(_fmtRefTime(p.ref))+'　'+esc(p.ref.category)+(p.idx===0?'（最新）':'')+'</div>'
+    return '<div class="ct-visit-card">'
+      + '<div class="ct-visit-head"><span>🕒 '+esc(_fmtRefTime(p.ref))+'</span>'
+      +   '<span class="ct-visit-cat">'+esc(p.ref.category)+(p.idx===0?'（最新）':'')+'</span></div>'
       + _renderQuizSections(r.sections)
       + '</div>';
   }).join('');
