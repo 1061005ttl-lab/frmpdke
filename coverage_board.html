@@ -775,6 +775,8 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
       <button class="tb-act-btn" onclick="openSummaryDialog('office', function(){ return applyGradeFilter(getCurrentRows()); });closeMobileMenu();">🏢 單位</button>
       <button class="tb-act-btn" onclick="openSummaryDialog('store', function(){ return applyGradeFilter(getCurrentRows()); });closeMobileMenu();">🏪 店家</button>
       <button class="tb-act-btn" onclick="openSummaryDialog('photos', function(){ return applyGradeFilter(getCurrentRows()); });closeMobileMenu();">🖼️ 照片牆</button>
+      <button class="tb-act-btn" onclick="openSummaryDialog('drilldown', function(){ return applyGradeFilter(getCurrentRows()); });closeMobileMenu();">🔍 逐題彙整</button>
+      <div class="ctrl-sep"></div>
       <button class="tb-act-btn" id="tb-btn-line"        onclick="toolbarCopyLine();closeMobileMenu();">💬 LINE</button>
       <button class="tb-act-btn" id="tb-btn-line-simple" onclick="toolbarCopyLineSimple();closeMobileMenu();">💬 LINE精簡</button>
       <button class="tb-act-btn" id="tb-btn-csv"         onclick="toolbarDownloadCsv();closeMobileMenu();">📥 CSV</button>
@@ -961,6 +963,17 @@ var BUCKETS_C = [];  /* C 群陣列，每項 {label, cols} */
 /* 所有 B/C 群欄位扁平列表 */
 function ALL_B_COLS(){ return BUCKETS_B.reduce(function(a,g){ return a.concat(g.cols); },[]); }
 function ALL_C_COLS(){ return BUCKETS_C.reduce(function(a,g){ return a.concat(g.cols); },[]); }
+
+/* 店家名冊 A:H 這 8 個基本欄位（營業處/營業所/執行人員/通路別/店家型態/店家代碼/
+   店家名稱/店家等級），只要任一欄有值，才算是「真實店家列」。
+   名單是動態的（會有店家被移出名單），但 I 欄以後（未填寫/已貼開瓶…等統計欄）
+   有時是公式殘留，即使 A:H 已經清空，公式算出來的值還在，導致這種「幽靈列」
+   被誤算進未填寫或其他統計。所有計算前先用這支過濾掉，而不是逐一在各計算
+   函式裡各自補判斷（那樣容易漏掉，也容易日後新增計算時忘記加）。 */
+function isRowIdentified(r){
+  var idCols = [COL_AREA, COL_OFFICE, COL_STAFF, COL_CHANNEL, COL_TYPE, COL_CODE, COL_NAME, COL_GRADE];
+  return idCols.some(function(c){ return String(r[c]||'').trim() !== ''; });
+}
 
 /* 覆蓋率型專案管理分頁名稱 */
 var COV_CFG_SHEET = '覆蓋率型專案管理';
@@ -1469,6 +1482,11 @@ function fetchSheet() {
         });
         return obj;
       });
+      /* 過濾掉 A:H 全空的「幽靈列」：名單動態變動時，公式殘留可能讓 I 欄以後
+         （未填寫/已貼開瓶…等統計欄）仍算出值，但這列其實已經不是真實店家，
+         在最源頭就濾掉，後面所有計算（卡片統計、明細 Dialog、CSV、LINE…）
+         都不用再各自補判斷。 */
+      allRows = allRows.filter(isRowIdentified);
       /* 找出 C 群欄位的欄位索引（BUCKETS_C 在 init 之後才有，先收集所有可能含文字的欄） */
       /* 策略：找出所有值有 null cell 的欄，發第二次請求用 format 強制讀文字 */
       var nullColIndexes = [];
