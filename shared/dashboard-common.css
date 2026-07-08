@@ -251,3 +251,46 @@
   background:rgba(255,255,255,.15); color:#fff; border:none; font-size:20px; cursor:pointer; line-height:36px;
 }
 .photo-lightbox-close:hover { background:rgba(255,255,255,.3); }
+
+/* ── 逐題彙整（Question Drilldown，對應 shared/question-drilldown.js）──
+   彙整看板裡新增的一個分頁：左側是目前篩選範圍內偵測到的「大題/選項」清單
+   （可搜尋），右側是鎖定某一題之後、範圍內每一筆填寫內容的彙整結果。
+   結果卡片沿用上面既有的 .photo-store-card／.raw-quiz-photos／.raw-quiz-picks
+   樣式（跟照片牆同一套視覺語言，不另外做一份），這裡只需要補「選題」這半邊
+   UI 專屬的樣式。 */
+.qd-wrap { display:flex; height:100%; }
+.qd-picker {
+  width:300px; flex-shrink:0; border-right:1px solid var(--border);
+  display:flex; flex-direction:column; min-height:0;
+}
+.qd-search {
+  margin:12px 14px 8px; padding:8px 12px; border:1px solid var(--border);
+  border-radius:8px; font-size:13px; font-family:inherit; color:var(--text);
+  outline:none; background:#fff;
+}
+.qd-search:focus { border-color:var(--primary); }
+.qd-picker-list { flex:1; overflow-y:auto; padding:0 10px 14px; }
+.qd-section-group { margin-bottom:10px; }
+.qd-section-title {
+  font-size:11px; font-weight:800; color:var(--sub); opacity:.75;
+  padding:6px 8px 4px; letter-spacing:.02em;
+}
+.qd-option-row {
+  display:flex; align-items:center; justify-content:space-between; gap:8px;
+  padding:8px 10px; border-radius:8px; cursor:pointer; font-size:13px;
+  color:var(--text); transition:background .12s;
+}
+.qd-option-row:hover { background:rgba(55,138,221,.08); }
+.qd-option-row.active { background:var(--primary); color:#fff; font-weight:700; }
+.qd-option-row.active .qd-option-count { color:#fff; opacity:.85; }
+.qd-option-name { flex:1; line-height:1.4; word-break:break-word; }
+.qd-option-count { font-size:11px; color:var(--sub); flex-shrink:0; white-space:nowrap; }
+.qd-results { flex:1; min-width:0; overflow-y:auto; padding:14px 20px 30px; }
+.qd-results-empty { padding:60px 20px; text-align:center; color:var(--sub); font-size:13px; }
+.qd-clear-btn { cursor:pointer; font-size:11px; color:var(--sub); text-decoration:underline; margin-left:10px; }
+
+@media (max-width:640px){
+  .qd-wrap { flex-direction:column; }
+  .qd-picker { width:auto; max-height:38%; border-right:none; border-bottom:1px solid var(--border); }
+  .qd-results { flex:1; padding:10px 14px 24px; }
+}
