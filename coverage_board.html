@@ -1196,7 +1196,7 @@ function _fetchQuestionnaireSheet(callback){
         codeToRecords[code].push({
           base: baseData,
           sections: sectionOrder.map(function(s){ return { section:s, picks:sections[s] }; }),
-          timeKey: String(baseData['打卡時間'] || baseData['回報時間'] || baseData['月份'] || '')
+          timeKey: _findTimeText(baseData)
         });
       }
 
@@ -1285,7 +1285,7 @@ function _buildStoreHistoryPanel(storeRow, records, rid, errMsg, loading){
   } else {
     /* 每筆紀錄預設收合，只展開第一筆（最新），其餘點擊才展開 */
     histHtml = '<div class="store-history-list">' + records.map(function(rec, idx){
-      var timeText = rec.base['\u6253\u5361\u6642\u9593'] || rec.base['\u56DE\u5831\u6642\u9593'] || rec.base['\u6708\u4EFD'] || '\u672A\u77E5\u6642\u9593';
+      var timeText = _findTimeText(rec.base) || '\u672A\u77E5\u6642\u9593';
       var badge = idx===0 ? '\u6700\u65B0' : ('\u7B2C '+(records.length-idx)+' \u7B46');
       var hid = rid + '-h' + idx;
       var isOpen = idx === 0;
@@ -1357,7 +1357,7 @@ function _buildStoreDetailLineText(rid, storeRow, records){
     lines.push('\u23F3 \u5C1A\u672A\u57F7\u884C\uFF0C\u76EE\u524D\u6C92\u6709\u4EFB\u4F55\u62DC\u8A2A\u7D00\u9304');
   } else {
     records.forEach(function(rec, idx){
-      var timeText = rec.base['\u6253\u5361\u6642\u9593'] || rec.base['\u56DE\u5831\u6642\u9593'] || rec.base['\u6708\u4EFD'] || '\u672A\u77E5\u6642\u9593';
+      var timeText = _findTimeText(rec.base) || '\u672A\u77E5\u6642\u9593';
       lines.push('\uD83D\uDD52 '+timeText+(idx===0?'\uFF08\u6700\u65B0\uFF09':''));
       (rec.sections||[]).forEach(function(sec){
         lines.push('\u3000\uD83D\uDCCB '+sec.section);
@@ -2528,7 +2528,7 @@ function _buildPhotoWall(rows){
 
   cards.forEach(function(c){
     var r = c.storeRow;
-    var timeText = c.rec.base['打卡時間'] || c.rec.base['回報時間'] || c.rec.base['月份'] || '未知時間';
+    var timeText = _dateOnly(_findTimeText(c.rec.base)) || '未知時間';
     var bySection = {}, order = [];
     c.photos.forEach(function(p){
       if(!bySection[p.section]){ bySection[p.section]=[]; order.push(p.section); }
@@ -2567,7 +2567,7 @@ function _buildDrilldownEntries(rows){
     records.forEach(function(rec){
       if(!rec.sections || !rec.sections.length) return;
       var metaParts = [storeRow[COL_AREA], storeRow[COL_OFFICE], storeRow[COL_STAFF]].filter(function(v){ return v; });
-      var timeText = rec.base['打卡時間'] || rec.base['回報時間'] || rec.base['月份'] || '';
+      var timeText = _findTimeText(rec.base);
       entries.push({
         label: String(storeRow[COL_NAME]||'—'),
         meta: metaParts.join(' · '),
