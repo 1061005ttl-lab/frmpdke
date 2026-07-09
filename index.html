@@ -2,7 +2,7 @@
 ================================================================================
   ⚠️ 給下一位維護者／AI 助手：請先讀這一段，再往下看完整說明
 ================================================================================
-  【2026-07-09 效能優化紀錄（共三輪）】這三輪改動的目標只有一個：讓入口
+  【2026-07-09 效能優化紀錄（共四輪）】這四輪改動的目標只有一個：讓入口
   頁「渲染很久」的問題變快，沒有動任何業務邏輯（登入、頁面對照、卡片
   分組、更新按鈕的行為都完全沒變）。如果你接下來要繼續改這個檔案，
   請先知道以下幾件事：
@@ -57,6 +57,33 @@
      還沒授權或公式回傳錯誤時 I 欄是空字串，這種專案會自動 fallback
      走原本的即時查詢，卡片不會因此空白或報錯。
 
+  第四輪（連線提前建立 + 專案清單也加短期快取）：
+  9. <head> 最前面加了 <link rel="preconnect"/dns-prefetch"> 給
+     docs.google.com（所有 gviz 讀取共用）跟 script.google.com（GAS
+     同步後端），讓瀏覽器在頁面剛開始解析、甚至還沒執行到任何
+     fetch() 之前，就先把 DNS 解析、TLS 交握做完。等真正的請求發出
+     時，少掉的是「建立連線」這段時間，不是資料本身的傳輸時間，所以
+     資料量小的請求（這裡都是）省下的比例反而更明顯。
+  10. 專案清單（PROJ_SHEET）比照登入設定表，加了 30 秒的 sessionStorage
+      快取（fetchProjectList()，快取 key: ttl_proj_cache_v1）。同一
+      分頁 session 內、30 秒內第二次進到這頁（例如從看板頁按上一頁
+      回入口、或手滑重整），直接用快取資料畫面，完全不發網路請求。
+      TTL 刻意比登入設定的 60 秒短，因為專案 ON/OFF 狀態、同步時間比
+      密碼/頁面對照這類設定變動頻繁，快取太久容易讓使用者看到過期的
+      專案清單。快取內容存的是「原始 gviz json」，實際解析/組卡片的
+      邏輯完全沒變，跟 loadLoginConfig() 一樣「快取路徑」跟「網路
+      路徑」共用同一段後續處理，不會有兩套邏輯分歧的風險。
+  11. 這一輪之後，「第一次冷啟動」（沒有任何快取）的下限就是：
+      DNS/TLS 已提前建好連線的前提下，登入設定 gviz＋專案清單 gviz
+      兩個平行請求裡較慢的那個，通常是幾百毫秒等級；「30 秒內第二次
+      進站」則接近 0 網路等待，純粹是解析 JSON、組卡片的本機運算時間
+      （21 個專案量級，通常在幾十毫秒內）。如果實測還是感覺不到
+      1~2 秒內進畫面，該去查的不是這個檔案的程式邏輯，而是：
+      (a) 使用者網路本身延遲很高／不穩，(b) Google Sheets 那次 gviz
+      回應本身就慢（管理表被塞進太多資料，見下方「已使用範圍」檢查
+      法），或 (c) 瀏覽器開發者工具開著會拖慢 fetch，量測時記得關掉
+      節流設定（Network 面板的 "No throttling"）。
+
   如果之後又有人反應「渲染很久」：
   - 先看是 Network 面板裡哪個請求慢，不要先猜。
   - 「🔄 更新」按鈕慢一點點才出現是預期行為（見第 5 點），不是 bug。
@@ -74,7 +101,7 @@
 <!--
 ================================================================================
   業務王看板入口 (index.html)
-  版本：Ver. 1.5.0 ｜ 最後更新：2026-07-09 16:45
+  版本：Ver. 1.6.0 ｜ 最後更新：2026-07-09 17:20
 ================================================================================
 
 【這個檔案在做什麼】
@@ -198,6 +225,9 @@
   PROJ_SHEET   → 專案清單的工作表名稱
   SYNC_TIMEOUT → 同步時間讀取逾時（毫秒，預設 8000）
   SYNC_GAS_URL → 業務王同步工具的後端入口（跟 sync.html 共用）
+  LOGIN_CFG_CACHE_TTL → 登入設定的 sessionStorage 快取秒數（預設 60 秒）
+  PROJ_CACHE_TTL      → 專案清單的 sessionStorage 快取秒數（預設 30 秒，
+                第四輪新增，故意比登入設定短，因為專案狀態變動較頻繁）
   _syncTaskOverride → 看板名稱→同步任務名稱的「例外」對照，來自管理表
                 「登入與頁面設定」分頁的「同步對照」列，只有名稱對不上
                 時才需要填，日常新增專案完全不用碰這裡
@@ -210,6 +240,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>業務王看板入口</title>
+<!-- 【效能優化 2026/7/9 第四輪】提早跟資料來源網域建連線（DNS 解析＋TLS
+     交握），放在 <head> 最前面、搶在任何其他資源之前執行，等真正的
+     gvizFetch()／fetch() 發出時就不用再等這段時間了。docs.google.com
+     是所有 gviz 讀取（登入設定、專案清單、同步時間）共用的網域，
+     script.google.com 是「🔄 更新」按鈕跟同步任務清單打的 GAS 後端。
+     crossorigin 要加，因為實際 fetch() 都是不帶 cookie 的跨網域請求，
+     沒加的話瀏覽器會另外建一條「有帶憑證」的連線，等於白做工。 -->
+<link rel="preconnect" href="https://docs.google.com" crossorigin>
+<link rel="dns-prefetch" href="https://docs.google.com">
+<link rel="preconnect" href="https://script.google.com" crossorigin>
+<link rel="dns-prefetch" href="https://script.google.com">
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-3XTQ1DT3LQ"></script>
 <script>
 window.dataLayer=window.dataLayer||[];
@@ -720,11 +761,40 @@ function doLogout(){
       現在改成「背景抓」：卡片先用當下已知的資料畫出來（這時候如果
       GAS 還沒回來，更新按鈕會先不顯示），GAS 一旦回應，才用
       patchUpdateButtons() 補上原本該有的「🔄 更新」按鈕，不會讓使用者
-      等一個跟看板資料無關的服務。 */
+      等一個跟看板資料無關的服務。
+
+   【效能優化 2026/7/9 第四輪】專案清單（PROJ_SHEET）現在也比照登入
+   設定表加上 sessionStorage 短期快取（見 fetchProjectList()）。同一
+   分頁 session 內，只要 30 秒內重新整理過、或使用者從看板頁按上一頁
+   回到入口頁，第二次以後完全不用等網路，直接用快取畫面——這是實務
+   上最常見的情境（點錯卡片、看完一個看板想換下一個），效果比單純把
+   兩個 fetch 平行化更明顯。TTL 刻意比登入設定的 60 秒短（設 30 秒），
+   因為 ON/OFF 狀態、同步時間比密碼/頁面對照這種設定變動頻繁，快取
+   太久容易讓使用者看到過期的專案清單。 */
+var PROJ_CACHE_KEY = 'ttl_proj_cache_v1';
+var PROJ_CACHE_TTL = 30000; // 30 秒，刻意比登入設定的 60 秒短
+
+function fetchProjectList(){
+  try{
+    var cached = sessionStorage.getItem(PROJ_CACHE_KEY);
+    if(cached){
+      var parsed = JSON.parse(cached);
+      if(parsed && (Date.now()-parsed.ts) < PROJ_CACHE_TTL) return Promise.resolve(parsed.json);
+    }
+  }catch(e){ /* 快取壞掉就當作沒有快取，走正常網路流程 */ }
+
+  return gvizFetch(MGMT_ID, PROJ_SHEET).then(function(json){
+    try{
+      sessionStorage.setItem(PROJ_CACHE_KEY, JSON.stringify({ts:Date.now(), json:json}));
+    }catch(e){ /* 存不進去（例如無痕模式擋 sessionStorage）不影響主流程 */ }
+    return json;
+  });
+}
+
 function loadProjects(){
   var syncTaskPromise = fetchSyncTaskList(); // 背景抓，不等它，抓完自動存進 _syncTaskNames
 
-  Promise.all([ loadLoginConfig(), gvizFetch(MGMT_ID, PROJ_SHEET) ])
+  Promise.all([ loadLoginConfig(), fetchProjectList() ])
     .then(function(results){
       var json = results[1];
       var rows=(json.table&&json.table.rows)||[];
