@@ -1,6 +1,6 @@
 /* ════════════════════════════════════════════════════════════
    photo-viewer.js — 照片縮圖／燈箱／問卷區塊渲染共用工具
-   版本：Ver. 1.0.0 ｜ 建立：2026-07-04
+   版本：Ver. 1.3.0 ｜ 建立：2026-07-04
    依賴：core-utils.js（esc）
    CSS 依賴：dashboard-common.css 裡的
              .raw-quiz-*／.photo-lightbox-*／.photo-gallery-*／.photo-store-*
@@ -30,6 +30,13 @@
    這支檔案完全不管資料從哪來。
 
    【版本紀錄】
+   1.3.0  2026-07-09  計數器＋資訊列合併同一排：原本張數計數（「3/12」）在畫面
+                       頂部、店名/大題/選項資訊列在畫面底部，使用者要分別看兩處
+                       才能拿到完整訊息。改成 _ensurePhotoLightbox 用一個
+                       .photo-lightbox-meta 外層容器把兩者包在同一排、置於畫面
+                       底部；_photoLightboxRender 同步讓計數器只有一張照片時
+                       display:none（而不只是清空文字），避免合併後留下一顆空的
+                       圓角小方塊。CSS 對應變動見 shared/dashboard-common.css。
    1.2.0  2026-07-08  燈箱資訊列＋跨範圍瀏覽＋ESC 層級修正：
                        A) 燈箱新增資訊列，顯示「店名 › 大題 › 選項」，不用
                           切換出燈箱就能看到這張照片完整脈絡。做法：
@@ -150,8 +157,10 @@ function _ensurePhotoLightbox(){
     + '<div class="photo-lightbox-stage">'
     +   '<img class="photo-lightbox-img" id="photo-lightbox-img" src="" alt="">'
     + '</div>'
-    + '<div class="photo-lightbox-counter" id="photo-lightbox-counter"></div>'
-    + '<div class="photo-lightbox-info" id="photo-lightbox-info"></div>';
+    + '<div class="photo-lightbox-meta">'
+    +   '<span class="photo-lightbox-counter" id="photo-lightbox-counter"></span>'
+    +   '<span class="photo-lightbox-info" id="photo-lightbox-info"></span>'
+    + '</div>';
   /* 點背景／點圖片本身＝關閉（cursor:zoom-out 就是在暗示這件事，維持原行為）；
      點左右熱區／關閉鈕都各自 stopPropagation，不會被這裡的關閉邏輯吃掉 */
   el.addEventListener('click', function(){ _closePhotoLightbox(); });
@@ -204,7 +213,15 @@ function _photoLightboxRender(){
   var imgEl = document.getElementById('photo-lightbox-img');
   if(imgEl){ imgEl.src = item.url; imgEl.alt = item.alt; }
   var counterEl = document.getElementById('photo-lightbox-counter');
-  if(counterEl) counterEl.textContent = gallery.length > 1 ? ((idx+1) + ' / ' + gallery.length) : '';
+  if(counterEl){
+    if(gallery.length > 1){
+      counterEl.textContent = (idx+1) + ' / ' + gallery.length;
+      counterEl.style.display = '';
+    } else {
+      counterEl.textContent = '';
+      counterEl.style.display = 'none';
+    }
+  }
   var box = document.getElementById('photo-lightbox-backdrop');
   if(box) box.classList.toggle('has-multi', gallery.length > 1);
   /* 資訊列：店名 › 大題 › 選項，任一段缺值就跳過，不留空的「›」；
