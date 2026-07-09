@@ -1,7 +1,7 @@
 <!--
 ================================================================================
   業務王同步中心 - 桌面版同步控制台 (sync0616_desktop.html)
-  版本：Ver. 1.5.2 ｜ 最後更新：2026-06-29
+  版本：Ver. 1.6.0 ｜ 最後更新：2026-07-09
 ================================================================================
 
 【這份檔案在做什麼】
@@ -117,6 +117,17 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
 - 這是「桌面版」介面；可能還有對應的「手機版」（單欄列表、底部收合式
   執行紀錄抽屜）版本，兩者為各自獨立的檔案，修改其中一個不會影響另一個，
   如需同步調整請另外處理手機版檔案。
+- 【效能優化 2026/7/9】這頁只依賴一個外部請求（GAS_URL 的
+  ?action=getTasks），瓶頸幾乎全來自 GAS Web App 的冷啟動延遲。做了
+  兩件事：(1) <head> 加了 script.google.com 的 preconnect/dns-prefetch，
+  提早建好連線；(2) fetchTaskList() 加了 20 秒 sessionStorage 快取
+  （key: ttl_sync_tasks_v1），同一分頁 session 內短時間內重複進站可以
+  跳過網路直接用快取畫面。這兩點都不影響任何同步/顯示邏輯本身。
+  重要：loadTasks() 現在多了一個 force 參數，「🔄 重新載入」按鈕呼叫
+  的是 loadTasks(true)，永遠強制略過快取直接打網路——因為那顆按鈕
+  存在的意義就是「使用者主動要最新資料」，如果之後要再加其他會呼叫
+  loadTasks() 的地方，先想清楚該不該帶 force=true，不要預設沿用有
+  快取的版本，尤其是「剛觸發同步之後要看到最新狀態」這類情境。
 ================================================================================
 -->
 <!DOCTYPE html>
@@ -125,6 +136,13 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>業務王同步中心</title>
+  <!-- 【效能優化 2026/7/9】這頁只依賴一個外部請求：GAS_URL（自家後端）
+       的 ?action=getTasks，瓶頸幾乎全部來自 GAS Web App 常見的冷啟動
+       延遲。preconnect/dns-prefetch 讓瀏覽器提早把 script.google.com
+       的 DNS 解析＋TLS 交握做完，等真正的 fetch() 發出時就不用再等
+       這段連線建立的時間（省的是連線時間，不是 GAS 冷啟動本身）。 -->
+  <link rel="preconnect" href="https://script.google.com" crossorigin>
+  <link rel="dns-prefetch" href="https://script.google.com">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -584,7 +602,7 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
     </div>
     <div class="wa-header-actions">
       <a class="wa-btn-sm" href="https://1061005ttl-lab.github.io/frmpdke/" target="_blank" rel="noopener noreferrer" title="開啟看板中心（新分頁）">📊 看板中心</a>
-      <button class="wa-btn-sm" onclick="loadTasks()">🔄 重新載入</button>
+      <button class="wa-btn-sm" onclick="loadTasks(true)">🔄 重新載入</button>
     </div>
   </div>
 
@@ -701,15 +719,49 @@ Google試算表/看板的動作。所有資料與動作都透過一個 Google Ap
       document.getElementById('log-dot')?.classList.remove('show');
     }
 
-    async function loadTasks() {
+    // 【效能優化 2026/7/9】任務清單加 sessionStorage 短期快取，同一分頁
+    // session 內 20 秒內重複進到這頁（例如切分頁再切回來、不小心重整）
+    // 可以直接用快取畫面，不用再等一次 GAS 冷啟動。TTL 刻意設短
+    // （20 秒，比 index.html 專案清單的 30 秒還短），因為這頁本身就是
+    // 「觸發同步」的工具，任務的 updatedAt／執行狀態比看板入口的專案
+    // 清單更需要接近即時，快取太久反而會讓人誤判某個任務是不是剛同步
+    // 完成。force=true（給「🔄 重新載入」按鈕用）一律略過快取、強制
+    // 打網路，因為那顆按鈕存在的意義就是「使用者主動要最新資料」，
+    // 如果連它都吃快取，按了等於沒按。
+    const TASK_CACHE_KEY = 'ttl_sync_tasks_v1';
+    const TASK_CACHE_TTL = 20000; // 20 秒
+
+    function fetchTaskList(force) {
+      if (!force) {
+        try {
+          const cached = sessionStorage.getItem(TASK_CACHE_KEY);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && (Date.now() - parsed.ts) < TASK_CACHE_TTL) {
+              return Promise.resolve(parsed.data);
+            }
+          }
+        } catch(e) { /* 快取壞掉就當作沒有快取，走正常網路流程 */ }
+      }
+
+      return fetch(GAS_URL + '?action=getTasks')
+        .then(res => res.json())
+        .then(json => {
+          if (!json.ok) throw new Error(json.message || '載入失敗');
+          const data = json.data.filter(t => t.targetId && t.targetId.trim() !== '');
+          try {
+            sessionStorage.setItem(TASK_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: data }));
+          } catch(e) { /* 存不進去（例如無痕模式擋 sessionStorage）不影響主流程 */ }
+          return data;
+        });
+    }
+
+    async function loadTasks(force) {
       document.getElementById('header-subtitle').textContent = '正在載入任務...';
       document.getElementById('content-inner').innerHTML = `
         <div class="loading-wrap"><div class="spinner"></div><div>正在載入任務...</div></div>`;
       try {
-        const res = await fetch(GAS_URL + '?action=getTasks');
-        const json = await res.json();
-        if (!json.ok) throw new Error(json.message || '載入失敗');
-        tasks = json.data.filter(t => t.targetId && t.targetId.trim() !== '');
+        tasks = await fetchTaskList(force);
         render(tasks);
       } catch(e) {
         document.getElementById('header-subtitle').textContent = '載入失敗';
