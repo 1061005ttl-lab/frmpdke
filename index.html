@@ -1,7 +1,36 @@
 <!--
 ================================================================================
+  ⚠️ 給下一位維護者／AI 助手：請先讀這一段，再往下看完整說明
+================================================================================
+  【2026-07-09 效能優化紀錄】這次改動的目標只有一個：讓入口頁「渲染很久」
+  的問題變快，沒有動任何業務邏輯（登入、頁面對照、卡片分組、更新按鈕的
+  行為都完全沒變）。如果你接下來要繼續改這個檔案，請先知道以下三件事：
+
+  1. 同步時間的抓取（fetchOneSyncTime）已經不是「全部一次發出去」，
+     而是走 runWithConcurrency() 限制同時最多 5 個並發。如果你要再加
+     新的批次網路請求，優先考慮沿用這個 queue，不要再用
+     list.forEach(fetch...) 這種一次全發的寫法，會重蹈覆轍。
+  2. 「已結束專案」(OFF) 的同步時間不會在頁面載入時就抓，而是使用者
+     第一次點開折疊區塊時才觸發一次（見 renderPortal() 裡的
+     offSyncFetched 旗標）。如果你要改「OFF 專案要不要預先載入」的
+     行為，這個旗標跟觸發點就是要動的地方。
+  3. loadLoginConfig() 現在會先看 sessionStorage（key: ttl_login_cfg_v1，
+     60 秒內有效）才決定要不要重新打 gviz。實際套用「密碼／頁面對照／
+     同步對照」的邏輯統一收在 applyLoginRows()——快取路徑跟網路路徑都
+     呼叫同一支函式，兩邊結果保證一致。如果之後管理表結構改欄位，
+     只需要改 applyLoginRows()，不用同時改兩處。
+
+  這三點都是「怎麼發網路請求」的優化，跟畫面顯示的資料完全無關，
+  所以理論上使用者不會感覺到任何行為變化，只會感覺變快。
+  如果之後又有人反應「渲染很久」，先看是不是同步任務清單
+  （fetchSyncTaskList / getTasks）或後端 SYNC_GAS_URL 本身變慢，
+  這兩個不在這次優化範圍內。
+================================================================================
+-->
+<!--
+================================================================================
   業務王看板入口 (index.html)
-  版本：Ver. 1.2.0 ｜ 最後更新：2026-06-20 10:36
+  版本：Ver. 1.3.0 ｜ 最後更新：2026-07-09 15:40
 ================================================================================
 
 【這個檔案在做什麼】
@@ -535,38 +564,65 @@ function hideLoading(){
   document.getElementById('loading-screen').classList.remove('show');
 }
 
-/* ══ 讀登入設定（更新密碼和頁面對照） ══ */
+/* ══ 讀登入設定（更新密碼和頁面對照） ══
+   【效能優化 2026/7/9】加入 sessionStorage 短期快取（60 秒），同一次
+   瀏覽器分頁 session 內重整/切換頁面時可略過這次 gviz 往返，因為登入
+   設定表變動頻率很低（密碼、頁面對照都是久久才改一次）。
+   快取內容只存「原始 rows」，實際套用邏輯統一走 applyLoginRows()，
+   確保「從快取套用」跟「從網路套用」的結果永遠一致，不會產生兩套
+   邏輯分歧的風險。 */
+var LOGIN_CFG_CACHE_KEY = 'ttl_login_cfg_v1';
+var LOGIN_CFG_CACHE_TTL = 60000; // 60 秒
+
+function applyLoginRows(rows){
+  rows.forEach(function(row){
+    var cells=row.c||[];
+    var key=String(cv(cells[0])).trim();
+    var b=String(cv(cells[1])).trim();
+    var c=String(cv(cells[2])).trim();
+    if(key==='密碼') _password=b.toLowerCase();
+    /* 同步對照：只有「看板專案名稱（去掉日期後）」跟「sync.html
+       實際任務名稱」對不上時才需要填這一列。B欄＝看板名稱、
+       C欄＝實際任務名稱。大部分專案兩邊名稱本來就一樣，不用填
+       也會自動比對到（見 buildCard() 與 fetchSyncTaskList()）。 */
+    if(key==='同步對照'&&b&&c) _syncTaskOverride[b]=c;
+    if(key==='頁面對照'&&b&&c){
+      _pageMap[b]=c;
+      /* D欄(顏色)、E欄都選填：留空就交給 autoStyle() 依名稱自動配一個
+         穩定的顏色，不會因為沒填而報錯或誤用到其他類型的樣式。 */
+      var colorHex=String(cv(cells[3])).trim();
+      var icon=String(cv(cells[4])).trim();
+      if(colorHex||icon){
+        TYPE_STYLE[b] = {
+          accent:  colorHex || (TYPE_STYLE[b]&&TYPE_STYLE[b].accent)  || autoStyle(b).accent,
+          badgeBg: colorHex ? hexToRgba(colorHex,0.12) : (TYPE_STYLE[b]&&TYPE_STYLE[b].badgeBg) || autoStyle(b).badgeBg,
+          badgeFg: colorHex || (TYPE_STYLE[b]&&TYPE_STYLE[b].badgeFg) || autoStyle(b).badgeFg,
+          icon:    icon || (TYPE_STYLE[b]&&TYPE_STYLE[b].icon) || '📁'
+        };
+      }
+    }
+  });
+}
+
 function loadLoginConfig(){
+  try{
+    var cached = sessionStorage.getItem(LOGIN_CFG_CACHE_KEY);
+    if(cached){
+      var parsed = JSON.parse(cached);
+      if(parsed && (Date.now()-parsed.ts) < LOGIN_CFG_CACHE_TTL){
+        applyLoginRows(parsed.rows);
+        return Promise.resolve();
+      }
+    }
+  }catch(e){ /* 快取壞掉就當作沒有快取，走正常網路流程 */ }
+
   return gvizFetch(MGMT_ID, LOGIN_SHEET)
     .then(function(json){
       var rows=(json.table&&json.table.rows)||[];
-      rows.forEach(function(row){
-        var cells=row.c||[];
-        var key=String(cv(cells[0])).trim();
-        var b=String(cv(cells[1])).trim();
-        var c=String(cv(cells[2])).trim();
-        if(key==='密碼') _password=b.toLowerCase();
-        /* 同步對照：只有「看板專案名稱（去掉日期後）」跟「sync.html
-           實際任務名稱」對不上時才需要填這一列。B欄＝看板名稱、
-           C欄＝實際任務名稱。大部分專案兩邊名稱本來就一樣，不用填
-           也會自動比對到（見 buildCard() 與 fetchSyncTaskList()）。 */
-        if(key==='同步對照'&&b&&c) _syncTaskOverride[b]=c;
-        if(key==='頁面對照'&&b&&c){
-          _pageMap[b]=c;
-          /* D欄(顏色)、E欄都選填：留空就交給 autoStyle() 依名稱自動配一個
-             穩定的顏色，不會因為沒填而報錯或誤用到其他類型的樣式。 */
-          var colorHex=String(cv(cells[3])).trim();
-          var icon=String(cv(cells[4])).trim();
-          if(colorHex||icon){
-            TYPE_STYLE[b] = {
-              accent:  colorHex || (TYPE_STYLE[b]&&TYPE_STYLE[b].accent)  || autoStyle(b).accent,
-              badgeBg: colorHex ? hexToRgba(colorHex,0.12) : (TYPE_STYLE[b]&&TYPE_STYLE[b].badgeBg) || autoStyle(b).badgeBg,
-              badgeFg: colorHex || (TYPE_STYLE[b]&&TYPE_STYLE[b].badgeFg) || autoStyle(b).badgeFg,
-              icon:    icon || (TYPE_STYLE[b]&&TYPE_STYLE[b].icon) || '📁'
-            };
-          }
-        }
-      });
+      applyLoginRows(rows);
+      try{
+        sessionStorage.setItem(LOGIN_CFG_CACHE_KEY, JSON.stringify({ts:Date.now(), rows:rows}));
+      }catch(e){ /* 存不進去（例如無痕模式擋 sessionStorage）不影響主流程 */ }
     })
     .catch(function(){});
 }
@@ -623,7 +679,12 @@ function loadProjects(){
       _surveys={on:onList,off:offList};
       hideLoading();
       renderPortal();
-      fetchAllSyncTimes(onList.concat(offList));
+      /* 【效能優化 2026/7/9】只先拉「進行中」專案的同步時間。
+         「已結束專案」預設是折疊、使用者根本還沒看到，卻要跟 ON 專案
+         搶同一批並發名額，會拖慢使用者實際看得到的 ON 卡片。
+         OFF 的同步時間改成使用者真的點開摺疊區塊時才觸發（見
+         renderPortal() 裡 off-toggle 的 onclick）。 */
+      fetchAllSyncTimes(onList);
     })
     .catch(function(){
       hideLoading();
@@ -692,11 +753,16 @@ function renderPortal(){
     var toggle=document.createElement('div');
     toggle.className='off-toggle';
     toggle.innerHTML='▶ 已結束專案（'+_surveys.off.length+'個）';
+    var offSyncFetched=false; /* 確保同步時間只在第一次展開時拉一次，重複收合展開不會重複發請求 */
     toggle.onclick=function(){
       var sec=document.getElementById('off-section');
       var open=sec.style.display==='block';
       sec.style.display=open?'none':'block';
       toggle.innerHTML=(open?'▶':'▼')+' 已結束專案（'+_surveys.off.length+'個）';
+      if(!open&&!offSyncFetched){
+        offSyncFetched=true;
+        fetchAllSyncTimes(_surveys.off);
+      }
     };
     stage.appendChild(toggle);
     var sec=document.createElement('div'); sec.id='off-section';
@@ -913,8 +979,33 @@ function fetchOneSyncTime(proj){
       if(el) el.textContent='';
     });
 }
+/* 【效能優化 2026/7/9】改成限制並發數的 queue，而不是一次把所有專案的
+   同步時間請求全部丟出去。瀏覽器對同一網域（docs.google.com）預設只有
+   6 條並發連線，專案一多，全部同時發送反而會互相排隊、拖慢每一張卡片
+   看到時間的速度。限制同時最多 5 個在跑，其餘排隊依序遞補，總請求數
+   不變，但不會塞爆連線、也不會讓某些卡片被卡在隊伍最後面很久。 */
+var SYNC_TIME_CONCURRENCY = 5;
+function runWithConcurrency(items, worker, limit){
+  return new Promise(function(resolve){
+    var idx = 0, active = 0, done = 0;
+    if(!items.length){ resolve(); return; }
+    function next(){
+      while(active < limit && idx < items.length){
+        (function(item){
+          idx++; active++;
+          worker(item).then(function(){}, function(){}).then(function(){
+            active--; done++;
+            if(done === items.length) resolve();
+            else next();
+          });
+        })(items[idx]);
+      }
+    }
+    next();
+  });
+}
 function fetchAllSyncTimes(list){
-  list.forEach(function(proj){ fetchOneSyncTime(proj); });
+  return runWithConcurrency(list, fetchOneSyncTime, SYNC_TIME_CONCURRENCY);
 }
 
 /* ══ Sync Modal ══ */
