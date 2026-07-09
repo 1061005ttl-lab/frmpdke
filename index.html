@@ -2,7 +2,7 @@
 ================================================================================
   ⚠️ 給下一位維護者／AI 助手：請先讀這一段，再往下看完整說明
 ================================================================================
-  【2026-07-09 效能優化紀錄（共兩輪）】這兩輪改動的目標只有一個：讓入口
+  【2026-07-09 效能優化紀錄（共三輪）】這三輪改動的目標只有一個：讓入口
   頁「渲染很久」的問題變快，沒有動任何業務邏輯（登入、頁面對照、卡片
   分組、更新按鈕的行為都完全沒變）。如果你接下來要繼續改這個檔案，
   請先知道以下幾件事：
@@ -33,6 +33,30 @@
      resolveTaskName() 判斷，buildCard() 跟 patchUpdateButtons() 共用
      這支函式，不要各寫一份判斷邏輯。
 
+  第三輪（混合式 IMPORTRANGE 讀取，取代逐專案即時查詢）：
+  6. 「專案管理」表新增了 I 欄，公式是
+     =IFERROR(IMPORTRANGE($C欄, "'"&$E欄&"'!"&$F欄), "")，把每個專案的
+     同步時間預先拉進管理表本身。原本 loadProjects() 讀 PROJ_SHEET 那
+     次 gvizFetch 就會順便把這欄一起帶回來，所以現在 loadProjects()
+     會把 I 欄（cells[8]）存成 proj.syncPre；buildCard() 畫卡片時如果
+     proj.syncPre 有值，直接用 parseGvizDate() 顯示，完全不用等
+     fetchOneSyncTime() 的網路往返。fetchAllSyncTimes() 也改成先過濾
+     掉「已經有 syncPre」的專案，只對 IMPORTRANGE 還沒授權、公式出錯
+     或儲存格空白的少數專案才 fallback 發即時查詢——13 個 ON 專案的
+     情境下，這批即時請求次數會從 13 次直接變成 0（或極少數）次。
+  7. 這一輪只動「頁面第一次載入」的路徑。使用者手動按「🔄 更新」按鈕
+     之後（handleUpdateClick 裡呼叫的那次 fetchOneSyncTime(proj)）刻意
+     沒有改，還是照舊發一次即時查詢——因為那個當下使用者要看的是
+     「剛剛觸發的同步」有沒有真的寫回試算表，IMPORTRANGE 的排程刷新
+     可能落後好幾分鐘，用它會讓使用者以為按鈕沒作用。
+  8. 取捨要知道：IMPORTRANGE 不是即時的，卡片上第一眼看到的同步時間
+     可能落後試算表實際寫入時間幾分鐘到更久（由 Google Sheets 自己的
+     重新計算排程決定，不是本頁面能控制的）；另外每張來源試算表第一
+     次被 IMPORTRANGE 讀取時，管理表那顆公式儲存格會跳出「允許存取」
+     授權提示，要對每張來源表各按一次（按過一次之後就不會再跳）。
+     還沒授權或公式回傳錯誤時 I 欄是空字串，這種專案會自動 fallback
+     走原本的即時查詢，卡片不會因此空白或報錯。
+
   如果之後又有人反應「渲染很久」：
   - 先看是 Network 面板裡哪個請求慢，不要先猜。
   - 「🔄 更新」按鈕慢一點點才出現是預期行為（見第 5 點），不是 bug。
@@ -40,12 +64,17 @@
     （MGMT_ID 這張表），可以檢查表格「已使用範圍」是否異常膨脹
     （Ctrl+End 跳到哪裡）——2026-07-09 這次確認過的管理表本身資料量
     不大（21 個專案），排除了這個可能性，但之後表格變大要重新檢查。
+  如果之後有人反應「同步時間跟試算表對不起來／感覺是舊的」：
+  - 先確認那張卡片顯示的時間是不是 IMPORTRANGE 拉回來的（正常情況，
+    會落後真實寫入時間一點），不是 fetchOneSyncTime() 讀壞了；點一次
+    「🔄 更新」按鈕，1.5s 後會強制用即時查詢刷新那張卡片，可以拿來
+    對照真正的最新時間。
 ================================================================================
 -->
 <!--
 ================================================================================
   業務王看板入口 (index.html)
-  版本：Ver. 1.4.0 ｜ 最後更新：2026-07-09 16:10
+  版本：Ver. 1.5.0 ｜ 最後更新：2026-07-09 16:45
 ================================================================================
 
 【這個檔案在做什麼】
@@ -82,16 +111,22 @@
     C欄填實際的同步任務名稱（見上表範例）。
 
   工作表②「專案管理」
-  ┌──────┬──────────┬────────────────┬────────────┬────────┬──────┬──────────────┬────────────┐
-  │ A    │ B        │ C              │ D          │ E      │ F    │ G            │ H          │
-  │ 啟用 │ 專案名稱  │ 試算表 ID      │ 資料工作表 │ 輔助表  │ 儲存格│ 看板類型     │ 看板群分類  │
-  ├──────┼──────────┼────────────────┼────────────┼────────┼──────┼──────────────┼────────────┤
-  │ ON   │ CVS春季…  │ 1aBcD…（44碼） │ 店家名冊   │ 輔助   │ B1   │ 達成率型     │ 訪頻       │
-  │ OFF  │ 舊專案    │ 1xYzW…        │ 店家名冊   │ 輔助   │ B1   │ 達成率型     │ 訪頻       │
-  └──────┴──────────┴────────────────┴────────────┴────────┴──────┴──────────────┴────────────┘
+  ┌──────┬──────────┬────────────────┬────────────┬────────┬──────┬──────────────┬────────────┬──────────────┐
+  │ A    │ B        │ C              │ D          │ E      │ F    │ G            │ H          │ I（選填）     │
+  │ 啟用 │ 專案名稱  │ 試算表 ID      │ 資料工作表 │ 輔助表  │ 儲存格│ 看板類型     │ 看板群分類  │ 同步時間快照  │
+  ├──────┼──────────┼────────────────┼────────────┼────────┼──────┼──────────────┼────────────┼──────────────┤
+  │ ON   │ CVS春季…  │ 1aBcD…（44碼） │ 店家名冊   │ 輔助   │ B1   │ 達成率型     │ 訪頻       │ =IFERROR(...) │
+  │ OFF  │ 舊專案    │ 1xYzW…        │ 店家名冊   │ 輔助   │ B1   │ 達成率型     │ 訪頻       │ =IFERROR(...) │
+  └──────┴──────────┴────────────────┴────────────┴────────┴──────┴──────────────┴────────────┴──────────────┘
   → A 欄填 ON 為進行中（可點擊），填 OFF 為已結束（灰化、折疊顯示、不可點擊）。
   → E/F 欄指定從哪張工作表的哪個儲存格讀取「最後同步時間」，顯示在卡片底部。
   → G 欄「看板類型」決定點卡片要跳轉到哪個頁面（見上方「頁面對照」）。
+  → I 欄（選填，第三輪新增）：公式
+    =IFERROR(IMPORTRANGE($C欄,"'"&$E欄&"'!"&$F欄),"")，預先把每個專案
+    的同步時間拉進管理表本身，讓入口頁不用再對每張來源表個別發即時
+    查詢。格式要設成「日期時間」，跟 F 欄指定的來源儲存格一致。留空
+    不填或公式出錯，該專案會自動 fallback 走原本的即時查詢，不影響
+    卡片顯示，只是那張卡片會慢一點才看到時間。
   → H 欄「看板群分類」純粹是入口頁「怎麼把卡片分組顯示」的視覺分類，
     不影響點進去開哪個頁面。沒有預設類別清單，填什麼就自動照該文字
     分組，同一個 ON/OFF 區塊內依你填的文字動態產生小標題。填的文字前後
@@ -704,10 +739,16 @@ function loadProjects(){
         var cell=String(cv(cells[5])).trim()||'B1';
         var btype=String(cv(cells[6])).trim()||'達成率型';
         var group=_normGroup(cv(cells[7]))||'未分類'; /* H欄：看板群分類，沒填的一律歸「未分類」 */
+        /* I欄（第三輪新增）：IMPORTRANGE 預先拉好的同步時間快照，跟
+           fetchOneSyncTime() 即時查詢回來的格式一樣是 gviz 的
+           Date(...) 字串。有值就直接用，不用再對該專案的試算表發
+           即時請求；公式出錯／還沒授權／留空時是空字串，交給
+           fetchAllSyncTimes() 的 fallback 邏輯即時查詢補上。 */
+        var syncPre=String(cv(cells[8])||'').trim();
         /* ── 修正①：跳過空列與表頭佔位列 ── */
         if(!name||!sid) return;
         if(isHeaderRow(name,sid)) return;
-        var p={name:name,id:sid,sheet:sheet,syncSheet:sync,syncCell:cell,boardType:btype,group:group};
+        var p={name:name,id:sid,sheet:sheet,syncSheet:sync,syncCell:cell,boardType:btype,group:group,syncPre:syncPre};
         if(active) onList.push(p); else offList.push(p);
       });
       _surveys={on:onList,off:offList};
@@ -906,7 +947,9 @@ function buildCard(proj,isOff){
     '<span class="badge">'+sty.icon+' '+esc(proj.boardType)+(isOff?' · 已結束':'')+'</span>'+
     '<div class="proj-name">'+esc(proj.name)+'</div>'+
     '<div class="proj-sync">'+
-      '<span class="proj-sync-text" id="sync-'+esc(proj.id)+'">⏳ 讀取中…</span>'+
+      '<span class="proj-sync-text" id="sync-'+esc(proj.id)+'">'+
+        (proj.syncPre?esc('📊 同步 '+parseGvizDate(proj.syncPre)):'⏳ 讀取中…')+
+      '</span>'+
       '<span class="proj-sync-status" id="sync-status-'+esc(proj.id)+'"></span>'+
       updateBtnHtml+
     '</div>'+
@@ -1078,8 +1121,14 @@ function runWithConcurrency(items, worker, limit){
     next();
   });
 }
+/* 【效能優化 2026/7/9 第三輪】混合式讀取：已經從 I 欄 IMPORTRANGE
+   拿到同步時間快照的專案（proj.syncPre 有值），buildCard() 畫卡片
+   時就已經直接顯示了，這裡不用再重複發一次即時查詢；只有 syncPre
+   是空字串（IMPORTRANGE 還沒授權、公式出錯、或那格本來就沒填）的
+   專案才需要 fallback 用 fetchOneSyncTime() 即時問一次。 */
 function fetchAllSyncTimes(list){
-  return runWithConcurrency(list, fetchOneSyncTime, SYNC_TIME_CONCURRENCY);
+  var pending = list.filter(function(p){ return !p.syncPre; });
+  return runWithConcurrency(pending, fetchOneSyncTime, SYNC_TIME_CONCURRENCY);
 }
 
 /* ══ Sync Modal ══ */
