@@ -2,35 +2,50 @@
 ================================================================================
   ⚠️ 給下一位維護者／AI 助手：請先讀這一段，再往下看完整說明
 ================================================================================
-  【2026-07-09 效能優化紀錄】這次改動的目標只有一個：讓入口頁「渲染很久」
-  的問題變快，沒有動任何業務邏輯（登入、頁面對照、卡片分組、更新按鈕的
-  行為都完全沒變）。如果你接下來要繼續改這個檔案，請先知道以下三件事：
+  【2026-07-09 效能優化紀錄（共兩輪）】這兩輪改動的目標只有一個：讓入口
+  頁「渲染很久」的問題變快，沒有動任何業務邏輯（登入、頁面對照、卡片
+  分組、更新按鈕的行為都完全沒變）。如果你接下來要繼續改這個檔案，
+  請先知道以下幾件事：
 
+  第一輪：
   1. 同步時間的抓取（fetchOneSyncTime）已經不是「全部一次發出去」，
      而是走 runWithConcurrency() 限制同時最多 5 個並發。如果你要再加
      新的批次網路請求，優先考慮沿用這個 queue，不要再用
      list.forEach(fetch...) 這種一次全發的寫法，會重蹈覆轍。
   2. 「已結束專案」(OFF) 的同步時間不會在頁面載入時就抓，而是使用者
      第一次點開折疊區塊時才觸發一次（見 renderPortal() 裡的
-     offSyncFetched 旗標）。如果你要改「OFF 專案要不要預先載入」的
-     行為，這個旗標跟觸發點就是要動的地方。
+     offSyncFetched 旗標）。
   3. loadLoginConfig() 現在會先看 sessionStorage（key: ttl_login_cfg_v1，
      60 秒內有效）才決定要不要重新打 gviz。實際套用「密碼／頁面對照／
      同步對照」的邏輯統一收在 applyLoginRows()——快取路徑跟網路路徑都
-     呼叫同一支函式，兩邊結果保證一致。如果之後管理表結構改欄位，
-     只需要改 applyLoginRows()，不用同時改兩處。
+     呼叫同一支函式，兩邊結果保證一致。
 
-  這三點都是「怎麼發網路請求」的優化，跟畫面顯示的資料完全無關，
-  所以理論上使用者不會感覺到任何行為變化，只會感覺變快。
-  如果之後又有人反應「渲染很久」，先看是不是同步任務清單
-  （fetchSyncTaskList / getTasks）或後端 SYNC_GAS_URL 本身變慢，
-  這兩個不在這次優化範圍內。
+  第二輪（loadProjects() 內部）：
+  4. 「登入與頁面設定」表跟「專案管理」表原本是序列讀取（A讀完才讀
+     B），改成 Promise.all 平行送出兩個 gviz 請求，只在真正要組卡片
+     之前才等兩邊都回來——正確性（覆寫設定一定先套用）不變，但等待
+     時間從「兩次往返相加」變成「取兩者較慢的那個」。
+  5. 同步任務清單（fetchSyncTaskList，打的是自家 GAS 後端 getTasks）
+     不再跟 gviz 綁在同一個 Promise.all 裡擋住卡片渲染——GAS Web App
+     常有明顯冷啟動延遲，不該讓整頁陪著等。改成背景抓，卡片先用當下
+     資料畫出來，GAS 回應後用 patchUpdateButtons() 補上「🔄 更新」
+     按鈕。卡片要不要顯示按鈕、按鈕對應哪個任務名稱，統一由
+     resolveTaskName() 判斷，buildCard() 跟 patchUpdateButtons() 共用
+     這支函式，不要各寫一份判斷邏輯。
+
+  如果之後又有人反應「渲染很久」：
+  - 先看是 Network 面板裡哪個請求慢，不要先猜。
+  - 「🔄 更新」按鈕慢一點點才出現是預期行為（見第 5 點），不是 bug。
+  - 如果連卡片本體（proj-name、grid）都很慢，問題出在 gviz
+    （MGMT_ID 這張表），可以檢查表格「已使用範圍」是否異常膨脹
+    （Ctrl+End 跳到哪裡）——2026-07-09 這次確認過的管理表本身資料量
+    不大（21 個專案），排除了這個可能性，但之後表格變大要重新檢查。
 ================================================================================
 -->
 <!--
 ================================================================================
   業務王看板入口 (index.html)
-  版本：Ver. 1.3.0 ｜ 最後更新：2026-07-09 15:40
+  版本：Ver. 1.4.0 ｜ 最後更新：2026-07-09 16:10
 ================================================================================
 
 【這個檔案在做什麼】
@@ -653,11 +668,30 @@ function doLogout(){
   clearAuth(); location.reload();
 }
 
-/* ══ 讀專案清單 ══ */
+/* ══ 讀專案清單 ══
+   【效能優化 2026/7/9 第二輪】這裡有兩個進一步的改動：
+
+   1. 原本是 loadLoginConfig().then(loadProjects)：先把登入設定表整個
+      讀完，才「開始」讀專案表，兩次 gviz 往返是完全序列疊加的。
+      其實只有「套用覆寫、組卡片」這個步驟需要登入設定先到位，兩個
+      fetch 本身完全可以同時發送。改成 Promise.all 平行送出，只在
+      真正要組卡片之前才等兩邊都回來，正確性跟原本一樣（見 2026/7/5
+      的註解），但等待時間從「兩次往返相加」變成「取兩者較慢的那個」。
+
+   2. 同步任務清單（fetchSyncTaskList，打的是自家 GAS 後端 getTasks）
+      跟 Google 的 gviz 端點是完全不同的服務，GAS Web App 常常有明顯
+      的冷啟動延遲（第一次呼叫可能要等好幾秒），過去卻讓它跟 gviz
+      綁在同一個 Promise.all 裡，等於整頁卡片畫面都要陪著它一起等。
+      現在改成「背景抓」：卡片先用當下已知的資料畫出來（這時候如果
+      GAS 還沒回來，更新按鈕會先不顯示），GAS 一旦回應，才用
+      patchUpdateButtons() 補上原本該有的「🔄 更新」按鈕，不會讓使用者
+      等一個跟看板資料無關的服務。 */
 function loadProjects(){
-  Promise.all([ gvizFetch(MGMT_ID, PROJ_SHEET), fetchSyncTaskList() ])
+  var syncTaskPromise = fetchSyncTaskList(); // 背景抓，不等它，抓完自動存進 _syncTaskNames
+
+  Promise.all([ loadLoginConfig(), gvizFetch(MGMT_ID, PROJ_SHEET) ])
     .then(function(results){
-      var json = results[0]; // fetchSyncTaskList() 已把結果存進 _syncTaskNames，這裡不用理會第二個結果
+      var json = results[1];
       var rows=(json.table&&json.table.rows)||[];
       var onList=[],offList=[];
       rows.forEach(function(row){
@@ -685,6 +719,11 @@ function loadProjects(){
          OFF 的同步時間改成使用者真的點開摺疊區塊時才觸發（見
          renderPortal() 裡 off-toggle 的 onclick）。 */
       fetchAllSyncTimes(onList);
+      /* GAS 同步任務清單這時候可能還沒回來（或早就回來了，皆可）。
+         等它真的 resolve 了，才幫已經畫出來的卡片補上更新按鈕；
+         patchUpdateButtons() 對已經有按鈕的卡片會直接跳過，重複呼叫
+         也不會有副作用。 */
+      syncTaskPromise.then(function(){ patchUpdateButtons(onList); });
     })
     .catch(function(){
       hideLoading();
@@ -841,6 +880,16 @@ function renderGroupedGrid(container, list, isOff){
   container.appendChild(row);
 }
 
+/* 卡片要不要顯示「🔄 更新」按鈕、按鈕該對應哪個同步任務名稱，
+   buildCard()（第一次畫卡片）跟 patchUpdateButtons()（GAS 任務清單
+   晚到時補畫按鈕）都要用同一套判斷邏輯，抽出來避免兩邊各寫一次、
+   日後改規則只改一個地方就好，也不會兩邊行為兜不起來。 */
+function resolveTaskName(proj, isOff){
+  var stripped = stripDateSuffix(proj.name);
+  var effectiveTaskName = _syncTaskOverride[stripped] || stripped;
+  return (isOff || !_syncTaskNames[effectiveTaskName]) ? null : effectiveTaskName;
+}
+
 function buildCard(proj,isOff){
   var sty=getTypeStyle(proj.boardType);
   var card=document.createElement('div');
@@ -848,9 +897,7 @@ function buildCard(proj,isOff){
   card.id='card-'+proj.id;
   card.style.cssText='--accent:'+sty.accent+';--badge-bg:'+sty.badgeBg+';--badge-fg:'+sty.badgeFg+';';
 
-  var stripped = stripDateSuffix(proj.name);
-  var effectiveTaskName = _syncTaskOverride[stripped] || stripped;
-  var taskName = (isOff || !_syncTaskNames[effectiveTaskName]) ? null : effectiveTaskName;
+  var taskName = resolveTaskName(proj, isOff);
   var updateBtnHtml = taskName
     ? '<button class="proj-update-btn" type="button" title="更新「'+esc(taskName)+'」資料">🔄</button>'
     : '';
@@ -879,6 +926,33 @@ function buildCard(proj,isOff){
     });
   }
   return card;
+}
+
+/* 【效能優化 2026/7/9 第二輪】卡片畫出來的當下，GAS 同步任務清單
+   （fetchSyncTaskList）可能還沒回來，這時 buildCard() 會判斷「還沒有
+   任務名單、所以先不顯示更新按鈕」。等 GAS 真的回應之後，用這支函式
+   幫已經在畫面上的卡片「補畫」按鈕，不用整批卡片重新渲染，也不會
+   影響使用者已經在看的畫面（例如正在捲動、正在點別的卡片）。
+   對已經有按鈕的卡片會直接跳過，所以重複呼叫是安全的。 */
+function patchUpdateButtons(list){
+  list.forEach(function(proj){
+    var card = document.getElementById('card-'+proj.id);
+    if(!card || card.querySelector('.proj-update-btn')) return;
+    var taskName = resolveTaskName(proj, false);
+    if(!taskName) return;
+    var syncRow = card.querySelector('.proj-sync');
+    if(!syncRow) return;
+    var btn = document.createElement('button');
+    btn.className = 'proj-update-btn';
+    btn.type = 'button';
+    btn.title = '更新「'+taskName+'」資料';
+    btn.textContent = '🔄';
+    syncRow.appendChild(btn);
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      handleUpdateClick(btn, proj, taskName);
+    });
+  });
 }
 
 function openProject(proj){
@@ -1036,14 +1110,14 @@ document.addEventListener('keydown', function(e){
   if(hasAuth()){
     document.getElementById('loading-screen').classList.add('show');
     document.getElementById('loading-text').textContent='載入專案清單…';
-    /* 【2026/7/5 修正】原本這裡是 loadLoginConfig() 和 loadProjects()
-       各自平行呼叫，沒有先後順序保證。大部分時候看不出問題，但
-       「頁面對照」「同步對照」這些覆寫設定必須在 loadProjects()
-       算完 buildCard() 之前就讀到才有用——如果專案清單那個 gviz
-       請求剛好比登入設定那個快，就會用「還沒套用覆寫」的舊資料畫出
-       第一版卡片（例如「CVS雲泡上架」的更新按鈕在這個時間差裡不會
-       出現）。改成串接，確保覆寫設定一定先到位。 */
-    loadLoginConfig().then(loadProjects);
+    /* 【2026/7/5 修正，2026/7/9 改法但結論不變】「頁面對照」「同步對照」
+       這些覆寫設定必須在組卡片（buildCard）之前就讀到才有用，這個
+       前提沒有變。差別是：以前用「序列呼叫」(A 做完才做 B) 來保證
+       順序，現在改成在 loadProjects() 內部用 Promise.all 兩邊同時發
+       請求、但仍然等兩邊都回來才組卡片——保證順序的效果一樣，只是
+       不用把兩次網路往返的時間相加，改成兩個一起等，取比較慢的那個
+       就好。所以這裡不用再手動串接，直接呼叫 loadProjects() 即可。 */
+    loadProjects();
     return;
   }
   document.getElementById('loading-screen').classList.add('show');
