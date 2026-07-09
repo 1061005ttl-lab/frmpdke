@@ -578,13 +578,11 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .raw-quiz-photo-fail { display:block; margin-top:4px; font-size:11px; color:#B23A3A; max-width:100px; }
 .raw-quiz-photo-note { display:block; margin-top:4px; font-size:11px; font-weight:600; color:#B2650A; max-width:100px; line-height:1.4; word-break:break-word; }
 
-/* .photo-lightbox-* 全部改用 shared/dashboard-common.css 1.2.0 版（智慧滿版
+/* .photo-lightbox-* 全部改用 shared/dashboard-common.css 1.3.0 版（智慧滿版
    .photo-lightbox-stage 96vw×94vh ＋ object-fit:contain，含左右熱區／計數器／
-   資訊列）。這裡原本殘留一份 2026-07-04 抽出前的舊版本地覆寫（.photo-lightbox-img
-   寫死 max-width:min(1600px,96vw)，只會「限制最大」、小圖不會放大填滿畫面），
-   因為在同一份文件內宣告在 <link href="shared/dashboard-common.css"> 之後，
-   同選擇器優先權下反而蓋掉了共用檔案修好的版本，導致燈箱看起來很小——
-   已移除，不要再加回本地覆寫。 */
+   資訊列，計數器與資訊列合併同一排）。這裡原本殘留一份 2026-07-04 抽出前的
+   舊版本地覆寫，因為宣告在 <link href="shared/dashboard-common.css"> 之後，
+   同選擇器優先權下反而蓋掉了共用檔案修好的版本——已移除，不要再加回。 */
 
 .raw-share-btn {
   font-size:11px; font-weight:600; padding:3px 10px; border-radius:6px;
@@ -805,6 +803,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <div class="view-toggle" id="view-toggle">
       <button class="vt-btn active" id="vt-org"     onclick="setViewMode('org');closeMobileMenu();">🏢 組織</button>
       <button class="vt-btn"        id="vt-channel" onclick="setViewMode('channel');closeMobileMenu();">🏪 通路</button>
+      <button class="vt-btn"        id="vt-grade"   onclick="setViewMode('grade');closeMobileMenu();">🏷️ 等級</button>
     </div>
     <div class="ctrl-sep"></div>
     <div class="tb-group" id="toolbar-actions-board">
@@ -887,7 +886,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
       <b>← 返回</b>：回到專案選單<br>
       <b>專案選單</b>（下拉）：切換不同覆蓋率專案，每個專案讀取獨立的試算表<br>
       <b>☰ 選單</b>（手機）：收納視角切換與所有輸出功能，點擊展開<br>
-      <b>🏢 組織 / 🏪 通路</b>：切換鑽取視角。組織視角依「營業處→所→人員」；通路視角依「通路別→處→所」<br>
+      <b>🏢 組織 / 🏪 通路 / 🏷️ 等級</b>：切換鑽取視角。組織視角依「營業處→所→人員」；通路視角依「通路別→處→所」；等級視角依「店家等級→營業處→所→人員」<br>
       <b>🖼️ 照片牆</b>：長官流水線視角，把目前範圍內所有拜訪紀錄攤平成一份時間軸，只列出有拍照的紀錄，新到舊排序，一眼看完業務員今天去了哪、拍了什麼<br>
       <b>同步時間</b>：顯示資料最後更新時間（台灣時間）<br>
       <b>💬</b> 複製當前頁面的 LINE 完整版訊息（含全部店家分組明細）<br>
@@ -1745,6 +1744,9 @@ function getCurrentRows() {
     else if(d.level==='staff')   col=COL_STAFF;
     else if(d.level==='channel') col=COL_CHANNEL;
     else if(d.level==='type')    col=COL_TYPE;
+    else if(d.level==='grade')   col=COL_GRADE;
+    else if(d.level==='gr-area')   col=COL_AREA;
+    else if(d.level==='gr-office') col=COL_OFFICE;
     if(col) rows=rows.filter(function(r){ return String(r[col])===d.key; });
   });
   return rows;
@@ -1789,6 +1791,7 @@ function setViewMode(mode) {
   drillStack = [];
   document.getElementById('vt-org').classList.toggle('active',     mode === 'org');
   document.getElementById('vt-channel').classList.toggle('active', mode === 'channel');
+  document.getElementById('vt-grade').classList.toggle('active',   mode === 'grade');
   render();
 }
 
@@ -1808,6 +1811,13 @@ function render() {
     else if (depth===1) renderLevel(stage,rows,COL_TYPE,   'type',   '店家型態', overallName);
     else if (depth===2) renderLevel(stage,rows,COL_AREA,   'ch-area','營業處', overallName);
     else if (depth===3) renderLevel(stage,rows,COL_OFFICE, 'ch-office','營業所/課', overallName);
+    else stage.innerHTML='<div class="empty">已到最細層級</div>';
+  } else if (viewMode === 'grade') {
+    /* 等級視角：店家等級 → 營業處 → 營業所/課 → 業務人員 → dialog */
+    if      (depth===0) renderLevel(stage,rows,COL_GRADE,  'grade',    '店家等級', overallName);
+    else if (depth===1) renderLevel(stage,rows,COL_AREA,   'gr-area',  '營業處', overallName);
+    else if (depth===2) renderLevel(stage,rows,COL_OFFICE, 'gr-office','營業所/課', overallName);
+    else if (depth===3) renderLevel(stage,rows,COL_STAFF,  'gr-staff', '業務人員', overallName);
     else stage.innerHTML='<div class="empty">已到最細層級</div>';
   } else {
     /* 組織視角 */
@@ -1845,8 +1855,11 @@ function renderLevel(stage, rows, col, levelKey, labelText, overallName) {
   /* 快取每個 key 的 calcGroup 結果，避免排序與卡片渲染重複計算 */
   var statCache = {};
   keys.forEach(function(k){ statCache[k] = calcGroup(groups[k]); });
-  if (levelKey === 'area') {
+  if (levelKey === 'area' || levelKey === 'gr-area') {
     keys = sortAreaKeys(keys, groups, statCache);
+  } else if (levelKey === 'grade') {
+    /* 等級層：依字母/數字排序（A/B/C…），而非依數量排 */
+    keys.sort(function(a,b){ return a>b?1:a<b?-1:0; });
   } else {
     /* 其他層級：依 hasDisp 降序（已有數量最多的排前面） */
     keys.sort(function(a,b){ return statCache[b].hasDisp - statCache[a].hasDisp; });
@@ -1979,7 +1992,7 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
     /* 最末層：開 dialog；其餘層級都往下鑽
        組織視角 leaf = staff
        通路視角 leaf = ch-office（type → ch-area → ch-office → dialog） */
-    var isLeaf = (levelKey==='staff') || (levelKey==='ch-office');
+    var isLeaf = (levelKey==='staff') || (levelKey==='ch-office') || (levelKey==='gr-staff');
     if(isLeaf) openDialog(name,levelKey,rows);
     else drillDown(levelKey,name);
   });
@@ -2024,6 +2037,18 @@ function jumpToChArea(chName, typeName, areaName) {
 }
 function jumpToChOffice(chName, typeName, areaName, officeName) {
   drillStack = [{ level:'channel', key:chName }, { level:'type', key:typeName }, { level:'ch-area', key:areaName }, { level:'ch-office', key:officeName }];
+  render();
+}
+function jumpToGrade(gradeName) {
+  drillStack = [{ level:'grade', key:gradeName }];
+  render();
+}
+function jumpToGrArea(gradeName, areaName) {
+  drillStack = [{ level:'grade', key:gradeName }, { level:'gr-area', key:areaName }];
+  render();
+}
+function jumpToGrOffice(gradeName, areaName, officeName) {
+  drillStack = [{ level:'grade', key:gradeName }, { level:'gr-area', key:areaName }, { level:'gr-office', key:officeName }];
   render();
 }
 
@@ -2078,6 +2103,30 @@ function buildQuicknav() {
       var officeGroups = getNextGroups(areaGroups[curArea], COL_OFFICE);
       html += qnGroupHtml(curArea, Object.keys(officeGroups), curOffice, function(o) {
         return "jumpToOffice('" + qEsc(curArea) + "','" + qEsc(o) + "')";
+      });
+    }
+  } else if (viewMode === 'grade') {
+    var gGroups   = getNextGroups(allRows, COL_GRADE);
+    var gKeys     = Object.keys(gGroups).sort(function(a,b){ return a>b?1:a<b?-1:0; });
+    var curGrade  = depth >= 1 ? drillStack[0].key : null;
+    var curGrArea = depth >= 2 ? drillStack[1].key : null;
+    var curGrOff  = depth >= 3 ? drillStack[2].key : null;
+
+    html += qnGroupHtml('店家等級', gKeys, curGrade, function(g) {
+      return "jumpToGrade('" + qEsc(g) + "')";
+    });
+
+    var grAreaGroups, grOfficeGroups;
+    if (curGrade && gGroups[curGrade]) {
+      grAreaGroups = getNextGroups(gGroups[curGrade], COL_AREA);
+      html += qnGroupHtml(curGrade, sortAreaKeys(Object.keys(grAreaGroups), grAreaGroups), curGrArea, function(a) {
+        return "jumpToGrArea('" + qEsc(curGrade) + "','" + qEsc(a) + "')";
+      });
+    }
+    if (curGrade && curGrArea && grAreaGroups && grAreaGroups[curGrArea]) {
+      grOfficeGroups = getNextGroups(grAreaGroups[curGrArea], COL_OFFICE);
+      html += qnGroupHtml(curGrArea, Object.keys(grOfficeGroups), curGrOff, function(o) {
+        return "jumpToGrOffice('" + qEsc(curGrade) + "','" + qEsc(curGrArea) + "','" + qEsc(o) + "')";
       });
     }
   } else {
@@ -2190,6 +2239,10 @@ function getExtraCols(levelKey) {
     case 'ch-area':   return [COL_OFFICE];
     case 'ch-office': return [];
     case 'type':      return [COL_AREA];
+    case 'grade':     return [COL_AREA, COL_OFFICE, COL_STAFF, COL_TYPE];
+    case 'gr-area':   return [COL_OFFICE, COL_STAFF, COL_TYPE];
+    case 'gr-office': return [COL_STAFF, COL_TYPE];
+    case 'gr-staff':  return [COL_TYPE];
     default:          return [];
   }
 }
@@ -2201,6 +2254,10 @@ function getDisplayCols(levelKey) {
     case 'ch-area':   return [COL_OFFICE];
     case 'ch-office': return [];
     case 'type':      return [COL_AREA];
+    case 'grade':     return [COL_AREA, COL_OFFICE, COL_STAFF];
+    case 'gr-area':   return [COL_OFFICE, COL_STAFF];
+    case 'gr-office': return [COL_STAFF];
+    case 'gr-staff':  return [];
     default:          return [];
   }
 }
@@ -2210,7 +2267,8 @@ function buildStoreTable(rows, levelKey, ridPrefix, compact){
   var extraCols = getDisplayCols(levelKey);
   var colLabels = COL_LABELS;
   /* 組織視角的 staff/office/area 層加「店家型態」欄，讓明細可以區別 */
-  var showType = (levelKey === 'staff' || levelKey === 'office' || levelKey === 'area');
+  var showType = (levelKey === 'staff' || levelKey === 'office' || levelKey === 'area'
+    || levelKey === 'grade' || levelKey === 'gr-area' || levelKey === 'gr-office' || levelKey === 'gr-staff');
   var html='<div class="detail-scroll"><table class="detail-tbl"><thead><tr>';
   extraCols.forEach(function(c){ html+='<th class="th-left">'+(colLabels[c]||c)+'</th>'; });
   html+='<th class="th-left">店碼</th><th class="th-left">店名</th>';
@@ -2860,7 +2918,8 @@ function downloadCsv(){
 function _getCardRows(levelKey, name){
   var colMap={
     area:'營業處名稱', office:'營業所/課', staff:'執行人員',
-    'ch-type':'店家型態','ch-area':'營業處名稱','ch-office':'營業所/課'
+    'ch-type':'店家型態','ch-area':'營業處名稱','ch-office':'營業所/課',
+    grade:'店家等級','gr-area':'營業處名稱','gr-office':'營業所/課','gr-staff':'執行人員'
   };
   var col = colMap[levelKey];
   var base = applyGradeFilter(allRows);
