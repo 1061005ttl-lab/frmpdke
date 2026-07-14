@@ -844,35 +844,14 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   display:block; margin-top:4px; font-size:11px; font-weight:600; color:#B2650A;
   max-width:100px; line-height:1.4; word-break:break-word;
 }
-/* 照片燈箱：點縮圖後直接浮在畫面正中央看大圖，不用開新分頁再關掉分頁那麼麻煩 */
-.photo-lightbox-backdrop {
-  display:none; position:fixed; inset:0; background:rgba(0,0,0,.75);
-  z-index:9999; align-items:center; justify-content:center; padding:24px;
-  cursor:zoom-out;
-}
-.photo-lightbox-backdrop.show { display:flex; }
-.photo-lightbox-img {
-  /* 上一版用純 96vw/94vh：這種「相對視窗百分比」的單位，數學上天生會被瀏覽器
-     縮放（Ctrl +/-）自動抵銷——縮放讓視窗的 CSS 像素反向變化，乘出來的物理
-     大小剛好維持不變，所以怎麼縮放畫面看起來都一樣大，這是 CSS 規格本身的
-     行為，不是漏改設定。已用 headless Chrome 實測驗證：純 vw/vh 版本在
-     110% 與 67% 縮放下，物理寬度分別是 1823.7px／1824.1px，幾乎沒有變化。
-     改成「固定 px 上限」（1600×900，跟頁面上其他文字、卡片一樣是普通 px），
-     這樣的內容縮放時就會跟著頁面其他部分一起變大變小，行為一致。
-     同一組實測：改成 min(1600px,96vw)／min(900px,94vh) 後，110% 縮放物理
-     寬度變成 1409.8px、67% 縮放變成 904.5px，確認會隨縮放改變。
-     保留 96vw/94vh 當第二道上限，只在視窗本身很窄（例如手機）時才會生效，
-     避免照片在小螢幕被 1600px 的上限撐到超出畫面。 */
-  max-width:min(1600px,96vw); max-height:min(900px,94vh);
-  width:auto; height:auto;
-  cursor:zoom-out;
-}
-.photo-lightbox-close {
-  position:absolute; top:18px; right:24px; width:36px; height:36px;
-  border-radius:50%; background:rgba(255,255,255,.15); color:#fff;
-  border:none; font-size:20px; cursor:pointer; line-height:36px;
-}
-.photo-lightbox-close:hover { background:rgba(255,255,255,.3); }
+/* .photo-lightbox-* 全部改用 shared/dashboard-common.css 1.3.0 版（智慧滿版
+   .photo-lightbox-stage 96vw×94vh ＋ object-fit:contain，含左右熱區／計數器／
+   資訊列）。這裡原本殘留一份抽出前的舊版本地覆寫（直接在 .photo-lightbox-img
+   本身設 max-width/max-height，而不是靠 .photo-lightbox-stage 撐滿），因為宣告
+   在 <link href="shared/dashboard-common.css"> 之後，同選擇器優先權下反而蓋掉
+   了共用檔案修好的版本，導致照片一直用舊尺寸公式顯示、看起來像沒有自動放大——
+   跟 coverage_board.html 之前踩過的是同一個坑（見該檔案同樣的說明）。已移除，
+   不要再加回。 */
 
 /* 店家明細卡片右上角的分享動作列（複製摘要／截圖） */
 .raw-share-btn {
