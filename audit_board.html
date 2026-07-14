@@ -2222,8 +2222,10 @@ function _buildRawDetailPanel(rowData, ref, sheetData, basicRow, rid){
   var sections = rowData.sections || [];
 
   /* 問卷大題區渲染（Q/A 卡片、照片縮圖、燈箱）→ shared/photo-viewer.js _renderQuizSections()，
-     邏輯與 coverage 完全一致，空值文案保留 audit 原本用詞。 */
-  var quizHtml = sections.length ? _renderQuizSections(sections) : '<div style="font-size:12px;color:#2D2D2D;margin-top:4px;">（此筆問卷未填寫任何題目）</div>';
+     邏輯與 coverage 完全一致，空值文案保留 audit 原本用詞。
+     第 2 參數帶入 basicRow 的店名，讓燈箱資訊列跟照片牆一樣顯示「店名 › 大題 › 選項」
+     （原本沒傳，燈箱只會顯示到大題/選項，對齊 coverage_board.html 的呼叫方式）。 */
+  var quizHtml = sections.length ? _renderQuizSections(sections, basicRow ? String(basicRow[COL_NAME]||'') : '') : '<div style="font-size:12px;color:#2D2D2D;margin-top:4px;">（此筆問卷未填寫任何題目）</div>';
 
   if(!baseHtml && !sections.length){
     /* 真的查無任何資料（基本資料、問卷內容都沒有），才附上除錯區塊供排查 */
@@ -2325,7 +2327,11 @@ function _buildPhotoGallery(rows, callback){
       return String(a.row[COL_NAME]||'').localeCompare(String(b.row[COL_NAME]||''),'zh-TW');
     });
 
-    var html = '<div class="photo-gallery-wrap">'
+    /* class 同時保留 photo-gallery-wrap（版面 padding）與加上 photo-gallery-wall
+       ——後者是 shared/photo-viewer.js 燈箱「跨店家/大題無限左右切換」認得的範圍
+       容器（見 _PHOTO_GALLERY_SCOPE_SELECTOR），對齊 coverage_board.html 的作法，
+       否則 closest() 找不到範圍會退回整頁，跟頁面上其他不相干的照片混在一起切換。 */
+    var html = '<div class="photo-gallery-wrap photo-gallery-wall">'
       + '<div class="photo-gallery-summary">📸 共 <strong>'+cards.length+'</strong> 家店　🖼️ 共 <strong>'+totalPhotos+'</strong> 張照片'
       + '　<span style="font-weight:500;opacity:.7;">（僅列出目前篩選範圍內、且問卷裡有照片的店家）</span></div>';
 
@@ -2338,7 +2344,7 @@ function _buildPhotoGallery(rows, callback){
         bySection[p.section].push(p);
       });
       var sectionsHtml = sectionOrder.map(function(sec){
-        var photosHtml = bySection[sec].map(function(p){ return _renderPhotoChip(p.option, p.url, p.note); }).join('');
+        var photosHtml = bySection[sec].map(function(p){ return _renderPhotoChip(p.option, p.url, p.note, { store:String(r[COL_NAME]||''), section:sec }); }).join('');
         return '<div class="raw-quiz-section">'
           + '<div class="raw-quiz-title">📋 '+esc(sec)+'</div>'
           + '<div class="raw-quiz-photos">'+photosHtml+'</div>'

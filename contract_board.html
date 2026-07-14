@@ -1324,19 +1324,27 @@ function _buildPhotoWall(rows){
     }
     cards.sort(function(a,b){ return a.rr.ym<b.rr.ym?1:(a.rr.ym>b.rr.ym?-1:0); });
     var totalPhotos = cards.reduce(function(s,c){ return s+c.photos.length; },0);
-    var html = '<div class="photo-gallery-summary">📸 共 <strong>'+cards.length+'</strong> 筆紀錄　🖼️ 共 <strong>'+totalPhotos+'</strong> 張照片</div>';
+    /* 外層包一層 photo-gallery-wrap（版面 padding）＋ photo-gallery-wall——後者是
+       shared/photo-viewer.js 燈箱「跨紀錄無限左右切換」認得的範圍容器（見
+       _PHOTO_GALLERY_SCOPE_SELECTOR），對齊 coverage_board.html 的作法，原本這裡
+       完全沒包容器，燈箱 closest() 找不到範圍會退回整頁，跟頁面上其他不相干的
+       照片混在一起切換。 */
+    var html = '<div class="photo-gallery-wrap photo-gallery-wall">'
+      + '<div class="photo-gallery-summary">📸 共 <strong>'+cards.length+'</strong> 筆紀錄　🖼️ 共 <strong>'+totalPhotos+'</strong> 張照片</div>';
     cards.forEach(function(c){
+      var storeName = c.store ? c.store.storeName : c.rr.category;
       var bySection = {}, order = [];
       c.photos.forEach(function(p){ if(!bySection[p.section]){bySection[p.section]=[];order.push(p.section);} bySection[p.section].push(p); });
       var sectionsHtml = order.map(function(sec){
-        var photosHtml = bySection[sec].map(function(p){ return _renderPhotoChip(p.option, p.url); }).join('');
+        var photosHtml = bySection[sec].map(function(p){ return _renderPhotoChip(p.option, p.url, null, { store:storeName, section:sec }); }).join('');
         return '<div class="raw-quiz-section"><div class="raw-quiz-title">📋 '+esc(sec)+'</div><div class="raw-quiz-photos">'+photosHtml+'</div></div>';
       }).join('');
       html += '<div class="photo-store-card">'
-        + '<div class="photo-store-head"><span class="photo-store-name">🏪 '+esc(c.store?c.store.storeName:c.rr.category)+'</span>'
+        + '<div class="photo-store-head"><span class="photo-store-name">🏪 '+esc(storeName)+'</span>'
         + '<span class="photo-store-meta">🕒 '+esc(c.rr.ym)+'　'+esc(c.store?[c.store.area,c.store.office,c.store.staff].filter(Boolean).join(' · '):'')+'</span></div>'
         + '<div class="photo-gallery-sections">'+sectionsHtml+'</div></div>';
     });
+    html += '</div>';
     el.innerHTML = html;
   }
   sheetNames.forEach(function(sn){
@@ -1528,7 +1536,10 @@ function _renderDetailHistory(){
     return '<div class="ct-visit-card">'
       + '<div class="ct-visit-head"><span>🕒 '+esc(_fmtRefTime(p.ref))+'</span>'
       +   '<span class="ct-visit-cat">'+esc(p.ref.category)+(p.idx===0?'（最新）':'')+'</span></div>'
-      + _renderQuizSections(r.sections)
+      /* 第 2 參數帶入 _detailStore.storeName，讓燈箱資訊列跟照片牆一樣顯示
+         「店名 › 大題 › 選項」（原本沒傳，燈箱只會顯示到大題/選項），對齊
+         coverage_board.html 的呼叫方式。 */
+      + _renderQuizSections(r.sections, _detailStore.storeName)
       + '</div>';
   }).join('');
 }
