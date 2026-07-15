@@ -1,8 +1,8 @@
 <!--
 ╔══════════════════════════════════════════════════════════════════════════════════╗
 ║         傳統通路購值進度 — AI 交接說明書                                         ║
-║         VERSION: 1.6.1  UPDATED: 07/15 (人員彙整表成長突破獎/卓越貢獻獎名次       ║
-║                          徽章一併顯示 $1,000 金額)                                ║
+║         VERSION: 1.7.2  UPDATED: 07/15 (得獎者PDF：改逐頁小容器渲染，修正        ║
+║                          店家數多時尾端資料列與合計列被裁掉的問題)                ║
 ╠══════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                  ║
 ║  【系統用途】                                                                    ║
@@ -120,6 +120,17 @@
 ║                 分頁時優先切在最接近但不超過整頁高度的列邊界上，每頁改用獨立裁切的    ║
 ║                 子畫布(canvas.drawImage切片)貼圖，確保表格資料列（含合計列）永遠     ║
 ║                 完整落在同一頁，未使用的頁尾空間留白。                              ║
+║  v1.7.2  07/15  修正得獎者PDF「店家數多時（如200+家）尾端資料列與合計列整段消失」： ║
+║                 v1.7.1的作法是整個容器先html2canvas截一張完整長圖，再依列邊界切成   ║
+║                 多頁；實測發現店家數很多時，單一容器一次截圖產生的畫布過高，超出     ║
+║                 瀏覽器/顯卡對canvas高度的隱性上限，超出範圍的內容直接沒被畫出來——   ║
+║                 不是切頁位置不準，是長圖本身尾端（含合計列）就是空的。改為完全不再   ║
+║                 產生單一長圖：_buildOnePersonPDFBlob()先依實際列高(getBoundingClient║
+║                 Rect)把tbody內所有<tr>（一般店家列、合計列、排除店家列全部依DOM順序 ║
+║                 一起）分配到各頁，每頁另外建立一個只含「該頁份量」的獨立小容器      ║
+║                 （複製表頭+該頁列，頁2以後加「（續上頁）第X／Y頁」小標）分別呼叫    ║
+║                 html2canvas，每張畫布高度都bound在一頁以內。移除已不再使用的        ║
+║                 _collectRowBreaksCss()（舊版整圖切割法專用）。                      ║
 ╚══════════════════════════════════════════════════════════════════════════════════╝
 -->
 <!DOCTYPE html>
@@ -2209,71 +2220,116 @@ function _buildPersonPDFContainer(p){
 
   return wrapper;
 }
-/* 收集容器內所有<tr>的「底部邊界」座標（相對wrapper頂部，CSS px），
-   做為分頁時的安全切點，確保永遠不會切在一列資料中間 */
-function _collectRowBreaksCss(wrapper){
-  var wRect=wrapper.getBoundingClientRect();
-  var breaks=[];
-  wrapper.querySelectorAll('tr').forEach(function(tr){
-    var r=tr.getBoundingClientRect();
-    breaks.push(r.bottom-wRect.top);
-  });
-  breaks.sort(function(a,b){return a-b;});
-  return breaks;
-}
 /* 將單一得獎者容器轉成PDF Blob。
-   分頁做法：整個容器先截一張完整長圖，再依照事先量測好的「列邊界」把圖切成多張
-   獨立子圖，每張子圖對應一頁；切點一律對齊到最接近但不超過整頁高度的列邊界，
-   確保表格資料列（含合計列）永遠完整出現在同一頁，不會被頁緣攔腰截斷。 */
+   v1.7.2起改為「逐頁分別建立小容器渲染」，取代舊版「整個容器先截一張完整長圖，
+   再依列邊界切成多頁」的作法：實測店家數很多（如200+家）時，單一大容器一次
+   html2canvas會產生非常高的畫布，超出瀏覽器/顯卡對canvas高度的隱性上限後，
+   超出範圍的內容會被悄悄裁掉——不是切頁位置不準，而是原始長圖本身尾端（含
+   合計列）就沒被畫出來。改法：先依實際列高把資料列（含合計列、排除店家列）
+   分配到各頁，每頁另外建立一個只含「該頁份量」的獨立小容器分別呼叫
+   html2canvas，每張畫布高度都bound在一頁以內，不會再有裁切風險。 */
 function _buildOnePersonPDFBlob(p,cb){
   var wrapper=_buildPersonPDFContainer(p);
   document.body.appendChild(wrapper);
-  var SCALE=2;
-  var rowBreaksCss=_collectRowBreaksCss(wrapper);
-  html2canvas(wrapper,{scale:SCALE,backgroundColor:'#ffffff',useCORS:true,width:wrapper.scrollWidth,height:wrapper.scrollHeight}).then(function(canvas){
-    document.body.removeChild(wrapper);
-    try{
-      var pdf=new jspdf.jsPDF('p','mm','a4');
-      var pageWidthMM=pdf.internal.pageSize.getWidth();
-      var pageHeightMM=pdf.internal.pageSize.getHeight();
-      var mmPerPx=pageWidthMM/canvas.width; /* 圖片寬度貼滿頁寬，這是唯一的縮放比例 */
-      var pageHeightPx=pageHeightMM/mmPerPx; /* 一頁對應的來源畫布高度(px) */
-      var rowBreaksPx=rowBreaksCss.map(function(v){return v*SCALE;}).filter(function(v){return v>0&&v<canvas.height;});
-      var cursor=0,first=true;
-      while(cursor<canvas.height-1){
-        var naiveEnd=Math.min(cursor+pageHeightPx,canvas.height);
-        var cut=naiveEnd;
-        if(naiveEnd<canvas.height-1){
-          /* 在(cursor, naiveEnd]範圍內找最接近naiveEnd的列邊界，且至少要吃掉20%頁面高度
-             才採用，避免因為切點太靠前產生一堆幾乎空白的頁面 */
-          var minCut=cursor+pageHeightPx*0.2;
-          var best=null;
-          for(var i=0;i<rowBreaksPx.length;i++){
-            var rb=rowBreaksPx[i];
-            if(rb>minCut&&rb<=naiveEnd) best=rb;
-            if(rb>naiveEnd) break;
-          }
-          if(best) cut=best;
-        }
-        var sliceH=Math.max(1,Math.round(cut-cursor));
-        var pageCanvas=document.createElement('canvas');
-        pageCanvas.width=canvas.width; pageCanvas.height=sliceH;
-        var ctx=pageCanvas.getContext('2d');
-        ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,pageCanvas.width,sliceH);
-        ctx.drawImage(canvas,0,cursor,canvas.width,sliceH,0,0,canvas.width,sliceH);
-        var pageImgData=pageCanvas.toDataURL('image/jpeg',0.92);
-        var sliceMM=sliceH*mmPerPx;
-        if(!first) pdf.addPage();
-        pdf.addImage(pageImgData,'JPEG',0,0,pageWidthMM,sliceMM);
-        first=false;
-        cursor=cut;
+  try{
+    var pdf=new jspdf.jsPDF('p','mm','a4');
+    var pageWidthMM=pdf.internal.pageSize.getWidth();
+    var pageHeightMM=pdf.internal.pageSize.getHeight();
+    var contentWidthCss=wrapper.scrollWidth;
+
+    var tableEl=wrapper.querySelector('.detail-tbl');
+    if(!tableEl){
+      /* 無店家明細資料（極短內容），直接單頁截圖即可，不需要分頁 */
+      html2canvas(wrapper,{scale:2,backgroundColor:'#ffffff',useCORS:true,width:wrapper.scrollWidth,height:wrapper.scrollHeight}).then(function(canvas){
+        document.body.removeChild(wrapper);
+        var imgData=canvas.toDataURL('image/jpeg',0.92);
+        var imgHmm=canvas.height/canvas.width*pageWidthMM;
+        pdf.addImage(imgData,'JPEG',0,0,pageWidthMM,imgHmm);
+        cb(pdf.output('blob'));
+      }).catch(function(err){ document.body.removeChild(wrapper); alert(p.displayName+' 截圖失敗：'+err); cb(null); });
+      return;
+    }
+
+    var theadEl=tableEl.querySelector('thead');
+    var tbodyEl=tableEl.querySelector('tbody');
+    var dataRows=Array.prototype.slice.call(tbodyEl.children); /* 含一般店家列、合計列、排除店家列，DOM順序與畫面一致 */
+    var detailScrollEl=wrapper.querySelector('.detail-scroll');
+    var headNodes=[],footNodes=[],seenScroll=false;
+    Array.prototype.forEach.call(wrapper.childNodes,function(n){
+      if(n===detailScrollEl){seenScroll=true;return;}
+      (seenScroll?footNodes:headNodes).push(n);
+    });
+
+    var mmPerCssPx=pageWidthMM/contentWidthCss; /* 內容寬度貼滿頁寬 */
+    var pageHeightCss=pageHeightMM/mmPerCssPx;  /* 一頁對應的CSS px高度 */
+
+    var wRect=wrapper.getBoundingClientRect();
+    var headBottomCss=0;
+    headNodes.forEach(function(n){ if(n.getBoundingClientRect){ var b=n.getBoundingClientRect().bottom-wRect.top; if(b>headBottomCss) headBottomCss=b; } });
+    var theadHeightCss=theadEl.getBoundingClientRect().height;
+    var rowHeights=dataRows.map(function(tr){return tr.getBoundingClientRect().height||24;});
+
+    var CONT_LABEL_H=34; /* 續頁「（續上頁）」小標估計高度，含margin */
+    var BUDGET=pageHeightCss-50; /* 留一點安全邊界，避免padding/估算誤差造成頁尾仍被截 */
+
+    /* 依實際列高把dataRows分配到各頁：第一頁扣掉「標頭+卡片+明細標題+表頭」高度，
+       之後每頁扣掉「續頁小標+表頭」高度，確保每一列（含合計列）都完整落在某一頁 */
+    var pageRowIdx=[]; var cur=[]; var curH=headBottomCss+theadHeightCss;
+    for(var i=0;i<dataRows.length;i++){
+      var h=rowHeights[i];
+      if(cur.length && curH+h>BUDGET){ pageRowIdx.push(cur); cur=[]; curH=CONT_LABEL_H+theadHeightCss; }
+      cur.push(i); curH+=h;
+    }
+    pageRowIdx.push(cur);
+    var totalPages=pageRowIdx.length;
+
+    var pageIdx=0;
+    function renderPage(){
+      if(pageIdx>=totalPages){ document.body.removeChild(wrapper); cb(pdf.output('blob')); return; }
+      var idxs=pageRowIdx[pageIdx];
+      var pageWrap=document.createElement('div');
+      pageWrap.style.cssText='background:#fff;width:'+contentWidthCss+'px;box-sizing:border-box;font-family:"Microsoft JhengHei","Noto Sans TC",sans-serif;position:fixed;top:-9999px;left:-9999px;padding:'+(pageIdx===0?'22px 26px 16px':'14px 26px 16px')+';';
+      if(pageIdx===0){
+        headNodes.forEach(function(n){ pageWrap.appendChild(n.cloneNode(true)); });
+      }else{
+        var contLabel=document.createElement('div');
+        contLabel.style.cssText='font-size:11px;font-weight:800;color:#8a8a8a;margin-bottom:8px;';
+        contLabel.textContent='（續上頁）店家明細　第 '+(pageIdx+1)+'／'+totalPages+' 頁';
+        pageWrap.appendChild(contLabel);
       }
-      cb(pdf.output('blob'));
-    }catch(err){ alert(p.displayName+' PDF產生失敗：'+err); cb(null); }
-  }).catch(function(err){
-    document.body.removeChild(wrapper);
-    alert(p.displayName+' 截圖失敗：'+err); cb(null);
-  });
+      var newScroll=document.createElement('div'); newScroll.className='detail-scroll'; newScroll.style.overflow='visible'; newScroll.style.height='auto';
+      var newTable=document.createElement('table'); newTable.className='detail-tbl';
+      var newThead=theadEl.cloneNode(true);
+      newThead.querySelectorAll('th').forEach(function(th){th.style.position='static';th.style.boxShadow='none';});
+      newTable.appendChild(newThead);
+      var newTbody=document.createElement('tbody');
+      idxs.forEach(function(i){ newTbody.appendChild(dataRows[i].cloneNode(true)); });
+      newTable.appendChild(newTbody);
+      newScroll.appendChild(newTable);
+      pageWrap.appendChild(newScroll);
+      if(pageIdx===totalPages-1){
+        footNodes.forEach(function(n){ pageWrap.appendChild(n.cloneNode(true)); });
+      }
+      document.body.appendChild(pageWrap);
+      html2canvas(pageWrap,{scale:2,backgroundColor:'#ffffff',useCORS:true,width:pageWrap.scrollWidth,height:pageWrap.scrollHeight}).then(function(canvas){
+        document.body.removeChild(pageWrap);
+        var imgData=canvas.toDataURL('image/jpeg',0.92);
+        var imgHmm=canvas.height/canvas.width*pageWidthMM;
+        if(pageIdx>0) pdf.addPage();
+        pdf.addImage(imgData,'JPEG',0,0,pageWidthMM,imgHmm);
+        pageIdx++;
+        renderPage();
+      }).catch(function(err){
+        document.body.removeChild(pageWrap);
+        try{document.body.removeChild(wrapper);}catch(e){}
+        alert(p.displayName+' 截圖失敗：'+err); cb(null);
+      });
+    }
+    renderPage();
+  }catch(err){
+    try{document.body.removeChild(wrapper);}catch(e){}
+    alert(p.displayName+' PDF產生失敗：'+err); cb(null);
+  }
 }
 /* 主流程：依序產生每位得獎者PDF → 打包成一個ZIP下載 */
 function exportAwardWinnersPDF(){
