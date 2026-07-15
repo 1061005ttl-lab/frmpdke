@@ -95,6 +95,15 @@
 ║                 邏輯與_personTableHTML的_isCross完全一致。網頁顯示（_personTableHTML║
 ║                 /rankBadge）未變動。⚠️ 若獎金政策改成不同名次不同金額，除rankBadge() ║
 ║                 外，還需同步修改本函式的growthBreakAmt/excellenceAmt判斷式。        ║
+║  v1.7.0  07/15  新增【得獎者PDF】功能（人員彙整表工具列，btn-ptbl-award-pdf）：      ║
+║                 凡符合①季達成(qd.bonus 1000/500)②成長突破獎(_rank_growthRate≤3)    ║
+║                 ③卓越貢獻獎(_rank_totalGrowth≤3)任一者（跨單位排除②③，判斷邏輯與   ║
+║                 _isCross一致），逐人產生一份PDF：標頭得獎徽章＋個人卡片彙整          ║
+║                 (makeCard，隱藏店家明細按鈕)＋店家明細(buildDetailTbl)，內容過長自動 ║
+║                 分頁。動態載入jsPDF 2.5.1／JSZip 3.10.1（cdnjs），逐人html2canvas    ║
+║                 截圖轉PDF後打包成單一ZIP下載，檔名含編號避免同名衝突。得獎名單資料    ║
+║                 來源與判斷邏輯沿用_buildPersonTableData()，與人員彙整表/CSV匯出一致，║
+║                 受目前處/所篩選影響。                                              ║
 ╚══════════════════════════════════════════════════════════════════════════════════╝
 -->
 <!DOCTYPE html>
@@ -532,6 +541,7 @@
         <button class="dlg-action-btn" onclick="personTableCopyLine()" id="btn-ptbl-line">&#128172; LINE</button>
         <button class="dlg-action-btn" onclick="personTableCSV()" id="btn-ptbl-csv">&#128229; CSV</button>
         <button class="dlg-action-btn" onclick="personTableScreenshot()" id="btn-ptbl-shot">&#128248; 截圖</button>
+        <button class="dlg-action-btn" onclick="exportAwardWinnersPDF()" id="btn-ptbl-award-pdf">&#127942; 得獎PDF</button>
         <button class="dlg-close" onclick="closePersonTable()">&#10005;</button>
       </div>
     </div>
@@ -2081,6 +2091,172 @@ function personTableScreenshot(){
     var ts=document.createElement('div');ts.style.cssText='font-size:10px;color:#bbb;margin-top:10px;text-align:right;';ts.textContent='傳統通路購值進度　'+new Date().toLocaleString('zh-TW');wrapper.appendChild(ts);
     document.body.appendChild(wrapper);
     html2canvas(wrapper,{scale:2,backgroundColor:'#ffffff',useCORS:true,width:wrapper.scrollWidth,height:wrapper.scrollHeight}).then(function(canvas){document.body.removeChild(wrapper);_copyOrDl(canvas,'人員彙整_'+curQ+'_'+_nowStr()+'.png',btn);}).catch(function(err){document.body.removeChild(wrapper);btn.textContent='📸 截圖';alert('截圖失敗：'+err);});
+  });
+}
+/* ════════════════════════════════════════
+   得獎者PDF匯出（一人一份，內容＝個人卡片彙整＋店家明細）
+   得獎定義（三擇一即列入）：
+     ①季達成：qd.bonus===1000 或 500（達標獎金）
+     ②成長突破獎：_rank_growthRate ≤3 且非跨單位
+     ③卓越貢獻獎：_rank_totalGrowth ≤3 且非跨單位
+   跨單位判斷邏輯與 _personTableHTML / _assemblePersonTableRows 完全一致（_isCross）
+   ════════════════════════════════════════ */
+function _loadJsPDF(cb){
+  if(window.jspdf&&window.jspdf.jsPDF){cb();return;}
+  var s=document.createElement('script');
+  s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+  s.onload=cb; s.onerror=function(){alert('jsPDF 載入失敗，請檢查網路連線');};
+  document.head.appendChild(s);
+}
+function _loadJSZip(cb){
+  if(window.JSZip){cb();return;}
+  var s=document.createElement('script');
+  s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+  s.onload=cb; s.onerror=function(){alert('JSZip 載入失敗，請檢查網路連線');};
+  document.head.appendChild(s);
+}
+/* 取得單一得獎者的獎項徽章清單（用於PDF標頭顯示，空陣列＝未得獎） */
+function _getAwardBadges(p){
+  var qd=p.qd;
+  var rankG=p['_rank_totalGrowth'];
+  var rankR=p['_rank_growthRate'];
+  var _cras=qd.evalMonths.map(function(m){return qd.monthArea[m]||'';});
+  var _isCross=qd.bonus===1000&&!(qd.evalMonths.length===3&&_cras.every(function(a){return a!==''&&a===_cras[0];}));
+  var badges=[];
+  if(qd.bonus===1000) badges.push('&#127881; 季達成 $1,000');
+  else if(qd.bonus===500) badges.push('&#9989; 季達成 $500');
+  if(!_isCross&&rankR&&rankR<=3) badges.push('&#128640; 成長突破獎 第'+rankR+'名 $1,000');
+  if(!_isCross&&rankG&&rankG<=3) badges.push('&#127942; 卓越貢獻獎 第'+rankG+'名 $1,000');
+  if(_isCross) badges.push('<span style="opacity:.7;">（本季含跨單位月份，不參與名次排行）</span>');
+  return badges;
+}
+/* 篩出所有得獎者（沿用人員彙整表同一套資料來源＋排名邏輯，會受目前處/所篩選影響） */
+function _getAwardWinners(){
+  var persons=_buildPersonTableData();
+  return persons.filter(function(p){
+    var qd=p.qd;
+    var rankG=p['_rank_totalGrowth'],rankR=p['_rank_growthRate'];
+    var _cras=qd.evalMonths.map(function(m){return qd.monthArea[m]||'';});
+    var _isCross=qd.bonus===1000&&!(qd.evalMonths.length===3&&_cras.every(function(a){return a!==''&&a===_cras[0];}));
+    if(qd.bonus===1000||qd.bonus===500) return true;
+    if(!_isCross&&rankR&&rankR<=3) return true;
+    if(!_isCross&&rankG&&rankG<=3) return true;
+    return false;
+  });
+}
+/* 組裝單一得獎者的PDF內容容器：標頭徽章 → 個人卡片(彙整) → 店家明細 */
+function _buildPersonPDFContainer(p){
+  var qd=p.qd;
+  /* makeCard() 需要 qd.personArea/personOffice/monthOffice，_buildPersonTableData() 沒帶這些欄位，補上避免顯示異常 */
+  qd.personArea=p.area; qd.personOffice=p.office; if(!qd.monthOffice)qd.monthOffice={};
+  var cardEl=makeCard({staff:p.displayName,area:p.area,office:p.office,qd:qd});
+  var btnRow=cardEl.querySelector('.pc-detail-btn-row'); if(btnRow) btnRow.remove(); /* PDF不需要互動按鈕 */
+
+  var badges=_getAwardBadges(p);
+  var wrapper=document.createElement('div');
+  wrapper.style.cssText='background:#fff;padding:22px 26px;width:900px;font-family:"Microsoft JhengHei","Noto Sans TC",sans-serif;position:fixed;top:-9999px;left:-9999px;';
+
+  var head=document.createElement('div');
+  head.style.cssText='margin-bottom:14px;padding-bottom:12px;border-bottom:3px solid #4a7a55;';
+  head.innerHTML='<div style="font-size:20px;font-weight:900;color:#1a2a1a;">&#127942; '+esc(p.displayName)+'　得獎彙整</div>'+
+    '<div style="font-size:12px;color:#666;margin-top:4px;">'+esc(p.area)+'&#183;'+esc(p.office)+'　'+esc(curQ||'')+'</div>'+
+    '<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">'+
+      badges.map(function(b){return '<span style="display:inline-block;background:#fff6dd;border:1px solid #e6c866;color:#8a6100;font-weight:800;font-size:12px;padding:4px 10px;border-radius:14px;">'+b+'</span>';}).join('')+
+    '</div>';
+  wrapper.appendChild(head);
+  wrapper.appendChild(cardEl);
+
+  var detailTitle=document.createElement('div');
+  detailTitle.style.cssText='font-size:13px;font-weight:900;color:#3a6a45;margin:16px 0 8px;padding-bottom:6px;border-bottom:2px solid #c8dcc8;';
+  detailTitle.textContent='📋 店家明細　'+(curQ||'')+'　總家數 '+qd.totalStores;
+  wrapper.appendChild(detailTitle);
+
+  var detailWrap=document.createElement('div');
+  detailWrap.innerHTML=buildDetailTbl(qd);
+  detailWrap.querySelectorAll('*').forEach(function(el){if(el.style)el.style.overflow='visible';});
+  wrapper.appendChild(detailWrap);
+
+  var ts=document.createElement('div');
+  ts.style.cssText='font-size:10px;color:#bbb;margin-top:14px;text-align:right;';
+  ts.textContent='傳統通路達標進度　'+new Date().toLocaleString('zh-TW');
+  wrapper.appendChild(ts);
+
+  return wrapper;
+}
+/* 將單一得獎者容器轉成PDF Blob（過高內容自動分頁，做法：同一張圖以負位移貼到每一頁） */
+function _buildOnePersonPDFBlob(p,cb){
+  var wrapper=_buildPersonPDFContainer(p);
+  document.body.appendChild(wrapper);
+  html2canvas(wrapper,{scale:2,backgroundColor:'#ffffff',useCORS:true,width:wrapper.scrollWidth,height:wrapper.scrollHeight}).then(function(canvas){
+    document.body.removeChild(wrapper);
+    try{
+      var imgData=canvas.toDataURL('image/jpeg',0.92);
+      var pdf=new jspdf.jsPDF('p','mm','a4');
+      var pageWidth=pdf.internal.pageSize.getWidth();
+      var pageHeight=pdf.internal.pageSize.getHeight();
+      var imgWidth=pageWidth;
+      var imgHeight=canvas.height*imgWidth/canvas.width;
+      var heightLeft=imgHeight,position=0;
+      pdf.addImage(imgData,'JPEG',0,position,imgWidth,imgHeight);
+      heightLeft-=pageHeight;
+      while(heightLeft>0){
+        position=heightLeft-imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData,'JPEG',0,position,imgWidth,imgHeight);
+        heightLeft-=pageHeight;
+      }
+      cb(pdf.output('blob'));
+    }catch(err){ alert(p.displayName+' PDF產生失敗：'+err); cb(null); }
+  }).catch(function(err){
+    document.body.removeChild(wrapper);
+    alert(p.displayName+' 截圖失敗：'+err); cb(null);
+  });
+}
+/* 主流程：依序產生每位得獎者PDF → 打包成一個ZIP下載 */
+function exportAwardWinnersPDF(){
+  var btn=document.getElementById('btn-ptbl-award-pdf');
+  if(btn){btn.disabled=true;btn.dataset.orig=btn.textContent;btn.textContent='⏳ 準備中...';}
+  _loadH2C(function(){
+    _loadJsPDF(function(){
+      _loadJSZip(function(){
+        var winners=_getAwardWinners();
+        if(!winners.length){
+          if(btn){btn.disabled=false;btn.textContent=btn.dataset.orig;}
+          alert('目前沒有符合得獎條件（季達成／成長突破獎／卓越貢獻獎）的人員');
+          return;
+        }
+        var zip=new JSZip();
+        var idx=0;
+        function next(){
+          if(idx>=winners.length){
+            zip.generateAsync({type:'blob'}).then(function(content){
+              var url=URL.createObjectURL(content);
+              var a=document.createElement('a');
+              a.href=url; a.download='得獎名單PDF_'+(curQ||'')+'_'+_nowStr()+'.zip'; a.click();
+              setTimeout(function(){URL.revokeObjectURL(url);},1500);
+              if(btn){btn.disabled=false;btn.textContent=btn.dataset.orig;}
+            }).catch(function(err){
+              if(btn){btn.disabled=false;btn.textContent=btn.dataset.orig;}
+              alert('打包失敗：'+err);
+            });
+            return;
+          }
+          var p=winners[idx];
+          if(btn) btn.textContent='⏳ 產生中 '+(idx+1)+'/'+winners.length;
+          _buildOnePersonPDFBlob(p,function(blob){
+            if(blob){
+              var safe=function(s){return String(s||'').replace(/[\\\/:*?"<>|]/g,'_');};
+              var filename=String(idx+1).length<2?'0'+(idx+1):String(idx+1);
+              filename+='_'+safe(p.displayName)+(p.area?'_'+safe(p.area):'')+(p.office?'_'+safe(p.office):'')+'.pdf';
+              zip.file(filename,blob);
+            }
+            idx++;
+            setTimeout(next,30); /* 讓出主執行緒，避免大量得獎者時UI卡死 */
+          });
+        }
+        next();
+      });
+    });
   });
 }
 function exportSummaryXLSX(){downloadXLSX();}
