@@ -1803,7 +1803,7 @@ function _personTableHTML(persons){
   /* 小計函數（欄數改為 NCOLS） */
   function makeSubtot(label,arr,trStyle){
     var sC=arr.reduce(function(s,p){return s+p.qd.totalCur;},0);
-    var sL=arr.reduce(function(s,p){return s+p.qd.totalLast;},0);
+    var sL=arr.reduce(function(s,p){return s+p.qd.totalTgt;},0);
     var sD=sC-sL;
     return '<tr style="'+trStyle+'">'+
       '<td colspan="4" style="'+tdSL+'font-size:11px;">'+label+'</td>'+
@@ -1823,7 +1823,7 @@ function _personTableHTML(persons){
       if(aLow!==bLow) return aLow-bLow;
       var av,bv;
       if(_ptSort.col==='cur'){av=a.qd.totalCur||0;bv=b.qd.totalCur||0;}
-      else if(_ptSort.col==='last'){av=a.qd.totalLast||0;bv=b.qd.totalLast||0;}
+      else if(_ptSort.col==='last'){av=a.qd.totalTgt||0;bv=b.qd.totalTgt||0;}
       else if(_ptSort.col==='growth'){av=a.qd.totalGrowth||0;bv=b.qd.totalGrowth||0;}
       else{av=a.qd.totalPct!==null?a.qd.totalPct:-9999;bv=b.qd.totalPct!==null?b.qd.totalPct:-9999;}
       return _ptSort.dir*(av-bv); /* dir=-1=降冪(大在前)：-1*(av-bv)，bv>av → 正 → b在前 */
@@ -1861,7 +1861,7 @@ function _personTableHTML(persons){
         '<td style="'+tdSL+'font-weight:700;">'+(rd.roleMonthCount<=1?'<span style="color:#bbb;">':'')+''+esc(p.displayName)+(rd.roleMonthCount<=1?'</span>':'')+'</td>'+
         '<td style="'+tdSL+rdColor+'font-size:11px;">'+rdLabel+'</td>'+
         '<td style="'+tdS+'color:#1a73e8;">'+fmtN(qd.totalCur)+'</td>'+
-        '<td style="'+tdS+'color:#7c3aed;">'+fmtN(qd.totalLast)+'</td>'+
+        '<td style="'+tdS+'color:#7c3aed;">'+fmtN(qd.totalTgt)+'</td>'+
         '<td style="'+tdS+dCl(grow)+'">'+(grow!==null?ds(grow):'—')+'</td>'+
         '<td style="'+tdS+(pct!==null&&pct>=5?'color:#22a84c;font-weight:800;':pct!==null&&pct<0?'color:#d93025;':'color:#aaa;')+'">'+pctStr+'</td>'+
         '<td style="'+tdS+(qd.bonus===1000?'color:#7a5500;font-weight:900;background:rgba(255,215,0,.08);':qd.bonus===500?'color:#3a6a45;font-weight:800;':'color:#aaa;')+'">'+bonusStr+'</td>'+
@@ -1988,7 +1988,7 @@ function _assemblePersonTableRows(){
     rows.push([
       p.area,p.office,p.displayName,
       rd.roleLabel,rd.roleMonthCount+'/3',
-      fmtN(qd.totalCur),fmtN(qd.totalLast),
+      fmtN(qd.totalCur),fmtN(qd.totalTgt),
       qd.totalGrowth!==null?(qd.totalGrowth>0?'+':'')+fmtN(qd.totalGrowth):'—',
       pctStr,
       qd.bonus?'$'+qd.bonus:'—',
