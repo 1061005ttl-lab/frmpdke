@@ -585,6 +585,12 @@ function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,
 function fmt2(v){ var n=Math.round(v*10)/10; return n; }
 function fmtN(v){ if(v===null||v===undefined) return "—"; var n=(Math.round(v*10)/10).toFixed(1); return n.replace(/\B(?=(\d{3})+(?!\d))/g,','); }
 function fmtPct(cur,tgt){ if(!tgt) return "—"; return ((cur/tgt-1)*100).toFixed(1)+"%"; }
+/* 人員成長% 專用：無條件捨去到小數第2位（非四捨五入，且用 Math.floor 而非 Math.trunc）。
+   原因：像 4.997% 這種臨界值，若用四捨五入會顯示成 5.00%，
+   讓讀者誤以為已達5%門檻，但系統實際判定（growthPct<5）並未發放獎勵，造成畫面與獎金兜不起來。
+   用 Math.floor（只往下捨）可保證：不論正負，畫面顯示的數字永遠不會比實際數字好看
+   （例如 -4.997% 會顯示 -5.00% 而不是誤捨成看起來較佳的 -4.99%）。 */
+function truncPct2(v){ if(v===null||v===undefined) return null; return Math.floor(v*100)/100; }
 function sortAreas(arr){
   return arr.slice().sort(function(a,b){
     var ai=AREA_ORDER.indexOf(a),bi=AREA_ORDER.indexOf(b);
@@ -1075,13 +1081,13 @@ function makeCard(c){
     else{roleStr='✔';roleCls='r-ok';}
     if(!d.hasData) return '<tr'+trCls+'><td>'+mLabel+'</td><td class="role-cell r-none">—</td><td class="ctn-stores">—</td><td class="ctn-cur">—</td><td class="ctn-tgt">—</td><td class="ctn-eval nil">—</td><td class="ctn-eval nil">—</td></tr>';
     var gv2=fmt2(d.growth),gcls=gv2>0?'pos':gv2<0?'neg':'nil';
-    var pct=d.growthPct!==null?d.growthPct.toFixed(2)+'%':'—';
+    var pct=d.growthPct!==null?truncPct2(d.growthPct).toFixed(2)+'%':'—';
     var pCls=d.growthPct!==null&&d.growthPct>=5?'pos':d.growthPct!==null&&d.growthPct<0?'neg':'nil';
     return '<tr'+trCls+'><td>'+mLabel+'</td><td class="role-cell '+roleCls+'">'+roleStr+'</td><td class="ctn-stores">'+d.stores+'</td><td class="ctn-cur">'+fmtN(d.cur)+'</td><td class="ctn-tgt">'+fmtN(d.tgt)+'</td><td class="ctn-eval '+gcls+'">'+(gv2>0?'+':'')+fmtN(gv2)+'</td><td class="ctn-eval '+pCls+'">'+pct+'</td></tr>';
   }).join('');
   var tgDCls=tg===null?'nil':(tg>0?'pos':tg<0?'neg':'nil');
   var totPct=qd.totalPct;
-  var totPctStr=totPct!==null?totPct.toFixed(2)+'%':'—';
+  var totPctStr=totPct!==null?truncPct2(totPct).toFixed(2)+'%':'—';
   var totPCls=totPct!==null&&totPct>=5?'pos':totPct!==null&&totPct<0?'neg':'nil';
   var totalRow='<tr class="total-row"><td>合計</td><td class="role-cell r-none">—</td><td class="ctn-stores">'+qd.totalStores+'</td><td class="ctn-cur">'+fmtN(qd.totalCur)+'</td><td class="ctn-tgt">'+fmtN(qd.totalTgt)+'</td><td class="ctn-eval '+tgDCls+'">'+(tg!==null?(tg>0?'+':'')+fmtN(tg):'—')+'</td><td class="ctn-eval '+totPCls+'">'+totPctStr+'</td></tr>';
   /* 人員卡片高光 class */
@@ -1255,12 +1261,13 @@ function updateRank(){
       var rankCls='rank-item'+(x._rank===1?' rank-1st':x._rank===2?' rank-2nd':x._rank===3?' rank-3rd':x._rank===4?' rank-4th':'');
       item.className=rankCls;
       var growthStr=(x.growth>0?'+':'')+fmtN(x.growth);
-      var pctStr=x.totalPct!==null?(x.totalPct>=0?'+':'')+x.totalPct.toFixed(2)+'%':'—';
+      var _xtp=truncPct2(x.totalPct);
+      var pctStr=_xtp!==null?(_xtp>=0?'+':'')+_xtp.toFixed(2)+'%':'—';
       var diffHtml='';
       if(i>0){
         var prev=topN[i-1];
         var diffVal=fmt2(Math.abs(x[sf]-prev[sf]));
-        var diffLabel=_rankTab==='growth'?fmtN(diffVal):('+'+diffVal.toFixed(2)+'%'); /* 成長率差額已是百分比單位，直接用 */
+        var diffLabel=_rankTab==='growth'?fmtN(diffVal):('+'+truncPct2(diffVal).toFixed(2)+'%'); /* 成長率差額已是百分比單位，直接用 */
         diffHtml='<div class="rank-diff-badge">↑ 距上差 '+diffLabel+'</div>';
       }
       var evalBadge='';
@@ -1382,7 +1389,8 @@ function buildDetailTbl(qd){
   var gCls=gg>0?'d-pos':gg<0?'d-neg':'d-nil';
   /* 合計列：季成長% */
   var totPct=qd.totalTgt>0&&gg!==null?(gg/qd.totalTgt*100):null;
-  var totPctStr=totPct!==null?(totPct>0?'+':'')+totPct.toFixed(2)+'%':'—';
+  var _tp=truncPct2(totPct);
+  var totPctStr=_tp!==null?(_tp>0?'+':'')+_tp.toFixed(2)+'%':'—';
   var totPCls=totPct!==null&&totPct>0?'d-pos':totPct!==null&&totPct<0?'d-neg':'d-nil';
   tRow+='<td class="m-sep '+gCls+'" style="font-weight:900;">'+(gg>0?'+':'') +fmtN(gg)+'</td><td class="'+totPCls+'" style="font-weight:900;">'+totPctStr+'</td></tr>';
   /* 排除店家列 */
@@ -1840,7 +1848,7 @@ function _personTableHTML(persons){
       var qd=p.qd;
       var rd=_parseRoleDetail(qd);
       var grow=qd.totalGrowth;
-      var pct=qd.totalPct;
+      var pct=truncPct2(qd.totalPct);
       var pctStr=pct!==null?(pct>=0?'+':'')+pct.toFixed(2)+'%':'—';
       var bonusStr=qd.bonus?'$'+qd.bonus:'—';
       var rankG=p['_rank_totalGrowth'];
@@ -1981,7 +1989,7 @@ function _assemblePersonTableRows(){
   persons.forEach(function(p){
     var qd=p.qd;
     var rd=_parseRoleDetail(qd);
-    var pct=qd.totalPct;
+    var pct=truncPct2(qd.totalPct);
     var pctStr=pct!==null?(pct>=0?'+':'')+pct.toFixed(2)+'%':'—';
     var rankG=p['_rank_totalGrowth'];
     var evalStr=(rankG===1&&qd.evalAmt>0)?('$'+qd.evalAmt.toLocaleString()+(qd.evalAmt>=20000?' ★':'')):'—';
