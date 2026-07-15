@@ -104,6 +104,22 @@
 ║                 截圖轉PDF後打包成單一ZIP下載，檔名含編號避免同名衝突。得獎名單資料    ║
 ║                 來源與判斷邏輯沿用_buildPersonTableData()，與人員彙整表/CSV匯出一致，║
 ║                 受目前處/所篩選影響。                                              ║
+║  v1.7.1  07/15  得獎者PDF排版修正（使用者實測回饋3項問題）：                        ║
+║                 ①個人卡片被擠壓：.person-card原本是看板格狀排版用的固定寬度         ║
+║                 (width:calc(25%-10px);min-width:240px)，搬進PDF容器後被裁切，改為   ║
+║                 cardEl強制width:100%/minWidth:0/overflow:visible，展開成容器全寬。  ║
+║                 ②店家明細表頭消失：.detail-tbl th用position:sticky讓表頭固定，      ║
+║                 html2canvas對sticky支援不佳導致整列表頭消失，PDF屬靜態截圖不需要     ║
+║                 sticky，改為position:static並拿掉box-shadow。③高光特效干擾：        ║
+║                 buildDetailTbl()新增noHighlight參數，PDF呼叫buildDetailTbl(qd,true) ║
+║                 關閉新進客(hlA)/異常成長(hlB)的背景色與紫色outline，僅保留一般正負   ║
+║                 色；openDetailDlg()等其他呼叫點不受影響，維持原本高光顯示。          ║
+║                 ④資料列跨頁被截斷/無合計列：_buildOnePersonPDFBlob()原本用「同一張   ║
+║                 長圖以負位移貼滿每頁」，切點固定在整頁高度，會切在資料列中間。改為     ║
+║                 _collectRowBreaksCss()先量測容器內所有&lt;tr&gt;的底部邊界(CSS px)， ║
+║                 分頁時優先切在最接近但不超過整頁高度的列邊界上，每頁改用獨立裁切的    ║
+║                 子畫布(canvas.drawImage切片)貼圖，確保表格資料列（含合計列）永遠     ║
+║                 完整落在同一頁，未使用的頁尾空間留白。                              ║
 ╚══════════════════════════════════════════════════════════════════════════════════╝
 -->
 <!DOCTYPE html>
@@ -1375,7 +1391,7 @@ function _storeHighlight(s,months){
   return{hlA:hlA,hlB:hlB,storePct:storePct,delta:delta,totalCur:totalCur,totalLast:totalLast};
 }
 
-function buildDetailTbl(qd){
+function buildDetailTbl(qd,noHighlight){
   if(!qd.storeRows.length) return '<div style="padding:10px 13px;font-size:10px;color:var(--sub);">無明細資料</div>';
   var months=qd.months;
   var si={};
@@ -1399,18 +1415,20 @@ function buildDetailTbl(qd){
     var scls=sg>0?'d-pos':sg<0?'d-neg':'d-nil';
     row+=hasAny?'<td class="m-sep '+scls+'" style="font-weight:900;">'+(sg>0?'+':'')+fmtN(sg)+'</td>':'<td class="m-sep d-nil">—</td>';
 
-    /* 單店成長% + 高光計算 */
+    /* 單店成長% + 高光計算（noHighlight=true 時完全忽略 hlA/hlB，只留一般正負色） */
     var hl=_storeHighlight(s,months);
     /* storePct=null 代表同期=0，不顯示比率（避免 +1608% 之類的誤算） */
     var pctDisplay=hl.storePct!==null?((hl.storePct>0?'+':'')+hl.storePct.toFixed(1)+'%'):'—';
-    var pctCls=hl.storePct===null?'d-nil':(hl.hlB?'d-pos':hl.storePct>0?'d-pos':hl.storePct<0?'d-neg':'d-nil');
-    var pctStyle='font-weight:900;'+(hl.hlB?'color:#5b21b6;outline:1.5px solid rgba(124,58,237,.5);outline-offset:-2px;border-radius:4px;':'');
+    var pctCls=hl.storePct===null?'d-nil':((!noHighlight&&hl.hlB)?'d-pos':hl.storePct>0?'d-pos':hl.storePct<0?'d-neg':'d-nil');
+    var pctStyle='font-weight:900;'+((!noHighlight&&hl.hlB)?'color:#5b21b6;outline:1.5px solid rgba(124,58,237,.5);outline-offset:-2px;border-radius:4px;':'');
     row+=hasAny?'<td style="'+pctStyle+'" class="'+pctCls+'">'+pctDisplay+'</td>':'<td class="d-nil">—</td>';
 
     /* 行高光：A=左側青色邊框+淡底（新進客），B=左側紫色邊框+淡底（異常值） */
     var trStyle='';
-    if(hl.hlA)      trStyle='background:rgba(6,182,212,.07);box-shadow:inset 3px 0 0 rgba(6,182,212,.7);';
-    else if(hl.hlB) trStyle='background:rgba(124,58,237,.05);box-shadow:inset 3px 0 0 rgba(124,58,237,.6);';
+    if(!noHighlight){
+      if(hl.hlA)      trStyle='background:rgba(6,182,212,.07);box-shadow:inset 3px 0 0 rgba(6,182,212,.7);';
+      else if(hl.hlB) trStyle='background:rgba(124,58,237,.05);box-shadow:inset 3px 0 0 rgba(124,58,237,.6);';
+    }
     tbody+='<tr style="'+trStyle+'">'+row+'</tr>';
   });
   /* 合計列 */
@@ -2151,6 +2169,10 @@ function _buildPersonPDFContainer(p){
   qd.personArea=p.area; qd.personOffice=p.office; if(!qd.monthOffice)qd.monthOffice={};
   var cardEl=makeCard({staff:p.displayName,area:p.area,office:p.office,qd:qd});
   var btnRow=cardEl.querySelector('.pc-detail-btn-row'); if(btnRow) btnRow.remove(); /* PDF不需要互動按鈕 */
+  /* .person-card 在看板上是格狀排版用的固定寬度（width:calc(25%-10px);min-width:240px），
+     直接搬進PDF容器會被這個寬度限制擠壓，表格右側欄位被裁掉，這裡強制展開成容器全寬 */
+  cardEl.style.width='100%'; cardEl.style.minWidth='0'; cardEl.style.maxWidth='none';
+  cardEl.style.flexShrink='0'; cardEl.style.overflow='visible'; cardEl.style.boxSizing='border-box';
 
   var badges=_getAwardBadges(p);
   var wrapper=document.createElement('div');
@@ -2171,9 +2193,13 @@ function _buildPersonPDFContainer(p){
   detailTitle.textContent='📋 店家明細　'+(curQ||'')+'　總家數 '+qd.totalStores;
   wrapper.appendChild(detailTitle);
 
+  /* noHighlight=true：PDF不需要高光特效（新進客/異常成長的顏色標記），避免視覺干擾 */
   var detailWrap=document.createElement('div');
-  detailWrap.innerHTML=buildDetailTbl(qd);
+  detailWrap.innerHTML=buildDetailTbl(qd,true);
   detailWrap.querySelectorAll('*').forEach(function(el){if(el.style)el.style.overflow='visible';});
+  /* .detail-tbl th 用了 position:sticky 讓表頭在畫面上捲動時固定，html2canvas對sticky支援不佳，
+     截圖時表頭常常整列消失；PDF是靜態截圖不需要sticky，改回static並拿掉陰影 */
+  detailWrap.querySelectorAll('th').forEach(function(el){el.style.position='static';el.style.boxShadow='none';});
   wrapper.appendChild(detailWrap);
 
   var ts=document.createElement('div');
@@ -2183,27 +2209,64 @@ function _buildPersonPDFContainer(p){
 
   return wrapper;
 }
-/* 將單一得獎者容器轉成PDF Blob（過高內容自動分頁，做法：同一張圖以負位移貼到每一頁） */
+/* 收集容器內所有<tr>的「底部邊界」座標（相對wrapper頂部，CSS px），
+   做為分頁時的安全切點，確保永遠不會切在一列資料中間 */
+function _collectRowBreaksCss(wrapper){
+  var wRect=wrapper.getBoundingClientRect();
+  var breaks=[];
+  wrapper.querySelectorAll('tr').forEach(function(tr){
+    var r=tr.getBoundingClientRect();
+    breaks.push(r.bottom-wRect.top);
+  });
+  breaks.sort(function(a,b){return a-b;});
+  return breaks;
+}
+/* 將單一得獎者容器轉成PDF Blob。
+   分頁做法：整個容器先截一張完整長圖，再依照事先量測好的「列邊界」把圖切成多張
+   獨立子圖，每張子圖對應一頁；切點一律對齊到最接近但不超過整頁高度的列邊界，
+   確保表格資料列（含合計列）永遠完整出現在同一頁，不會被頁緣攔腰截斷。 */
 function _buildOnePersonPDFBlob(p,cb){
   var wrapper=_buildPersonPDFContainer(p);
   document.body.appendChild(wrapper);
-  html2canvas(wrapper,{scale:2,backgroundColor:'#ffffff',useCORS:true,width:wrapper.scrollWidth,height:wrapper.scrollHeight}).then(function(canvas){
+  var SCALE=2;
+  var rowBreaksCss=_collectRowBreaksCss(wrapper);
+  html2canvas(wrapper,{scale:SCALE,backgroundColor:'#ffffff',useCORS:true,width:wrapper.scrollWidth,height:wrapper.scrollHeight}).then(function(canvas){
     document.body.removeChild(wrapper);
     try{
-      var imgData=canvas.toDataURL('image/jpeg',0.92);
       var pdf=new jspdf.jsPDF('p','mm','a4');
-      var pageWidth=pdf.internal.pageSize.getWidth();
-      var pageHeight=pdf.internal.pageSize.getHeight();
-      var imgWidth=pageWidth;
-      var imgHeight=canvas.height*imgWidth/canvas.width;
-      var heightLeft=imgHeight,position=0;
-      pdf.addImage(imgData,'JPEG',0,position,imgWidth,imgHeight);
-      heightLeft-=pageHeight;
-      while(heightLeft>0){
-        position=heightLeft-imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData,'JPEG',0,position,imgWidth,imgHeight);
-        heightLeft-=pageHeight;
+      var pageWidthMM=pdf.internal.pageSize.getWidth();
+      var pageHeightMM=pdf.internal.pageSize.getHeight();
+      var mmPerPx=pageWidthMM/canvas.width; /* 圖片寬度貼滿頁寬，這是唯一的縮放比例 */
+      var pageHeightPx=pageHeightMM/mmPerPx; /* 一頁對應的來源畫布高度(px) */
+      var rowBreaksPx=rowBreaksCss.map(function(v){return v*SCALE;}).filter(function(v){return v>0&&v<canvas.height;});
+      var cursor=0,first=true;
+      while(cursor<canvas.height-1){
+        var naiveEnd=Math.min(cursor+pageHeightPx,canvas.height);
+        var cut=naiveEnd;
+        if(naiveEnd<canvas.height-1){
+          /* 在(cursor, naiveEnd]範圍內找最接近naiveEnd的列邊界，且至少要吃掉20%頁面高度
+             才採用，避免因為切點太靠前產生一堆幾乎空白的頁面 */
+          var minCut=cursor+pageHeightPx*0.2;
+          var best=null;
+          for(var i=0;i<rowBreaksPx.length;i++){
+            var rb=rowBreaksPx[i];
+            if(rb>minCut&&rb<=naiveEnd) best=rb;
+            if(rb>naiveEnd) break;
+          }
+          if(best) cut=best;
+        }
+        var sliceH=Math.max(1,Math.round(cut-cursor));
+        var pageCanvas=document.createElement('canvas');
+        pageCanvas.width=canvas.width; pageCanvas.height=sliceH;
+        var ctx=pageCanvas.getContext('2d');
+        ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,pageCanvas.width,sliceH);
+        ctx.drawImage(canvas,0,cursor,canvas.width,sliceH,0,0,canvas.width,sliceH);
+        var pageImgData=pageCanvas.toDataURL('image/jpeg',0.92);
+        var sliceMM=sliceH*mmPerPx;
+        if(!first) pdf.addPage();
+        pdf.addImage(pageImgData,'JPEG',0,0,pageWidthMM,sliceMM);
+        first=false;
+        cursor=cut;
       }
       cb(pdf.output('blob'));
     }catch(err){ alert(p.displayName+' PDF產生失敗：'+err); cb(null); }
