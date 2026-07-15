@@ -86,6 +86,15 @@
 ║                 匯出的 rankLabel() 同步改為「第X名 $1,000」。⚠️ 若未來獎金政策改   ║
 ║                 成不同名次不同金額，需同步修改 rankBadge()／rankLabel() 兩處。     ║
 ║                 排行榜 Modal（updateRank）未列入此次調整範圍，維持原本純徽章顯示。 ║
+║  v1.6.2  07/15  CSV/LINE匯出（_assemblePersonTableRows）：「成長突破獎」「卓越貢獻   ║
+║                 獎」欄改回純數字金額（$1,000或0，便於Excel加總），移除v1.6.1加入    ║
+║                 的rankLabel()文字格式；新增「備註」欄（放在最後一欄，不影響既有欄    ║
+║                 位順序）說明：①成長突破獎/卓越貢獻獎名次順序 ②跨單位者改標「跨單位   ║
+║                 （不參與名次排行）」③成長%落在4.0%~4.99%區間者，加註「還差X(千元)」 ║
+║                 （X=目標×5%－成長額度，即距5%達標門檻之差額，千元單位）。跨單位判斷  ║
+║                 邏輯與_personTableHTML的_isCross完全一致。網頁顯示（_personTableHTML║
+║                 /rankBadge）未變動。⚠️ 若獎金政策改成不同名次不同金額，除rankBadge() ║
+║                 外，還需同步修改本函式的growthBreakAmt/excellenceAmt判斷式。        ║
 ╚══════════════════════════════════════════════════════════════════════════════════╝
 -->
 <!DOCTYPE html>
@@ -2005,16 +2014,37 @@ function closePersonTable(){var m=document.getElementById('person-table-modal');
 
 function _assemblePersonTableRows(){
   var persons=_buildPersonTableData();
-  var hdr=['營業處','營業所','人名','身分別','有效月份','當期業績','目標(孰高)','成長額度','成長%','達成獎勵','成長突破獎','卓越貢獻獎','品評額度'];
+  var hdr=['營業處','營業所','人名','身分別','有效月份','當期業績','目標(孰高)','成長額度','成長%','達成獎勵','成長突破獎','卓越貢獻獎','品評額度','備註'];
   var rows=[hdr];
-  function rankLabel(r){if(!r||r>3)return '—';return '第'+r+'名 $1,000';}
   persons.forEach(function(p){
     var qd=p.qd;
     var rd=_parseRoleDetail(qd);
     var pct=truncPct2(qd.totalPct);
     var pctStr=pct!==null?(pct>=0?'+':'')+pct.toFixed(2)+'%':'—';
     var rankG=p['_rank_totalGrowth'];
-    var evalStr=(rankG===1&&qd.evalAmt>0)?('$'+qd.evalAmt.toLocaleString()+(qd.evalAmt>=20000?' ★':'')):'—';
+    var rankR=p['_rank_growthRate'];
+    /* 跨單位判斷：與 _personTableHTML 相同規則，3個月 monthArea 須全部相同 */
+    var _cras=qd.evalMonths.map(function(m){return qd.monthArea[m]||'';});
+    var _isCross=qd.bonus===1000&&!(qd.evalMonths.length===3&&_cras.every(function(a){return a!==''&&a===_cras[0];}));
+    /* 成長突破獎／卓越貢獻獎：欄位只放純數字金額，方便 Excel 加總；名次改放備註欄 */
+    var growthBreakAmt=(!_isCross&&rankR&&rankR<=3)?1000:0;
+    var excellenceAmt=(!_isCross&&rankG&&rankG<=3)?1000:0;
+    var evalStr=(!_isCross&&rankG===1&&qd.evalAmt>0)?('$'+qd.evalAmt.toLocaleString()+(qd.evalAmt>=20000?' ★':'')):'—';
+
+    /* 備註組裝：跨單位說明／名次順序／4.X%尚差多少金額(千元) */
+    var noteParts=[];
+    if(_isCross){
+      noteParts.push('跨單位（不參與名次排行）');
+    }else{
+      if(rankR&&rankR<=3) noteParts.push('成長突破獎 第'+rankR+'名');
+      if(rankG&&rankG<=3) noteParts.push('卓越貢獻獎 第'+rankG+'名');
+    }
+    if(pct!==null&&pct>=4&&pct<5){
+      var shortfall=qd.totalTgt*0.05-qd.totalGrowth;
+      noteParts.push('還差'+fmtN(shortfall)+'(千元)');
+    }
+    var noteStr=noteParts.join('；');
+
     rows.push([
       p.area,p.office,p.displayName,
       rd.roleLabel,rd.roleMonthCount+'/3',
@@ -2022,9 +2052,10 @@ function _assemblePersonTableRows(){
       qd.totalGrowth!==null?(qd.totalGrowth>0?'+':'')+fmtN(qd.totalGrowth):'—',
       pctStr,
       qd.bonus?'$'+qd.bonus:'—',
-      rankLabel(p['_rank_growthRate']),
-      rankLabel(rankG),
-      evalStr
+      growthBreakAmt,
+      excellenceAmt,
+      evalStr,
+      noteStr
     ]);
   });
   return rows;
