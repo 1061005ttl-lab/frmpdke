@@ -1,22 +1,23 @@
 <!--
 ╔══════════════════════════════════════════════════════════════════════════════════╗
-║         傳統通路購值進度 — AI 交接說明書                                           ║
-║         VERSION: 1.6.0  UPDATED: 07/15                                           ║
+║         傳統通路購值進度 — AI 交接說明書                                         ║
+║         VERSION: 1.6.1  UPDATED: 07/15 (人員彙整表成長突破獎/卓越貢獻獎名次       ║
+║                          徽章一併顯示 $1,000 金額)                                ║
 ╠══════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                  ║
-║  【系統用途】                                                                     ║
-║  臺灣菸酒公司傳統通路訪員獎金達標追蹤系統。                                          ║
-║  每季（Q1~Q4）追蹤訪員每月業績，判定是否符合 $1,000 或 $500 獎金發放條件。            ║
+║  【系統用途】                                                                    ║
+║  臺灣菸酒公司傳統通路訪員獎金達標追蹤系統。                                      ║
+║  每季（Q1~Q4）追蹤訪員每月業績，判定是否符合 $1,000 或 $500 獎金發放條件。      ║
 ║                                                                                  ║
-║  【資料來源】                                                                     ║
-║  Google Sheets API（TSV 格式）。欄位對照表（MAP）在第 ~453 行。                      ║
-║  關鍵欄位：month（月份數字）、role（身分別）、cur（當期業績）、                         ║
-║            last（去年業績）、exclude（排除原由）、staff（人員姓名）                   ║
+║  【資料來源】                                                                    ║
+║  Google Sheets API（TSV 格式）。欄位對照表（MAP）在第 ~453 行。                  ║
+║  關鍵欄位：month（月份數字）、role（身分別）、cur（當期業績）、                  ║
+║            last（去年業績）、exclude（排除原由）、staff（人員姓名）              ║
 ║                                                                                  ║
-║  【架構概覽】                                                                     ║
-║  1. 資料層：loadData() → 解析 TSV → allRows[]                                    ║
+║  【架構概覽】                                                                    ║
+║  1. 資料層：loadData() → 解析 TSV → allRows[]                                   ║
 ║  2. 計算層：calcPersonQ(rows, q) → 回傳 monthData / bonus / identity             ║
-║             calcIdentity() → 判定身分別狀態（ok/pend/ng/excl）                   ║
+║             calcIdentity() → 判定身分別狀態（ok/pend/ng/excl）                  ║
 ║             calcBonus()    → 判定獎金金額（1000/500/null）                       ║
 ║  3. 視覺層：render() → makeCard() → 人員卡片                                    ║
 ║             renderOrg()   → 組織視角                                             ║
@@ -79,6 +80,12 @@
 ║                 遂新增 truncPct2()（Math.floor無條件捨去），套用至人員卡片月度/   ║
 ║                 合計列、店家明細對話框、排行榜含差額標籤、人員彙整表畫面與匯出     ║
 ║                 共7處，確保畫面數字永遠不比實際數字好看，與獎金判定結果一致。      ║
+║  v1.6.1  07/15  人員彙整表「成長突破獎」「卓越貢獻獎」欄，原本只顯示名次徽章       ║
+║                 （🥇第1/🥈第2/🥉第3），因3個名次獎金金額皆為$1,000（統一，非依    ║
+║                 名次遞減），故改為名次+金額並列顯示（例：🥇第1 $1,000），CSV/LINE ║
+║                 匯出的 rankLabel() 同步改為「第X名 $1,000」。⚠️ 若未來獎金政策改   ║
+║                 成不同名次不同金額，需同步修改 rankBadge()／rankLabel() 兩處。     ║
+║                 排行榜 Modal（updateRank）未列入此次調整範圍，維持原本純徽章顯示。 ║
 ╚══════════════════════════════════════════════════════════════════════════════════╝
 -->
 <!DOCTYPE html>
@@ -1821,7 +1828,7 @@ function _personTableHTML(persons){
   var tdSL=tdS+'text-align:left;';
   function dCl(v){return v>0?'color:#22a84c;font-weight:800;':v<0?'color:#d93025;font-weight:800;':'color:#aaa;';}
   function ds(v){return(v>0?'+':'')+fmtN(fmt2(v));}
-  function rankBadge(r){if(!r||r>3)return '—';var labels={1:'🥇 第1',2:'🥈 第2',3:'🥉 第3'};return labels[r]||'—';}
+  function rankBadge(r){if(!r||r>3)return '—';var labels={1:'🥇 第1 $1,000',2:'🥈 第2 $1,000',3:'🥉 第3 $1,000'};return labels[r]||'—';}
 
   /* 小計函數（欄數改為 NCOLS） */
   function makeSubtot(label,arr,trStyle){
@@ -2000,7 +2007,7 @@ function _assemblePersonTableRows(){
   var persons=_buildPersonTableData();
   var hdr=['營業處','營業所','人名','身分別','有效月份','當期業績','目標(孰高)','成長額度','成長%','達成獎勵','成長突破獎','卓越貢獻獎','品評額度'];
   var rows=[hdr];
-  function rankLabel(r){if(!r||r>3)return '—';return '第'+r+'名';}
+  function rankLabel(r){if(!r||r>3)return '—';return '第'+r+'名 $1,000';}
   persons.forEach(function(p){
     var qd=p.qd;
     var rd=_parseRoleDetail(qd);
