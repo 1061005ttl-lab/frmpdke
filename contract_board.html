@@ -1,13 +1,7 @@
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CONTRACT 看板</title>
 <!--
 ════════════════════════════════════════════════════════════
   contract_board.html ─ 品項達成型看板
-  版本：Ver. 1.0.6 ｜ 建立：2026-07-05 ｜ 最後更新：2026-07-16
+  版本：Ver. 1.0.7 ｜ 建立：2026-07-05 ｜ 最後更新：2026-07-16
 
 【這個檔案是什麼】
   單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 直接讀取
@@ -74,118 +68,47 @@
     ITEM_KEYS 常數需要同步改回對照表模式，目前先以全名直接比對。
 
 【版本紀錄】
-  1.0.6  2026-07-16  逐題彙整 entries 補上 category（品項：菸/啤酒/烈酒/系統店，
-                      直接用既有 PROCESS_REFS[code] 每筆 ref 上的 a.rr.category），
-                      對接 shared/question-drilldown.js 1.4.0 新增的分類分組層——
-                      這是配合 audit_board.html 那邊使用者反映「逐題彙整所有
-                      題目混在一起、看不出出處」一併順手修正的，contract 的
-                      品項間問卷內容原本也是全部拉平在一起選，同一大題名稱
-                      如果剛好在不同品項都出現，選了之後也分不出是哪個品項的
-                      填寫內容。加了 category 之後，選題清單會先按品項分組，
-                      結果卡片也會顯示品項名稱。
-  1.0.5  2026-07-16  修正手機版漢堡選單完全無反應的 bug：shared/ui-chrome.js
-                      的 toggleMobileMenu() 統一是切換 'open' class（1.1.0 已
-                      比照 coverage/audit 對齊過），但 contract 自己的手機版
-                      CSS（@media max-width:640px）當時寫的是
-                      .toolbar-controls.mobile-open，兩邊 class 名稱沒對上，
-                      導致點漢堡按鈕 JS 有正確切換 class、console 也不會報錯，
-                      但選單畫面完全沒有任何變化（跟 ui-chrome.js 1.1.0
-                      changelog 描述的 coverage 曾經踩過的坑是同一種問題，
-                      contract 這處在補齊六項按鈕分頁一致性時被漏掉，一直
-                      沒修）。改成 .toolbar-controls.open，跟 shared/ui-chrome.js
-                      及 coverage_board.html 的規則一致。
-                      另外一併修正主工具列按鈕文字「⚠️ 未查核清單」跟它實際
-                      開啟的 Dialog 分頁／PIVOT_TITLES 都叫「未達成清單」對不
-                      起來的問題（同一個功能，畫面上兩個地方顯示不同名稱）；
-                      前一輪比對三板一致性時有注意到但判斷是「與本次任務
-                      無關的既有問題」而保留，這輪一併統一成「未達成清單」。
-  1.0.4  2026-07-16  三板（audit/contract/coverage）彙整看板按鈕/分頁一致性
-                      補齊（比照 coverage_board.html 六項：人員/單位/店家/
-                      照片牆/逐題彙整/細項匯出）：
-                      A) 主工具列補上原本缺的「🔍 逐題彙整」「🧩 細項匯出」
-                      按鈕（Dialog 內分頁本來就有逐題彙整，但主畫面按不到，
-                      要先點別的分頁再切頁籤才看得到）。
-                      B) 新增第 7 個分頁「🧩 細項匯出」（比照 coverage 3.5.0）：
-                      讓使用者跨品項勾選 1～N 個「應達成品項」（ITEM_KEYS：
-                      菸／啤酒／烈酒／系統店），列出目前彙整範圍內「已達成
-                      該品項」的店家，可複製 LINE 文字或下載獨立 CSV。跟既有
-                      「⚠️ 未達成清單」互補（那邊看缺什麼，這裡反過來看誰
-                      已達成特定品項）。contract 品項是固定 4 項、無群組
-                      區分（不像 coverage 有 B/C 兩種桶），故全部歸在同一組
-                      「應達成品項」底下；也沒有 coverage C 桶那種附加文字
-                      說明，valText 一律留空。店家個案明細 Dialog 新增
-                      「🧩 細項匯出」捷徑按鈕（_jumpToSubcolExport），比照
-                      coverage 的作法：關掉明細、開彙整看板並跳到本分頁，
-                      範圍固定用「目前整體彙整範圍」而非單一店家。
-                      主工具列六個既有按鈕統一在開啟彙整看板前重置
-                      _subColSel={}，避免上次勾選的細項殘留到下一次開啟
-                      （跟 coverage 六個工具列按鈕的慣例一致）；返回鍵
-                      （backStoreDetailToSummary）跟店家明細裡的細項匯出
-                      捷徑不受影響，不會意外清空使用者剛選好的勾選狀態。
-  1.0.3  2026-07-16  A) 店家個案明細 Dialog 補上「← 返回」鍵：從彙整看板
-                      （人員/單位/店家分頁）點店家列進去時，原本只能按 ✕
-                      整個關掉再重點一次彙整按鈕，才能回到剛才在看的分頁。
-                      新增 openStoreDetailFromPivot()／
-                      backStoreDetailToSummary()，記下進入前的分頁
-                      （_detailReturnMode），返回鍵一鍵回到同一分頁；直接從
-                      主畫面店家卡片點進來則不顯示返回鍵（沒有上一層可回）。
-                      B) 連帶抓到一個既有 bug：「人員」「單位」兩個彙整分頁
-                      共用同一個 _aggExpandRows 物件，_renderAggTable 每次
-                      渲染都把它整包歸零——開彙整看板時兩個分頁會一次全部
-                      渲染，後渲染的「單位」分頁會把先渲染的「人員」分頁
-                      展開資料整包洗掉，導致「人員」分頁點展開永遠看不到
-                      店家清單。已移除該次清空，兩分頁的 rid 本來就有
-                      keyLabel 前綴不會互相覆蓋。
-                      C) 彙整看板截圖（summaryScreenshot）原本截 .dlg-box，
-                      但真正會捲動的內容在裡面兩層的 .pivot-slide，.dlg-box
-                      是固定 92vh 的 overflow:hidden 框，量不到被捲出畫面
-                      外的內容——店家一多，截圖永遠只有目前可見的那一小段，
-                      底下資料整個消失（實測：40筆人員時，.dlg-box 量到
-                      662px，實際內容 1555px，缺了快2/3）。改成直接截「目前
-                      分頁」那個 .pivot-slide 本身（跟 coverage_board.html
-                      既有作法對齊）。店家個案明細 Dialog 的截圖
-                      （storeDetailScreenshot）原本就是直接截 #dlg-body
-                      本身（真正的捲動元素），沒有這個問題，未改動。
-  1.0.2  2026-07-16  A) 修正 _fetchSourceSheet 問卷表頭解析：headers=0 抓資料
-                      時，「月份」這類底下多為日期值的欄位，整欄會被 gviz
-                      判成 date/datetime 型別，導致表頭純文字被回傳 v:null、
-                      欄名在解析階段整個漏收（不是值抓錯，是欄名從頭到尾
-                      不存在），跟 audit_board.html／coverage_board.html
-                      踩到的是同一個坑（三份檔案這段邏輯原本逐字複製貼上，
-                      坑也跟著複製了三份）。改成另外多發一支 headers=1
-                      請求，只用 table.cols[i].label 取得欄名（不受欄位
-                      型別推斷影響），資料列仍用 headers=0 讀，不動既有
-                      資料解析邏輯。
-                      B) 「人員」「單位」兩個彙整分頁原本只有彙總數字
-                      （總店數／已查核／未查核／達成率），完全看不到底下
-                      是哪些店家，跟「店家」分頁能逐店查看的深度不一致，
-                      也跟 audit_board／coverage_board 的人員／單位分頁能
-                      展開到店家不一致。_aggBy 改成同時保留每組底下的原始
-                      rows；_renderAggTable 每一列改成可展開（▸），點下去
-                      渲染一張巢狀店家清單 mini-table（新增
-                      _buildContractStoreListEmbed／_toggleAggExpand），
-                      點店家列一樣走本板既有的 closeSummaryDialog()+
-                      openStoreDetail(code) 獨立明細 Dialog，不另外做一套
-                      展示邏輯。連動修正：downloadDialogCsv／
-                      summaryShareLine 原本用 querySelectorAll('tr') 掃描
-                      目前表格，展開後會把巢狀表格自己的列也一併掃進來
-                      造成欄數對不齊，改用 tbl.rows 並排除
-                      .pivot-child-row，只匯出本表格自己的資料列。
-  1.0.1  2026-07-08  A) 日期顯示 bug：純日期欄位（gviz 回傳 Date(y,m,d)，
-                      沒有時分秒）被 core-utils.js 舊版 parseGvizDate 正規式
-                      要求「一定要 6 個數字」擋下來，直接把原始字串
-                      "Date(2026,6,3)" 顯示在畫面上（「上次回報」跟「拜訪／
-                      登記時間軸」的日期都中招）。已修 core-utils.js（見該檔
-                      Ver.1.0.1），純日期不補時分秒文字，本檔不用改呼叫方式。
-                      B) 「拜訪／登記時間軸」版面重新設計：shared/photo-viewer.js
-                      的預設逐行版面（一則文字一行）在 contract 這裡（內容
-                      多為簡短勾選／數字）造成大量留白、訊息密度極低。改成
-                      contract 專屬的高密度 Grid＋Wrap 版面（見本檔 CSS
-                      #detail-history-body 區塊），只在頁面層覆寫、不動
-                      shared 檔案本身，audit/coverage 兩板版面不受影響。
+  1.0.7  2026-07-16  新增操作手冊：另外撰寫獨立的「操作者操作手冊」網頁
+                      文件（contract_board_manual.html，給前台操作人員看，
+                      只講畫面操作步驟與按鈕功能，不講後端比對邏輯），並將
+                      本檔頂部說明欄的舊版本紀錄（1.0.4 以前）濃縮摘要；
+                      本次未變動任何程式邏輯。
+  1.0.6  2026-07-16  逐題彙整 entries 補上 category（品項：菸/啤酒/烈酒/
+                      系統店），對接 shared/question-drilldown.js 1.4.0
+                      新增的分類分組層——與 audit_board 同批修正，避免
+                      不同品項的問卷內容混在同一份清單裡分不出出處。
+  1.0.5  2026-07-16  修正手機版漢堡選單完全無反應的 bug：本板手機版 CSS
+                      寫的是 .toolbar-controls.mobile-open，但
+                      shared/ui-chrome.js 1.1.0 統一切換的是 'open' class，
+                      兩邊 class 名稱沒對上（跟 ui-chrome.js changelog 描述
+                      coverage 曾踩過的同一種坑，contract 這處先前被漏
+                      修）。改成 .toolbar-controls.open 對齊 shared 層。
+                      另修正主工具列「⚠️未查核清單」與其 Dialog／
+                      PIVOT_TITLES 實際顯示「未達成清單」名稱不一致的問題，
+                      統一為「未達成清單」。
+  1.0.2～1.0.4  2026-07-16  三板彙整看板按鈕/分頁一致性補齊（人員/單位/
+                      店家/照片牆/逐題彙整/細項匯出/未達成清單共 7 分頁）；
+                      店家個案明細 Dialog 補上「← 返回」鍵（記住從彙整看板
+                      哪個分頁點進來）；修正「人員」「單位」分頁共用同一個
+                      展開狀態物件互相洗掉的 bug；彙整看板截圖改成只截目前
+                      分頁本身（原本截固定高度的外層框，長列表會被裁切）；
+                      修正 headers=1 抓表頭欄名同一坑（跟 audit/coverage
+                      三份檔案原本逐字複製貼上、坑也複製了三份）；「人員」
+                      「單位」彙整分頁補上可展開到店家層級的巢狀清單。
+  1.0.1  2026-07-08  修正純日期欄位（gviz Date(y,m,d) 無時分秒）顯示成
+                      原始字串 "Date(...)" 的 bug（見 core-utils.js
+                      Ver.1.0.1）；「拜訪／登記時間軸」改採本板專屬的高
+                      密度 Grid＋Wrap 版面，只在頁面層覆寫、不動 shared
+                      檔案本身。
   1.0.0  2026-07-05  首版
 ════════════════════════════════════════════════════════════
 -->
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CONTRACT 看板</title>
 <link rel="stylesheet" href="shared/dashboard-common.css">
 <style>
 :root {
