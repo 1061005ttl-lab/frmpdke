@@ -7,7 +7,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   contract_board.html ─ 品項達成型看板
-  版本：Ver. 1.0.5 ｜ 建立：2026-07-05 ｜ 最後更新：2026-07-16
+  版本：Ver. 1.0.6 ｜ 建立：2026-07-05 ｜ 最後更新：2026-07-16
 
 【這個檔案是什麼】
   單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 直接讀取
@@ -74,6 +74,15 @@
     ITEM_KEYS 常數需要同步改回對照表模式，目前先以全名直接比對。
 
 【版本紀錄】
+  1.0.6  2026-07-16  逐題彙整 entries 補上 category（品項：菸/啤酒/烈酒/系統店，
+                      直接用既有 PROCESS_REFS[code] 每筆 ref 上的 a.rr.category），
+                      對接 shared/question-drilldown.js 1.4.0 新增的分類分組層——
+                      這是配合 audit_board.html 那邊使用者反映「逐題彙整所有
+                      題目混在一起、看不出出處」一併順手修正的，contract 的
+                      品項間問卷內容原本也是全部拉平在一起選，同一大題名稱
+                      如果剛好在不同品項都出現，選了之後也分不出是哪個品項的
+                      填寫內容。加了 category 之後，選題清單會先按品項分組，
+                      結果卡片也會顯示品項名稱。
   1.0.5  2026-07-16  修正手機版漢堡選單完全無反應的 bug：shared/ui-chrome.js
                       的 toggleMobileMenu() 統一是切換 'open' class（1.1.0 已
                       比照 coverage/audit 對齊過），但 contract 自己的手機版
@@ -1736,6 +1745,9 @@ function _buildDrilldownTab(rows){
         label: store ? store.storeName : a.rr.category,
         meta: store ? [store.area, store.office, store.staff].filter(Boolean).join(' · ') : '',
         timeText: a.rr.ym || '',
+        /* category：品項（菸/啤酒/烈酒/系統店），跟 shared/question-drilldown.js
+           1.4.0 的分類分組層對接，避免不同品項的問卷內容全部拉平混在一起 */
+        category: a.rr.category || '',
         sections: rowData.sections
       });
     });

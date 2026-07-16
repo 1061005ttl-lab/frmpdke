@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   audit_board.html  ─  稽核型看版（處理層版）
-  版本：Ver. 3.0.0 ｜ 最後更新：2026-07-16
+  版本：Ver. 3.1.0 ｜ 最後更新：2026-07-16
 
   🤖 給後續 AI 模組看的導讀（放最上面，優先讀這段；下面才是完整版本紀錄）
 ════════════════════════════════════════════════════════════
@@ -202,6 +202,27 @@
   Dialog：逐列明細，含通路別、店家型態、店家等級、分類、子分類
 
 【版本紀錄】
+  3.1.0  2026-07-16  修正「逐題彙整」把所有分類/子分類的問卷內容全部拉平在
+                      一起選的問題（使用者截圖反映：所有題目混在一起、也不
+                      知道出處是哪裡）。audit 一個專案裡同時有好幾種分類
+                      （COL_SUPTYPE 分類／COL_QUESTTYPE 子分類）的問卷，原本
+                      _buildDrilldownTab 組 entries 時沒有帶這個資訊，
+                      shared/question-drilldown.js 也只依「大題」分組，導致
+                      不同分類但大題名稱相同（或使用者單純看不出來源）時全部
+                      混在同一份清單裡。改法：
+                      A) entries 新增 category 欄位（'分類 › 子分類'），對接
+                         shared/question-drilldown.js 1.4.0 新增的分類分組層。
+                      B) 選題清單最外層現在會先按分類分組、分類底下才是大題／
+                         選項（三層結構），同一個大題+選項名稱如果出現在不同
+                         分類，會被當成兩個獨立的選題，不會誤合併。
+                      C) 結果卡片、燈箱資訊列（shared/photo-viewer.js 1.4.0）
+                         都會一併顯示分類名稱，確認「出處」不用切回左側看。
+                      這支同時也順手幫 contract_board.html 的逐題彙整補上
+                      對應的 category（用既有 PROCESS_REFS 的品項欄位），
+                      coverage 沒有分類概念、entries 不帶這個欄位，畫面完全
+                      不受影響（shared 層是用「index 裡有沒有任何一筆
+                      category 非空」判斷要不要多渲染那層，不是看有沒有宣告
+                      這個欄位）。
   3.0.0  2026-07-16  三板（audit/contract/coverage）彙整看板按鈕/分頁一致性
                       補齊（比照 coverage_board.html 六項：人員/單位/店家/
                       照片牆/逐題彙整/細項匯出；audit 額外保留自己既有的
@@ -2460,10 +2481,15 @@ function _buildDrilldownTab(rows){
       if(!rowData || !rowData.sections || !rowData.sections.length) return;
       var r = x.row;
       var metaParts = [r[COL_AREA], r[COL_OFFICE], r[COL_STAFF]].filter(function(v){ return v; });
+      /* category：分類›子分類，讓 shared/question-drilldown.js 1.4.0 的分類
+         分組層知道「這筆是哪個分類/子分類的問卷」——audit 一個專案裡同時有
+         好幾種分類的問卷，原本逐題彙整把所有分類的大題全部拉平在一起選，
+         使用者反映看不出這一題是哪個分類、所有題目混在一起，加這欄解決。 */
       entries.push({
         label: String(r[COL_NAME]||'—'),
         meta: metaParts.join(' · '),
         timeText: r[COL_DATE] ? String(r[COL_DATE]) : '',
+        category: [r[COL_SUPTYPE], r[COL_QUESTTYPE]].filter(function(v){ return v; }).join(' › '),
         sections: rowData.sections
       });
     });
