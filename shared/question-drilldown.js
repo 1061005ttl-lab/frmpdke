@@ -35,12 +35,25 @@
          label: '一品活蝦市府店',       // 卡片標題，通常是店名
          meta:  '北部 · 行銷課 · 鄒奇蒼-1051035', // 卡片副標題，通常是單位/人員
          timeText: '2026/07/03',       // 用來排序＋顯示，沒有就傳空字串，畫面會退回顯示「未知時間」
+         category: '菸品 › 陳列查核',   // 選填，比大題再高一層的分類/來源標籤，
+                                        // 沒有就不傳（或傳空字串），畫面上完全不會
+                                        // 多一層、行為跟舊版一模一樣。
          sections: [ { section:'大題名稱', picks:[ {option, value}, ... ] }, ... ]
        }, ...
      ]
    sections 的形狀跟 photo-viewer.js／_fetchSourceSheet 系列既有的格式完全
    一致，各板通常可以直接把既有 rowData.sections／rec.sections 塞進來，
    不需要另外轉換。
+
+   【為什麼要加 category 這一層】
+   audit 這種一個專案裡同時有好幾種「分類/子分類」問卷的板，原本選題清單
+   只依「大題」分組，不同分類但剛好大題撞名（或使用者單純看不出這一題是
+   哪個分類底下的）就會被混在一起，選了之後也不知道結果是從哪個分類來的。
+   category 就是用來標明「這一題來自哪裡」，加了之後：
+     1) 選題清單最外層多一層分類分組（沒有 category 的板完全不受影響）；
+     2) 同一個大題+選項名稱如果出現在不同分類，會被當成兩個不同的選題
+        （key 裡帶 category），不會誤合併成一項、也不會互相污染筆數；
+     3) 結果卡片、燈箱資訊列都會一併帶出分類名稱，讓使用者確認「出處」。
 
    【選題清單怎麼來】
    不是每個板自己維護一份「有哪些大題/選項」的清單，而是直接掃描傳進來的
@@ -55,6 +68,18 @@
    _qdRenderResults 改成逐一渲染每個選取項目即可，不需要動資料組裝那一段。
 
    【版本紀錄】
+   1.4.0  2026-07-16  新增選填 category 分組層（見上方「為什麼要加 category
+                       這一層」）：_qdBuildIndex 的 key 從「大題+選項」改成
+                       「分類+大題+選項」，_qdGroupIndex／_qdBuildTabHtml 在
+                       有 category 時多渲染一層 .qd-category-group／
+                       .qd-category-title；結果卡片、_renderPhotoChip 的 ctx
+                       都一併帶 category。沒有 category 的呼叫端（entries 都
+                       不帶這個欄位，例如 coverage）行為、畫面完全不變——
+                       這是這次修改唯一要保證的事，用「index 裡有沒有任何一筆
+                       category 非空」判斷要不要多渲染那層，不是看呼叫端有沒有
+                       宣告這個欄位。起因是 audit_board.html 的逐題彙整把所有
+                       分類/子分類的問卷結果全部拉平在一起選，使用者反映「看不
+                       出這一題是哪個分類、所有題目混在一起」。
    1.3.0  2026-07-08  _qdRenderValueInfo 新增第 3 參數 ctx（{store,section}），
                        呼叫 _renderPhotoChip 時一併帶入，讓逐題彙整結果裡的
                        照片也能在燈箱資訊列顯示「店名 › 大題 › 選項」，跟
@@ -78,17 +103,21 @@
 window._qdEntries = window._qdEntries || [];
 window._qdSelectedKey = window._qdSelectedKey || null;
 
-/* 掃描 entries，收集「實際出現過、且有填值」的 (大題,選項) 組合，
+/* 掃描 entries，收集「實際出現過、且有填值」的 (分類,大題,選項) 組合，
    保留「第一次出現」的順序（通常就是問卷欄位原本的排列順序，使用者比較好對照），
-   同時附上這個組合在目前範圍內總共出現幾筆，方便使用者判斷「這題填的人多不多」。 */
+   同時附上這個組合在目前範圍內總共出現幾筆，方便使用者判斷「這題填的人多不多」。
+   key 刻意把 category 也編進去（category 沒有就當空字串），這樣同一個大題+
+   選項名稱如果出現在不同分類底下，會被當成兩個獨立的選題，不會被誤合併、
+   筆數也不會互相污染——這是加 category 分組的核心理由，不只是加個標籤而已。 */
 function _qdBuildIndex(entries){
   var map = {}, order = [];
   (entries||[]).forEach(function(e){
+    var cat = e.category || '';
     (e.sections||[]).forEach(function(sec){
       (sec.picks||[]).forEach(function(p){
         if(!String(p.value||'').trim()) return; /* 沒填值不列入選題清單 */
-        var key = sec.section + '\u0001' + p.option;
-        if(!map[key]){ map[key] = { section:sec.section, option:p.option, count:0 }; order.push(key); }
+        var key = cat + '\u0002' + sec.section + '\u0001' + p.option;
+        if(!map[key]){ map[key] = { category:cat, section:sec.section, option:p.option, count:0 }; order.push(key); }
         map[key].count++;
       });
     });
@@ -96,14 +125,31 @@ function _qdBuildIndex(entries){
   return order.map(function(k){ return map[k]; });
 }
 
-/* 依大題分組，picker 要一大題一大題分區塊列出選項，而不是把所有選項全部拉平 */
+/* 把「編碼 key」拆回 {category, section, option} 三個欄位，跟 _qdBuildIndex
+   組 key 的規則對稱，兩處改動要一起改，不要各自寫一份切割邏輯 */
+function _qdParseKey(key){
+  var k = String(key||'');
+  var i1 = k.indexOf('\u0002');
+  var category = i1===-1 ? '' : k.substring(0, i1);
+  var rest = i1===-1 ? k : k.substring(i1+1);
+  var i2 = rest.indexOf('\u0001');
+  return { category:category, section: i2===-1?rest:rest.substring(0,i2), option: i2===-1?'':rest.substring(i2+1) };
+}
+
+/* 先依分類分組、分類底下再依大題分組，picker 要「分類 → 大題 → 選項」三層
+   列出，而不是把所有選項全部拉平。沒有 category 的呼叫端全部落在同一個
+   空字串分類底下，渲染那層（_qdBuildTabHtml）會偵測到「根本沒有任何非空
+   category」而整個跳過分類標題，畫面跟舊版完全一樣。 */
 function _qdGroupIndex(index){
-  var bySection = {}, order = [];
+  var byCat = {}, catOrder = [];
   index.forEach(function(it){
-    if(!bySection[it.section]){ bySection[it.section]=[]; order.push(it.section); }
-    bySection[it.section].push(it);
+    var cat = it.category || '';
+    if(!byCat[cat]){ byCat[cat] = { order:[], bySection:{} }; catOrder.push(cat); }
+    var grp = byCat[cat];
+    if(!grp.bySection[it.section]){ grp.bySection[it.section]=[]; grp.order.push(it.section); }
+    grp.bySection[it.section].push(it);
   });
-  return { order:order, bySection:bySection };
+  return { catOrder:catOrder, byCat:byCat };
 }
 
 /* 產生整個逐題彙整分頁的 HTML（左側選題／右側結果），供各板 _renderPivotSlide
@@ -118,32 +164,46 @@ function _qdBuildTabHtml(entries){
     return '<div class="empty">目前篩選範圍內沒有偵測到任何「大題／選項」有填寫內容</div>';
   }
   var grouped = _qdGroupIndex(index);
-  var pickerHtml = grouped.order.map(function(sec){
-    var rowsHtml = grouped.bySection[sec].map(function(it){
-      var key = it.section + '\u0001' + it.option;
-      var searchKey = (it.section + ' ' + it.option).toLowerCase();
-      return '<div class="qd-option-row" data-qd-key="'+esc(key)+'" data-qd-search="'+esc(searchKey)+'" onclick="_qdSelect(this)">'
-        + '<span class="qd-option-name">'+esc(it.option)+'</span>'
-        + '<span class="qd-option-count">'+it.count+' 筆</span>'
+  /* 只要 index 裡有任何一筆帶了非空 category，才多渲染分類這層；呼叫端完全
+     不使用 category 欄位時（例如 coverage），這裡永遠是 false，畫面跟舊版
+     一模一樣，不會平白多一層空標題 */
+  var hasCategories = index.some(function(it){ return !!it.category; });
+  var pickerHtml = grouped.catOrder.map(function(cat){
+    var grp = grouped.byCat[cat];
+    var sectionHtml = grp.order.map(function(sec){
+      var rowsHtml = grp.bySection[sec].map(function(it){
+        var key = (it.category||'') + '\u0002' + it.section + '\u0001' + it.option;
+        var searchKey = ((it.category||'') + ' ' + it.section + ' ' + it.option).toLowerCase();
+        return '<div class="qd-option-row" data-qd-key="'+esc(key)+'" data-qd-search="'+esc(searchKey)+'" onclick="_qdSelect(this)">'
+          + '<span class="qd-option-name">'+esc(it.option)+'</span>'
+          + '<span class="qd-option-count">'+it.count+' 筆</span>'
+          + '</div>';
+      }).join('');
+      return '<div class="qd-section-group">'
+        + '<div class="qd-section-title">📋 '+esc(sec)+'</div>'
+        + rowsHtml
         + '</div>';
     }).join('');
-    return '<div class="qd-section-group">'
-      + '<div class="qd-section-title">📋 '+esc(sec)+'</div>'
-      + rowsHtml
+    if(!hasCategories) return sectionHtml; /* 沒有分類資料，維持原本兩層結構 */
+    return '<div class="qd-category-group">'
+      + '<div class="qd-category-title">📂 '+esc(cat||'未分類')+'</div>'
+      + sectionHtml
       + '</div>';
   }).join('');
 
   return '<div class="qd-wrap">'
     + '<div class="qd-picker">'
-    +   '<input class="qd-search" type="text" placeholder="🔍 搜尋大題／選項…" oninput="_qdFilterPicker(this.value)">'
+    +   '<input class="qd-search" type="text" placeholder="🔍 搜尋分類／大題／選項…" oninput="_qdFilterPicker(this.value)">'
     +   '<div class="qd-picker-list" id="qd-picker-list">'+pickerHtml+'</div>'
     + '</div>'
     + '<div class="qd-results" id="qd-results"><div class="qd-results-empty">👈 請先從左側選擇一個題目，查看目前範圍內所有人怎麼填</div></div>'
     + '</div>';
 }
 
-/* 搜尋框：大題/選項名稱都納入比對，符合就顯示、大題底下全部選項都被濾掉時
-   整個大題區塊也一併隱藏，避免留下一堆空標題 */
+/* 搜尋框：分類/大題/選項名稱都納入比對，符合就顯示、大題底下全部選項都被濾掉時
+   整個大題區塊也一併隱藏，大題全部被濾掉時分類區塊也一併隱藏，避免留下一堆
+   空標題（沒有分類那層的板，qd-category-group 選擇器就是選不到東西，
+   forEach 直接是空陣列，不影響原本行為） */
 function _qdFilterPicker(text){
   var q = String(text||'').trim().toLowerCase();
   var list = document.getElementById('qd-picker-list');
@@ -153,6 +213,11 @@ function _qdFilterPicker(text){
     row.style.display = hit ? '' : 'none';
   });
   list.querySelectorAll('.qd-section-group').forEach(function(grp){
+    var anyVisible = false;
+    grp.querySelectorAll('.qd-option-row').forEach(function(row){ if(row.style.display !== 'none') anyVisible = true; });
+    grp.style.display = anyVisible ? '' : 'none';
+  });
+  list.querySelectorAll('.qd-category-group').forEach(function(grp){
     var anyVisible = false;
     grp.querySelectorAll('.qd-option-row').forEach(function(row){ if(row.style.display !== 'none') anyVisible = true; });
     grp.style.display = anyVisible ? '' : 'none';
@@ -174,8 +239,12 @@ function _qdClearSelection(){
   _qdRenderResults();
 }
 
-/* 在某一筆 entry 裡找出「該大題、該選項」對應的那一筆 pick（找不到回傳 null） */
-function _qdFindPick(entry, section, option){
+/* 在某一筆 entry 裡找出「該分類、該大題、該選項」對應的那一筆 pick（找不到
+   回傳 null）。category 為空字串時（呼叫端沒有用 category 分組）比對永遠
+   成立，行為跟舊版一樣；category 非空時，entry.category 必須也相符才算，
+   避免不同分類但剛好大題+選項同名時互相污染彼此的結果。 */
+function _qdFindPick(entry, category, section, option){
+  if(category && (entry.category||'') !== category) return null;
   var secs = (entry.sections||[]).filter(function(s){ return s.section===section; });
   if(!secs.length) return null;
   var picks = secs[0].picks || [];
@@ -214,7 +283,7 @@ function _qdRenderValueInfo(optionLabel, rawValue, ctx){
   return { html:html2, hasPhoto:false };
 }
 
-/* 渲染右側結果：掃過目前 window._qdEntries，把「該大題+該選項」有填值的
+/* 渲染右側結果：掃過目前 window._qdEntries，把「該分類+該大題+該選項」有填值的
    每一筆都列出來，新到舊排序（跟其他清單排序習慣一致），同日期再依標題排序。 */
 function _qdRenderResults(){
   var resEl = document.getElementById('qd-results');
@@ -224,12 +293,12 @@ function _qdRenderResults(){
     resEl.innerHTML = '<div class="qd-results-empty">👈 請先從左側選擇一個題目，查看目前範圍內所有人怎麼填</div>';
     return;
   }
-  var sep = key.indexOf('\u0001');
-  var section = key.substring(0, sep), option = key.substring(sep+1);
+  var parsed = _qdParseKey(key);
+  var category = parsed.category, section = parsed.section, option = parsed.option;
 
   var matched = [];
   (window._qdEntries||[]).forEach(function(e){
-    var p = _qdFindPick(e, section, option);
+    var p = _qdFindPick(e, category, section, option);
     if(p && String(p.value||'').trim()) matched.push({ entry:e, value:p.value });
   });
 
@@ -245,17 +314,25 @@ function _qdRenderResults(){
     return String(a.entry.label||'').localeCompare(String(b.entry.label||''), 'zh-TW');
   });
 
-  var html = '<div class="photo-gallery-summary">📋 '+esc(section)+' ── <strong>'+esc(option)+'</strong>'
+  /* 分類非空才顯示「📂 分類 ──」這段前綴，沒有分類資料的板（category 永遠是
+     空字串）畫面跟舊版完全一樣 */
+  var catPrefix = category ? ('📂 '+esc(category)+' ── ') : '';
+  var html = '<div class="photo-gallery-summary">'+catPrefix+'📋 '+esc(section)+' ── <strong>'+esc(option)+'</strong>'
     + '　共 <strong>'+matched.length+'</strong> 筆填寫內容'
     + '<span class="qd-clear-btn" onclick="_qdClearSelection()">✕ 清除選擇</span></div>';
 
   matched.forEach(function(m){
     var e = m.entry;
-    var info = _qdRenderValueInfo(option, m.value, { store:e.label, section:section });
+    var info = _qdRenderValueInfo(option, m.value, { store:e.label, section:section, category:category });
+    /* 每張結果卡也帶一個「出處」tag，讓使用者不用回頭看左側選了什麼分類，
+       卡片本身就能確認這筆填寫內容是哪個分類來的（category 為空就不顯示，
+       不影響沒有分類概念的板） */
+    var catTag = category ? '<span class="photo-store-tag">📂 '+esc(category)+'</span>' : '';
     html += '<div class="photo-store-card">'
       + '<div class="photo-store-head">'
       +   '<span class="photo-store-name">🏪 '+esc(e.label||'—')+'</span>'
       +   '<span class="photo-store-meta">🕒 '+esc(_dateOnly(e.timeText)||'未知時間')+'　'+esc(e.meta||'')+'</span>'
+      +   catTag
       + '</div>'
       + '<div class="'+(info.hasPhoto?'raw-quiz-photos':'raw-quiz-picks')+'" style="margin-top:6px;">'+info.html+'</div>'
       + '</div>';
