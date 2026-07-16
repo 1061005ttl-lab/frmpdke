@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 3.5.2 ｜ 最後更新：2026-07-16
+  版本：Ver. 3.5.3 ｜ 最後更新：2026-07-16
 ════════════════════════════════════════════════════════════
 
 
@@ -26,6 +26,21 @@
 
 
 【版本紀錄】
+  3.5.3  2026-07-16  修正「店家拜訪時間軸／照片牆／逐題彙整」持續顯示「未知
+                      時間」的真正根因：_fetchQuestionnaireSheet() 用
+                      headers=0 抓問卷資料表時，「月份」「打卡時間」「回報
+                      時間」這幾欄底下多為日期/時間值，gviz 依此把整欄型別
+                      推斷成 date/datetime，導致表頭那一格的純文字（如
+                      「月份」）無法塞進該型別、被 gviz 回傳 v:null，原本
+                      靠 rawRows[0] 讀表頭文字的寫法因此把這三欄的「欄名」
+                      整個漏收，base 物件裡從頭到尾都沒有這幾個 key（不是
+                      值抓錯，是 key 本身不存在，靠改 core-utils.js 的
+                      _findTimeText 邏輯救不回來）。改成另外多發一支
+                      headers=1 請求，只用 table.cols[i].label 取得欄名
+                      （label 為表頭文字本身，不受欄位型別推斷影響），資料
+                      列仍照舊用 headers=0 那次請求讀，不更動既有資料解析
+                      邏輯，也不影響已知的「headers=1 數字型欄位文字值被
+                      吃掉」問題（該問題只發生在資料格值，不影響 label）。
   3.5.2  2026-07-16  清理排版空白行＋重編頁面操作說明
          - 移除歷次編輯累積下來、每一行程式碼後面都多插入一行的排版
            artifact（總行數從 6245 降到約 3450，語法/邏輯完全不變，
@@ -1285,15 +1300,35 @@ function _fetchQuestionnaireSheet(callback){
   if(_qSheetCache){ callback(_qSheetCache); return; }
   if(_qSheetLoading){ _qSheetWaiters.push(callback); return; }
   _qSheetLoading = true;
-  var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+  var dataUrl = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
     '/gviz/tq?tqx=out:json&headers=0&sheet=' + encodeURIComponent(QUESTIONNAIRE_SHEET);
-  fetch(url)
-    .then(function(r){ return r.text(); })
-    .then(function(txt){
-      var json = gvizParse(txt);
+  /* 【修正】欄名不能只靠 headers=0 那次請求的第一列（rawRows[0]）去讀：
+     gviz 會依「整欄大多數儲存格內容」推斷該欄型別，「月份」「打卡時間」
+     「回報時間」這幾欄底下大多是日期/時間值，整欄被判成 date/datetime 型別後，
+     表頭那格放的文字（例如「月份」）沒辦法塞進 date 型別，gviz 直接回傳
+     v:null（f 也沒有），導致 cellVal() 算出空字串、headerText 判斷失敗、
+     整欄直接被 continue 跳過——不是值抓錯，是這幾欄的「欄名」在解析階段就
+     沒被收進 baseColNames，base 物件裡從頭到尾都不會有這個 key。
+     另外發一支 headers=1 的請求只用來拿 table.cols[i].label 當欄名：label
+     是表頭文字本身，不受欄位型別推斷影響（跟 fetchSheet() 裡主資料表用
+     headers=1 讀 cols[].label 是同一個道理，那邊從沒出過表頭消失的問題，
+     只有「資料格值」在數字型欄位裡被吃掉過，是不同層次的另一個已知坑）。
+     資料列仍照舊用 headers=0 那次請求讀，不更動既有資料解析邏輯。 */
+  var headerUrl = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(QUESTIONNAIRE_SHEET);
+  Promise.all([
+    fetch(dataUrl).then(function(r){ return r.text(); }),
+    fetch(headerUrl).then(function(r){ return r.text(); })
+  ])
+    .then(function(results){
+      var json = gvizParse(results[0]);
+      var headerJson = gvizParse(results[1]);
       var tbl  = json.table || {};
       var rawRows = tbl.rows || [];
       if(rawRows.length < 1){ _qSheetFail('分頁「'+QUESTIONNAIRE_SHEET+'」沒有資料'); return; }
+      var headerLabels = ((headerJson.table||{}).cols || []).map(function(c){
+        return String(c.label||'').trim();
+      });
 
 
       function cellVal(row, i){
@@ -1307,15 +1342,14 @@ function _fetchQuestionnaireSheet(callback){
       }
 
 
-      var headerRow = rawRows[0];
-      var colCount = (headerRow.c || []).length;
+      var colCount = headerLabels.length;
       var baseColNames = [];
       var quizCols = []; /* [{col, section, option}] */
       var codeColIdx = -1;
 
 
       for (var i = 0; i < colCount; i++) {
-        var headerText = String(cellVal(headerRow, i) || '').trim();
+        var headerText = headerLabels[i];
         if (!headerText) continue;
         if (headerText.indexOf('_') !== -1) {
           var parts = headerText.split('_');
