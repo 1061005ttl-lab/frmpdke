@@ -4,7 +4,7 @@
 
   coverage_board.html  ─  覆蓋率型看板
 
-  版本：Ver. 3.5.0 ｜ 最後更新：2026-07-16
+  版本：Ver. 3.5.1 ｜ 最後更新：2026-07-16
 
 ════════════════════════════════════════════════════════════
 
@@ -47,6 +47,19 @@
 
 
 【版本紀錄】
+
+  3.5.1  2026-07-16  細項匯出 LINE 文字：單選時省略重複項目名稱
+
+         - _subColLineText：只選 1 個子欄位、且該筆命中沒有附加文字
+           （B 群，純有/沒有判斷）時，標題已經寫明是哪個項目了，每家店
+           底下不再重複印一次「└ 項目名稱」，只留店名(代碼)一行，省版面；
+           多選（要分辨哪家命中哪幾項），或該筆有附加文字（C 群「原因
+           說明」，店與店之間內容不同、是實質資訊）則維持原本店名＋
+           └ 明細兩行式，不省略
+
+         - 「未知時間」再修一次：shared/core-utils.js 的 _findTimeText
+           第三層 fallback 誤判「店家代碼」（如 1505-2-0121）為時間值，
+           詳見 core-utils.js Ver.1.0.5 changelog
 
   3.5.0  2026-07-16  細項匯出搬成彙整看板第6分頁＋LINE文字改分組排版
 
@@ -6037,6 +6050,13 @@ function _subColLineText(){
     return ga.staff.localeCompare(gb.staff, 'zh-TW');
   });
 
+  /* 只選 1 個子欄位時，標題那行已經寫明是哪個項目了，如果該筆命中又沒有
+     附加文字（B 群，純有/沒有判斷），每家店底下再重複印一次同樣的項目
+     名稱只是浪費版面，這種情況店名這一行本身就是完整資訊，省略 └ 明細行。
+     多選（要分辨哪家命中哪幾項），或該筆有附加文字（C 群「原因說明」，
+     店與店之間內容不同、是實質資訊），則維持店名＋└ 明細兩行式不省略。 */
+  var singleDefNoText = defs.length === 1;
+
   var lines = ['【'+_subColScopeTitle()+'】細項匯出 ── '+defs.map(function(d){return d.col;}).join('、'), '共 '+matched.length+' 家', DIV];
   order.forEach(function(key){
     var g = groups[key];
@@ -6045,10 +6065,13 @@ function _subColLineText(){
     g.items.forEach(function(m){
       var r = m.r;
       var code = String(r[COL_CODE]||''), name = String(r[COL_NAME]||'—');
+      var hasText = m.matched.some(function(x){ return x.valText; });
       lines.push('  '+name+(code?'('+code+')':''));
-      m.matched.forEach(function(x){
-        lines.push('   └'+x.def.col+(x.valText?'：'+x.valText:''));
-      });
+      if(!singleDefNoText || hasText){
+        m.matched.forEach(function(x){
+          lines.push('   └'+x.def.col+(x.valText?'：'+x.valText:''));
+        });
+      }
     });
   });
   lines.push('');
