@@ -1635,15 +1635,17 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 
       <span class="tb-group-tag">彙整看板</span>
 
-      <button class="tb-act-btn" onclick="openSummaryDialog('staff', function(){ return applyGradeFilter(getCurrentRows()); });closeMobileMenu();">👤 人員</button>
+      <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('staff', function(){ return applyGradeFilter(getCurrentRows()); });closeMobileMenu();">👤 人員</button>
 
-      <button class="tb-act-btn" onclick="openSummaryDialog('office', function(){ return applyGradeFilter(getCurrentRows()); });closeMobileMenu();">🏢 單位</button>
+      <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('office', function(){ return applyGradeFilter(getCurrentRows()); });closeMobileMenu();">🏢 單位</button>
 
-      <button class="tb-act-btn" onclick="openSummaryDialog('store', function(){ return applyGradeFilter(getCurrentRows()); });closeMobileMenu();">🏪 店家</button>
+      <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('store', function(){ return applyGradeFilter(getCurrentRows()); });closeMobileMenu();">🏪 店家</button>
 
-      <button class="tb-act-btn" onclick="openSummaryDialog('photos', function(){ return applyGradeFilter(getCurrentRows()); });closeMobileMenu();">🖼️ 照片牆</button>
+      <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('photos', function(){ return applyGradeFilter(getCurrentRows()); });closeMobileMenu();">🖼️ 照片牆</button>
 
-      <button class="tb-act-btn" onclick="openSummaryDialog('drilldown', function(){ return applyGradeFilter(getCurrentRows()); });closeMobileMenu();">🔍 逐題彙整</button>
+      <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('drilldown', function(){ return applyGradeFilter(getCurrentRows()); });closeMobileMenu();">🔍 逐題彙整</button>
+
+      <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('subcol', function(){ return applyGradeFilter(getCurrentRows()); });closeMobileMenu();">🧩 細項匯出</button>
 
     </div>
 
@@ -1703,21 +1705,25 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 
       <button class="pivot-tab"        onclick="switchPivotTab('drilldown',this)">🔍 逐題彙整</button>
 
+      <button class="pivot-tab"        onclick="switchPivotTab('subcol',this)">🧩 細項匯出</button>
+
     </div>
 
     <div class="pivot-viewport">
 
-      <div class="pivot-slides" id="pivot-slides" style="width:500%;">
+      <div class="pivot-slides" id="pivot-slides" style="width:600%;">
 
-        <div class="pivot-slide" id="pivot-slide-staff"  style="width:calc(100%/5);"></div>
+        <div class="pivot-slide" id="pivot-slide-staff"  style="width:calc(100%/6);"></div>
 
-        <div class="pivot-slide" id="pivot-slide-office" style="width:calc(100%/5);"></div>
+        <div class="pivot-slide" id="pivot-slide-office" style="width:calc(100%/6);"></div>
 
-        <div class="pivot-slide" id="pivot-slide-store"  style="width:calc(100%/5);"></div>
+        <div class="pivot-slide" id="pivot-slide-store"  style="width:calc(100%/6);"></div>
 
-        <div class="pivot-slide" id="pivot-slide-photos" style="width:calc(100%/5);"></div>
+        <div class="pivot-slide" id="pivot-slide-photos" style="width:calc(100%/6);"></div>
 
-        <div class="pivot-slide" id="pivot-slide-drilldown" style="width:calc(100%/5);"></div>
+        <div class="pivot-slide" id="pivot-slide-drilldown" style="width:calc(100%/6);"></div>
+
+        <div class="pivot-slide" id="pivot-slide-subcol" style="width:calc(100%/6);"></div>
 
       </div>
 
@@ -1915,7 +1921,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 
         <button class="dlg-action-btn" id="btn-screenshot"   onclick="takeScreenshot()"><span class="btn-icon">📸</span><span class="btn-txt"> 截圖</span></button>
 
-        <button class="dlg-action-btn" id="btn-subcol-export" onclick="toggleSubColPanel()"><span class="btn-icon">🧩</span><span class="btn-txt"> 細項匯出</span></button>
+        <button class="dlg-action-btn" id="btn-subcol-export" onclick="_jumpToSubcolExport()" title="前往彙整看板「細項匯出」分頁（範圍為目前整體彙整範圍，非僅本明細）"><span class="btn-icon">🧩</span><span class="btn-txt"> 細項匯出</span></button>
 
         <button class="dlg-close"                            onclick="closeDialog()">✕</button>
 
@@ -1924,8 +1930,6 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     </div>
 
     <div class="dlg-filter-row" id="dlg-filter-row"></div>
-
-    <div class="dlg-subcol-panel" id="dlg-subcol-panel" style="display:none"></div>
 
     <div class="dlg-body" id="dlg-body"></div>
 
@@ -2473,7 +2477,7 @@ function _warmQuestionnaireCache(){
 
       _renderPivotSlide('store'); _renderPivotSlide('photos');
 
-      _renderPivotSlide('drilldown');
+      _renderPivotSlide('drilldown'); _renderPivotSlide('subcol');
 
     }
 
@@ -4800,9 +4804,9 @@ function buildStoreTable(rows, levelKey, ridPrefix, compact){
 
 var _pivotMode = 'staff';
 
-var _pivotTabIndex = { staff:0, office:1, store:2, photos:3, drilldown:4 };
+var _pivotTabIndex = { staff:0, office:1, store:2, photos:3, drilldown:4, subcol:5 };
 
-var PIVOT_TITLES = { staff:'人員視角', office:'單位視角', store:'店家視角', photos:'照片牆', drilldown:'逐題彙整' };
+var PIVOT_TITLES = { staff:'人員視角', office:'單位視角', store:'店家視角', photos:'照片牆', drilldown:'逐題彙整', subcol:'細項匯出' };
 
 
 
@@ -4823,6 +4827,8 @@ function _renderPivotSlide(mode){
   else if(mode === 'photos') el.innerHTML = _buildPhotoWall(rows);
 
   else if(mode === 'drilldown') el.innerHTML = _buildDrilldownTab(rows);
+
+  else if(mode === 'subcol') el.innerHTML = _buildSubColPanel();
 
 }
 
@@ -5488,15 +5494,6 @@ function openDialog(displayName, levelKey, rows){
 
   _dialogTitle=displayName; _dialogRows=rows; _dialogLevel=levelKey;
 
-  /* 每次為新範圍開啟 dialog，細項匯出的勾選狀態歸零並收合面板，
-     避免使用者誤以為上次選的欄位還套用在這次的範圍上 */
-
-  _subColSel = {};
-
-  var _scp = document.getElementById('dlg-subcol-panel');
-
-  if(_scp){ _scp.style.display='none'; _scp.innerHTML=''; }
-
   buildDlgFilterRow();
 
   refreshDialogContent();
@@ -5864,18 +5861,27 @@ function downloadCsv(){
 
 
 
-/* ══════════════ 店家明細 Dialog ─ 🧩 細項匯出 ══════════════
-   Ver.3.4.0 新增。跟上面「篩選」chips（只能整組 b:i／c:j 開關，控制
-   明細表格＋主要 LINE/CSV 要顯示哪些列）是分開、互不影響的兩件事：
-   這裡是一份「額外、獨立」的匯出，讓使用者可以跨 B/C 桶任意勾選
-   1～N 個子欄位（不限單一整組──使用者原話「1/N群或1/N欄位」），
-   立刻看到目前 dialog 範圍內符合的店家與內容，並可另外複製成 LINE
-   文字或下載成獨立 CSV。刻意不去更動 rowBGroup/rowCGroup／chips 這
-   一整套判斷邏輯——那一套牽動店卡、tooltip、彙整看板等其他畫面，
-   改動範圍太大；這裡的勾選只影響「細項匯出」自己的計算與輸出，
-   不會反過來改變明細表格或既有 LINE/CSV 的內容。 */
+/* ══════════════ 彙整看板 ─ 🧩 細項匯出分頁 ══════════════
+   Ver.3.4.0 新增、Ver.3.5.0 由「店家明細 dialog 的浮動面板」搬到「彙整看板」
+   自己的第 6 個常駐分頁（原因：跟逐題彙整同屬「鎖定 1～N 個欄位，看所有
+   店家怎麼填」的操作，放在同一個 dialog 心智模型一致；也不再擠壓店家明細
+   工具列）。搬過來後範圍改用彙整看板當下的 _pivotRows（跟其他分頁、逐題
+   彙整分頁一致），不再侷限於「先鑽到某一層才能匯出」。
+   跟上面「篩選」chips（只能整組 b:i／c:j 開關，控制彙整卡片／明細表格要
+   顯示哪些列）是分開、互不影響的兩件事：這裡是一份「額外、獨立」的匯出，
+   讓使用者可以跨 B/C 桶任意勾選 1～N 個子欄位（不限單一整組──使用者原話
+   「1/N群或1/N欄位」），立刻看到目前範圍內符合的店家與內容，並可另外複製
+   成 LINE 文字或下載成獨立 CSV。刻意不去更動 rowBGroup/rowCGroup／chips
+   這一整套判斷邏輯——那一套牽動店卡、tooltip、彙整看板其他分頁等畫面，
+   改動範圍太大；這裡的勾選只影響「細項匯出」自己的計算與輸出，不會反過來
+   改變彙整卡片或既有 LINE/CSV 的內容。
+   店家明細 dialog 裡保留一顆 🧩 捷徑按鈕（_jumpToSubcolExport），點了直接
+   關閉明細、開啟彙整看板並跳到本分頁；不在明細 dialog 裡另外做一份。 */
 
-var _subColSel = {}; /* key: gtype(b/c)+':'+群組索引+':'+欄名 → true 表示已勾選 */
+var _subColSel = {}; /* key: gtype(b/c)+':'+群組索引+':'+欄名 → true 表示已勾選。
+                         每次從工具列／捷徑按鈕重新開啟彙整看板時歸零（各開啟
+                         入口自行在 openSummaryDialog 前設回 {}），分頁內部切換
+                         不影響它，選取狀態才不會无端消失。 */
 
 /* 掃描目前 BUCKETS_B／BUCKETS_C（isSum() 加總型不計算 C 群，跟其他地方一致）
    展開成一份扁平的「子欄位」清單，每個欄位不論所屬群組欄數是 1 還是多欄
@@ -5893,16 +5899,26 @@ function _allSubColDefs(){
 
 function _subColKey(d){ return d.gtype+':'+d.gi+':'+d.col; }
 
-function toggleSubColPanel(){
-  var panel = document.getElementById('dlg-subcol-panel');
-  if(!panel) return;
-  var show = panel.style.display === 'none';
-  panel.style.display = show ? 'block' : 'none';
-  if(show) panel.innerHTML = _buildSubColPanel();
+/* 店家明細 dialog 的 🧩 按鈕：關掉明細、改開彙整看板並直接跳到細項匯出分頁。
+   範圍固定使用「目前整體彙整範圍」（跟工具列其他彙整看板按鈕一致），
+   而不是這次明細 dialog 本身的 chips 篩選範圍。 */
+function _jumpToSubcolExport(){
+  closeDialog();
+  _subColSel = {};
+  openSummaryDialog('subcol', function(){ return applyGradeFilter(getCurrentRows()); });
+}
+
+/* 目前彙整看板標題（沿用 #sum-title，由 shared/pivot-dialog.js 在開啟／
+   切換範圍時填入），用來當作 LINE 文字抬頭與 CSV 檔名，讓使用者清楚
+   這份細項匯出對應的是哪個範圍 */
+function _subColScopeTitle(){
+  var el = document.getElementById('sum-title');
+  return (el && el.textContent.trim()) || PROJ_NAME || '彙整看板';
 }
 
 function _buildSubColPanel(){
   var defs = _allSubColDefs();
+  var scopeTitle = _subColScopeTitle();
   if(!defs.length) return '<div style="padding:10px 12px;font-size:12px;color:var(--sub);">目前沒有可選的子欄位</div>';
   var byGroup = {}, order = [];
   defs.forEach(function(d){
@@ -5911,7 +5927,8 @@ function _buildSubColPanel(){
     byGroup[gk].items.push(d);
   });
   var html = '<div style="padding:10px 12px;font-size:12px;">';
-  html += '<div style="font-weight:700;margin-bottom:6px;">🧩 細項匯出 ── 勾選想匯出的子欄位（可跨群組、可只選其中幾個）</div>';
+  html += '<div style="font-weight:700;margin-bottom:2px;">🧩 細項匯出 ── 勾選想匯出的子欄位（可跨群組、可只選其中幾個）</div>';
+  html += '<div style="color:var(--sub);margin-bottom:8px;">範圍：'+esc(scopeTitle)+'（跟目前彙整看板其他分頁相同範圍）</div>';
   order.forEach(function(gk){
     var grp = byGroup[gk];
     var allChecked = grp.items.every(function(d){ return !!_subColSel[_subColKey(d)]; });
@@ -5942,21 +5959,22 @@ function _subColToggleGroup(gk, checked){
     var key = _subColKey(d);
     if(checked) _subColSel[key] = true; else delete _subColSel[key];
   });
-  var panel = document.getElementById('dlg-subcol-panel');
-  if(panel) panel.innerHTML = _buildSubColPanel();
+  var slide = document.getElementById('pivot-slide-subcol');
+  if(slide) slide.innerHTML = _buildSubColPanel();
 }
 
 function _subColSelectedDefs(){
   return _allSubColDefs().filter(function(d){ return _subColSel[_subColKey(d)]; });
 }
 
-/* 沿用目前 dialog 既有的 chips 篩選範圍（dialogRows(_dialogRows,_dialogLevel)），
-   在這個範圍內再找出「至少命中一個已勾選子欄位」的店家。未填寫（grp===3）
-   本來就沒有子欄位內容可看，直接跳過。 */
+/* 範圍改用彙整看板當下的 _pivotRows（跟其他分頁一致），在這個範圍內
+   再找出「至少命中一個已勾選子欄位」的店家。未填寫（grp===3）本來就
+   沒有子欄位內容可看，直接跳過。levelKey 傳 'area' 只影響排序時的
+   結果集合來源，dialogRows 本身排序邏輯不受 levelKey 影響。 */
 function _subColMatchedRows(){
   var defs = _subColSelectedDefs();
   if(!defs.length) return [];
-  var items = dialogRows(_dialogRows, _dialogLevel);
+  var items = dialogRows(_pivotRows || [], 'area');
   var out = [];
   items.forEach(function(it){
     if(it.grp===3) return;
@@ -5983,7 +6001,7 @@ function _subColLineText(){
   var DIV = '─────────────────';
   var defs = _subColSelectedDefs();
   var matched = _subColMatchedRows();
-  var lines = ['【'+_dialogTitle+'】細項匯出 ── '+defs.map(function(d){return d.col;}).join('、'), '共 '+matched.length+' 家', DIV, ''];
+  var lines = ['【'+_subColScopeTitle()+'】細項匯出 ── '+defs.map(function(d){return d.col;}).join('、'), '共 '+matched.length+' 家', DIV, ''];
   matched.forEach(function(m){
     var r = m.r;
     var code=String(r[COL_CODE]||''), name=String(r[COL_NAME]||'—'), staff=String(r[COL_STAFF]||'');
@@ -6025,7 +6043,7 @@ function _subColCsvContent(){
 function _subColCsvDownload(btn){
   if(!_subColSelectedDefs().length){ _flashBtn(btn,'⚠️ 請先勾選欄位'); return; }
   if(!_subColMatchedRows().length){ _flashBtn(btn,'⚠️ 無符合店家'); return; }
-  _triggerCsvDownload(_subColCsvContent(), _dialogTitle+'_細項匯出');
+  _triggerCsvDownload(_subColCsvContent(), _subColScopeTitle()+'_細項匯出');
   _flashBtn(btn,'✅ 已下載');
 }
 
