@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   audit_board.html  ─  稽核型看版（處理層版）
-  版本：Ver. 2.9.9 ｜ 最後更新：2026-07-16
+  版本：Ver. 3.0.0 ｜ 最後更新：2026-07-16
 
   🤖 給後續 AI 模組看的導讀（放最上面，優先讀這段；下面才是完整版本紀錄）
 ════════════════════════════════════════════════════════════
@@ -202,6 +202,38 @@
   Dialog：逐列明細，含通路別、店家型態、店家等級、分類、子分類
 
 【版本紀錄】
+  3.0.0  2026-07-16  三板（audit/contract/coverage）彙整看板按鈕/分頁一致性
+                      補齊（比照 coverage_board.html 六項：人員/單位/店家/
+                      照片牆/逐題彙整/細項匯出；audit 額外保留自己既有的
+                      「📋 督導/分類」分頁，這是本板特有維度，不受影響）：
+                      A) 「🖼️ 照片牆」原本是主工具列獨立按鈕，開的是另一個
+                      獨立 #photo-dialog，跟 contract/coverage 兩板（照片牆
+                      本來就是彙整看板 pivot 分頁之一）不一致。改成併入
+                      彙整看板第 5 個分頁，新增 _buildPhotoWallTab() 包一層
+                      跟逐題彙整同款的「先回傳 loading 版面＋非同步用
+                      outerHTML 換掉」寫法，讓既有 _buildPhotoGallery() 能
+                      塞進 _renderPivotSlide 的呼叫慣例。原本的
+                      #photo-dialog／openPhotoGalleryDialog／
+                      closePhotoGalleryDialog 已移除／改為安全相容 stub，
+                      避免殘留呼叫（例如 Escape 鍵監聽器）噴
+                      ReferenceError。
+                      B) 主工具列補上原本缺的「🔍 逐題彙整」按鈕（Dialog
+                      內分頁本來就有，但主畫面按不到）。
+                      C) 新增第 7 個分頁「🧩 細項匯出」。跟 coverage/
+                      contract 不同的是，audit 每筆紀錄只有單一一組
+                      分類(COL_SUPTYPE)／子分類(COL_QUESTTYPE)，不是「一列
+                      店家、勾選哪幾個品項欄位有值」，所以改成：依分類
+                      分組，組內選項＝目前彙整範圍內實際出現過的子分類值
+                      （動態掃 _pivotRows 收集，不是整份資料的全域清單），
+                      使用者可跨分類勾選 1～N 個子分類，列出命中的查核
+                      紀錄，可複製 LINE 文字或下載獨立 CSV。
+                      D) 主工具列六個按鈕（含新增的兩個）統一在開啟彙整
+                      看板前重置 _subColSel={}，避免上次勾選的細項殘留到
+                      下一次開啟（跟 coverage/contract 的慣例一致）。
+                      E) audit 的「detail-dialog」是所→人／人→所巢狀樹狀
+                      鑽層檢視，架構跟 contract/coverage 的「單一店家明細
+                      卡片」不同，沒有對應的位置可以放「🧩 細項匯出」跳轉
+                      捷徑按鈕，本次刻意不加，僅在彙整看板本身補齊。
   2.9.9  2026-07-16  A) 修正 _fetchSourceSheet 問卷表頭解析：headers=0 抓資料
                       時，「月份」這類底下多為日期值的欄位，整欄會被 gviz
                       判成 date/datetime 型別，導致表頭純文字被回傳 v:null、
@@ -497,19 +529,19 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .tt-val { font-size:12px; font-weight:700; color:var(--text); white-space:nowrap; }
 
 /* ── Dialog ── */
-#detail-dialog, #summary-dialog, #photo-dialog {
+#detail-dialog, #summary-dialog {
   position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:500;
   display:flex; align-items:center; justify-content:center;
   opacity:0; transition:opacity .2s;
 }
-#detail-dialog.open, #summary-dialog.open, #photo-dialog.open { opacity:1; }
+#detail-dialog.open, #summary-dialog.open { opacity:1; }
 .dlg-box {
   background:#fff; border-radius:14px; width:min(92vw,1200px); height:88vh;
   display:flex; flex-direction:column; overflow:hidden;
   box-shadow:0 20px 80px rgba(0,0,0,.35);
   transform:translateY(16px); transition:transform .22s;
 }
-#detail-dialog.open .dlg-box, #photo-dialog.open .dlg-box { transform:translateY(0); }
+#detail-dialog.open .dlg-box, #summary-dialog.open .dlg-box { transform:translateY(0); }
 .dlg-header {
   padding:14px 20px; border-bottom:1px solid rgba(0,0,0,.09);
   display:flex; align-items:center; justify-content:space-between;
@@ -980,11 +1012,13 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   <select class="proj-sel" id="proj-sel" style="display:none" onchange="switchProject(this.value)"></select>
   <span class="sync-note" id="tb-sync"></span>
   <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-    <button class="tb-act-btn" onclick="openSummaryDialog('staff', function(){ return getCurrentRows(); })">👤 人員</button>
-    <button class="tb-act-btn" onclick="openSummaryDialog('office', function(){ return getCurrentRows(); })">🏢 單位</button>
-    <button class="tb-act-btn" onclick="openSummaryDialog('suptype', function(){ return getCurrentRows(); })">📋 督導</button>
-    <button class="tb-act-btn" onclick="openSummaryDialog('store', function(){ return getCurrentRows(); })">🏪 店家</button>
-    <button class="tb-act-btn" onclick="openPhotoGalleryDialog()">🖼️ 照片牆</button>
+    <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('staff', function(){ return getCurrentRows(); })">👤 人員</button>
+    <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('office', function(){ return getCurrentRows(); })">🏢 單位</button>
+    <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('suptype', function(){ return getCurrentRows(); })">📋 督導</button>
+    <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('store', function(){ return getCurrentRows(); })">🏪 店家</button>
+    <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('photos', function(){ return getCurrentRows(); })">🖼️ 照片牆</button>
+    <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('drilldown', function(){ return getCurrentRows(); })">🔍 逐題彙整</button>
+    <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('subcol', function(){ return getCurrentRows(); })">🧩 細項匯出</button>
     <button class="tb-act-btn" id="tb-btn-line" onclick="toolbarShareLine()">📋 LINE</button>
     <button class="tb-act-btn" id="tb-btn-csv" onclick="toolbarDownloadCsv()">📥 CSV</button>
     <button class="tb-act-btn" id="tb-btn-screenshot" onclick="toolbarScreenshot()">📸 截圖</button>
@@ -1009,16 +1043,20 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
       <button class="pivot-tab"        onclick="switchPivotTab('office',this)">🏢 單位</button>
       <button class="pivot-tab"        onclick="switchPivotTab('suptype',this)">📋 分類</button>
       <button class="pivot-tab"        onclick="switchPivotTab('store',this)">🏪 店家</button>
+      <button class="pivot-tab"        onclick="switchPivotTab('photos',this)">🖼️ 照片牆</button>
       <button class="pivot-tab"        onclick="switchPivotTab('drilldown',this)">🔍 逐題彙整</button>
+      <button class="pivot-tab"        onclick="switchPivotTab('subcol',this)">🧩 細項匯出</button>
     </div>
     <!-- 滑動容器 -->
     <div class="pivot-viewport">
-      <div class="pivot-slides" id="pivot-slides" style="width:500%;">
-        <div class="pivot-slide" id="pivot-slide-staff"  style="width:calc(100%/5);"></div>
-        <div class="pivot-slide" id="pivot-slide-office" style="width:calc(100%/5);"></div>
-        <div class="pivot-slide" id="pivot-slide-suptype" style="width:calc(100%/5);"></div>
-        <div class="pivot-slide" id="pivot-slide-store" style="width:calc(100%/5);"></div>
-        <div class="pivot-slide" id="pivot-slide-drilldown" style="width:calc(100%/5);"></div>
+      <div class="pivot-slides" id="pivot-slides" style="width:700%;">
+        <div class="pivot-slide" id="pivot-slide-staff"  style="width:calc(100%/7);"></div>
+        <div class="pivot-slide" id="pivot-slide-office" style="width:calc(100%/7);"></div>
+        <div class="pivot-slide" id="pivot-slide-suptype" style="width:calc(100%/7);"></div>
+        <div class="pivot-slide" id="pivot-slide-store" style="width:calc(100%/7);"></div>
+        <div class="pivot-slide" id="pivot-slide-photos" style="width:calc(100%/7);"></div>
+        <div class="pivot-slide" id="pivot-slide-drilldown" style="width:calc(100%/7);"></div>
+        <div class="pivot-slide" id="pivot-slide-subcol" style="width:calc(100%/7);"></div>
       </div>
     </div>
   </div>
@@ -1045,19 +1083,6 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <div class="pivot-viewport">
       <div id="dlg-pivot-content" style="height:100%;overflow:auto;"></div>
     </div>
-  </div>
-</div>
-
-<!-- 照片牆 Dialog：圖片選項型視角——哪間店、在哪份問卷的哪個大題／哪個選項底下放了什麼照片 -->
-<div id="photo-dialog" style="display:none" onclick="if(event.target===this)closePhotoGalleryDialog()">
-  <div class="dlg-box">
-    <div class="dlg-header">
-      <span id="photo-dlg-title" style="font-size:14px;font-weight:900;flex:1;min-width:0;">🖼️ 照片牆</span>
-      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-        <button class="dlg-close" onclick="closePhotoGalleryDialog()">✕</button>
-      </div>
-    </div>
-    <div id="photo-dlg-content" style="height:100%;overflow:auto;"></div>
   </div>
 </div>
 
@@ -2448,20 +2473,15 @@ function _buildDrilldownTab(rows){
   return '<div id="'+containerId+'" class="photo-gallery-loading">⏳ 掃描問卷內容中，分頁數量較多時可能要等幾秒…</div>';
 }
 
+/* 【1.0.0→照片牆併入彙整看板】原本這裡開一個獨立的 #photo-dialog，
+   跟 contract/coverage 都不一致（那兩板的照片牆本來就是彙整看板裡的
+   pivot 分頁）。現在統一改成 openSummaryDialog('photos', ...)，這兩支
+   函式保留成安全的相容 stub，避免舊書籤／殘留呼叫噴 ReferenceError。 */
 function openPhotoGalleryDialog(){
-  var dlg = document.getElementById('photo-dialog');
-  document.getElementById('photo-dlg-content').innerHTML = '<div class="photo-gallery-loading">⏳ 掃描問卷照片中，分頁數量較多時可能要等幾秒…</div>';
-  dlg.style.display='flex';
-  setTimeout(function(){ dlg.classList.add('open'); },10);
-  _buildPhotoGallery(getCurrentRows(), function(html){
-    document.getElementById('photo-dlg-content').innerHTML = html;
-  });
+  _subColSel = {};
+  openSummaryDialog('photos', function(){ return getCurrentRows(); });
 }
-function closePhotoGalleryDialog(){
-  var dlg = document.getElementById('photo-dialog');
-  dlg.classList.remove('open');
-  setTimeout(function(){ dlg.style.display='none'; },220);
-}
+function closePhotoGalleryDialog(){ /* #photo-dialog 已移除，這裡不需要做任何事 */ }
 /* _rid() → shared/core-utils.js（原本 substring(0,20)，共用層是 24，只會讓 id 更不易重複，不影響行為） */
 function escAttr(s){ return String(s).replace(/'/g,"\\'"); }
 
@@ -2881,8 +2901,8 @@ function toolbarScreenshot(){
 var _pivotMode      = 'staff';   /* staff | office | suptype | store */
 var _pivotRows      = null;      /* 目前 pivot 使用的資料集（null = allRows） */
 var _pivotSortState = {};        /* { mode: { col, dir } } */
-var _pivotTabIndex  = { staff:0, office:1, suptype:2, store:3, drilldown:4 };
-var PIVOT_TITLES = { staff:'人員 × 分類', office:'單位 × 分類', suptype:'分類 × 子分類', store:'店家明細', drilldown:'逐題彙整' };
+var _pivotTabIndex  = { staff:0, office:1, suptype:2, store:3, photos:4, drilldown:5, subcol:6 };
+var PIVOT_TITLES = { staff:'人員 × 分類', office:'單位 × 分類', suptype:'分類 × 子分類', store:'店家明細', photos:'照片牆', drilldown:'逐題彙整', subcol:'細項匯出' };
 
 /* openSummaryDialog／closeSummaryDialog／switchPivotTab／_setPivotSlide 這幾支
    切頁機械動作都在 shared/pivot-dialog.js，這裡只留設定資料，
@@ -2897,7 +2917,201 @@ function _renderPivotSlide(mode){
   else if(mode==='office') el.innerHTML = _buildOfficePivot(rows);
   else if(mode==='suptype') el.innerHTML = _buildSuptypePivot(rows);
   else if(mode==='store') el.innerHTML = _buildStorePivot(rows);
+  else if(mode==='photos') el.innerHTML = _buildPhotoWallTab(rows);
   else if(mode==='drilldown') el.innerHTML = _buildDrilldownTab(rows);
+  else if(mode==='subcol') el.innerHTML = _buildSubColPanel();
+}
+
+/* 照片牆併入彙整看板第 4 個常駐分頁（原本是主工具列獨立按鈕開另一個
+   #photo-dialog，跟其他板不一致——比照 audit/contract/coverage 三板一致性
+   整理，改成 pivot 分頁）。_buildPhotoGallery(rows, callback) 本身是非同步
+   （要逐一回溯來源分頁），這裡包一層跟 _buildDrilldownTab 一樣的
+   「先回傳帶 containerId 的 loading 版面，抓完後用 outerHTML 換掉」寫法，
+   讓它能塞進同一套 _renderPivotSlide 的呼叫慣例。 */
+function _buildPhotoWallTab(rows){
+  var containerId = 'qd-photowall-' + Date.now();
+  _buildPhotoGallery(rows, function(html){
+    var el = document.getElementById(containerId);
+    if(!el) return; /* 使用者已經切走分頁或關閉 dialog */
+    el.outerHTML = html;
+  });
+  return '<div id="'+containerId+'" class="photo-gallery-loading">⏳ 掃描問卷照片中，分頁數量較多時可能要等幾秒…</div>';
+}
+
+/* ══════════════ 彙整看板 ─ 🧩 細項匯出分頁 ══════════════
+   比照 coverage_board.html 3.5.0／contract_board.html 1.0.4 的「細項匯出」
+   搬過來，但 audit 的資料模型跟另外兩板不一樣：coverage/contract 是「一列
+   店家、勾選哪幾個品項欄位有值」，audit 則是「一列一筆查核紀錄，各自只有
+   單一一組 分類(COL_SUPTYPE) ／ 子分類(COL_QUESTTYPE)」，比較像分類底下
+   動態長出來的選項，不是固定欄位清單。所以這裡的「子欄位」改成：依 分類
+   分組，組內選項＝目前範圍內實際出現過的 子分類 值（跟 ROSTER_GROUPS／
+   calcAudit 的分組邏輯呼應，但這裡改成掃 _pivotRows 動態收集，確保跟目前
+   彙整範圍一致，不是整份資料的全域清單）。使用者跨分類勾選 1～N 個
+   子分類，列出「命中任一勾選子分類」的查核紀錄，可複製 LINE 或下載 CSV。
+   同一個「分類」底下理論上不會有重複的「子分類」字串各代表不同意思，
+   但保險起見 key 仍用 gtype:gi:col（gi=分類在本次範圍內首次出現的序號）
+   組成，不直接用子分類文字本身當 key，避免不同分類剛好用了同名子分類時
+   互相打架。 */
+var _subColSel = {}; /* key: 'sup:'+分類序號+':'+子分類 → true。每次從工具列
+                         重新開啟彙整看板前會設回 {}，分頁內部切換不影響它 */
+function _allSubColDefs(){
+  var rows = _pivotRows || [];
+  var groupOrder = [], seenPair = {}, defs = [];
+  rows.forEach(function(r){
+    var supType = String(r[COL_SUPTYPE]||'').trim();
+    var questType = String(r[COL_QUESTTYPE]||'').trim();
+    if(!supType || !questType) return;
+    var pairKey = supType + '\u0001' + questType;
+    if(seenPair[pairKey]) return;
+    seenPair[pairKey] = true;
+    var gi = groupOrder.indexOf(supType);
+    if(gi===-1){ gi = groupOrder.length; groupOrder.push(supType); }
+    defs.push({ gtype:'sup', gi:gi, label:supType, col:questType });
+  });
+  defs.sort(function(a,b){ return a.gi - b.gi; });
+  return defs;
+}
+function _subColKey(d){ return d.gtype+':'+d.gi+':'+d.col; }
+function _subColScopeTitle(){
+  var el = document.getElementById('sum-title');
+  return (el && el.textContent.trim()) || PROJ_NAME || '彙整看板';
+}
+function _buildSubColPanel(){
+  var defs = _allSubColDefs();
+  var scopeTitle = _subColScopeTitle();
+  if(!defs.length) return '<div style="padding:10px 12px;font-size:12px;color:var(--sub);">目前範圍內沒有偵測到「分類／子分類」都有值的紀錄</div>';
+  var byGroup = {}, order = [];
+  defs.forEach(function(d){
+    var gk = d.gtype+':'+d.gi;
+    if(!byGroup[gk]){ byGroup[gk] = { label:d.label, items:[] }; order.push(gk); }
+    byGroup[gk].items.push(d);
+  });
+  var html = '<div style="padding:10px 12px;font-size:12px;">';
+  html += '<div style="font-weight:700;margin-bottom:2px;">🧩 細項匯出 ── 依分類勾選想匯出的子分類（可跨分類、可只選其中幾個）</div>';
+  html += '<div style="color:var(--sub);margin-bottom:8px;">範圍：'+esc(scopeTitle)+'（跟目前彙整看板其他分頁相同範圍）</div>';
+  order.forEach(function(gk){
+    var grp = byGroup[gk];
+    var allChecked = grp.items.every(function(d){ return !!_subColSel[_subColKey(d)]; });
+    html += '<div style="margin:6px 0 4px;">';
+    html += '<label style="font-weight:600;cursor:pointer;"><input type="checkbox" '+(allChecked?'checked':'')+' onclick="_subColToggleGroup(\''+esc(gk)+'\',this.checked)"> 📋 '+esc(grp.label)+'（整組）</label>';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 0 18px;">';
+    grp.items.forEach(function(d){
+      var key = _subColKey(d);
+      html += '<label style="cursor:pointer;"><input type="checkbox" onclick="_subColToggle(\''+esc(key)+'\',this.checked)" '+(_subColSel[key]?'checked':'')+'> '+esc(d.col)+'</label>';
+    });
+    html += '</div></div>';
+  });
+  html += '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">'
+    + '<button class="dlg-action-btn" onclick="_subColLineCopy(this)"><span class="btn-icon">💬</span><span class="btn-txt"> 複製LINE文字</span></button>'
+    + '<button class="dlg-action-btn" onclick="_subColCsvDownload(this)"><span class="btn-icon">📥</span><span class="btn-txt"> 下載CSV</span></button>'
+    + '<span id="subcol-match-count" style="color:var(--sub);"></span>'
+    + '</div></div>';
+  return html;
+}
+function _subColToggle(key, checked){
+  if(checked) _subColSel[key] = true; else delete _subColSel[key];
+  _subColUpdateCount();
+}
+function _subColToggleGroup(gk, checked){
+  _allSubColDefs().filter(function(d){ return (d.gtype+':'+d.gi)===gk; }).forEach(function(d){
+    var key = _subColKey(d);
+    if(checked) _subColSel[key] = true; else delete _subColSel[key];
+  });
+  var slide = document.getElementById('pivot-slide-subcol');
+  if(slide) slide.innerHTML = _buildSubColPanel();
+}
+function _subColSelectedDefs(){
+  return _allSubColDefs().filter(function(d){ return _subColSel[_subColKey(d)]; });
+}
+/* 命中定義：該筆紀錄的 分類/子分類 剛好等於某個已勾選的 def（同一筆紀錄
+   只有單一一組分類/子分類，最多命中 1 個 def，不像 coverage/contract
+   一列可能同時命中好幾個品項欄位）。沒有 coverage C 桶那種附加文字，
+   valText 一律留空。 */
+function _subColMatchedRows(){
+  var defs = _subColSelectedDefs();
+  if(!defs.length) return [];
+  var rows = _pivotRows || [];
+  var out = [];
+  rows.forEach(function(r){
+    var supType = String(r[COL_SUPTYPE]||'').trim();
+    var questType = String(r[COL_QUESTTYPE]||'').trim();
+    var hit = defs.filter(function(d){ return d.label===supType && d.col===questType; });
+    if(hit.length) out.push({ r:r, matched: hit.map(function(d){ return { def:d, valText:'' }; }) });
+  });
+  return out;
+}
+function _subColUpdateCount(){
+  var el = document.getElementById('subcol-match-count');
+  if(!el) return;
+  var n = _subColSelectedDefs().length;
+  var m = n ? _subColMatchedRows().length : 0;
+  el.textContent = n ? ('已選 '+n+' 個子分類，符合 '+m+' 筆紀錄') : '尚未勾選任何子分類';
+}
+/* LINE 分享文字：依「單位 → 人員」分組，跟 coverage/contract 的細項匯出排版一致 */
+function _subColLineText(){
+  var DIV = '─────────────────';
+  var defs = _subColSelectedDefs();
+  var matched = _subColMatchedRows();
+  var groups = {}, order = [];
+  matched.forEach(function(m){
+    var office = String(m.r[COL_OFFICE]||'—'), staff = String(m.r[COL_STAFF]||'—');
+    var key = office+'\u0001'+staff;
+    if(!groups[key]){ groups[key] = { office:office, staff:staff, items:[] }; order.push(key); }
+    groups[key].items.push(m);
+  });
+  order.sort(function(ka, kb){
+    var ga = groups[ka], gb = groups[kb];
+    if(ga.office !== gb.office) return ga.office.localeCompare(gb.office, 'zh-TW');
+    return ga.staff.localeCompare(gb.staff, 'zh-TW');
+  });
+  var singleDefNoText = defs.length === 1;
+  var lines = ['【'+_subColScopeTitle()+'】細項匯出 ── '+defs.map(function(d){return d.col;}).join('、'), '共 '+matched.length+' 筆', DIV];
+  order.forEach(function(key){
+    var g = groups[key];
+    lines.push('');
+    lines.push('▌ '+g.office+'．'+g.staff+'（共 '+g.items.length+' 筆）');
+    g.items.forEach(function(m){
+      var r = m.r;
+      var code = String(r[COL_CODE]||''), name = String(r[COL_NAME]||'—');
+      var hasText = m.matched.some(function(x){ return x.valText; });
+      lines.push('  '+name+(code?'('+code+')':''));
+      if(!singleDefNoText || hasText){
+        m.matched.forEach(function(x){
+          lines.push('   └'+x.def.col+(x.valText?'：'+x.valText:''));
+        });
+      }
+    });
+  });
+  lines.push('');
+  lines.push('📅 '+new Date().toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}));
+  return lines.join('\n');
+}
+function _subColLineCopy(btn){
+  if(!_subColSelectedDefs().length){ _flashBtn(btn,'⚠️ 請先勾選欄位'); return; }
+  if(!_subColMatchedRows().length){ _flashBtn(btn,'⚠️ 無符合紀錄'); return; }
+  _doCopy(_subColLineText(), btn);
+}
+function _subColCsvContent(){
+  var defs = _subColSelectedDefs();
+  var matched = _subColMatchedRows();
+  var headers = ['營業處','營業所/課','執行人員','店家代碼','店家名稱'].concat(defs.map(function(d){return d.col;}));
+  var rows=[headers];
+  matched.forEach(function(m){
+    var r=m.r;
+    var row=[String(r[COL_AREA]||''),String(r[COL_OFFICE]||''),String(r[COL_STAFF]||''),String(r[COL_CODE]||''),String(r[COL_NAME]||'')];
+    defs.forEach(function(d){
+      var hit = m.matched.filter(function(x){return _subColKey(x.def)===_subColKey(d);})[0];
+      row.push(hit ? (hit.valText||1) : 0);
+    });
+    rows.push(row);
+  });
+  return '\uFEFF'+rows.map(function(rw){return rw.map(function(c){var s=String(c);return /[,"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}).join(',');}).join('\n');
+}
+function _subColCsvDownload(btn){
+  if(!_subColSelectedDefs().length){ _flashBtn(btn,'⚠️ 請先勾選欄位'); return; }
+  if(!_subColMatchedRows().length){ _flashBtn(btn,'⚠️ 無符合紀錄'); return; }
+  _triggerCsvDownload(_subColCsvContent(), _subColScopeTitle()+'_細項匯出');
+  _flashBtn(btn,'✅ 已下載');
 }
 
 /* ════ [1] 人員 維度 ════
@@ -3819,16 +4033,22 @@ function _storeDetailScreenshot(rid, btn){
    不用像之前一樣為圖示按鈕另外寫一整套函式。 */
 function dialogScreenshot(){
   var btn = document.getElementById('btn-dlg-screenshot');
-  var el = document.querySelector('#detail-dialog .dlg-box');
+  /* 原本截 .dlg-box：真正會捲動的內容在裡面的 #dlg-pivot-content
+     （.dlg-box 是 overflow:hidden 固定框，scrollHeight 量不到被捲動出去、
+     畫面看不到的內容），表格一長截圖就被腰斬。改成直接截
+     #dlg-pivot-content，它的 scrollHeight 才是完整內容高度。 */
+  var el = document.getElementById('dlg-pivot-content');
   if(!el){ _flashBtn(btn,'⚠️ 無畫面'); return; }
   _captureElement(el, btn, _dialogTitle+'_明細', {loadingHtml:'<span>⏳</span>'});
 }
 
 function summaryScreenshot(){
   var btn = document.getElementById('btn-sum-screenshot');
-  var el = document.querySelector('#summary-dialog .dlg-box');
+  /* 同一種毛病：.dlg-box 截不到 .pivot-slide 捲動出去的部分，改截「目前分頁」
+     的 .pivot-slide 本身（跟 coverage_board.html 的作法對齊）。 */
+  var el = document.getElementById('pivot-slide-' + window._pivotMode);
   if(!el){ _flashBtn(btn,'⚠️ 無畫面'); return; }
-  _captureElement(el, btn, PROJ_NAME+'_彙整', {loadingHtml:'<span>⏳</span>'});
+  _captureElement(el, btn, PROJ_NAME+'_彙整_'+((PIVOT_TITLES||{})[window._pivotMode]||''), {loadingHtml:'<span>⏳</span>'});
 }
 
 
