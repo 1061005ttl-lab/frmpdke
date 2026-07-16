@@ -4,7 +4,7 @@
 
   coverage_board.html  ─  覆蓋率型看板
 
-  版本：Ver. 3.3.0 ｜ 最後更新：2026-07-08
+  版本：Ver. 3.4.0 ｜ 最後更新：2026-07-16
 
 ════════════════════════════════════════════════════════════
 
@@ -47,6 +47,23 @@
 
 
 【版本紀錄】
+
+  3.4.0  2026-07-16  店家明細新增「執行人員」欄＋排序＋細項匯出
+
+         - 店家明細表格／CSV：不分層級，一律在「店碼」正前方固定顯示
+           「執行人員」欄（原本只有部分層級的組織視角會顯示，且欄位
+           標籤是「主要訪員」，容易被忽略）；同時把 COL_STAFF 從
+           getDisplayCols／CSV extraCols 移除，避免重複兩欄
+
+         - 店家明細排序新增「執行人員」層：狀態 → 執行人員姓名 →
+           最新拜訪時間 → 店名（原本只有狀態→時間→店名），同一人員
+           的店家會盡量排在一起，方便長官集中看單一人員的執行狀況；
+           LINE 匯出的店家行也一併帶出執行人員
+
+         - 新增「🧩 細項匯出」：店家明細 dialog 工具列新按鈕，可跨
+           B/C 桶勾選任意 1～N 個子欄位（不限單一整組），即時看到符合
+           家數，並可另外複製成 LINE 文字或下載成獨立 CSV──跟既有的
+           整組 chips 篩選＋主要 LINE/CSV 匯出是分開、互不影響的兩件事
 
   3.3.0  2026-07-08  修正上一版誤刪、營業處排序bug、逐題彙整補時間
 
@@ -1898,6 +1915,8 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 
         <button class="dlg-action-btn" id="btn-screenshot"   onclick="takeScreenshot()"><span class="btn-icon">📸</span><span class="btn-txt"> 截圖</span></button>
 
+        <button class="dlg-action-btn" id="btn-subcol-export" onclick="toggleSubColPanel()"><span class="btn-icon">🧩</span><span class="btn-txt"> 細項匯出</span></button>
+
         <button class="dlg-close"                            onclick="closeDialog()">✕</button>
 
       </div>
@@ -1905,6 +1924,8 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     </div>
 
     <div class="dlg-filter-row" id="dlg-filter-row"></div>
+
+    <div class="dlg-subcol-panel" id="dlg-subcol-panel" style="display:none"></div>
 
     <div class="dlg-body" id="dlg-body"></div>
 
@@ -4390,15 +4411,21 @@ function dialogRows(rows, levelKey) {
 
   });
 
-  /* 排序：同狀態分組內一律依「最新拜訪時間」新到舊排序（長官想看的是最新動態，
-
-     不是店名字母順序）。問卷資料尚未載入完成時 _latestVisitTimeKey 一律回傳空字串，
-
-     此時退回店名排序；資料載入後 _warmQuestionnaireCache 會觸發重新渲染套用正確排序。 */
+  /* 排序：狀態分組 → 執行人員姓名 → 最新拜訪時間新到舊 → 店名。
+     Ver.3.4.0 新增「執行人員」這一層（放在狀態之後、時間之前），讓使用者
+     想集中看單一人員的執行狀況時，同一人員的店家會盡量排在一起，而不是
+     被全體時間排序打散——同一人員底下仍保留原本「依最新拜訪時間新到舊」
+     的排序習慣，只是排序範圍縮小到該人員自己的店家。
+     問卷資料尚未載入完成時 _latestVisitTimeKey 一律回傳空字串，此時退回
+     店名排序；資料載入後 _warmQuestionnaireCache 會觸發重新渲染套用正確排序。 */
 
   result.sort(function(a, b) {
 
     if (a.grp !== b.grp) return a.grp - b.grp;
+
+    var sa = String(a.r[COL_STAFF]||''), sb = String(b.r[COL_STAFF]||'');
+
+    if (sa !== sb) return sa.localeCompare(sb, 'zh-TW');
 
     var ta = _latestVisitTimeKey(String(a.r[COL_CODE]||''));
 
@@ -4484,13 +4511,16 @@ function getExtraCols(levelKey) {
 
 function getDisplayCols(levelKey) {
 
-  /* 用於 buildStoreTable 顯示欄（COL_TYPE 另行獨立渲染，不在此列） */
+  /* 用於 buildStoreTable 顯示欄（COL_TYPE 另行獨立渲染，不在此列）。
+     COL_STAFF（執行人員）也不在此列——Ver.3.4.0 起改成不分層級、
+     一律固定顯示在「店碼」正前方（見 buildStoreTable），不要在這裡
+     的 case 加回 COL_STAFF，否則該層級會重複出現兩欄執行人員。 */
 
   switch (levelKey) {
 
-    case 'area':      return [COL_OFFICE, COL_STAFF];
+    case 'area':      return [COL_OFFICE];
 
-    case 'office':    return [COL_STAFF];
+    case 'office':    return [];
 
     case 'ch-area':   return [COL_OFFICE];
 
@@ -4498,11 +4528,11 @@ function getDisplayCols(levelKey) {
 
     case 'type':      return [COL_AREA];
 
-    case 'grade':     return [COL_AREA, COL_OFFICE, COL_STAFF];
+    case 'grade':     return [COL_AREA, COL_OFFICE];
 
-    case 'gr-area':   return [COL_OFFICE, COL_STAFF];
+    case 'gr-area':   return [COL_OFFICE];
 
-    case 'gr-office': return [COL_STAFF];
+    case 'gr-office': return [];
 
     case 'gr-staff':  return [];
 
@@ -4532,7 +4562,7 @@ function buildStoreTable(rows, levelKey, ridPrefix, compact){
 
   extraCols.forEach(function(c){ html+='<th class="th-left">'+(colLabels[c]||c)+'</th>'; });
 
-  html+='<th class="th-left">店碼</th><th class="th-left">店名</th>';
+  html+='<th class="th-left">執行人員</th><th class="th-left">店碼</th><th class="th-left">店名</th>';
 
   if(showType) html+='<th class="th-left">店家型態</th>';
 
@@ -4566,7 +4596,7 @@ function buildStoreTable(rows, levelKey, ridPrefix, compact){
 
   /* 計算總欄數，供展開列 colspan 使用 */
 
-  var totalCols = extraCols.length + 2 /* 店碼/店名 */ + (showType?1:0) + 1 /* 狀態 */;
+  var totalCols = extraCols.length + 1 /* 執行人員 */ + 2 /* 店碼/店名 */ + (showType?1:0) + 1 /* 狀態 */;
 
   BUCKETS_B.forEach(function(g){ totalCols += compact ? 1 : g.cols.length; });
 
@@ -4597,6 +4627,8 @@ function buildStoreTable(rows, levelKey, ridPrefix, compact){
       html += '<td class="td-org">' + esc(String(r[c]||'—')) + '</td>';
 
     });
+
+    html += '<td class="td-org">' + esc(String(r[COL_STAFF]||'—')) + '</td>';
 
     html += '<td class="td-code">' + esc(code||'—') + '</td>';
 
@@ -5456,6 +5488,15 @@ function openDialog(displayName, levelKey, rows){
 
   _dialogTitle=displayName; _dialogRows=rows; _dialogLevel=levelKey;
 
+  /* 每次為新範圍開啟 dialog，細項匯出的勾選狀態歸零並收合面板，
+     避免使用者誤以為上次選的欄位還套用在這次的範圍上 */
+
+  _subColSel = {};
+
+  var _scp = document.getElementById('dlg-subcol-panel');
+
+  if(_scp){ _scp.style.display='none'; _scp.innerHTML=''; }
+
   buildDlgFilterRow();
 
   refreshDialogContent();
@@ -5528,7 +5569,7 @@ function buildLineText(dRows, lv, title, simple) {
 
   function gh(r){return gcol?String(r[gcol]||''):null;}
 
-  function ss(r){var c=String(r[COL_CODE]||''),n=String(r[COL_NAME]||'—');return n+(c?' ('+c+')' : '');}
+  function ss(r){var c=String(r[COL_CODE]||''),n=String(r[COL_NAME]||'—'),st=String(r[COL_STAFF]||'');return n+(c?' ('+c+')' : '')+(st?' ｜'+st:'');}
 
 
 
@@ -5764,7 +5805,12 @@ function buildCsvContent(dRows, lv) {
 
   var allD = dialogRows(dRows, lv);
 
-  var extraCols = getExtraCols(lv);
+  /* COL_STAFF 已經改成固定獨立一欄「執行人員」（見下方 headers），
+     這裡從 getExtraCols 結果濾掉，避免部門視角（area/office/grade...）
+     重複出現兩欄一樣的人員資料。getExtraCols() 本身保持不動，
+     buildLineText 的 gcol（分組 banner 用）仍需要原始的第一欄。 */
+
+  var extraCols = getExtraCols(lv).filter(function(c){ return c !== COL_STAFF; });
 
   var dynCols = [];
 
@@ -5772,7 +5818,7 @@ function buildCsvContent(dRows, lv) {
 
   BUCKETS_C.forEach(function(g){if(g.cols.length===1)dynCols.push(g.label);else g.cols.forEach(function(t){dynCols.push(t);});});
 
-  var headers = extraCols.map(function(c){return COL_LABELS[c]||c;}).concat(['店碼','店名','狀態']).concat(dynCols);
+  var headers = extraCols.map(function(c){return COL_LABELS[c]||c;}).concat(['執行人員','店碼','店名','狀態']).concat(dynCols);
 
   var rows=[headers];
 
@@ -5782,7 +5828,7 @@ function buildCsvContent(dRows, lv) {
 
     extraCols.forEach(function(c){row.push(String(r[c]||''));});
 
-    row.push(String(r[COL_CODE]||''));row.push(String(r[COL_NAME]||''));
+    row.push(String(r[COL_STAFF]||''));row.push(String(r[COL_CODE]||''));row.push(String(r[COL_NAME]||''));
 
     row.push(d.grp===3?UNFILL_LABEL:d.grp===0?'已有':d.grp===1?'未有':'—');
 
@@ -5814,6 +5860,173 @@ function downloadCsv(){
 
   _flashBtn(btn,'✅ 已下載');
 
+}
+
+
+
+/* ══════════════ 店家明細 Dialog ─ 🧩 細項匯出 ══════════════
+   Ver.3.4.0 新增。跟上面「篩選」chips（只能整組 b:i／c:j 開關，控制
+   明細表格＋主要 LINE/CSV 要顯示哪些列）是分開、互不影響的兩件事：
+   這裡是一份「額外、獨立」的匯出，讓使用者可以跨 B/C 桶任意勾選
+   1～N 個子欄位（不限單一整組──使用者原話「1/N群或1/N欄位」），
+   立刻看到目前 dialog 範圍內符合的店家與內容，並可另外複製成 LINE
+   文字或下載成獨立 CSV。刻意不去更動 rowBGroup/rowCGroup／chips 這
+   一整套判斷邏輯——那一套牽動店卡、tooltip、彙整看板等其他畫面，
+   改動範圍太大；這裡的勾選只影響「細項匯出」自己的計算與輸出，
+   不會反過來改變明細表格或既有 LINE/CSV 的內容。 */
+
+var _subColSel = {}; /* key: gtype(b/c)+':'+群組索引+':'+欄名 → true 表示已勾選 */
+
+/* 掃描目前 BUCKETS_B／BUCKETS_C（isSum() 加總型不計算 C 群，跟其他地方一致）
+   展開成一份扁平的「子欄位」清單，每個欄位不論所屬群組欄數是 1 還是多欄
+   都算一筆，才能真正做到使用者要的「1/N欄位」細粒度勾選 */
+function _allSubColDefs(){
+  var defs = [];
+  BUCKETS_B.forEach(function(g, gi){
+    (g.cols||[]).forEach(function(c){ if(c) defs.push({gtype:'b', gi:gi, label:g.label, col:c}); });
+  });
+  if(!isSum()) BUCKETS_C.forEach(function(g, gi){
+    (g.cols||[]).forEach(function(c){ if(c) defs.push({gtype:'c', gi:gi, label:g.label, col:c}); });
+  });
+  return defs;
+}
+
+function _subColKey(d){ return d.gtype+':'+d.gi+':'+d.col; }
+
+function toggleSubColPanel(){
+  var panel = document.getElementById('dlg-subcol-panel');
+  if(!panel) return;
+  var show = panel.style.display === 'none';
+  panel.style.display = show ? 'block' : 'none';
+  if(show) panel.innerHTML = _buildSubColPanel();
+}
+
+function _buildSubColPanel(){
+  var defs = _allSubColDefs();
+  if(!defs.length) return '<div style="padding:10px 12px;font-size:12px;color:var(--sub);">目前沒有可選的子欄位</div>';
+  var byGroup = {}, order = [];
+  defs.forEach(function(d){
+    var gk = d.gtype+':'+d.gi;
+    if(!byGroup[gk]){ byGroup[gk] = { label:d.label, items:[] }; order.push(gk); }
+    byGroup[gk].items.push(d);
+  });
+  var html = '<div style="padding:10px 12px;font-size:12px;">';
+  html += '<div style="font-weight:700;margin-bottom:6px;">🧩 細項匯出 ── 勾選想匯出的子欄位（可跨群組、可只選其中幾個）</div>';
+  order.forEach(function(gk){
+    var grp = byGroup[gk];
+    var allChecked = grp.items.every(function(d){ return !!_subColSel[_subColKey(d)]; });
+    html += '<div style="margin:6px 0 4px;">';
+    html += '<label style="font-weight:600;cursor:pointer;"><input type="checkbox" '+(allChecked?'checked':'')+' onclick="_subColToggleGroup(\''+esc(gk)+'\',this.checked)"> '+esc(grp.label)+'（整組）</label>';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 0 18px;">';
+    grp.items.forEach(function(d){
+      var key = _subColKey(d);
+      html += '<label style="cursor:pointer;"><input type="checkbox" onclick="_subColToggle(\''+esc(key)+'\',this.checked)" '+(_subColSel[key]?'checked':'')+'> '+esc(d.col)+'</label>';
+    });
+    html += '</div></div>';
+  });
+  html += '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">'
+    + '<button class="dlg-action-btn" onclick="_subColLineCopy(this)"><span class="btn-icon">💬</span><span class="btn-txt"> 複製LINE文字</span></button>'
+    + '<button class="dlg-action-btn" onclick="_subColCsvDownload(this)"><span class="btn-icon">📥</span><span class="btn-txt"> 下載CSV</span></button>'
+    + '<span id="subcol-match-count" style="color:var(--sub);"></span>'
+    + '</div></div>';
+  return html;
+}
+
+function _subColToggle(key, checked){
+  if(checked) _subColSel[key] = true; else delete _subColSel[key];
+  _subColUpdateCount();
+}
+
+function _subColToggleGroup(gk, checked){
+  _allSubColDefs().filter(function(d){ return (d.gtype+':'+d.gi)===gk; }).forEach(function(d){
+    var key = _subColKey(d);
+    if(checked) _subColSel[key] = true; else delete _subColSel[key];
+  });
+  var panel = document.getElementById('dlg-subcol-panel');
+  if(panel) panel.innerHTML = _buildSubColPanel();
+}
+
+function _subColSelectedDefs(){
+  return _allSubColDefs().filter(function(d){ return _subColSel[_subColKey(d)]; });
+}
+
+/* 沿用目前 dialog 既有的 chips 篩選範圍（dialogRows(_dialogRows,_dialogLevel)），
+   在這個範圍內再找出「至少命中一個已勾選子欄位」的店家。未填寫（grp===3）
+   本來就沒有子欄位內容可看，直接跳過。 */
+function _subColMatchedRows(){
+  var defs = _subColSelectedDefs();
+  if(!defs.length) return [];
+  var items = dialogRows(_dialogRows, _dialogLevel);
+  var out = [];
+  items.forEach(function(it){
+    if(it.grp===3) return;
+    var r = it.r, matched = [];
+    defs.forEach(function(d){
+      var v = r[d.col];
+      if(isOne(v)) matched.push({def:d, valText:''});
+      else if(d.gtype==='c' && isCText(v)) matched.push({def:d, valText:String(v)});
+    });
+    if(matched.length) out.push({ r:r, matched:matched });
+  });
+  return out;
+}
+
+function _subColUpdateCount(){
+  var el = document.getElementById('subcol-match-count');
+  if(!el) return;
+  var n = _subColSelectedDefs().length;
+  var m = n ? _subColMatchedRows().length : 0;
+  el.textContent = n ? ('已選 '+n+' 個子欄位，符合 '+m+' 家店') : '尚未勾選任何子欄位';
+}
+
+function _subColLineText(){
+  var DIV = '─────────────────';
+  var defs = _subColSelectedDefs();
+  var matched = _subColMatchedRows();
+  var lines = ['【'+_dialogTitle+'】細項匯出 ── '+defs.map(function(d){return d.col;}).join('、'), '共 '+matched.length+' 家', DIV, ''];
+  matched.forEach(function(m){
+    var r = m.r;
+    var code=String(r[COL_CODE]||''), name=String(r[COL_NAME]||'—'), staff=String(r[COL_STAFF]||'');
+    lines.push('• '+name+(code?' ('+code+')':'')+(staff?' ｜'+staff:''));
+    m.matched.forEach(function(x){
+      lines.push('   └ '+x.def.col+(x.valText?'：'+x.valText:''));
+    });
+  });
+  lines.push('');
+  lines.push('📅 '+new Date().toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}));
+  return lines.join('\n');
+}
+
+function _subColLineCopy(btn){
+  if(!_subColSelectedDefs().length){ _flashBtn(btn,'⚠️ 請先勾選欄位'); return; }
+  if(!_subColMatchedRows().length){ _flashBtn(btn,'⚠️ 無符合店家'); return; }
+  _doCopy(_subColLineText(), btn);
+}
+
+function _subColCsvContent(){
+  var defs = _subColSelectedDefs();
+  var matched = _subColMatchedRows();
+  var headers = ['執行人員','店碼','店名'].concat(defs.map(function(d){return d.col;}));
+  var rows=[headers];
+  matched.forEach(function(m){
+    var r=m.r;
+    var row=[String(r[COL_STAFF]||''),String(r[COL_CODE]||''),String(r[COL_NAME]||'')];
+    defs.forEach(function(d){
+      /* 用 key 比對，不能用物件參照比對——defs 跟 m.matched 裡的 def 分別來自
+         兩次不同的 _allSubColDefs() 呼叫，每次都是新物件，參照永遠不會相等 */
+      var hit = m.matched.filter(function(x){return _subColKey(x.def)===_subColKey(d);})[0];
+      row.push(hit ? (hit.valText||1) : 0);
+    });
+    rows.push(row);
+  });
+  return '\uFEFF'+rows.map(function(rw){return rw.map(function(c){var s=String(c);return /[,"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}).join(',');}).join('\n');
+}
+
+function _subColCsvDownload(btn){
+  if(!_subColSelectedDefs().length){ _flashBtn(btn,'⚠️ 請先勾選欄位'); return; }
+  if(!_subColMatchedRows().length){ _flashBtn(btn,'⚠️ 無符合店家'); return; }
+  _triggerCsvDownload(_subColCsvContent(), _dialogTitle+'_細項匯出');
+  _flashBtn(btn,'✅ 已下載');
 }
 
 
@@ -5947,4 +6160,3 @@ init();
 </body>
 
 </html>
-
