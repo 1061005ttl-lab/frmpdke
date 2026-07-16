@@ -7,7 +7,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   contract_board.html ─ 品項達成型看板
-  版本：Ver. 1.0.0 ｜ 建立：2026-07-05
+  版本：Ver. 1.0.2 ｜ 建立：2026-07-05 ｜ 最後更新：2026-07-16
 
 【這個檔案是什麼】
   單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 直接讀取
@@ -74,6 +74,31 @@
     ITEM_KEYS 常數需要同步改回對照表模式，目前先以全名直接比對。
 
 【版本紀錄】
+  1.0.2  2026-07-16  A) 修正 _fetchSourceSheet 問卷表頭解析：headers=0 抓資料
+                      時，「月份」這類底下多為日期值的欄位，整欄會被 gviz
+                      判成 date/datetime 型別，導致表頭純文字被回傳 v:null、
+                      欄名在解析階段整個漏收（不是值抓錯，是欄名從頭到尾
+                      不存在），跟 audit_board.html／coverage_board.html
+                      踩到的是同一個坑（三份檔案這段邏輯原本逐字複製貼上，
+                      坑也跟著複製了三份）。改成另外多發一支 headers=1
+                      請求，只用 table.cols[i].label 取得欄名（不受欄位
+                      型別推斷影響），資料列仍用 headers=0 讀，不動既有
+                      資料解析邏輯。
+                      B) 「人員」「單位」兩個彙整分頁原本只有彙總數字
+                      （總店數／已查核／未查核／達成率），完全看不到底下
+                      是哪些店家，跟「店家」分頁能逐店查看的深度不一致，
+                      也跟 audit_board／coverage_board 的人員／單位分頁能
+                      展開到店家不一致。_aggBy 改成同時保留每組底下的原始
+                      rows；_renderAggTable 每一列改成可展開（▸），點下去
+                      渲染一張巢狀店家清單 mini-table（新增
+                      _buildContractStoreListEmbed／_toggleAggExpand），
+                      點店家列一樣走本板既有的 closeSummaryDialog()+
+                      openStoreDetail(code) 獨立明細 Dialog，不另外做一套
+                      展示邏輯。連動修正：downloadDialogCsv／
+                      summaryShareLine 原本用 querySelectorAll('tr') 掃描
+                      目前表格，展開後會把巢狀表格自己的列也一併掃進來
+                      造成欄數對不齊，改用 tbl.rows 並排除
+                      .pivot-child-row，只匯出本表格自己的資料列。
   1.0.1  2026-07-08  A) 日期顯示 bug：純日期欄位（gviz 回傳 Date(y,m,d)，
                       沒有時分秒）被 core-utils.js 舊版 parseGvizDate 正規式
                       要求「一定要 6 個數字」擋下來，直接把原始字串
@@ -1070,14 +1095,37 @@ function _aggBy(rows, keyFn){
   var map = {};
   rows.forEach(function(r){
     var k = keyFn(r);
-    if(!map[k]) map[k] = { key:k, stores:0, complete:0, incomplete:0, missingCount:0 };
+    if(!map[k]) map[k] = { key:k, stores:0, complete:0, incomplete:0, missingCount:0, rows:[] };
     map[k].stores++;
+    map[k].rows.push(r);
     if(r._status.isComplete) map[k].complete++; else { map[k].incomplete++; map[k].missingCount += r._status.missing.length; }
   });
   return Object.keys(map).sort().map(function(k){ return map[k]; });
 }
+/* 巢狀店家清單（單一 <tr><td colspan> 包一張 mini-table）：人員／單位彙整表
+   點某一列展開後看到的內容，跟「店家」分頁 _renderStoreTable 是同一份資料、
+   同一種欄位排法，點列一樣走 closeSummaryDialog()+openStoreDetail(code)，
+   不另外做一套展示邏輯——本板店家明細一律走獨立 Dialog（跟 audit_board/
+   coverage_board 用 inline 展開問卷明細的作法不同），這裡延續同一個慣例。 */
+function _buildContractStoreListEmbed(matchRows){
+  var sorted = matchRows.slice().sort(function(a,b){ return String(a.storeName||'').localeCompare(String(b.storeName||''),'zh-TW'); });
+  var html = '<table class="pivot-tbl pivot-nested-tbl"><thead><tr>'
+    + '<th class="th-left">店碼</th><th class="th-left">店名</th><th>已查核/應達成</th><th>達成率</th>'
+    + '</tr></thead><tbody>';
+  sorted.forEach(function(r){
+    var rate = r._status.n ? Math.round(r._status.k/r._status.n*1000)/10 : 0;
+    var safeCode = esc(r.code).replace(/'/g,"\\'");
+    html += '<tr class="pivot-expand-row" onclick="closeSummaryDialog();openStoreDetail(\''+safeCode+'\')">'
+      + '<td class="td-left">'+esc(r.code)+'</td><td class="td-left">'+esc(r.storeName)+'</td>'
+      + '<td>'+r._status.k+'/'+r._status.n+'</td><td>'+rate+'%</td></tr>';
+  });
+  html += '</tbody></table>';
+  return html;
+}
+var _aggExpandRows = {};
 function _renderAggTable(rows, keyFn, keyLabel){
   var agg = _aggBy(rows, keyFn);
+  _aggExpandRows = {};
   var html = '<table class="pivot-tbl"><thead><tr>'
     + '<th class="th-left">'+esc(keyLabel)+'</th><th>總店數</th><th>已查核</th><th>未查核</th><th>達成率</th>'
     + '</tr></thead><tbody>';
@@ -1085,12 +1133,29 @@ function _renderAggTable(rows, keyFn, keyLabel){
   agg.forEach(function(a){
     var rate = a.stores ? Math.round(a.complete/a.stores*1000)/10 : 0;
     totS+=a.stores; totC+=a.complete; totI+=a.incomplete;
-    html += '<tr><td class="td-left">'+esc(a.key)+'</td><td>'+a.stores+'</td><td>'+a.complete+'</td><td>'+a.incomplete+'</td><td>'+rate+'%</td></tr>';
+    var rid = 'agg-'+_rid(keyLabel+'-'+a.key);
+    _aggExpandRows[rid] = a.rows;
+    html += '<tr class="pivot-expand-row" onclick="_toggleAggExpand(\''+rid+'\')">'
+      + '<td class="td-left">▸ '+esc(a.key)+'</td><td>'+a.stores+'</td><td>'+a.complete+'</td><td>'+a.incomplete+'</td><td>'+rate+'%</td></tr>';
+    html += '<tr class="pivot-child-row" id="child-'+rid+'" style="display:none;"><td colspan="5">'
+      + '<div id="body-'+rid+'" style="padding:6px 8px 12px 24px;"></div></td></tr>';
   });
   var totRate = totS ? Math.round(totC/totS*1000)/10 : 0;
   html += '<tr class="sum-footer"><td class="td-left">合計</td><td>'+totS+'</td><td>'+totC+'</td><td>'+totI+'</td><td>'+totRate+'%</td></tr>';
   html += '</tbody></table>';
   return html;
+}
+/* 點一列展開/收合底下的店家清單；內容延遲到第一次展開才渲染
+   （_buildContractStoreListEmbed 需要的 rows 已經在 _renderAggTable 時
+   存進 _aggExpandRows，這裡不用重新查一次）。 */
+function _toggleAggExpand(rid){
+  var row = document.getElementById('child-'+rid);
+  if(!row) return;
+  var isOpen = row.style.display !== 'none';
+  if(isOpen){ row.style.display = 'none'; return; }
+  var body = document.getElementById('body-'+rid);
+  if(body && !body.innerHTML) body.innerHTML = _buildContractStoreListEmbed(_aggExpandRows[rid] || []);
+  row.style.display = 'table-row';
 }
 function _renderMissingTable(rows){
   var missRows = rows.filter(function(r){ return !r._status.isComplete; });
@@ -1139,8 +1204,13 @@ function downloadDialogCsv(){
   var el = document.getElementById('pivot-slide-'+_pivotMode);
   var tbl = el ? el.querySelector('table') : null;
   if(!tbl){ _flashBtn(btn,'⚠️ 無資料'); return; }
-  var csv = Array.from(tbl.querySelectorAll('tr')).map(function(tr){
-    return Array.from(tr.querySelectorAll('th,td')).map(function(td){
+  /* 用 tbl.rows（只含本表格自己的直接列）而不是 querySelectorAll('tr')——
+     人員／單位分頁展開後，儲存格裡會塞進一張巢狀店家清單 mini-table，
+     querySelectorAll('tr') 會連巢狀表格自己的列也一併掃進來，導致匯出
+     欄數對不齊、多出不相干的列。另外排除 pivot-child-row（展開用的巢狀
+     容器列本身），那一列只有一個 colspan 儲存格，不是真正的資料列。 */
+  var csv = Array.from(tbl.rows).filter(function(tr){ return !tr.classList.contains('pivot-child-row'); }).map(function(tr){
+    return Array.from(tr.children).map(function(td){
       var s = td.textContent.trim().replace(/\s+/g,' ');
       return /[,"\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
     }).join(',');
@@ -1156,8 +1226,8 @@ function summaryShareLine(){
   var tbl = el ? el.querySelector('table') : null;
   if(!tbl){ _flashBtn(btn,'⚠️ 無資料'); return; }
   var lines = ['📊 彙整看板 ─ '+PROJ_NAME, '📑 維度：'+(PIVOT_TITLES[_pivotMode]||_pivotMode), ''];
-  Array.from(tbl.querySelectorAll('tr')).forEach(function(tr){
-    var cells = Array.from(tr.querySelectorAll('th,td')).map(function(td){ return td.textContent.trim(); });
+  Array.from(tbl.rows).filter(function(tr){ return !tr.classList.contains('pivot-child-row'); }).forEach(function(tr){
+    var cells = Array.from(tr.children).map(function(td){ return td.textContent.trim(); });
     lines.push(cells.join('　'));
   });
   lines.push('');
@@ -1206,10 +1276,27 @@ function _parseSourceRef(val){
    依 Sheet 實際列號索引，跟 audit_board._fetchSourceSheet 邏輯完全一致 */
 function _fetchSourceSheet(sheetName, callback){
   if(_sourceSheetCache[sheetName]){ callback(_sourceSheetCache[sheetName]); return; }
-  var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+  var dataUrl = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
     '/gviz/tq?tqx=out:json&headers=0&sheet=' + encodeURIComponent(sheetName);
-  fetch(url).then(function(r){ return r.text(); }).then(function(txt){
-    var json = gvizParse(txt);
+  /* 【修正】欄名不能只靠 headers=0 那次請求的第一列（rawRows[0]）去讀：
+     gviz 會依「整欄大多數儲存格內容」推斷該欄型別，「月份」這類欄位底下
+     多為日期值，整欄被判成 date/datetime 型別後，表頭那格的純文字（例如
+     「月份」）無法塞進該型別，gviz 直接回傳 v:null（f 也沒有），導致該欄
+     欄名在解析階段整個漏收——不是值抓錯，是這欄的「欄名」從一開始就沒被
+     收進 baseColNames，跟 coverage_board.html／audit_board.html 踩到的是
+     同一個坑（同一段程式碼複製三份、坑也跟著複製三份，見 shared/core-utils.js
+     1.0.5 版本紀錄的診斷過程）。
+     改成另外多發一支 headers=1 的請求，只用 table.cols[i].label 取得欄名
+     （label 是表頭文字本身，不受欄位型別推斷影響），資料列仍照舊用
+     headers=0 那次請求讀，不更動既有資料解析邏輯。 */
+  var headerUrl = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(sheetName);
+  Promise.all([
+    fetch(dataUrl).then(function(r){ return r.text(); }),
+    fetch(headerUrl).then(function(r){ return r.text(); })
+  ]).then(function(results){
+    var json = gvizParse(results[0]);
+    var headerJson = gvizParse(results[1]);
     var rawRows = (json.table && json.table.rows) || [];
     if(rawRows.length < 1){ callback(null, '分頁「'+sheetName+'」完全沒有資料'); return; }
 
@@ -1222,11 +1309,11 @@ function _fetchSourceSheet(sheetName, callback){
       if(typeof v==='string' && /^Date\(/.test(v)) return f || parseGvizDate(v);
       return (v!==''&&v!==null&&v!==undefined)?v:f;
     }
-    var headerRow = rawRows[0];
-    var colCount = (headerRow.c||[]).length;
+    var headerLabels = ((headerJson.table||{}).cols || []).map(function(c){ return String(c.label||'').trim(); });
+    var colCount = headerLabels.length;
     var baseColNames = [], quizCols = [];
     for(var i=0;i<colCount;i++){
-      var h = String(cellVal(headerRow,i)||'').trim();
+      var h = headerLabels[i] || '';
       if(!h) continue;
       if(h.indexOf('_')!==-1){
         var parts = h.split('_');
@@ -1245,7 +1332,7 @@ function _fetchSourceSheet(sheetName, callback){
       var base = {};
       baseColNames.forEach(function(name){
         var bi=-1;
-        for(var cIdx=0; cIdx<colCount; cIdx++){ if(String(cellVal(headerRow,cIdx)||'').trim()===name){ bi=cIdx; break; } }
+        for(var cIdx=0; cIdx<colCount; cIdx++){ if(headerLabels[cIdx]===name){ bi=cIdx; break; } }
         base[name] = bi!==-1 ? cellVal(row,bi) : '';
       });
       var sections = {}, order = [];

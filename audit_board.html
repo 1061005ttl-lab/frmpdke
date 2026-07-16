@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   audit_board.html  ─  稽核型看版（處理層版）
-  版本：Ver. 2.9.8 ｜ 最後更新：2026-07-14
+  版本：Ver. 2.9.9 ｜ 最後更新：2026-07-16
 
   🤖 給後續 AI 模組看的導讀（放最上面，優先讀這段；下面才是完整版本紀錄）
 ════════════════════════════════════════════════════════════
@@ -202,6 +202,24 @@
   Dialog：逐列明細，含通路別、店家型態、店家等級、分類、子分類
 
 【版本紀錄】
+  2.9.9  2026-07-16  A) 修正 _fetchSourceSheet 問卷表頭解析：headers=0 抓資料
+                      時，「月份」這類底下多為日期值的欄位，整欄會被 gviz
+                      判成 date/datetime 型別，導致表頭純文字被回傳 v:null、
+                      欄名在解析階段整個漏收（不是值抓錯，是欄名從頭到尾
+                      不存在），跟 coverage_board.html 踩到的是同一個坑。
+                      改成另外多發一支 headers=1 請求，只用 table.cols[i].label
+                      取得欄名（不受欄位型別推斷影響），資料列仍用 headers=0
+                      讀，不動既有資料解析邏輯。
+                      B) 「單位」「分類」兩個彙整分頁展開到人員層後就停住，
+                      看不到店家資料（單位：人員子列是靜態彙總數字；分類：
+                      人員名單是純文字），跟「人員」分頁展開到店家、還能點開
+                      問卷明細的深度不一致。新增共用小工具
+                      _buildStoreListEmbed，把人員子列／人員名單都改成可
+                      再展開一層店家清單，複用既有的 _toggleStoreDetail
+                      機制，點下去一樣能看完整問卷明細；新增
+                      _toggleOfficeStaffExpand／_toggleSuptypeStaffExpand
+                      控制這層的開合，並補上收合上層時的連動收合，避免
+                      收合後留下孤兒面板。
   2.9.8  2026-07-14  跨看板命名統一：分頁「店家名冊」正式更名為「處理層」
                       （對照 contract_board 的「處理層」，兩者欄位結構逐欄
                       一致，本來就是同一種「紀錄層」資料，只是舊名沿用
@@ -1156,12 +1174,27 @@ function _fetchSourceSheet(sheetName, callback){
   if(_sourceSheetCache[sheetName]){ callback(_sourceSheetCache[sheetName]); return; }
   /* 用 tq=SELECT * 並指定 range 為整個分頁，強制 gviz 不做任何表頭自動偵測，
      確保回傳的 rows[0] 一定對應 Sheet 可見的第 1 列（現在是單行扁平化標題）。 */
-  var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+  var dataUrl = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
     '/gviz/tq?tqx=out:json&headers=0&sheet=' + encodeURIComponent(sheetName);
-  fetch(url)
-    .then(function(r){ return r.text(); })
-    .then(function(txt){
-      var json = gvizParse(txt);
+  /* 【修正】欄名不能只靠 headers=0 那次請求的第一列（rawRows[0]）去讀：
+     gviz 會依「整欄大多數儲存格內容」推斷該欄型別，「月份」這類欄位底下
+     多為日期值，整欄被判成 date/datetime 型別後，表頭那格的純文字（例如
+     「月份」）無法塞進該型別，gviz 直接回傳 v:null（f 也沒有），導致該欄
+     欄名在解析階段整個漏收——不是值抓錯，是這欄的「欄名」從一開始就沒被
+     收進 baseColNames，跟 coverage_board.html 踩到的是同一個坑（見 shared/
+     core-utils.js 1.0.5 版本紀錄的診斷過程）。
+     改成另外多發一支 headers=1 的請求，只用 table.cols[i].label 取得欄名
+     （label 是表頭文字本身，不受欄位型別推斷影響），資料列仍照舊用
+     headers=0 那次請求讀，不更動既有資料解析邏輯。 */
+  var headerUrl = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(sheetName);
+  Promise.all([
+    fetch(dataUrl).then(function(r){ return r.text(); }),
+    fetch(headerUrl).then(function(r){ return r.text(); })
+  ])
+    .then(function(results){
+      var json = gvizParse(results[0]);
+      var headerJson = gvizParse(results[1]);
       var tbl  = json.table || {};
       var rawRows = tbl.rows || [];
       
@@ -1178,15 +1211,16 @@ function _fetchSourceSheet(sheetName, callback){
         return (v!==''&&v!==null&&v!==undefined)?v:f;
       }
 
-      var headerRow = rawRows[0]; /* 單行標題列（Sheet 第 1 列） */
-      var colCount = (headerRow.c || []).length;
+      var headerRow = rawRows[0]; /* 單行標題列（Sheet 第 1 列，僅用來算 colCount／除錯預覽，欄名一律改用 headerLabels） */
+      var headerLabels = ((headerJson.table||{}).cols || []).map(function(c){ return String(c.label||'').trim(); });
+      var colCount = headerLabels.length || (headerRow.c || []).length;
 
       var baseColNames = [];
       var quizCols = []; /* [{col, section, option}] */
 
       /* 【修改】核心邏輯：掃描單行標題，自動用底線拆分「基本資料」與「問卷題組」 */
       for (var i = 0; i < colCount; i++) {
-        var headerText = String(cellVal(headerRow, i) || '').trim();
+        var headerText = headerLabels[i] || '';
         if (!headerText) continue; // 欄位名稱為空則跳過
 
         if (headerText.indexOf('_') !== -1) {
@@ -1214,7 +1248,7 @@ function _fetchSourceSheet(sheetName, callback){
           // 找出該基本資料欄名在 headerRow 中的真實索引
           var bi = -1;
           for(var cIdx=0; cIdx<colCount; cIdx++){
-            if(String(cellVal(headerRow, cIdx)||'').trim() === name){ bi = cIdx; break; }
+            if(headerLabels[cIdx] === name){ bi = cIdx; break; }
           }
           baseData[name] = bi !== -1 ? cellVal(row, bi) : '';
         });
@@ -3036,8 +3070,53 @@ function _toggleStaffExpand(rid){
   if(isOpen) _collapseNestedStoreDetails(rid);
 }
 
+/* 共用小工具：把「一組來源列」渲染成可展開的「店家清單」mini-table，
+   包在單一個 <tr><td colspan="外層總欄位數"> 裡面，不用跟外層 pivot 表格逐格
+   對齊——單位／分類／店家三個維度的欄位結構完全不一樣，硬要對齊每處都要
+   重算 colspan，改成「獨立內嵌小表格」降低耦合，也讓單位／分類底下展開出來
+   的店家清單，長相跟人員分頁展開出來的完全一致（同一套 _toggleStoreDetail
+   機制，點下去一樣能看完整問卷明細），使用者不會感覺到「同一個系統怎麼展開
+   方式長得不一樣」（這正是這次要解決的問題）。
+   ridPrefix 務必跟其他分頁/其他層級不會撞名（見 _toggleStoreDetail 的
+   rid 命名規則說明，同一顆 __rid 底下的明細面板是用 rid 當 DOM id）。 */
+function _buildStoreListEmbed(matchRows, colSpanTotal, ridPrefix){
+  var supTypes = ROSTER_GROUPS;
+  var storeRows = matchRows.filter(function(r){ return String(r[COL_CODE]||'').trim(); }).slice().sort(function(a,b){
+    var da=String(a[COL_DATE]||''), db=String(b[COL_DATE]||'');
+    if(da!==db) return da>db?-1:1;
+    return String(a[COL_CODE]||'').localeCompare(String(b[COL_CODE]||''),'zh-TW');
+  });
+  if(!storeRows.length){
+    return '<td colspan="'+colSpanTotal+'" style="padding:6px 12px 6px 48px;font-size:12px;color:#2D2D2D;background:rgba(0,0,0,.012);">（無符合資料）</td>';
+  }
+  var inner = '<table class="pivot-tbl" style="width:100%;margin:0;"><tbody>';
+  storeRows.forEach(function(r){
+    var code=String(r[COL_CODE]||'').trim();
+    var dateStr=String(r[COL_DATE]||'').trim();
+    var name=String(r[COL_NAME]||'').trim();
+    var staff=String(r[COL_STAFF]||'').trim();
+    var st=String(r[COL_SUPTYPE]||'').trim();
+    var qt=String(r[COL_QUESTTYPE]||'').trim();
+    var srcRefVal=String(r[COL_SOURCE_REF]||'').trim();
+    var srcRefJs=srcRefVal.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    var leafRid=ridPrefix+'-'+r.__rid;
+    inner+='<tr class="pivot-child-row store-leaf-row visible" style="cursor:pointer;" onclick="_toggleStoreDetail(\''+leafRid+'\',\''+srcRefJs+'\',\''+r.__rid+'\')">'
+      +'<td class="td-left" style="padding-left:12px;width:22px;"><span class="pivot-expand-icon" id="storeico-'+leafRid+'" style="font-size:9px;width:14px;display:inline-block;">▶</span></td>'
+      +'<td class="td-left" style="font-size:12px;font-weight:700;color:#2D2D2D;font-variant-numeric:tabular-nums;white-space:nowrap;">'+(dateStr||'—')+'</td>'
+      +'<td class="td-left" style="font-size:11px;font-weight:600;color:#2D2D2D;white-space:nowrap;">'+esc(code)+'</td>'
+      +'<td class="td-left" style="font-size:13px;font-weight:700;color:#1a1a1a;">'+esc(name||'—')+'</td>'
+      +'<td class="td-left" style="font-size:12px;font-weight:600;color:#1a1a1a;white-space:nowrap;">'+esc(staff||'—')+'</td>'
+      +'<td class="td-total" style="font-size:12px;font-weight:600;color:var(--green);">'+esc(st||'—')+(qt?'　<span style="color:#2D2D2D;font-weight:500;">'+esc(qt)+'</span>':'')+'</td>'
+      +'</tr>';
+    inner+='<tr class="store-detail-row" id="storedetail-'+leafRid+'" data-parent="'+ridPrefix+'" style="display:none;">'
+      +'<td colspan="6" style="padding:0;" id="storedetailbody-'+leafRid+'"></td></tr>';
+  });
+  inner += '</tbody></table>';
+  return '<td colspan="'+colSpanTotal+'" style="padding:2px 0 8px 32px;background:rgba(0,0,0,.012);">'+inner+'</td>';
+}
+
 /* ════ [2] 單位 維度 ════
-   三層：營業處 Banner → 所/課（可展開） → 人員子列
+   三層：營業處 Banner → 所/課（可展開） → 人員子列（可再展開看該人員在此所/課底下的店家清單）
    欄位：所/課 | 分類₁ | … | 合計
 */
 function _buildOfficePivot(rows){
@@ -3144,9 +3223,10 @@ function _buildOfficePivot(rows){
       });
       html+='<td class="td-total">'+_fmtRecStore(o.totalRecs,o.totalStores)+'</td></tr>';
 
-      /* 人員子列（份數＋家數） */
+      /* 人員子列（份數＋家數）——可再點開看該人員在此所/課底下的店家清單，
+         跟「人員」分頁展開出來的層級深度看齊，不要只停在人員名字這層。 */
       o.staffs.forEach(function(name, ni){
-        var sBySt={}, sCodes=new Set(), sRecs=0;
+        var sBySt={}, sCodes=new Set(), sRecs=0, sRows=[];
         supTypes.forEach(function(st){ sBySt[st]={ recs:0 }; });
         rows.forEach(function(r){
           if(String(r[COL_AREA]||'').trim()!==area||String(r[COL_OFFICE]||'').trim()!==o.off||String(r[COL_STAFF]||'').trim()!==name) return;
@@ -3154,15 +3234,23 @@ function _buildOfficePivot(rows){
           if(!code) return;
           sCodes.add(code); sRecs++;
           if(st&&sBySt[st]) sBySt[st].recs++;
+          sRows.push(r);
         });
-        html+='<tr class="pivot-child-row" id="child-'+rid+'-'+ni+'" data-parent="'+rid+'">'
-          +'<td class="td-left" style="padding-left:36px;font-size:13px;font-weight:600;color:#1a1a1a;">'+esc(name)+'</td>'
+        var staffRid = rid+'_st'+ni;
+        html+='<tr class="pivot-child-row pivot-expand-row" id="child-'+rid+'-'+ni+'" data-parent="'+rid+'" data-staff-rid="'+staffRid+'" onclick="_toggleOfficeStaffExpand(\''+staffRid+'\')" style="cursor:pointer;">'
+          +'<td class="td-left" style="padding-left:36px;font-size:13px;font-weight:600;color:#1a1a1a;"><span class="pivot-expand-icon" id="ico-'+staffRid+'" style="font-size:9px;width:14px;display:inline-block;">▶</span>'+esc(name)+'</td>'
           +'<td></td>';
         supTypes.forEach(function(st,si){
           var n=sBySt[st]?sBySt[st].recs:0;
           html+='<td class="td-num td-sup-'+si+'" style="font-size:13px;font-weight:600;">'+(n?n+' 份':'')+'</td>';
         });
         html+='<td class="td-total" style="font-size:13px;">'+_fmtRecStore(sRecs,sCodes.size)+'</td></tr>';
+        /* 店家清單（第三層，預設收合，不掛 data-parent，避免所/課展開時
+           被上層 class 一併打開——只由 _toggleOfficeStaffExpand 用 inline
+           style 單獨控制，跟 store-detail-row 是同一套慣例） */
+        html+='<tr id="storelist-'+staffRid+'" style="display:none;">'
+          +_buildStoreListEmbed(sRows, 2+supTypes.length+1, 'pvoffst-'+staffRid)
+          +'</tr>';
       });
     });
   });
@@ -3186,7 +3274,35 @@ function _toggleOfficeExpand(rid){
   var isOpen=ico&&ico.classList.contains('open');
   if(ico) ico.classList.toggle('open',!isOpen);
   childRows.forEach(function(tr){ tr.classList.toggle('visible',!isOpen); });
-  if(isOpen) _collapseNestedStoreDetails(rid);
+  if(isOpen){
+    /* 收合所/課列時，人員子列底下如果已經展開了店家清單（第三層），
+       一併強制收合——店家清單那層是用 inline style 獨立控制（不掛
+       data-parent，見 _buildOfficePivot 註解），上面這行 childRows 的
+       class toggle 碰不到它，不額外處理就會留下「所/課收起來了，但底下
+       人員的店家清單其實還開著」的孤兒面板。 */
+    childRows.forEach(function(tr){
+      var staffRid = tr.getAttribute('data-staff-rid');
+      if(!staffRid) return;
+      var listRow = document.getElementById('storelist-'+staffRid);
+      var sico = document.getElementById('ico-'+staffRid);
+      if(listRow) listRow.style.display='none';
+      if(sico) sico.classList.remove('open');
+      _collapseNestedStoreDetails('pvoffst-'+staffRid);
+    });
+    _collapseNestedStoreDetails(rid);
+  }
+}
+/* 單位分頁：展開/收合某位人員在此所/課底下的店家清單（第三層），
+   跟 _toggleStoreDetail 收合單筆店家問卷明細是同一套 inline style 慣例，
+   不透過 class，避免被上層 _toggleOfficeExpand 的 class toggle 誤觸發。 */
+function _toggleOfficeStaffExpand(staffRid){
+  var row = document.getElementById('storelist-'+staffRid);
+  var ico = document.getElementById('ico-'+staffRid);
+  if(!row) return;
+  var isOpen = row.style.display !== 'none';
+  row.style.display = isOpen ? 'none' : 'table-row';
+  if(ico) ico.classList.toggle('open', !isOpen);
+  if(isOpen) _collapseNestedStoreDetails('pvoffst-'+staffRid);
 }
 
 /* ════ [4] 店家 維度 ════
@@ -3428,11 +3544,21 @@ function _buildSuptypePivot(rows){
       html+='<td class="td-num" style="font-size:12px;font-weight:600;color:#2D2D2D;">'+q.staffs+'</td>';
       html+='<td class="td-total" style="font-size:12px;">'+_fmtRecStore(q.recs,q.stores)+'</td></tr>';
 
-      /* 人員名單（第三層展開） */
+      /* 人員名單（第三層展開）——可再點開看這位人員在此分類/子分類底下
+         填了哪些店家，不要只列名字、看不到實際店家資料。 */
       q.staffList.forEach(function(name, ni){
-        html+='<tr class="pivot-child-row" id="child-'+qtId+'-'+ni+'" data-parent="'+qtId+'" style="display:none;" data-qt-child="1">';
-        html+='<td colspan="2" class="td-left" style="padding-left:56px;font-size:12px;color:#2D2D2D;">'+esc(name)+'</td>';
-        html+='<td colspan="2" class="td-left" style="font-size:11px;color:#2D2D2D;"></td></tr>';
+        var staffRid = qtId+'_st'+ni;
+        var nameRows = rows.filter(function(r){
+          return String(r[COL_SUPTYPE]||'').trim()===st
+            && (String(r[COL_QUESTTYPE]||'').trim()||'（未分類）')===q.qt
+            && String(r[COL_STAFF]||'').trim()===name;
+        });
+        html+='<tr class="pivot-child-row pivot-expand-row" id="child-'+qtId+'-'+ni+'" data-parent="'+qtId+'" data-staff-rid="'+staffRid+'" style="display:none;cursor:pointer;" data-qt-child="1" onclick="_toggleSuptypeStaffExpand(\''+staffRid+'\')">';
+        html+='<td colspan="2" class="td-left" style="padding-left:56px;font-size:12px;color:#2D2D2D;"><span class="pivot-expand-icon" id="ico-'+staffRid+'" style="font-size:9px;width:14px;display:inline-block;">▶</span>'+esc(name)+'</td>';
+        html+='<td colspan="2" class="td-left" style="font-size:11px;color:#2D2D2D;">'+nameRows.length+' 筆</td></tr>';
+        html+='<tr id="storelist-'+staffRid+'" style="display:none;">'
+          +_buildStoreListEmbed(nameRows, 4, 'pvsupst-'+staffRid)
+          +'</tr>';
       });
     });
   });
@@ -3459,6 +3585,18 @@ function _toggleSuptypeExpand(rid){
   var isOpen=ico&&ico.classList.contains('open');
   if(ico) ico.classList.toggle('open',!isOpen);
   childRows.forEach(function(tr){ tr.classList.toggle('visible',!isOpen); });
+  if(isOpen){
+    /* 收合分類時，底下不管展開到第幾層（子分類→人員→店家清單→問卷明細）
+       都要一併收掉，不然會留下孤兒面板。子分類/人員層的 id 都是「以這個
+       分類的 rid 當前綴」命名（qtId=rid+'_qt'+qi，staffRid=qtId+'_st'+ni），
+       用前綴比對一次全部重置，不用手動逐層追蹤巢狀結構。 */
+    document.querySelectorAll('.pivot-expand-icon[id^="ico-'+rid+'_"]').forEach(function(i){ i.classList.remove('open'); });
+    document.querySelectorAll('[data-parent^="'+rid+'_"]').forEach(function(tr){
+      tr.classList.remove('visible');
+      if(tr.classList.contains('store-detail-row')) tr.style.display='none';
+    });
+    document.querySelectorAll('tr[id^="storelist-'+rid+'_"]').forEach(function(tr){ tr.style.display='none'; });
+  }
 }
 function _toggleStaffList(qtId){
   var ico=document.getElementById('ico-'+qtId);
@@ -3469,6 +3607,30 @@ function _toggleStaffList(qtId){
     tr.classList.toggle('visible',!isOpen);
     tr.style.display=isOpen?'none':'table-row';
   });
+  if(isOpen){
+    /* 收合子分類時，人員名單底下如果已經展開了店家清單（第四層），
+       一併強制收合，同 _toggleOfficeExpand 收合人員店家清單的作法 */
+    childRows.forEach(function(tr){
+      var staffRid = tr.getAttribute('data-staff-rid');
+      if(!staffRid) return;
+      var listRow = document.getElementById('storelist-'+staffRid);
+      var sico = document.getElementById('ico-'+staffRid);
+      if(listRow) listRow.style.display='none';
+      if(sico) sico.classList.remove('open');
+      _collapseNestedStoreDetails('pvsupst-'+staffRid);
+    });
+  }
+}
+/* 分類分頁：展開/收合某位人員在此分類/子分類底下的店家清單（第四層），
+   跟 _toggleOfficeStaffExpand 是同一套 inline style 慣例 */
+function _toggleSuptypeStaffExpand(staffRid){
+  var row = document.getElementById('storelist-'+staffRid);
+  var ico = document.getElementById('ico-'+staffRid);
+  if(!row) return;
+  var isOpen = row.style.display !== 'none';
+  row.style.display = isOpen ? 'none' : 'table-row';
+  if(ico) ico.classList.toggle('open', !isOpen);
+  if(isOpen) _collapseNestedStoreDetails('pvsupst-'+staffRid);
 }
 
 
