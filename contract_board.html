@@ -7,7 +7,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   contract_board.html ─ 品項達成型看板
-  版本：Ver. 1.0.2 ｜ 建立：2026-07-05 ｜ 最後更新：2026-07-16
+  版本：Ver. 1.0.4 ｜ 建立：2026-07-05 ｜ 最後更新：2026-07-16
 
 【這個檔案是什麼】
   單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 直接讀取
@@ -74,6 +74,53 @@
     ITEM_KEYS 常數需要同步改回對照表模式，目前先以全名直接比對。
 
 【版本紀錄】
+  1.0.4  2026-07-16  三板（audit/contract/coverage）彙整看板按鈕/分頁一致性
+                      補齊（比照 coverage_board.html 六項：人員/單位/店家/
+                      照片牆/逐題彙整/細項匯出）：
+                      A) 主工具列補上原本缺的「🔍 逐題彙整」「🧩 細項匯出」
+                      按鈕（Dialog 內分頁本來就有逐題彙整，但主畫面按不到，
+                      要先點別的分頁再切頁籤才看得到）。
+                      B) 新增第 7 個分頁「🧩 細項匯出」（比照 coverage 3.5.0）：
+                      讓使用者跨品項勾選 1～N 個「應達成品項」（ITEM_KEYS：
+                      菸／啤酒／烈酒／系統店），列出目前彙整範圍內「已達成
+                      該品項」的店家，可複製 LINE 文字或下載獨立 CSV。跟既有
+                      「⚠️ 未達成清單」互補（那邊看缺什麼，這裡反過來看誰
+                      已達成特定品項）。contract 品項是固定 4 項、無群組
+                      區分（不像 coverage 有 B/C 兩種桶），故全部歸在同一組
+                      「應達成品項」底下；也沒有 coverage C 桶那種附加文字
+                      說明，valText 一律留空。店家個案明細 Dialog 新增
+                      「🧩 細項匯出」捷徑按鈕（_jumpToSubcolExport），比照
+                      coverage 的作法：關掉明細、開彙整看板並跳到本分頁，
+                      範圍固定用「目前整體彙整範圍」而非單一店家。
+                      主工具列六個既有按鈕統一在開啟彙整看板前重置
+                      _subColSel={}，避免上次勾選的細項殘留到下一次開啟
+                      （跟 coverage 六個工具列按鈕的慣例一致）；返回鍵
+                      （backStoreDetailToSummary）跟店家明細裡的細項匯出
+                      捷徑不受影響，不會意外清空使用者剛選好的勾選狀態。
+  1.0.3  2026-07-16  A) 店家個案明細 Dialog 補上「← 返回」鍵：從彙整看板
+                      （人員/單位/店家分頁）點店家列進去時，原本只能按 ✕
+                      整個關掉再重點一次彙整按鈕，才能回到剛才在看的分頁。
+                      新增 openStoreDetailFromPivot()／
+                      backStoreDetailToSummary()，記下進入前的分頁
+                      （_detailReturnMode），返回鍵一鍵回到同一分頁；直接從
+                      主畫面店家卡片點進來則不顯示返回鍵（沒有上一層可回）。
+                      B) 連帶抓到一個既有 bug：「人員」「單位」兩個彙整分頁
+                      共用同一個 _aggExpandRows 物件，_renderAggTable 每次
+                      渲染都把它整包歸零——開彙整看板時兩個分頁會一次全部
+                      渲染，後渲染的「單位」分頁會把先渲染的「人員」分頁
+                      展開資料整包洗掉，導致「人員」分頁點展開永遠看不到
+                      店家清單。已移除該次清空，兩分頁的 rid 本來就有
+                      keyLabel 前綴不會互相覆蓋。
+                      C) 彙整看板截圖（summaryScreenshot）原本截 .dlg-box，
+                      但真正會捲動的內容在裡面兩層的 .pivot-slide，.dlg-box
+                      是固定 92vh 的 overflow:hidden 框，量不到被捲出畫面
+                      外的內容——店家一多，截圖永遠只有目前可見的那一小段，
+                      底下資料整個消失（實測：40筆人員時，.dlg-box 量到
+                      662px，實際內容 1555px，缺了快2/3）。改成直接截「目前
+                      分頁」那個 .pivot-slide 本身（跟 coverage_board.html
+                      既有作法對齊）。店家個案明細 Dialog 的截圖
+                      （storeDetailScreenshot）原本就是直接截 #dlg-body
+                      本身（真正的捲動元素），沒有這個問題，未改動。
   1.0.2  2026-07-16  A) 修正 _fetchSourceSheet 問卷表頭解析：headers=0 抓資料
                       時，「月份」這類底下多為日期值的欄位，整欄會被 gviz
                       判成 date/datetime 型別，導致表頭純文字被回傳 v:null、
@@ -364,11 +411,13 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   <div class="toolbar-spacer"></div>
   <div class="sync-note" id="tb-sync"></div>
   <div class="toolbar-controls" id="toolbar-controls">
-    <button class="tb-act-btn" onclick="openSummaryDialog('staff', getFilteredStores)">👤 人員</button>
-    <button class="tb-act-btn" onclick="openSummaryDialog('office', getFilteredStores)">🏢 單位</button>
-    <button class="tb-act-btn" onclick="openSummaryDialog('store', getFilteredStores)">🏪 店家</button>
-    <button class="tb-act-btn" onclick="openSummaryDialog('missing', getFilteredStores)">⚠️ 未查核清單</button>
-    <button class="tb-act-btn" onclick="openSummaryDialog('photos', getFilteredStores)">🖼️ 照片牆</button>
+    <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('staff', getFilteredStores)">👤 人員</button>
+    <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('office', getFilteredStores)">🏢 單位</button>
+    <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('store', getFilteredStores)">🏪 店家</button>
+    <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('missing', getFilteredStores)">⚠️ 未查核清單</button>
+    <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('photos', getFilteredStores)">🖼️ 照片牆</button>
+    <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('drilldown', getFilteredStores)">🔍 逐題彙整</button>
+    <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('subcol', getFilteredStores)">🧩 細項匯出</button>
     <button class="tb-act-btn" id="tb-btn-line" onclick="toolbarCopyLine()">📋 LINE</button>
     <button class="tb-act-btn" id="tb-btn-line-brief" onclick="toolbarCopyLineBrief()">✂️ LINE精簡</button>
     <button class="tb-act-btn" id="tb-btn-csv" onclick="toolbarDownloadCsv()">📥 CSV</button>
@@ -419,10 +468,12 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <div class="dlg-header">
       <span id="dlg-title" style="font-size:14px;font-weight:900;flex:1;min-width:0;"></span>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+        <button class="dlg-action-btn" id="btn-dlg-back" style="display:none" onclick="backStoreDetailToSummary()"><span>←</span><span class="btn-txt"> 返回</span></button>
         <button class="dlg-action-btn" id="btn-dlg-line" onclick="storeDetailCopyLine()"><span>💬</span><span class="btn-txt"> LINE</span></button>
         <button class="dlg-action-btn" id="btn-dlg-line-brief" onclick="storeDetailCopyLineBrief()"><span>✂️</span><span class="btn-txt"> 精簡</span></button>
         <button class="dlg-action-btn" id="btn-dlg-csv" onclick="storeDetailDownloadCsv()"><span>📥</span><span class="btn-txt"> CSV</span></button>
         <button class="dlg-action-btn" id="btn-dlg-screenshot" onclick="storeDetailScreenshot()"><span>📸</span><span class="btn-txt"> 截圖</span></button>
+        <button class="dlg-action-btn" id="btn-subcol-export" onclick="_jumpToSubcolExport()" title="前往彙整看板「細項匯出」分頁（範圍為目前整體彙整範圍，非僅本店明細）"><span class="btn-icon">🧩</span><span class="btn-txt"> 細項匯出</span></button>
         <button class="dlg-close" onclick="closeStoreDetail()">✕</button>
       </div>
     </div>
@@ -449,15 +500,17 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
       <div class="pivot-tab" onclick="switchPivotTab('missing',this)">⚠️ 未達成清單</div>
       <div class="pivot-tab" onclick="switchPivotTab('photos',this)">🖼️ 照片牆</div>
       <div class="pivot-tab" onclick="switchPivotTab('drilldown',this)">🔍 逐題彙整</div>
+      <div class="pivot-tab" onclick="switchPivotTab('subcol',this)">🧩 細項匯出</div>
     </div>
     <div class="pivot-viewport">
-      <div class="pivot-slides" id="pivot-slides" style="width:600%;">
-        <div class="pivot-slide" id="pivot-slide-staff"   style="width:calc(100%/6);"></div>
-        <div class="pivot-slide" id="pivot-slide-office"  style="width:calc(100%/6);"></div>
-        <div class="pivot-slide" id="pivot-slide-store"   style="width:calc(100%/6);"></div>
-        <div class="pivot-slide" id="pivot-slide-missing" style="width:calc(100%/6);"></div>
-        <div class="pivot-slide" id="pivot-slide-photos"  style="width:calc(100%/6);"></div>
-        <div class="pivot-slide" id="pivot-slide-drilldown" style="width:calc(100%/6);"></div>
+      <div class="pivot-slides" id="pivot-slides" style="width:700%;">
+        <div class="pivot-slide" id="pivot-slide-staff"   style="width:calc(100%/7);"></div>
+        <div class="pivot-slide" id="pivot-slide-office"  style="width:calc(100%/7);"></div>
+        <div class="pivot-slide" id="pivot-slide-store"   style="width:calc(100%/7);"></div>
+        <div class="pivot-slide" id="pivot-slide-missing" style="width:calc(100%/7);"></div>
+        <div class="pivot-slide" id="pivot-slide-photos"  style="width:calc(100%/7);"></div>
+        <div class="pivot-slide" id="pivot-slide-drilldown" style="width:calc(100%/7);"></div>
+        <div class="pivot-slide" id="pivot-slide-subcol" style="width:calc(100%/7);"></div>
       </div>
     </div>
   </div>
@@ -1088,8 +1141,8 @@ function buildStoreCard(store){
    PIVOT DIALOG（彙整看板）—— 人員／單位／店家／未達成清單／照片牆
    ════════════════════════════════════════════════════════════ */
 var _pivotMode = 'staff';
-var _pivotTabIndex = { staff:0, office:1, store:2, missing:3, photos:4, drilldown:5 };
-var PIVOT_TITLES = { staff:'人員視角', office:'單位視角', store:'店家視角', missing:'未達成清單', photos:'照片牆', drilldown:'逐題彙整' };
+var _pivotTabIndex = { staff:0, office:1, store:2, missing:3, photos:4, drilldown:5, subcol:6 };
+var PIVOT_TITLES = { staff:'人員視角', office:'單位視角', store:'店家視角', missing:'未達成清單', photos:'照片牆', drilldown:'逐題彙整', subcol:'細項匯出' };
 
 function _aggBy(rows, keyFn){
   var map = {};
@@ -1115,7 +1168,7 @@ function _buildContractStoreListEmbed(matchRows){
   sorted.forEach(function(r){
     var rate = r._status.n ? Math.round(r._status.k/r._status.n*1000)/10 : 0;
     var safeCode = esc(r.code).replace(/'/g,"\\'");
-    html += '<tr class="pivot-expand-row" onclick="closeSummaryDialog();openStoreDetail(\''+safeCode+'\')">'
+    html += '<tr class="pivot-expand-row" onclick="openStoreDetailFromPivot(\''+safeCode+'\')">'
       + '<td class="td-left">'+esc(r.code)+'</td><td class="td-left">'+esc(r.storeName)+'</td>'
       + '<td>'+r._status.k+'/'+r._status.n+'</td><td>'+rate+'%</td></tr>';
   });
@@ -1125,7 +1178,11 @@ function _buildContractStoreListEmbed(matchRows){
 var _aggExpandRows = {};
 function _renderAggTable(rows, keyFn, keyLabel){
   var agg = _aggBy(rows, keyFn);
-  _aggExpandRows = {};
+  /* 不在這裡整包清空 _aggExpandRows：openSummaryDialog 一次會把 staff／office
+     兩個分頁都渲染過一輪，如果每次渲染都整包歸零，後渲染的分頁（office）會把
+     先渲染的分頁（staff）填進去的資料整包洗掉——staff 分頁點展開永遠是空的。
+     rid 已經把 keyLabel（業務員／單位）內嵌進去，兩分頁的 key 本來就不會撞，
+     這裡只需要覆寫自己那組 rid，不用清空整個物件。 */
   var html = '<table class="pivot-tbl"><thead><tr>'
     + '<th class="th-left">'+esc(keyLabel)+'</th><th>總店數</th><th>已查核</th><th>未查核</th><th>達成率</th>'
     + '</tr></thead><tbody>';
@@ -1180,7 +1237,7 @@ function _renderStoreTable(rows){
   rows.forEach(function(r){
     var rate = r._status.n ? Math.round(r._status.k/r._status.n*1000)/10 : 0;
     var safeCode = esc(r.code).replace(/'/g,"\\'");
-    html += '<tr class="pivot-expand-row" onclick="closeSummaryDialog();openStoreDetail(\''+safeCode+'\')">'
+    html += '<tr class="pivot-expand-row" onclick="openStoreDetailFromPivot(\''+safeCode+'\')">'
       + '<td class="td-left">'+esc(r.area)+'</td><td class="td-left">'+esc(r.office)+'</td><td class="td-left">'+esc(r.staff)+'</td>'
       + '<td class="td-left">'+esc(r.code)+'</td><td class="td-left">'+esc(r.storeName)+'</td>'
       + '<td>'+r._status.k+'/'+r._status.n+'</td><td>'+rate+'%</td></tr>';
@@ -1198,6 +1255,175 @@ function _renderPivotSlide(mode){
   else if(mode==='missing') el.innerHTML = _renderMissingTable(rows);
   else if(mode==='photos') el.innerHTML = _buildPhotoWall(rows);
   else if(mode==='drilldown') el.innerHTML = _buildDrilldownTab(rows);
+  else if(mode==='subcol') el.innerHTML = _buildSubColPanel();
+}
+
+/* ══════════════ 彙整看板 ─ 🧩 細項匯出分頁 ══════════════
+   比照 coverage_board.html 3.5.0 的「細項匯出」搬過來：讓使用者跨欄位
+   任意勾選 1～N 個「應達成品項」（ITEM_KEYS：菸／啤酒／烈酒／系統店），
+   立刻看到目前彙整範圍內「已達成該品項」的店家清單，可另外複製 LINE
+   文字或下載獨立 CSV。跟既有「⚠️ 未達成清單」分頁是互補關係：那邊看
+   的是缺什麼，這裡讓你反過來、針對某幾個特定品項匯出「誰已經達成」。
+   contract 的品項是固定 4 個、不分群組（不像 coverage 有 B/C 兩種桶），
+   所以這裡全部歸在同一組「應達成品項」底下，供勾選；資料模型也沒有
+   coverage C 桶那種「附加文字說明」，valText 一律留空字串。 */
+var _subColSel = {}; /* key: 'item:0:'+品項名稱 → true 表示已勾選，
+                         每次從工具列重新開啟彙整看板前會設回 {}（見主工具列／
+                         detail dialog 捷徑按鈕的 onclick），分頁內部切換不影響它 */
+function _allSubColDefs(){
+  return ITEM_KEYS.map(function(it){ return { gtype:'item', gi:0, label:'應達成品項', col:it }; });
+}
+function _subColKey(d){ return d.gtype+':'+d.gi+':'+d.col; }
+function _subColScopeTitle(){
+  var el = document.getElementById('sum-title');
+  return (el && el.textContent.trim()) || PROJ_NAME || '彙整看板';
+}
+/* 店家個案明細 Dialog 的 🧩 按鈕：關掉明細、改開彙整看板並直接跳到細項
+   匯出分頁。範圍固定使用「目前整體彙整範圍」（getFilteredStores，跟工具列
+   其他彙整看板按鈕一致），不是這次明細 dialog 單一店家的範圍。 */
+function _jumpToSubcolExport(){
+  closeStoreDetail();
+  _subColSel = {};
+  openSummaryDialog('subcol', getFilteredStores);
+}
+function _buildSubColPanel(){
+  var defs = _allSubColDefs();
+  var scopeTitle = _subColScopeTitle();
+  if(!defs.length) return '<div style="padding:10px 12px;font-size:12px;color:var(--sub);">目前沒有可選的子欄位</div>';
+  var byGroup = {}, order = [];
+  defs.forEach(function(d){
+    var gk = d.gtype+':'+d.gi;
+    if(!byGroup[gk]){ byGroup[gk] = { label:d.label, items:[] }; order.push(gk); }
+    byGroup[gk].items.push(d);
+  });
+  var html = '<div style="padding:10px 12px;font-size:12px;">';
+  html += '<div style="font-weight:700;margin-bottom:2px;">🧩 細項匯出 ── 勾選想匯出的品項（可跨品項、可只選其中幾個），列出「目前範圍內已達成該品項」的店家</div>';
+  html += '<div style="color:var(--sub);margin-bottom:8px;">範圍：'+esc(scopeTitle)+'（跟目前彙整看板其他分頁相同範圍）</div>';
+  order.forEach(function(gk){
+    var grp = byGroup[gk];
+    var allChecked = grp.items.every(function(d){ return !!_subColSel[_subColKey(d)]; });
+    html += '<div style="margin:6px 0 4px;">';
+    html += '<label style="font-weight:600;cursor:pointer;"><input type="checkbox" '+(allChecked?'checked':'')+' onclick="_subColToggleGroup(\''+esc(gk)+'\',this.checked)"> '+esc(grp.label)+'（整組）</label>';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 0 18px;">';
+    grp.items.forEach(function(d){
+      var key = _subColKey(d);
+      html += '<label style="cursor:pointer;"><input type="checkbox" onclick="_subColToggle(\''+esc(key)+'\',this.checked)" '+(_subColSel[key]?'checked':'')+'> '+esc(d.col)+'</label>';
+    });
+    html += '</div></div>';
+  });
+  html += '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">'
+    + '<button class="dlg-action-btn" onclick="_subColLineCopy(this)"><span class="btn-icon">💬</span><span class="btn-txt"> 複製LINE文字</span></button>'
+    + '<button class="dlg-action-btn" onclick="_subColCsvDownload(this)"><span class="btn-icon">📥</span><span class="btn-txt"> 下載CSV</span></button>'
+    + '<span id="subcol-match-count" style="color:var(--sub);"></span>'
+    + '</div></div>';
+  return html;
+}
+function _subColToggle(key, checked){
+  if(checked) _subColSel[key] = true; else delete _subColSel[key];
+  _subColUpdateCount();
+}
+function _subColToggleGroup(gk, checked){
+  _allSubColDefs().filter(function(d){ return (d.gtype+':'+d.gi)===gk; }).forEach(function(d){
+    var key = _subColKey(d);
+    if(checked) _subColSel[key] = true; else delete _subColSel[key];
+  });
+  var slide = document.getElementById('pivot-slide-subcol');
+  if(slide) slide.innerHTML = _buildSubColPanel();
+}
+function _subColSelectedDefs(){
+  return _allSubColDefs().filter(function(d){ return _subColSel[_subColKey(d)]; });
+}
+/* 範圍改用彙整看板當下的 _pivotRows（跟其他分頁一致）。命中定義＝該品項
+   在 r.needed（適用）且在 r._status.collected（已達成）——跟「⚠️ 未達成
+   清單」互補，那邊看 missing，這裡看 collected。 */
+function _subColMatchedRows(){
+  var defs = _subColSelectedDefs();
+  if(!defs.length) return [];
+  var rows = _pivotRows || [];
+  var out = [];
+  rows.forEach(function(r){
+    var matched = [];
+    defs.forEach(function(d){
+      if(r.needed && r.needed.indexOf(d.col)!==-1 && r._status && r._status.collected.indexOf(d.col)!==-1){
+        matched.push({ def:d, valText:'' });
+      }
+    });
+    if(matched.length) out.push({ r:r, matched:matched });
+  });
+  return out;
+}
+function _subColUpdateCount(){
+  var el = document.getElementById('subcol-match-count');
+  if(!el) return;
+  var n = _subColSelectedDefs().length;
+  var m = n ? _subColMatchedRows().length : 0;
+  el.textContent = n ? ('已選 '+n+' 個品項，符合 '+m+' 家店') : '尚未勾選任何品項';
+}
+/* LINE 分享文字：依「單位 → 人員」分組，跟 coverage 的細項匯出排版一致 */
+function _subColLineText(){
+  var DIV = '─────────────────';
+  var defs = _subColSelectedDefs();
+  var matched = _subColMatchedRows();
+  var groups = {}, order = [];
+  matched.forEach(function(m){
+    var office = String(m.r.office||'—'), staff = String(m.r.staff||'—');
+    var key = office+'\u0001'+staff;
+    if(!groups[key]){ groups[key] = { office:office, staff:staff, items:[] }; order.push(key); }
+    groups[key].items.push(m);
+  });
+  order.sort(function(ka, kb){
+    var ga = groups[ka], gb = groups[kb];
+    if(ga.office !== gb.office) return ga.office.localeCompare(gb.office, 'zh-TW');
+    return ga.staff.localeCompare(gb.staff, 'zh-TW');
+  });
+  var singleDefNoText = defs.length === 1;
+  var lines = ['【'+_subColScopeTitle()+'】細項匯出 ── '+defs.map(function(d){return d.col;}).join('、'), '共 '+matched.length+' 家', DIV];
+  order.forEach(function(key){
+    var g = groups[key];
+    lines.push('');
+    lines.push('▌ '+g.office+'．'+g.staff+'（共 '+g.items.length+' 家）');
+    g.items.forEach(function(m){
+      var r = m.r;
+      var code = String(r.code||''), name = String(r.storeName||'—');
+      var hasText = m.matched.some(function(x){ return x.valText; });
+      lines.push('  '+name+(code?'('+code+')':''));
+      if(!singleDefNoText || hasText){
+        m.matched.forEach(function(x){
+          lines.push('   └'+x.def.col+(x.valText?'：'+x.valText:''));
+        });
+      }
+    });
+  });
+  lines.push('');
+  lines.push('📅 '+new Date().toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}));
+  return lines.join('\n');
+}
+function _subColLineCopy(btn){
+  if(!_subColSelectedDefs().length){ _flashBtn(btn,'⚠️ 請先勾選欄位'); return; }
+  if(!_subColMatchedRows().length){ _flashBtn(btn,'⚠️ 無符合店家'); return; }
+  _doCopy(_subColLineText(), btn);
+}
+function _subColCsvContent(){
+  var defs = _subColSelectedDefs();
+  var matched = _subColMatchedRows();
+  var headers = ['營業處','營業所/課','執行人員','店碼','店名'].concat(defs.map(function(d){return d.col;}));
+  var rows=[headers];
+  matched.forEach(function(m){
+    var r=m.r;
+    var row=[String(r.area||''),String(r.office||''),String(r.staff||''),String(r.code||''),String(r.storeName||'')];
+    defs.forEach(function(d){
+      var hit = m.matched.filter(function(x){return _subColKey(x.def)===_subColKey(d);})[0];
+      row.push(hit ? (hit.valText||1) : 0);
+    });
+    rows.push(row);
+  });
+  return '\uFEFF'+rows.map(function(rw){return rw.map(function(c){var s=String(c);return /[,"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}).join(',');}).join('\n');
+}
+function _subColCsvDownload(btn){
+  if(!_subColSelectedDefs().length){ _flashBtn(btn,'⚠️ 請先勾選欄位'); return; }
+  if(!_subColMatchedRows().length){ _flashBtn(btn,'⚠️ 無符合店家'); return; }
+  _triggerCsvDownload(_subColCsvContent(), _subColScopeTitle()+'_細項匯出');
+  _flashBtn(btn,'✅ 已下載');
 }
 function downloadDialogCsv(){
   var btn = document.getElementById('btn-sum-csv');
@@ -1246,9 +1472,16 @@ function summaryShareLineBrief(){
 }
 function summaryScreenshot(){
   var btn = document.getElementById('btn-sum-screenshot');
-  var el = document.querySelector('#summary-dialog .dlg-box');
+  /* 原本截 .dlg-box：.dlg-box 是 92vh 固定高、overflow:hidden，中間隔著
+     .pivot-viewport(overflow:hidden) 才到真正會捲動的 .pivot-slide(overflow:auto)。
+     .dlg-box 本身的 scrollHeight 只會回報它自己那個固定框的高度，不會把
+     .pivot-slide 裡捲動出去、畫面上看不到的內容算進去——店家一多、表格一長，
+     截圖永遠只有畫面可見的那一小段，底下的資料整個消失。改成直接截「目前分頁
+     那個 .pivot-slide」本身，它的 scrollHeight 才是真正的完整內容高度
+     （跟 coverage_board.html 的作法對齊）。 */
+  var el = document.getElementById('pivot-slide-' + window._pivotMode);
   if(!el){ _flashBtn(btn,'⚠️ 無畫面'); return; }
-  _captureElement(el, btn, PROJ_NAME+'_彙整', {loadingHtml:'<span>⏳</span>'});
+  _captureElement(el, btn, PROJ_NAME+'_彙整看板_'+((PIVOT_TITLES||{})[window._pivotMode]||''), {loadingHtml:'<span>⏳</span>'});
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -1508,6 +1741,10 @@ var _detailStore = null;
 var _detailRefs = [];        /* PROCESS_REFS[code]，新到舊排序 */
 var _detailHistoryResults = []; /* 逐筆時間軸內容，跟 _detailRefs 同索引對齊 */
 var _detailItemFilter = 'all';
+/* 從彙整看板（summary-dialog）點店家列進來時，記下當時是哪個分頁（staff/office/store...），
+   讓明細 Dialog 能顯示「← 返回」鍵、一鍵回到同一個分頁，不用強迫使用者按 ✕ 整個關掉
+   再重新點一次。直接從主畫面卡片點進來（不是經彙整看板）時維持 null，不顯示返回鍵。 */
+var _detailReturnMode = null;
 
 /* 某品項最近一次回報的原始日期值（未格式化），找不到回傳 null */
 function _itemLatestRef(item){
@@ -1522,6 +1759,27 @@ function _fmtRefTime(ref){
   return (t && t!==String(ref.dateText)) ? t : (ref.dateText || ref.ym);
 }
 
+/* 彙整看板（人員/單位/店家分頁）點店家列的入口：先記下目前分頁，
+   再關彙整看板、開明細 Dialog——跟直接從主畫面卡片點進來（openStoreDetail
+   直接呼叫，_detailReturnMode 維持 null）區分開，明細 Dialog 才知道
+   該不該顯示「← 返回」鍵。 */
+function openStoreDetailFromPivot(code){
+  _detailReturnMode = window._pivotMode;
+  closeSummaryDialog();
+  openStoreDetail(code);
+}
+/* 明細 Dialog 的「← 返回」：不是整個關掉回主畫面，是回到剛才那個彙整看板分頁。
+   getFilteredStores 跟彙整看板原本開啟時用的 getRowsFn 是同一支，
+   直接重開會拿到同一份資料，分頁也照 _detailReturnMode 定位回去。 */
+function backStoreDetailToSummary(){
+  var mode = _detailReturnMode;
+  if(!mode) { closeStoreDetail(); return; }
+  _detailReturnMode = null;
+  var dlg = document.getElementById('detail-dialog');
+  dlg.classList.remove('open');
+  dlg.style.display = 'none';
+  openSummaryDialog(mode, getFilteredStores);
+}
 function openStoreDetail(code){
   var store = STORE_ROWS.find(function(r){ return r.code===code; });
   if(!store) return;
@@ -1530,6 +1788,8 @@ function openStoreDetail(code){
   _detailRefs = PROCESS_REFS[code] || [];
   _detailHistoryResults = new Array(_detailRefs.length);
   _detailItemFilter = 'all';
+  var backBtn = document.getElementById('btn-dlg-back');
+  if(backBtn) backBtn.style.display = _detailReturnMode ? '' : 'none';
 
   var lastRef = _detailRefs[0] || null;
   document.getElementById('dlg-title').innerHTML =
@@ -1631,6 +1891,7 @@ function _renderDetailHistory(){
   }).join('');
 }
 function closeStoreDetail(){
+  _detailReturnMode = null;
   var dlg = document.getElementById('detail-dialog');
   dlg.classList.remove('open');
   setTimeout(function(){ dlg.style.display='none'; },220);
