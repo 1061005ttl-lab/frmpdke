@@ -1,6 +1,6 @@
 /* ════════════════════════════════════════════════════════════
    photo-viewer.js — 照片縮圖／燈箱／問卷區塊渲染共用工具
-   版本：Ver. 1.3.0 ｜ 建立：2026-07-04
+   版本：Ver. 1.4.0 ｜ 建立：2026-07-04
    依賴：core-utils.js（esc）
    CSS 依賴：dashboard-common.css 裡的
              .raw-quiz-*／.photo-lightbox-*／.photo-gallery-*／.photo-store-*
@@ -30,6 +30,15 @@
    這支檔案完全不管資料從哪來。
 
    【版本紀錄】
+   1.4.0  2026-07-16  _renderPhotoChip 的 ctx 新增選填 category 欄位，
+                       data-lightbox-category 屬性／gallery 項目／燈箱資訊列
+                       比照 store/section 的作法一併支援，資訊列變成
+                       「店名 › 分類 › 大題 › 選項」（缺值一樣直接跳過該段，
+                       不留空的「›」）。搭配 shared/question-drilldown.js 1.4.0
+                       新增的分類分組層，讓逐題彙整裡屬於某個分類的照片，點開
+                       燈箱也能直接看到是哪個分類，不用回頭確認左側選了什麼。
+                       沒有帶 category 的既有呼叫端（照片牆／店家明細等）完全
+                       不受影響，資訊列一樣是「店名 › 大題 › 選項」三段。
    1.3.0  2026-07-09  計數器＋資訊列合併同一排：原本張數計數（「3/12」）在畫面
                        頂部、店名/大題/選項資訊列在畫面底部，使用者要分別看兩處
                        才能拿到完整訊息。改成 _ensurePhotoLightbox 用一個
@@ -112,6 +121,7 @@ function _renderPhotoChip(optionName, url, note, ctx){
   var noteHtml = (noteText && !isJustMark) ? '<span class="raw-quiz-photo-note">📝 '+esc(noteText)+'</span>' : '';
   var ctxStore = ctx && ctx.store ? String(ctx.store) : '';
   var ctxSection = ctx && ctx.section ? String(ctx.section) : '';
+  var ctxCategory = ctx && ctx.category ? String(ctx.category) : '';
   /* data-lightbox-url／data-lightbox-alt：燈箱要做「左右鍵/熱區切換上一張下一張」，
      開燈箱當下才動態去掃同一個容器內所有縮圖組成清單（見 _openPhotoLightboxFromImg），
      所以每張縮圖把自己的大圖網址／說明文字存在 data 屬性上，不要只塞進 onclick
@@ -121,6 +131,7 @@ function _renderPhotoChip(optionName, url, note, ctx){
     +   '<img id="'+uid+'" class="raw-quiz-photo-img" src="'+esc(url)+'" alt="'+esc(optionName)+'" '
     +   'data-lightbox-url="'+esc(bigUrl)+'" data-lightbox-alt="'+esc(optionName)+'" '
     +   'data-lightbox-store="'+esc(ctxStore)+'" data-lightbox-section="'+esc(ctxSection)+'" '
+    +   'data-lightbox-category="'+esc(ctxCategory)+'" '
     +   'loading="lazy" crossorigin="anonymous" '
     +   'onclick="event.stopPropagation();_openPhotoLightboxFromImg(this);" '
     +   'onerror="this.style.display=\'none\';this.insertAdjacentHTML(\'afterend\',\'<span class=&quot;raw-quiz-photo-fail&quot;>⚠️ 圖片載入失敗</span>\');">'
@@ -186,7 +197,8 @@ function _openPhotoLightboxFromImg(imgEl){
       url: im.getAttribute('data-lightbox-url'),
       alt: im.getAttribute('data-lightbox-alt') || '',
       store: im.getAttribute('data-lightbox-store') || '',
-      section: im.getAttribute('data-lightbox-section') || ''
+      section: im.getAttribute('data-lightbox-section') || '',
+      category: im.getAttribute('data-lightbox-category') || ''
     };
   });
   var idx = imgs.indexOf(imgEl);
@@ -209,7 +221,7 @@ function _openPhotoLightbox(url, alt, gallery, idx){
 function _photoLightboxRender(){
   var gallery = window._photoLightboxGallery || [];
   var idx = window._photoLightboxIndex || 0;
-  var item = gallery[idx] || { url:'', alt:'', store:'', section:'' };
+  var item = gallery[idx] || { url:'', alt:'', store:'', section:'', category:'' };
   var imgEl = document.getElementById('photo-lightbox-img');
   if(imgEl){ imgEl.src = item.url; imgEl.alt = item.alt; }
   var counterEl = document.getElementById('photo-lightbox-counter');
@@ -224,11 +236,13 @@ function _photoLightboxRender(){
   }
   var box = document.getElementById('photo-lightbox-backdrop');
   if(box) box.classList.toggle('has-multi', gallery.length > 1);
-  /* 資訊列：店名 › 大題 › 選項，任一段缺值就跳過，不留空的「›」；
-     三段都沒有就整個隱藏資訊列，不佔畫面空間 */
+  /* 資訊列：店名 › 分類 › 大題 › 選項，任一段缺值就跳過，不留空的「›」；
+     全部都沒有就整個隱藏資訊列，不佔畫面空間。category 是選填段，沒有
+     category 概念的呼叫端（照片牆／店家明細等）item.category 永遠是空字串，
+     filter 會自動跳過，畫面跟舊版一樣是「店名 › 大題 › 選項」三段 */
   var infoEl = document.getElementById('photo-lightbox-info');
   if(infoEl){
-    var parts = [item.store, item.section, item.alt].filter(function(v){ return v && String(v).trim(); });
+    var parts = [item.store, item.category, item.section, item.alt].filter(function(v){ return v && String(v).trim(); });
     if(parts.length){
       infoEl.textContent = parts.join(' › ');
       infoEl.style.display = '';
