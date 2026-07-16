@@ -2899,14 +2899,19 @@ function toolbarScreenshot(){
    ════════════════════════════════════════════════════════════ */
 
 var _pivotMode      = 'staff';   /* staff | office | suptype | store */
-var _pivotRows      = null;      /* 目前 pivot 使用的資料集（null = allRows） */
 var _pivotSortState = {};        /* { mode: { col, dir } } */
 var _pivotTabIndex  = { staff:0, office:1, suptype:2, store:3, photos:4, drilldown:5, subcol:6 };
 var PIVOT_TITLES = { staff:'人員 × 分類', office:'單位 × 分類', suptype:'分類 × 子分類', store:'店家明細', photos:'照片牆', drilldown:'逐題彙整', subcol:'細項匯出' };
 
 /* openSummaryDialog／closeSummaryDialog／switchPivotTab／_setPivotSlide 這幾支
    切頁機械動作都在 shared/pivot-dialog.js，這裡只留設定資料，
-   _pivotTabCount 由共用層自動算，不用另外宣告。 */
+   _pivotTabCount 由共用層自動算，不用另外宣告。
+   _pivotRows 本體也是 shared/pivot-dialog.js 宣告並維護的全域變數
+   （openSummaryDialog 開啟時就會賦值），這裡不重複宣告——重複宣告雖然
+   JS 不會報錯（var 允許重複），但會讓「這個變數到底歸誰管」變得不清楚，
+   下面 _renderPivotSlide 仍保留 _pivotRows || getCurrentRows() 這道防線，
+   只是防呆用，實務上 _renderPivotSlide 只會在 openSummaryDialog 賦值後
+   才被呼叫到。 */
 
 /* ── Slide 渲染入口 ── */
 function _renderPivotSlide(mode){
