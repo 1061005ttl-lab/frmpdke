@@ -7,7 +7,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   contract_board.html ─ 品項達成型看板
-  版本：Ver. 1.0.4 ｜ 建立：2026-07-05 ｜ 最後更新：2026-07-16
+  版本：Ver. 1.0.5 ｜ 建立：2026-07-05 ｜ 最後更新：2026-07-16
 
 【這個檔案是什麼】
   單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 直接讀取
@@ -74,6 +74,22 @@
     ITEM_KEYS 常數需要同步改回對照表模式，目前先以全名直接比對。
 
 【版本紀錄】
+  1.0.5  2026-07-16  修正手機版漢堡選單完全無反應的 bug：shared/ui-chrome.js
+                      的 toggleMobileMenu() 統一是切換 'open' class（1.1.0 已
+                      比照 coverage/audit 對齊過），但 contract 自己的手機版
+                      CSS（@media max-width:640px）當時寫的是
+                      .toolbar-controls.mobile-open，兩邊 class 名稱沒對上，
+                      導致點漢堡按鈕 JS 有正確切換 class、console 也不會報錯，
+                      但選單畫面完全沒有任何變化（跟 ui-chrome.js 1.1.0
+                      changelog 描述的 coverage 曾經踩過的坑是同一種問題，
+                      contract 這處在補齊六項按鈕分頁一致性時被漏掉，一直
+                      沒修）。改成 .toolbar-controls.open，跟 shared/ui-chrome.js
+                      及 coverage_board.html 的規則一致。
+                      另外一併修正主工具列按鈕文字「⚠️ 未查核清單」跟它實際
+                      開啟的 Dialog 分頁／PIVOT_TITLES 都叫「未達成清單」對不
+                      起來的問題（同一個功能，畫面上兩個地方顯示不同名稱）；
+                      前一輪比對三板一致性時有注意到但判斷是「與本次任務
+                      無關的既有問題」而保留，這輪一併統一成「未達成清單」。
   1.0.4  2026-07-16  三板（audit/contract/coverage）彙整看板按鈕/分頁一致性
                       補齊（比照 coverage_board.html 六項：人員/單位/店家/
                       照片牆/逐題彙整/細項匯出）：
@@ -316,7 +332,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     flex-direction:column; align-items:stretch; gap:6px;
     box-shadow:0 8px 20px rgba(0,0,0,.10);
   }
-  .toolbar-controls.mobile-open { display:flex; }
+  .toolbar-controls.open { display:flex; }
   .toolbar-controls .tb-act-btn { width:100%; text-align:left; }
 }
 
@@ -414,7 +430,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('staff', getFilteredStores)">👤 人員</button>
     <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('office', getFilteredStores)">🏢 單位</button>
     <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('store', getFilteredStores)">🏪 店家</button>
-    <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('missing', getFilteredStores)">⚠️ 未查核清單</button>
+    <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('missing', getFilteredStores)">⚠️ 未達成清單</button>
     <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('photos', getFilteredStores)">🖼️ 照片牆</button>
     <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('drilldown', getFilteredStores)">🔍 逐題彙整</button>
     <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('subcol', getFilteredStores)">🧩 細項匯出</button>
