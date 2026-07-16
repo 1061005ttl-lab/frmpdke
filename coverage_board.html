@@ -4,7 +4,7 @@
 
   coverage_board.html  ─  覆蓋率型看板
 
-  版本：Ver. 3.4.0 ｜ 最後更新：2026-07-16
+  版本：Ver. 3.5.0 ｜ 最後更新：2026-07-16
 
 ════════════════════════════════════════════════════════════
 
@@ -47,6 +47,24 @@
 
 
 【版本紀錄】
+
+  3.5.0  2026-07-16  細項匯出搬成彙整看板第6分頁＋LINE文字改分組排版
+
+         - 彙整看板新增第6個分頁「🧩 細項匯出」（人員→單位→店家→
+           照片牆→逐題彙整→細項匯出），沿用共用分頁機制
+           （_pivotTabIndex／PIVOT_TITLES 補 subcol，slides 寬度
+           從 /5、500% 改成 /6、600%）；範圍改用彙整看板當下整體
+           範圍（dialogRows(_pivotRows,'area')），跟其他分頁一致
+
+         - 店家明細 dialog 的🧩按鈕改為捷徑（_jumpToSubcolExport）：
+           關閉明細、開啟彙整看板並直接跳到「細項匯出」分頁；原本
+           浮動面板 dlg-subcol-panel／toggleSubColPanel() 已移除
+
+         - LINE 分享文字（_subColLineText）改成「單位 → 人員」分組
+           排版：同單位的人集中在一起、單位內依人員姓名排序，每個
+           人員小節標題帶「（共 N 家）」小計；店家改成兩行格式
+           （第一行店名(代碼)、第二行 └ 命中欄位），不再是不分單位
+           一路平鋪、不同單位的人穿插排列
 
   3.4.0  2026-07-16  店家明細新增「執行人員」欄＋排序＋細項匯出
 
@@ -5997,17 +6015,40 @@ function _subColUpdateCount(){
   el.textContent = n ? ('已選 '+n+' 個子欄位，符合 '+m+' 家店') : '尚未勾選任何子欄位';
 }
 
+/* LINE 分享文字：依「單位 → 人員」分組——同單位的人集中排在一起，
+   單位內部再依人員姓名排序；每個人員小節標題帶「（共 N 家）」小計，
+   店家改成兩行：第一行店名(代碼)、第二行 └ 命中欄位（原本平鋪一路
+   排下去，不同單位的人會穿插，這裡改成先分組再輸出）。 */
 function _subColLineText(){
   var DIV = '─────────────────';
   var defs = _subColSelectedDefs();
   var matched = _subColMatchedRows();
-  var lines = ['【'+_subColScopeTitle()+'】細項匯出 ── '+defs.map(function(d){return d.col;}).join('、'), '共 '+matched.length+' 家', DIV, ''];
+
+  var groups = {}, order = [];
   matched.forEach(function(m){
-    var r = m.r;
-    var code=String(r[COL_CODE]||''), name=String(r[COL_NAME]||'—'), staff=String(r[COL_STAFF]||'');
-    lines.push('• '+name+(code?' ('+code+')':'')+(staff?' ｜'+staff:''));
-    m.matched.forEach(function(x){
-      lines.push('   └ '+x.def.col+(x.valText?'：'+x.valText:''));
+    var office = String(m.r[COL_OFFICE]||'—'), staff = String(m.r[COL_STAFF]||'—');
+    var key = office+'\u0001'+staff;
+    if(!groups[key]){ groups[key] = { office:office, staff:staff, items:[] }; order.push(key); }
+    groups[key].items.push(m);
+  });
+  order.sort(function(ka, kb){
+    var ga = groups[ka], gb = groups[kb];
+    if(ga.office !== gb.office) return ga.office.localeCompare(gb.office, 'zh-TW');
+    return ga.staff.localeCompare(gb.staff, 'zh-TW');
+  });
+
+  var lines = ['【'+_subColScopeTitle()+'】細項匯出 ── '+defs.map(function(d){return d.col;}).join('、'), '共 '+matched.length+' 家', DIV];
+  order.forEach(function(key){
+    var g = groups[key];
+    lines.push('');
+    lines.push('▌ '+g.office+'．'+g.staff+'（共 '+g.items.length+' 家）');
+    g.items.forEach(function(m){
+      var r = m.r;
+      var code = String(r[COL_CODE]||''), name = String(r[COL_NAME]||'—');
+      lines.push('  '+name+(code?'('+code+')':''));
+      m.matched.forEach(function(x){
+        lines.push('   └'+x.def.col+(x.valText?'：'+x.valText:''));
+      });
     });
   });
   lines.push('');
