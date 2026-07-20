@@ -108,23 +108,30 @@
 【畫面設計】
   ‧ 進站先看「概況主畫面」（比照 alpha 版 mainDashboard 設計）：
     中元／中秋 × 量販／全聯，四張卡片各顯示整體達成率＋依等級拆分的
-    店數／應達總量／達成率 mini table，點卡片才帶著對應檔期＋通路
-    篩選條件進入明細頁（明細頁「← 返回總覽」可回到概況，回去時會
-    重新整理卡片數字）；「進入整體明細」按鈕則不帶篩選直接進明細。
+    店數／各週(W1~Wn)達成率／總達成率 mini table，點卡片才帶著對應
+    檔期＋通路篩選條件進入明細頁（明細頁「← 返回總覽」可回到概況，
+    回去時會重新整理卡片數字）；「進入整體明細」按鈕則不帶篩選直接
+    進明細。
   ‧ 上方摘要列：目前篩選範圍的 過濾店數／標準應達總次數／
     目標達成率(%)／自動觸發超額次數，四項比照 alpha 版數據摘要區。
-  ‧ 篩選列（filterbar，四組 chip + 關鍵字搜尋）：
+  ‧ 篩選列（filterbar，關鍵字搜尋 + 動態列數的 chip，通路／等級因
+    彼此相關併同一列以節省版面）：
       檔期：全部(W1-W5)／中元專案／中秋專案
-      通路：全部／量販店／全聯社
-      等級：全部／量販A／量販B／量販C／超市A
-      區域：全部／北部／桃園／臺中／嘉義／臺南／高雄／花蓮
+      通路＋等級（同一列）：全部／量販店／全聯社　　全部／量販A／
+        量販B／量販C／超市A
+      營業處：全部／北部／桃園／臺中／嘉義／臺南／高雄／花蓮
             （順序固定＝AREA_ORDER 常數，嚴格遵循北桃中嘉南高花）
+      營業所/課：選定「營業處」（非全部）後才出現，選項依實際資料
+        動態產生（該營業處底下有哪些營業所就列哪些，選全部處時整列
+        隱藏並重置為全部所，避免殘留篩選誤導使用者）
       關鍵字：比對店名／店代碼／主要訪員（沿用其他看板慣例，非必要
               需求，加上方便使用而已）
   ‧ 主表格：一列一家店，欄位依目前「檔期」篩選動態展開（全部＝
     5欄「中元W1~W3＋中秋W1~W2」；只選中元＝3欄；只選中秋＝2欄），
-    每欄用 checkbox 呈現 stdDone(藍) + extra(橘)，比照 alpha 版
-    box-container 視覺設計。
+    每欄用 checkbox 呈現 stdDone(藍，靠左排列) + extra(橘，帶脈動
+    發光特效)，比照 alpha 版 box-container 視覺設計；checkbox 不加
+    disabled 屬性（改用 CSS pointer-events:none 擋互動），避免瀏覽器
+    對 disabled 控制項套用預設灰階，確保已勾選格子顏色維持明亮。
   ‧ 點一列店家 → 開店家明細 Dialog，列出該店在目前篩選檔期範圍內
     的逐筆巡補紀錄時間軸（日期＋週次＋來源分頁+行數參考）。
   ‧ 工具列：📥CSV／💬LINE全文／✂️LINE精簡／📸截圖，皆針對「目前
@@ -151,6 +158,14 @@
     <script> 拿掉即可。
 
 【版本紀錄】
+  1.2.0  2026-07-20  1) 概況主畫面卡片新增依「週」拆分的達成率欄位
+                      （W1~Wn），不再只看整體彙總。2) box-container
+                      改靠左排列；checkbox 拿掉 disabled 屬性改用
+                      pointer-events:none 擋互動，避免瀏覽器灰階化，
+                      已勾選格子顏色更明亮；extra(超額)格新增脈動
+                      發光動畫。3) 篩選列「通路」＋「等級」併同一列
+                      節省版面。4) 新增「營業所/課」chip，選定
+                      「營業處」後才出現，選項依實際資料動態產生。
   1.1.0  2026-07-20  1) 通路／全聯判斷改用真實欄位值分類（量販：
                       通路別＝「量販通路」；全聯：店家型態＝「全聯社」，
                       不看通路別欄），畫面上仍只顯示「量販」「全聯」
@@ -223,12 +238,12 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .toolbar-spacer { flex:1; }
 
 /* ── filter bar ── */
-.filterbar { background:#fff; border-bottom:1px solid var(--border); padding:12px 20px; position:sticky; top:52px; z-index:40; }
-.chip-row { display:flex; align-items:center; gap:12px; margin-bottom:10px; flex-wrap:wrap; }
+.filterbar { background:#fff; border-bottom:1px solid var(--border); padding:10px 20px; position:sticky; top:52px; z-index:40; }
+.chip-row { display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap; }
 .chip-row:last-child { margin-bottom:0; }
 .chip-label { font-size:11px; color:var(--sub); font-weight:700; width:64px; flex-shrink:0; letter-spacing:.03em; opacity:.7; }
 .chip-group { display:flex; gap:6px; flex-wrap:wrap; }
-.chip { padding:5px 14px; background:#fff; border:1px solid var(--border); border-radius:16px; cursor:pointer; font-size:12.5px; font-weight:600; color:var(--sub); font-family:inherit; transition:all .15s; white-space:nowrap; }
+.chip { padding:4px 12px; background:#fff; border:1px solid var(--border); border-radius:16px; cursor:pointer; font-size:12px; font-weight:600; color:var(--sub); font-family:inherit; transition:all .15s; white-space:nowrap; }
 .chip:hover { background:var(--primary-bg); color:var(--primary); }
 .chip.active { background:var(--primary); color:#fff; border-color:var(--primary); }
 .fb-input { padding:5px 10px; border:1px solid var(--border); border-radius:8px; background:#fff; color:var(--text); font-size:12.5px; font-family:inherit; outline:none; width:180px; }
@@ -261,10 +276,15 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .badge-px { background:#c0392b; }
 .grade-tag { font-size:11px; color:var(--sub); }
 
-.box-container { display:flex; align-items:center; justify-content:center; gap:3px; flex-wrap:wrap; min-height:22px; }
-.box-container input[type="checkbox"] { width:16px; height:16px; pointer-events:none; margin:0; }
-input.std-check { accent-color:var(--primary); }
-input.extra-check { accent-color:var(--bonus); outline:1px solid var(--bonus); outline-offset:1px; }
+.box-container { display:flex; align-items:center; justify-content:flex-start; gap:4px; flex-wrap:wrap; min-height:22px; padding-left:6px; }
+.box-container input[type="checkbox"] { width:17px; height:17px; pointer-events:none; margin:0; }
+input.std-check { accent-color:#2F86EB; }
+input.std-check:not(:checked) { accent-color:#c8ccd2; }
+input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-offset:1px; border-radius:3px; animation:extraPulse 1.4s ease-in-out infinite; }
+@keyframes extraPulse {
+  0%,100% { box-shadow:0 0 0 0 rgba(255,122,0,.55); }
+  50% { box-shadow:0 0 7px 3px rgba(255,122,0,.55); }
+}
 .unknown-grade { color:var(--red); font-size:11px; font-weight:700; }
 
 .loadmore-wrap { text-align:center; margin-top:16px; }
@@ -356,14 +376,18 @@ input.extra-check { accent-color:var(--bonus); outline:1px solid var(--bonus); o
     <div class="chip-row">
       <span class="chip-label">通路</span>
       <div class="chip-group" id="chip-channel"></div>
-    </div>
-    <div class="chip-row">
-      <span class="chip-label">等級</span>
+      <span class="chip-label" style="width:auto;margin-left:8px;">等級</span>
       <div class="chip-group" id="chip-grade"></div>
     </div>
     <div class="chip-row">
-      <span class="chip-label">區域</span>
+      <span class="chip-label">營業處</span>
       <div class="chip-group" id="chip-area"></div>
+    </div>
+    <div class="chip-row" id="office-row" style="display:none">
+      <span class="chip-label">營業所/課</span>
+      <div class="chip-group" id="chip-office"></div>
+    </div>
+    <div class="chip-row">
       <input class="fb-input" id="fb-keyword" placeholder="搜尋店名／店代碼／主要訪員" oninput="onFilterChange()">
     </div>
   </div>
@@ -456,7 +480,7 @@ var STORE_ROWS  = [];   /* 店家名冊，含 __visits 索引 */
 var VISIT_ROWS  = [];   /* 處理層原始列（供明細 Dialog 用） */
 var VISIT_INDEX = {};   /* key: code → [{period,week,y,mo,d,ref}, ...]（新到舊） */
 
-var FILTER = { period:'全部', channel:'全部', grade:'全部', area:'全部', keyword:'' };
+var FILTER = { period:'全部', channel:'全部', grade:'全部', area:'全部', office:'全部', keyword:'' };
 
 function showLoading(){ document.getElementById('loading').classList.add('show'); }
 function hideLoading(){ document.getElementById('loading').classList.remove('show'); }
@@ -621,14 +645,35 @@ function buildFilterUI(){
 
   var areaOpts = ['全部'].concat(AREA_ORDER);
   document.getElementById('chip-area').innerHTML = areaOpts.map(function(v,i){
-    return '<div class="chip'+(i===0?' active':'')+'" data-v="'+v+'" onclick="setChip(this,\'area\')">'+(v==='全部'?'全台':v)+'</div>';
+    return '<div class="chip'+(i===0?' active':'')+'" data-v="'+v+'" onclick="setChip(this,\'area\')">'+(v==='全部'?'全部處':v)+'</div>';
   }).join('');
+}
+/* ════ 營業所/課 chip：選定「營業處」後才出現，選項依實際資料動態產生 ════ */
+function updateOfficeChipRow(){
+  var rowEl = document.getElementById('office-row');
+  var grp = document.getElementById('chip-office');
+  if(FILTER.area==='全部'){
+    FILTER.office = '全部';
+    rowEl.style.display = 'none';
+    grp.innerHTML = '';
+    return;
+  }
+  var offices = Array.from(new Set(
+    STORE_ROWS.filter(function(r){ return r.area===FILTER.area; }).map(function(r){ return r.office; })
+  )).filter(Boolean).sort();
+  if(offices.indexOf(FILTER.office)===-1) FILTER.office = '全部';
+  var opts = ['全部'].concat(offices);
+  grp.innerHTML = opts.map(function(v){
+    return '<div class="chip'+(v===FILTER.office?' active':'')+'" data-v="'+esc(v)+'" onclick="setChip(this,\'office\')">'+(v==='全部'?'全部所':esc(v))+'</div>';
+  }).join('');
+  rowEl.style.display = '';
 }
 function setChip(el, key){
   var parent = el.parentElement;
   Array.from(parent.children).forEach(function(c){ c.classList.remove('active'); });
   el.classList.add('active');
   FILTER[key] = el.getAttribute('data-v');
+  if(key==='area'){ updateOfficeChipRow(); }
   onFilterChange();
 }
 function onFilterChange(){
@@ -646,20 +691,21 @@ function _periodColumns(periodKey){
 }
 function _statsFor(storesSubset, cols){
   var totalExp=0, totalStdDone=0;
-  var byGrade = {}; /* grade → {count, exp, stdDone} */
+  var byGrade = {}; /* grade → {count, exp, stdDone, weeks:{week:{exp,stdDone}}} */
   storesSubset.forEach(function(s){
     var std = GRADE_FREQ[s.grade];
     if(std===undefined) return; /* 等級未知不計入概況統計，跟主表邏輯一致 */
-    var exp=0, stdDone=0;
+    if(!byGrade[s.grade]) byGrade[s.grade] = { count:0, exp:0, stdDone:0, weeks:{} };
+    var g = byGrade[s.grade];
+    g.count++;
     cols.forEach(function(c){
       var actual = _actualCount(s.code, c.period, c.week);
-      exp += std; stdDone += Math.min(actual, std);
+      var exp = std, stdDone = Math.min(actual, std);
+      g.exp += exp; g.stdDone += stdDone;
+      if(!g.weeks[c.week]) g.weeks[c.week] = { exp:0, stdDone:0 };
+      g.weeks[c.week].exp += exp; g.weeks[c.week].stdDone += stdDone;
+      totalExp += exp; totalStdDone += stdDone;
     });
-    totalExp += exp; totalStdDone += stdDone;
-    if(!byGrade[s.grade]) byGrade[s.grade] = { count:0, exp:0, stdDone:0 };
-    byGrade[s.grade].count++;
-    byGrade[s.grade].exp += exp;
-    byGrade[s.grade].stdDone += stdDone;
   });
   return { rate: totalExp>0 ? (totalStdDone/totalExp*100) : 0, totalExp:totalExp, byGrade:byGrade };
 }
@@ -668,20 +714,28 @@ function renderOverview(){
   if(!wrap) return;
   var cardsHtml = PERIODS.map(function(p){
     var icon = p.key==='zhong' ? '🏮' : '🎑';
+    var cols = _periodColumns(p.key);
+    var weekNums = cols.map(function(c){ return c.week; });
     return ['量販','全聯'].map(function(chanKey){
-      var cols = _periodColumns(p.key);
       var subset = STORE_ROWS.filter(function(s){ return s.chanKey===chanKey; });
       var stat = _statsFor(subset, cols);
       var gradeKeys = Object.keys(stat.byGrade).sort(function(a,b){
         return (GRADE_FREQ[b]||0) - (GRADE_FREQ[a]||0);
       });
       var body = gradeKeys.length ? (
-        '<table class="ov-mini"><tr><th>等級</th><th>店數</th><th>應達總量</th><th>達成率%</th></tr>'
+        '<table class="ov-mini"><tr><th>等級</th><th>店數</th>'
+        + weekNums.map(function(w){ return '<th>W'+w+'</th>'; }).join('')
+        + '<th>達成率%</th></tr>'
         + gradeKeys.map(function(g){
             var gd = stat.byGrade[g];
             var r = gd.exp>0 ? (gd.stdDone/gd.exp*100).toFixed(1) : '0.0';
             var label = (GRADE_LABEL[g]||g) + '（' + GRADE_FREQ[g] + '）';
-            return '<tr><td>'+esc(label)+'</td><td>'+gd.count+'</td><td>'+gd.exp+'</td>'
+            var weekCells = weekNums.map(function(w){
+              var wd = gd.weeks[w] || { exp:0, stdDone:0 };
+              var wr = wd.exp>0 ? (wd.stdDone/wd.exp*100).toFixed(0) : '0';
+              return '<td>'+wr+'%</td>';
+            }).join('');
+            return '<tr><td>'+esc(label)+'</td><td>'+gd.count+'</td>'+weekCells
               + '<td style="color:var(--green);font-weight:700;">'+r+'%</td></tr>';
           }).join('')
         + '</table>'
@@ -715,7 +769,8 @@ function backToOverview(){
   renderOverview(); /* 回總覽時重新整理數字，避免跟明細篩選後的畫面對不上 */
 }
 function syncChipsToFilter(){
-  ['period','channel','grade','area'].forEach(function(key){
+  updateOfficeChipRow();
+  ['period','channel','grade','area','office'].forEach(function(key){
     var grp = document.getElementById('chip-'+key);
     if(!grp) return;
     Array.from(grp.children).forEach(function(c){
@@ -752,6 +807,7 @@ function getFilteredStores(){
     if(FILTER.channel!=='全部' && r.chanKey!==FILTER.channel) return false;
     if(FILTER.grade!=='全部' && r.grade!==FILTER.grade) return false;
     if(FILTER.area!=='全部' && r.area!==FILTER.area) return false;
+    if(FILTER.office!=='全部' && r.office!==FILTER.office) return false;
     if(kw){
       var hay = (r.storeName+' '+r.code+' '+r.staff).toLowerCase();
       if(hay.indexOf(kw)===-1) return false;
@@ -802,8 +858,8 @@ function render(){
       var extra = Math.max(0, actual - stdN);
       if(std!==undefined){ totalExp += stdN; totalStdDone += stdDone; totalExtra += extra; }
       row += '<td><div class="box-container">';
-      for(var i=1;i<=stdN;i++){ row += '<input type="checkbox" class="std-check" '+(actual>=i?'checked':'')+' disabled>'; }
-      for(var j=1;j<=extra;j++){ row += '<input type="checkbox" class="extra-check" checked disabled>'; }
+      for(var i=1;i<=stdN;i++){ row += '<input type="checkbox" class="std-check" '+(actual>=i?'checked':'')+'>'; }
+      for(var j=1;j<=extra;j++){ row += '<input type="checkbox" class="extra-check" checked>'; }
       row += '</div></td>';
     });
     row += '</tr>';
