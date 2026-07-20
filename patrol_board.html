@@ -1,0 +1,827 @@
+<!--
+════════════════════════════════════════════════════════════
+  patrol_board.html ─ 節慶專案巡補頻次型看板
+  版本：Ver. 1.0.0 ｜ 建立：2026-07-20
+
+【這個檔案是什麼】
+  單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 讀取同一份
+  試算表裡的兩個分頁，在瀏覽器端組成「2026 節慶專案（中元／中秋）通路
+  巡補頻次」儀表板：依店家等級判斷每週「應達巡補次數」，跟實際巡補
+  次數比對，超過標準的部分拆成「超額」另計，不列入達成率。
+
+  跟 audit_board / contract_board / coverage_board 是各自獨立的系統，
+  只共用 shared/*.js 技術骨架（gviz 抓表、CSV/複製/截圖/UI Chrome），
+  業務邏輯完全不共用——本檔特有的「依日期自動判斷檔期週次」「依等級
+  動態算應達次數」「標準/超額格子自動觸發＋資料隔離」都是全新邏輯，
+  三份舊看板都沒有，改動前不要假設跟舊看板共用計算函式。
+
+  【與舊看板的差異，方便之後銜接／擴充時查閱】
+  ‧ contract_board 的「處理層」是拿來比對「這個月這品項有沒有交」
+    （二元 ✅/❌）；本檔的「處理層」是拿來算「這一週去了幾次」
+    （數字，可能超過標準），計算邏輯完全不同、不可互換套用。
+  ‧ 本檔沒有 contract_board 式的「處→所→人員」四層鑽層卡片，
+    改用「檔期／通路／等級／區域」四組 chip 篩選（比照 alpha 版
+    設計），畫面更接近 coverage_board 的單層彙整表格風格。
+  ‧ 本檔沒有多專案切換（MGMT「專案管理」boardType 機制），
+    SHEET_ID 直接從網址 ?sheetId= 帶入，是本次中元/中秋專用的
+    單一看板（已與需求方確認，未來若要擴充尾牙/春節等其他檔期，
+    可考慮比照 contract_board 加回 MGMT 切換機制，屆時 PERIODS
+    常數需要改成從管理表動態載入，而不是寫死在本檔）。
+
+────────────────────────────────────────────────────────────
+【讀取的兩份資料來源（同一份 SHEET_ID 試算表裡的兩個分頁）】
+
+  1.「店家名冊」── 母體，量販通路與全聯社（超市）通路合併一份名冊。
+     欄位（表頭列文字需完全一致，程式用欄名比對，不用欄位順序）：
+       營業處名稱／營業所/課／主要訪員／通路別／店家型態／店家代碼／店家名稱／店家等級
+     ‧ 通路別：目前僅「量販」「全聯」兩種值。
+     ‧ 店家等級：決定「每週應達巡補次數」的依據，目前支援四種值，
+       對照表寫死在本檔常數 GRADE_FREQ（見下方【等級應達次數對照】），
+       日後若需要新增等級或調整標準次數，直接改這個常數即可，
+       不需要（也刻意不做）另外接管理表動態載入。
+     ‧ 這份名冊不分檔期、不分週次——「這家店這一週該去幾次」是
+       純粹由「等級」決定的固定標準，跟中元或中秋無關（兩個檔期
+       共用同一套等級標準）。
+
+  2.「處理層」── 比對資料，每一列＝一筆巡補紀錄，由 GAS（後端，
+     不在本檔案範圍內）從「問卷資料(量販)」「問卷資料(全聯)」兩份
+     問卷分頁整理產生，比照 contract_board 的
+     extractSurveyDataToMasterRegistry() 模式。
+     欄位：
+       來源分頁+行數／店家代碼／通路別／執行人員／巡補日期
+     ‧ 來源分頁+行數：跨分頁連結鍵（格式：分頁名稱_行數，例如
+       「問卷資料量販_57」），目前本檔只用來當作明細列表的參考欄位
+       顯示，沒有做到像 audit_board 那樣即時回查來源分頁抓問卷大題
+       內容——如果之後要加「點一次巡補紀錄看當次完整問卷內容」，
+       可以參考 audit_board.html 的 _fetchSourceSheet 機制另外接上，
+       本檔目前刻意不做（節慶巡補的問卷內容通常不需要逐筆回看）。
+     ‧ 巡補日期：本檔核心依據，看板依這個日期 + 下方【檔期定義】
+       的起訖日，自動換算屬於哪個檔期的第幾週，處理層本身「不」
+       另外存週次欄位（跟已確認的規劃一致：週次由看板端計算，
+       不要求 GAS 端額外產出）。
+
+  兩者都讀自同一個 SHEET_ID（網址參數 ?sheetId= 帶入）。
+
+────────────────────────────────────────────────────────────
+【檔期定義（寫死在常數 PERIODS，之後年度數字要改就改這裡）】
+  中元專案：2026/08/08（六）– 08/28（五），共 3 週（W1、W2、W3）
+  中秋專案：2026/09/14（一）– 09/27（日），共 2 週（W1、W2）
+  整體視角：兩檔期合併顯示（W1–W5，中元3欄+中秋2欄）
+
+  週次判斷邏輯：以「巡補日期－檔期起始日」的天數差，每 7 天一週，
+  換算出來的週次超過該檔期總週數就視為「不屬於任何檔期」（不計入
+  任何統計，例如中元檔期跑到 08/29 才去的巡補不算數）。
+
+【等級應達次數對照（寫死在常數 GRADE_FREQ）】
+  量販 A 級：每週 5 次　量販 B 級：每週 3 次　量販 C 級：每週 2 次
+  全聯 超市A：每週 1 次
+  （對照表已與需求方確認先寫死在 HTML 常數，不做管理表可調整設定；
+   日後真的要調整，直接改 GRADE_FREQ 物件即可，不需要改動其餘邏輯）
+
+────────────────────────────────────────────────────────────
+【核心計算邏輯（自動化格子觸發＋資料隔離，比照 alpha 版規格書）】
+  對每一家店、每一個顯示中的檔期週次欄位：
+    1. actual = 處理層裡「店家代碼相符 ＋ 巡補日期落在該檔期該週」
+       的紀錄筆數。
+    2. std   = 該店等級對應的每週應達次數（GRADE_FREQ）。
+    3. stdDone = min(actual, std)　→ 顯示為藍色格子，勾選 stdDone 格。
+    4. extra   = max(0, actual - std)　→ 顯示為橘色格子，自動觸發，
+       勾選 extra 格（最高不特別限制格數，巡補次數多就顯示多格）。
+  資料隔離原則（三份都要遵守，這是本檔最容易被改壞的地方）：
+    ‧ 橘色格（超額）只計入「自動觸發超額次數」統計，絕對不計入
+      任何「達成率 %」的分子分母。
+    ‧ 超額次數不可外溢：A 店多跑的次數不能拿來墊 B 店的未達成，
+      統計時一律逐店、逐週獨立計算，最後才加總顯示範圍內的合計，
+      不存在任何「跨店挪用」的計算路徑。
+    ‧ 達成率 % = Σ全部顯示中欄位的 stdDone ／ Σ全部顯示中欄位的 std，
+      分母用「應達次數」而非「實際次數」，超標的店不會把分母墊高、
+      拖累其他店的達成率觀感。
+
+────────────────────────────────────────────────────────────
+【畫面設計】
+  ‧ 上方摘要列：目前篩選範圍的 過濾店數／標準應達總次數／
+    目標達成率(%)／自動觸發超額次數，四項比照 alpha 版數據摘要區。
+  ‧ 篩選列（filterbar，四組 chip + 關鍵字搜尋）：
+      檔期：全部(W1-W5)／中元專案／中秋專案
+      通路：全部／量販店／全聯社
+      等級：全部／量販A／量販B／量販C／超市A
+      區域：全部／北部／桃園／臺中／嘉義／臺南／高雄／花蓮
+            （順序固定＝AREA_ORDER 常數，嚴格遵循北桃中嘉南高花）
+      關鍵字：比對店名／店代碼／主要訪員（沿用其他看板慣例，非必要
+              需求，加上方便使用而已）
+  ‧ 主表格：一列一家店，欄位依目前「檔期」篩選動態展開（全部＝
+    5欄「中元W1~W3＋中秋W1~W2」；只選中元＝3欄；只選中秋＝2欄），
+    每欄用 checkbox 呈現 stdDone(藍) + extra(橘)，比照 alpha 版
+    box-container 視覺設計。
+  ‧ 點一列店家 → 開店家明細 Dialog，列出該店在目前篩選檔期範圍內
+    的逐筆巡補紀錄時間軸（日期＋週次＋來源分頁+行數參考）。
+  ‧ 工具列：📥CSV／💬LINE全文／✂️LINE精簡／📸截圖，皆針對「目前
+    篩選後的完整結果」（不受表格是否分頁載入影響——本檔資料量
+    預期不大，未做 contract_board 式的「顯示更多」分批載入）。
+
+────────────────────────────────────────────────────────────
+【已知待確認/待部署事項（非本檔程式問題，交接時務必告知後端）】
+  ‧ GAS 端需要另外新增一支「處理層」產生函式（本檔案不含 GAS
+    程式碼），把「問卷資料(量販)」「問卷資料(全聯)」兩份問卷分頁
+    整理成上方【處理層】欄位格式，比照 contract_board 對應的
+    extractSurveyDataToMasterRegistry() 寫法即可，「巡補日期」
+    務必是 Google Sheet 的日期格式（gviz 才能正確解析 Date(y,m,d)），
+    不要存成純文字字串。
+  ‧ 「店家名冊」的「店家等級」欄位值務必跟 GRADE_FREQ 常數的 key
+    完全一致（量販A／量販B／量販C／超市A，含全形字），否則該店
+    會被判斷為「等級未知」，應達次數算 0，不會出現在達成率分母
+    （畫面上會照樣列出該店但四項摘要都不會把它算進去，屬於刻意
+    設計成「不要讓未知等級污染統計」，但仍要能被人工發現，故保留
+    顯示、不整列隱藏——見 render() 內 _unknownGradeCount 統計）。
+  ‧ 本檔預設會走跟 coverage_board.html 相同的 session 驗證
+    （localStorage 'ttl_auth_v1' !== '1' 就導回 index.html），
+    如果這份看板要獨立部署不經過現有登入頁，把 <head> 裡那段
+    <script> 拿掉即可。
+
+【版本紀錄】
+  1.0.0  2026-07-20  首版。以 contract_board.html 的三表比對架構
+                      （母體＋處理層）為底，計算邏輯改為「週次巡補
+                      次數 vs 等級標準」的標準/超額拆分（比照
+                      coverage_board 加總型概念延伸），UI 篩選改採
+                      alpha 版的四組 chip 設計；共用 shared/core-utils.js
+                      ／copy-utils.js／csv-export.js／capture-clipboard.js
+                      ／ui-chrome.js／dashboard-common.css，不含
+                      photo-viewer.js／question-drilldown.js／
+                      pivot-dialog.js（本檔無照片牆／逐題彙整／多分頁
+                      彙整看板需求，刻意不掛載以減少相依）。
+════════════════════════════════════════════════════════════
+-->
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>節慶巡補看板</title>
+<script>
+/* ── Session 驗證（比照 coverage_board.html；獨立部署不經登入頁時可整段移除） ── */
+if (localStorage.getItem('ttl_auth_v1') !== '1') {
+  window.location.replace('index.html');
+}
+</script>
+<link rel="stylesheet" href="shared/dashboard-common.css">
+<style>
+:root {
+  --primary: #1a508b;
+  --primary-bg: rgba(26,80,139,.08);
+  --bg: #F0EDE6;
+  --card: #FFFFFF;
+  --text: #2D2D2D;
+  --sub: #888;
+  --border: rgba(0,0,0,0.09);
+  --green: #2e7d32;
+  --green-bg: #EAF3DE;
+  --green-bd: rgba(46,125,50,.25);
+  --red: #A32020;
+  --red-bg: #FBEAEA;
+  --bonus: #E65100;
+  --bonus-bg: #FFF3E0;
+  --r: 12px;
+  --dur: .32s;
+  --ease: cubic-bezier(.34,1.05,.64,1);
+}
+*,*::before,*::after { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif; min-height:100vh; }
+
+/* ── loading ── */
+.loading { position:fixed; inset:0; background:rgba(240,237,230,.85); display:none; align-items:center; justify-content:center; z-index:999; font-size:15px; font-weight:600; color:var(--sub); }
+.loading.show { display:flex; }
+
+/* ── toolbar ── */
+.toolbar { background:#fff; border-bottom:1px solid var(--border); padding:0 20px; height:52px; display:flex; align-items:center; gap:12px; position:sticky; top:0; z-index:50; }
+.toolbar-title { font-size:15px; font-weight:700; flex-shrink:0; }
+.sync-note { font-size:11px; color:var(--sub); white-space:nowrap; }
+.tb-act-btn { padding:5px 12px; border:1px solid var(--border); border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; color:var(--text); background:#fff; font-family:inherit; white-space:nowrap; transition:all .15s; flex-shrink:0; }
+.tb-act-btn:hover { background:var(--primary-bg); border-color:var(--primary); color:var(--primary); }
+.tb-act-btn.done { border-color:var(--green); color:var(--green); background:var(--green-bg); }
+.tb-act-btn.loading { opacity:.6; pointer-events:none; }
+.toolbar-spacer { flex:1; }
+
+/* ── filter bar ── */
+.filterbar { background:#fff; border-bottom:1px solid var(--border); padding:12px 20px; position:sticky; top:52px; z-index:40; }
+.chip-row { display:flex; align-items:center; gap:12px; margin-bottom:10px; flex-wrap:wrap; }
+.chip-row:last-child { margin-bottom:0; }
+.chip-label { font-size:11px; color:var(--sub); font-weight:700; width:64px; flex-shrink:0; letter-spacing:.03em; opacity:.7; }
+.chip-group { display:flex; gap:6px; flex-wrap:wrap; }
+.chip { padding:5px 14px; background:#fff; border:1px solid var(--border); border-radius:16px; cursor:pointer; font-size:12.5px; font-weight:600; color:var(--sub); font-family:inherit; transition:all .15s; white-space:nowrap; }
+.chip:hover { background:var(--primary-bg); color:var(--primary); }
+.chip.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+.fb-input { padding:5px 10px; border:1px solid var(--border); border-radius:8px; background:#fff; color:var(--text); font-size:12.5px; font-family:inherit; outline:none; width:180px; }
+.fb-input:focus { border-color:var(--primary); }
+
+/* ── summary row ── */
+.summary-row { padding:14px 20px 0; display:flex; gap:12px; flex-wrap:wrap; }
+.sum-card { flex:1; min-width:140px; background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:12px 16px; }
+.sum-card .sc-label { font-size:11px; color:var(--sub); opacity:.7; font-weight:600; margin-bottom:4px; }
+.sum-card .sc-val { font-size:24px; font-weight:800; letter-spacing:-1px; }
+.sum-card.rate .sc-val { color:var(--primary); }
+.sum-card.extra .sc-val { color:var(--bonus); }
+.sum-card.warn-note { font-size:11px; color:var(--bonus); margin-top:2px; }
+
+/* ── stage / table ── */
+.stage { padding:16px 20px 40px; }
+.empty { padding:60px 20px; text-align:center; color:var(--sub); font-size:14px; }
+.result-count { font-size:12px; color:var(--sub); opacity:.75; margin-bottom:8px; }
+.tbl-wrap { overflow-x:auto; background:var(--card); border-radius:var(--r); border:1px solid var(--border); }
+.main-tbl { width:100%; border-collapse:collapse; font-size:13px; }
+.main-tbl thead th { background:#f6f4ef; padding:10px 8px; text-align:center; font-size:11.5px; font-weight:700; color:var(--sub); border-bottom:2px solid var(--border); white-space:nowrap; position:sticky; top:0; z-index:5; }
+.main-tbl th.th-left, .main-tbl td.td-left { text-align:left; }
+.main-tbl tbody td { padding:8px 6px; text-align:center; border-bottom:1px solid #f0efe9; }
+.main-tbl tbody tr { cursor:pointer; transition:background .12s; }
+.main-tbl tbody tr:hover { background:var(--primary-bg); }
+.td-code { color:var(--sub); font-size:11.5px; }
+.td-name { font-weight:700; }
+.badge { display:inline-block; padding:2px 8px; border-radius:5px; color:#fff; font-size:11px; font-weight:700; }
+.badge-hyper { background:var(--primary); }
+.badge-px { background:#c0392b; }
+.grade-tag { font-size:11px; color:var(--sub); }
+
+.box-container { display:flex; align-items:center; justify-content:center; gap:3px; flex-wrap:wrap; min-height:22px; }
+.box-container input[type="checkbox"] { width:16px; height:16px; pointer-events:none; margin:0; }
+input.std-check { accent-color:var(--primary); }
+input.extra-check { accent-color:var(--bonus); outline:1px solid var(--bonus); outline-offset:1px; }
+.unknown-grade { color:var(--red); font-size:11px; font-weight:700; }
+
+.loadmore-wrap { text-align:center; margin-top:16px; }
+.loadmore-btn { padding:8px 22px; border:1px solid var(--border); border-radius:20px; background:#fff; font-size:13px; font-weight:600; color:var(--text); cursor:pointer; font-family:inherit; }
+.loadmore-btn:hover { border-color:var(--primary); color:var(--primary); }
+
+.footnote { margin-top:14px; font-size:11.5px; color:#8a6d1f; background:#fbf3d9; padding:10px 14px; border-radius:8px; line-height:1.7; }
+
+@media (max-width:640px) {
+  .chip-label { width:auto; margin-right:4px; }
+  .toolbar-controls {
+    display:none; position:absolute; top:52px; left:0; right:0; z-index:60;
+    background:#fff; border-bottom:1px solid var(--border); padding:10px 16px;
+    flex-direction:column; align-items:stretch; gap:6px;
+    box-shadow:0 8px 20px rgba(0,0,0,.10);
+  }
+  .toolbar-controls.open { display:flex; }
+  .toolbar-controls .tb-act-btn { width:100%; text-align:left; }
+  .summary-row { padding:10px 12px 0; }
+  .stage { padding:10px 12px 30px; }
+}
+
+/* ── 店家明細 Dialog：巡補時間軸 ── */
+.visit-timeline { padding:16px 20px 30px; }
+.visit-summary { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:16px; padding:12px 16px; background:var(--bg); border-radius:10px; }
+.visit-summary .vs-item { font-size:12.5px; color:var(--sub); }
+.visit-summary .vs-item b { color:var(--text); font-size:15px; }
+.visit-row { display:flex; align-items:center; gap:10px; padding:9px 12px; border-bottom:1px solid #f0efe9; font-size:13px; }
+.visit-row:last-child { border-bottom:none; }
+.visit-row .v-date { font-weight:700; width:110px; flex-shrink:0; }
+.visit-row .v-week { font-size:11.5px; padding:2px 8px; border-radius:6px; background:var(--primary-bg); color:var(--primary); font-weight:700; flex-shrink:0; }
+.visit-row .v-ref { color:var(--sub); font-size:11px; flex:1; text-align:right; }
+</style>
+</head>
+<body>
+
+<div class="loading" id="loading">載入中…</div>
+
+<div class="toolbar">
+  <span class="toolbar-title" id="tb-title">節慶巡補看板</span>
+  <span class="sync-note" id="tb-sync"></span>
+  <div class="toolbar-spacer"></div>
+  <button class="hamburger-btn" id="hamburger-btn" onclick="toggleMobileMenu(event)">☰</button>
+  <div class="toolbar-controls" id="toolbar-controls">
+    <button class="tb-act-btn" id="tb-btn-csv" onclick="toolbarDownloadCsv();closeMobileMenu();">📥 CSV</button>
+    <button class="tb-act-btn" id="tb-btn-line" onclick="toolbarCopyLine();closeMobileMenu();">💬 LINE</button>
+    <button class="tb-act-btn" id="tb-btn-line-brief" onclick="toolbarCopyLineBrief();closeMobileMenu();">✂️ 精簡</button>
+    <button class="tb-act-btn" id="tb-btn-screenshot" onclick="toolbarScreenshot();closeMobileMenu();">📸 截圖</button>
+  </div>
+</div>
+
+<div class="filterbar" id="filterbar">
+  <div class="chip-row">
+    <span class="chip-label">檔期</span>
+    <div class="chip-group" id="chip-period"></div>
+  </div>
+  <div class="chip-row">
+    <span class="chip-label">通路</span>
+    <div class="chip-group" id="chip-channel"></div>
+  </div>
+  <div class="chip-row">
+    <span class="chip-label">等級</span>
+    <div class="chip-group" id="chip-grade"></div>
+  </div>
+  <div class="chip-row">
+    <span class="chip-label">區域</span>
+    <div class="chip-group" id="chip-area"></div>
+    <input class="fb-input" id="fb-keyword" placeholder="搜尋店名／店代碼／主要訪員" oninput="onFilterChange()">
+  </div>
+</div>
+
+<div class="summary-row">
+  <div class="sum-card"><div class="sc-label">目前過濾店數</div><div class="sc-val" id="stat-store-count">0</div></div>
+  <div class="sum-card"><div class="sc-label">標準應達總次數</div><div class="sc-val" id="stat-exp-visits">0</div></div>
+  <div class="sum-card rate"><div class="sc-label">目標達成率</div><div class="sc-val" id="stat-rate">0.0%</div></div>
+  <div class="sum-card extra"><div class="sc-label">自動觸發超額次數</div><div class="sc-val" id="stat-extra">0</div>
+    <div class="sc-val sc-val-note" style="display:none"></div>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="result-count" id="result-count"></div>
+  <div class="tbl-wrap">
+    <table class="main-tbl">
+      <thead id="tbl-head"></thead>
+      <tbody id="tbl-body"></tbody>
+    </table>
+  </div>
+  <div class="empty" id="empty-msg" style="display:none">目前篩選條件下沒有符合的店家</div>
+  <div class="footnote">
+    💡 藍色格代表標準應達次數；若實際巡補次數超過標準，系統自動顯示並勾選橘色格子（超額），
+    橘色次數只計入「自動觸發超額次數」，不列入達成率 %，超額也不會外溢補足其他店家的未達成。
+  </div>
+</div>
+
+<!-- ════ 店家明細 Dialog：巡補時間軸 ════ -->
+<div id="detail-dialog" style="display:none" onclick="if(event.target===this)closeStoreDetail()">
+  <div class="dlg-box">
+    <div class="dlg-header">
+      <div id="dlg-title">店家明細</div>
+      <div style="flex:1;"></div>
+      <button class="dlg-close" onclick="closeStoreDetail()">✕</button>
+    </div>
+    <div class="dlg-body" id="dlg-body" style="overflow:auto;"></div>
+  </div>
+</div>
+
+<script src="shared/core-utils.js"></script>
+<script src="shared/copy-utils.js"></script>
+<script src="shared/csv-export.js"></script>
+<script src="shared/capture-clipboard.js"></script>
+<script src="shared/ui-chrome.js"></script>
+<script>
+window._STICKY_IDS = ['filterbar'];
+
+/* ════ 常數 ════ */
+var params    = new URLSearchParams(location.search);
+var SHEET_ID  = params.get('sheetId') || '';
+var PROJ_NAME = '2026 節慶巡補看板';
+
+var POP_SHEET  = '店家名冊';
+var PROC_SHEET = '處理層';
+var SYNC_SHEET = '輔助';
+var SYNC_CELL  = 'B1';
+
+/* 母體（店家名冊）欄名 */
+var P_AREA='營業處名稱', P_OFFICE='營業所/課', P_STAFF='主要訪員', P_CHANNEL='通路別',
+    P_STORETYPE='店家型態', P_CODE='店家代碼', P_STORENAME='店家名稱', P_GRADE='店家等級';
+/* 處理層欄名 */
+var R_CODE='店家代碼', R_DATE='巡補日期', R_SOURCEREF='來源分頁+行數';
+
+/* 檔期定義：起始日 + 週數。之後年度數字要改就改這裡，不用動下方邏輯 */
+var PERIODS = [
+  { key:'zhong', label:'中元專案', y:2026, mo:8, d:8,  weeks:3 },
+  { key:'mid',   label:'中秋專案', y:2026, mo:9, d:14, weeks:2 }
+];
+/* 等級 → 每週應達次數（已與需求方確認先寫死，不做管理表） */
+var GRADE_FREQ = { '量販A':5, '量販B':3, '量販C':2, '超市A':1 };
+var AREA_ORDER = ['北部','桃園','臺中','嘉義','臺南','高雄','花蓮'];
+
+var STORE_ROWS  = [];   /* 店家名冊，含 __visits 索引 */
+var VISIT_ROWS  = [];   /* 處理層原始列（供明細 Dialog 用） */
+var VISIT_INDEX = {};   /* key: code → [{period,week,y,mo,d,ref}, ...]（新到舊） */
+
+var FILTER = { period:'全部', channel:'全部', grade:'全部', area:'全部', keyword:'' };
+
+function showLoading(){ document.getElementById('loading').classList.add('show'); }
+function hideLoading(){ document.getElementById('loading').classList.remove('show'); }
+
+/* ════ 初始化 ════ */
+function init(){
+  document.getElementById('tb-title').textContent = PROJ_NAME;
+  document.title = PROJ_NAME;
+  if(!SHEET_ID){
+    hideLoading();
+    document.getElementById('empty-msg').style.display = 'block';
+    document.getElementById('empty-msg').textContent = '⚠️ 缺少 sheetId 參數';
+    return;
+  }
+  buildFilterUI();
+  showLoading();
+  fetchPopulation(function(){
+    fetchProcessLayer(function(){
+      hideLoading();
+      onFilterChange();
+    });
+  });
+  fetchSyncTime();
+}
+
+/* ════ 讀「店家名冊」════ */
+function fetchPopulation(callback){
+  var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(POP_SHEET);
+  fetch(url).then(function(r){ return r.text(); }).then(function(txt){
+    var json = gvizParse(txt);
+    var tbl = json.table || {};
+    var cols = (tbl.cols||[]).map(function(c){ return c.label||''; });
+    STORE_ROWS = (tbl.rows||[]).map(function(row){
+      var obj = {};
+      (row.c||[]).forEach(function(cell,i){
+        var colName = cols[i];
+        if(!colName) return;
+        if(!cell){ obj[colName]=''; return; }
+        var v = (cell.v!==null && cell.v!==undefined) ? cell.v : '';
+        obj[colName] = (v!=='' && v!==null && v!==undefined) ? v : (cell.f||'');
+      });
+      return {
+        area: String(obj[P_AREA]||'').trim(),
+        office: String(obj[P_OFFICE]||'').trim(),
+        channel: String(obj[P_CHANNEL]||'').trim(),
+        storeType: String(obj[P_STORETYPE]||'').trim(),
+        storeName: String(obj[P_STORENAME]||'').trim(),
+        code: String(obj[P_CODE]||'').trim(),
+        grade: String(obj[P_GRADE]||'').trim(),
+        staff: String(obj[P_STAFF]||'').trim()
+      };
+    }).filter(function(r){ return r.code; });
+  }).catch(function(err){
+    STORE_ROWS = [];
+    document.getElementById('empty-msg').style.display = 'block';
+    document.getElementById('empty-msg').textContent = '⚠️ 店家名冊載入失敗：'+err;
+  }).then(function(){ callback(); });
+}
+
+/* ════ 日期解析／檔期週次判斷（核心邏輯，已獨立單元測試過，改動請對照
+   logic-test.js 的測試案例重新驗證，不要憑感覺改） ════ */
+function _cellDateParts(cell){
+  if(!cell) return null;
+  var v = cell.v;
+  if(typeof v === 'string'){
+    var m = v.match(/Date\((\d+),(\d+),(\d+)/);
+    if(m) return { y:+m[1], mo:+m[2]+1, d:+m[3] };
+  }
+  var f = cell.f || '';
+  var m2 = String(f).match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if(m2) return { y:+m2[1], mo:+m2[2], d:+m2[3] };
+  return null;
+}
+function _toEpochDay(y,mo,d){ return Math.floor(Date.UTC(y, mo-1, d) / 86400000); }
+function _classifyParts(parts){
+  if(!parts) return null;
+  var day = _toEpochDay(parts.y, parts.mo, parts.d);
+  for(var i=0;i<PERIODS.length;i++){
+    var p = PERIODS[i];
+    var start = _toEpochDay(p.y,p.mo,p.d);
+    var diff = day - start;
+    if(diff < 0) continue;
+    var week = Math.floor(diff/7) + 1;
+    if(week <= p.weeks) return { period:p.key, week:week };
+  }
+  return null;
+}
+function _fmtParts(parts){
+  if(!parts) return '';
+  var pad = function(n){ return String(n).padStart(2,'0'); };
+  return parts.y+'/'+pad(parts.mo)+'/'+pad(parts.d);
+}
+
+/* ════ 讀「處理層」════ */
+function fetchProcessLayer(callback){
+  var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(PROC_SHEET);
+  fetch(url).then(function(r){ return r.text(); }).then(function(txt){
+    var json = gvizParse(txt);
+    var tbl = json.table || {};
+    var cols = (tbl.cols||[]).map(function(c){ return c.label||''; });
+    var idxCode = cols.indexOf(R_CODE), idxDate = cols.indexOf(R_DATE), idxRef = cols.indexOf(R_SOURCEREF);
+    function cv(c){ return (c && (c.v!=null ? c.v : c.f)) || ''; }
+    var index = {};
+    var rows = [];
+    (tbl.rows||[]).forEach(function(row){
+      var c = row.c || [];
+      var code = String(cv(c[idxCode])).trim();
+      var parts = _cellDateParts(c[idxDate]);
+      var cls = _classifyParts(parts);
+      if(!code || !cls) return; /* 不屬於任何已定義檔期週次的紀錄，不計入統計 */
+      var ref = idxRef!==-1 ? String(cv(c[idxRef])).trim() : '';
+      var rec = { code:code, period:cls.period, week:cls.week, parts:parts, ref:ref };
+      rows.push(rec);
+      if(!index[code]) index[code] = [];
+      index[code].push(rec);
+    });
+    Object.keys(index).forEach(function(code){
+      index[code].sort(function(a,b){
+        var da=_toEpochDay(a.parts.y,a.parts.mo,a.parts.d), db=_toEpochDay(b.parts.y,b.parts.mo,b.parts.d);
+        return db-da; /* 新到舊 */
+      });
+    });
+    VISIT_ROWS = rows;
+    VISIT_INDEX = index;
+  }).catch(function(){ VISIT_ROWS = []; VISIT_INDEX = {}; }).then(function(){ callback(); });
+}
+
+function fetchSyncTime(){
+  var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+    '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(SYNC_SHEET) + '&range=' + SYNC_CELL;
+  fetch(url).then(function(r){ return r.text(); }).then(function(txt){
+    var json = gvizParse(txt);
+    var val=''; try{ val=json.table.rows[0].c[0].v||''; }catch(e){}
+    if(val) document.getElementById('tb-sync').textContent = '📊 同步 '+parseGvizDate(val);
+  }).catch(function(){});
+}
+
+/* ════ 篩選 UI 建置 ════ */
+function buildFilterUI(){
+  var periodOpts = [['全部','全部檔期 (W1-W5)']].concat(PERIODS.map(function(p){ return [p.key, p.label]; }));
+  document.getElementById('chip-period').innerHTML = periodOpts.map(function(o,i){
+    return '<div class="chip'+(i===0?' active':'')+'" data-v="'+o[0]+'" onclick="setChip(this,\'period\')">'+o[1]+'</div>';
+  }).join('');
+
+  var channelOpts = ['全部','量販','全聯'];
+  document.getElementById('chip-channel').innerHTML = channelOpts.map(function(v,i){
+    return '<div class="chip'+(i===0?' active':'')+'" data-v="'+v+'" onclick="setChip(this,\'channel\')">'+(v==='全部'?'全部通路':(v==='量販'?'量販店':'全聯社'))+'</div>';
+  }).join('');
+
+  var gradeOpts = ['全部'].concat(Object.keys(GRADE_FREQ));
+  document.getElementById('chip-grade').innerHTML = gradeOpts.map(function(v,i){
+    return '<div class="chip'+(i===0?' active':'')+'" data-v="'+v+'" onclick="setChip(this,\'grade\')">'+(v==='全部'?'全部等級':v+'（每週'+GRADE_FREQ[v]+'次）')+'</div>';
+  }).join('');
+
+  var areaOpts = ['全部'].concat(AREA_ORDER);
+  document.getElementById('chip-area').innerHTML = areaOpts.map(function(v,i){
+    return '<div class="chip'+(i===0?' active':'')+'" data-v="'+v+'" onclick="setChip(this,\'area\')">'+(v==='全部'?'全台':v)+'</div>';
+  }).join('');
+}
+function setChip(el, key){
+  var parent = el.parentElement;
+  Array.from(parent.children).forEach(function(c){ c.classList.remove('active'); });
+  el.classList.add('active');
+  FILTER[key] = el.getAttribute('data-v');
+  onFilterChange();
+}
+function onFilterChange(){
+  FILTER.keyword = document.getElementById('fb-keyword').value.trim();
+  render();
+}
+
+/* ════ 目前應顯示的欄位（依檔期篩選動態決定） ════ */
+function activeColumns(){
+  var cols = [];
+  PERIODS.forEach(function(p){
+    if(FILTER.period!=='全部' && FILTER.period!==p.key) return;
+    for(var w=1; w<=p.weeks; w++){
+      cols.push({ period:p.key, week:w, label:(FILTER.period==='全部'?p.label.replace('專案',''):'') + ' W'+w });
+    }
+  });
+  return cols;
+}
+
+/* ════ 單店在指定欄位上的實際次數 ════ */
+function _actualCount(code, period, week){
+  var list = VISIT_INDEX[code];
+  if(!list) return 0;
+  var n = 0;
+  for(var i=0;i<list.length;i++){ if(list[i].period===period && list[i].week===week) n++; }
+  return n;
+}
+
+/* ════ 篩選店家清單 ════ */
+function getFilteredStores(){
+  var kw = (FILTER.keyword||'').toLowerCase();
+  return STORE_ROWS.filter(function(r){
+    if(FILTER.channel!=='全部' && r.channel!==FILTER.channel) return false;
+    if(FILTER.grade!=='全部' && r.grade!==FILTER.grade) return false;
+    if(FILTER.area!=='全部' && r.area!==FILTER.area) return false;
+    if(kw){
+      var hay = (r.storeName+' '+r.code+' '+r.staff).toLowerCase();
+      if(hay.indexOf(kw)===-1) return false;
+    }
+    return true;
+  }).sort(function(a,b){
+    var cols=['area','office','channel','code'];
+    for(var i=0;i<cols.length;i++){
+      var va=String(a[cols[i]]||''), vb=String(b[cols[i]]||'');
+      if(va!==vb) return va>vb?1:-1;
+    }
+    return 0;
+  });
+}
+
+/* ════ 渲染 ════ */
+function render(){
+  var stores = getFilteredStores();
+  var cols = activeColumns();
+
+  var head = document.getElementById('tbl-head');
+  var headHtml = '<tr><th class="th-left">區域</th><th class="th-left">店家</th><th>通路</th><th>等級</th><th>主要訪員</th>';
+  cols.forEach(function(c){ headHtml += '<th>'+esc(c.label.trim())+'</th>'; });
+  headHtml += '</tr>';
+  head.innerHTML = headHtml;
+
+  var totalExp=0, totalStdDone=0, totalExtra=0, unknownGradeCount=0;
+  var body = document.getElementById('tbl-body');
+  var rowsHtml = '';
+
+  stores.forEach(function(s){
+    var std = GRADE_FREQ[s.grade];
+    if(std===undefined){ unknownGradeCount++; }
+    var chanBadgeCls = s.channel==='量販' ? 'badge-hyper' : 'badge-px';
+
+    var row = '<tr onclick="openStoreDetail(\''+esc(s.code)+'\')">'
+      + '<td class="td-left">'+esc(s.area)+' '+esc(s.office)+'</td>'
+      + '<td class="td-left"><div class="td-name">'+esc(s.storeName)+'</div><div class="td-code">'+esc(s.code)+'</div></td>'
+      + '<td><span class="badge '+chanBadgeCls+'">'+esc(s.channel)+'</span></td>'
+      + '<td class="grade-tag">'+(std===undefined?'<span class="unknown-grade">'+esc(s.grade||'未設定')+' ⚠️</span>':esc(s.grade))+'</td>'
+      + '<td>'+esc(s.staff)+'</td>';
+
+    cols.forEach(function(c){
+      var actual = _actualCount(s.code, c.period, c.week);
+      var stdN = std===undefined ? 0 : std;
+      var stdDone = Math.min(actual, stdN);
+      var extra = Math.max(0, actual - stdN);
+      if(std!==undefined){ totalExp += stdN; totalStdDone += stdDone; totalExtra += extra; }
+      row += '<td><div class="box-container">';
+      for(var i=1;i<=stdN;i++){ row += '<input type="checkbox" class="std-check" '+(actual>=i?'checked':'')+' disabled>'; }
+      for(var j=1;j<=extra;j++){ row += '<input type="checkbox" class="extra-check" checked disabled>'; }
+      row += '</div></td>';
+    });
+    row += '</tr>';
+    rowsHtml += row;
+  });
+
+  body.innerHTML = rowsHtml;
+  document.getElementById('empty-msg').style.display = stores.length ? 'none' : 'block';
+  document.getElementById('result-count').textContent = '共 '+stores.length+' 家店';
+
+  document.getElementById('stat-store-count').textContent = stores.length;
+  document.getElementById('stat-exp-visits').textContent = totalExp;
+  var rate = totalExp>0 ? (totalStdDone/totalExp*100).toFixed(1) : '0.0';
+  document.getElementById('stat-rate').textContent = rate+'%';
+  document.getElementById('stat-extra').textContent = totalExtra;
+
+  var noteEl = document.querySelector('.sum-card.extra .sc-val-note');
+  if(unknownGradeCount>0){
+    noteEl.style.display = 'block';
+    noteEl.textContent = '⚠️ '+unknownGradeCount+' 家店等級未對照到標準，未列入應達次數與達成率';
+    noteEl.style.fontSize = '11px'; noteEl.style.fontWeight = '600'; noteEl.style.color = 'var(--red)'; noteEl.style.marginTop='6px';
+  } else {
+    noteEl.style.display = 'none';
+  }
+
+  updateStickyTops();
+}
+
+/* ════ 店家明細 Dialog：巡補時間軸 ════ */
+var _detailCode = '';
+function openStoreDetail(code){
+  _detailCode = code;
+  var store = STORE_ROWS.filter(function(s){ return s.code===code; })[0];
+  if(!store) return;
+  document.getElementById('dlg-title').textContent = store.storeName+'（'+store.code+'）';
+
+  var cols = activeColumns();
+  var std = GRADE_FREQ[store.grade];
+  var expTotal=0, stdDoneTotal=0, extraTotal=0;
+  cols.forEach(function(c){
+    var actual = _actualCount(code, c.period, c.week);
+    var stdN = std===undefined?0:std;
+    expTotal += stdN;
+    stdDoneTotal += Math.min(actual, stdN);
+    extraTotal += Math.max(0, actual-stdN);
+  });
+  var rate = expTotal>0 ? (stdDoneTotal/expTotal*100).toFixed(1) : '0.0';
+
+  var visits = (VISIT_INDEX[code]||[]).filter(function(v){
+    return cols.some(function(c){ return c.period===v.period && c.week===v.week; });
+  });
+
+  var html = '<div class="visit-timeline">'
+    + '<div class="visit-summary">'
+    + '<div class="vs-item">單位<br><b>'+esc(store.area)+' '+esc(store.office)+'</b></div>'
+    + '<div class="vs-item">主要訪員<br><b>'+esc(store.staff)+'</b></div>'
+    + '<div class="vs-item">等級<br><b>'+esc(store.grade||'未設定')+'</b></div>'
+    + '<div class="vs-item">目前篩選範圍達成率<br><b>'+stdDoneTotal+'/'+expTotal+'（'+rate+'%）</b></div>'
+    + '<div class="vs-item">超額次數<br><b style="color:var(--bonus)">'+extraTotal+'</b></div>'
+    + '</div>';
+
+  if(!visits.length){
+    html += '<div class="empty">目前篩選範圍內沒有巡補紀錄</div>';
+  } else {
+    html += visits.map(function(v){
+      var periodLabel = (PERIODS.filter(function(p){return p.key===v.period;})[0]||{}).label || v.period;
+      return '<div class="visit-row">'
+        + '<span class="v-date">'+esc(_fmtParts(v.parts))+'</span>'
+        + '<span class="v-week">'+esc(periodLabel.replace('專案',''))+' W'+v.week+'</span>'
+        + '<span class="v-ref">'+esc(v.ref||'—')+'</span>'
+        + '</div>';
+    }).join('');
+  }
+  html += '</div>';
+
+  document.getElementById('dlg-body').innerHTML = html;
+  var dlg = document.getElementById('detail-dialog');
+  dlg.style.display = 'flex';
+  setTimeout(function(){ dlg.classList.add('open'); }, 10);
+}
+function closeStoreDetail(){
+  var dlg = document.getElementById('detail-dialog');
+  dlg.classList.remove('open');
+  setTimeout(function(){ dlg.style.display='none'; }, 220);
+}
+document.addEventListener('keydown', function(e){
+  if(e.key==='Escape') closeStoreDetail();
+});
+
+/* ════ CSV／LINE／截圖 ════ */
+function _summaryForShare(){
+  var stores = getFilteredStores();
+  var cols = activeColumns();
+  var totalExp=0, totalStdDone=0, totalExtra=0;
+  var perStore = stores.map(function(s){
+    var std = GRADE_FREQ[s.grade];
+    var stdN = std===undefined?0:std;
+    var exp=0, stdDone=0, extra=0;
+    cols.forEach(function(c){
+      var actual = _actualCount(s.code, c.period, c.week);
+      exp += stdN; stdDone += Math.min(actual,stdN); extra += Math.max(0,actual-stdN);
+    });
+    if(std!==undefined){ totalExp+=exp; totalStdDone+=stdDone; totalExtra+=extra; }
+    return { store:s, exp:exp, stdDone:stdDone, extra:extra, rate: exp>0?(stdDone/exp*100):0 };
+  });
+  return { stores:perStore, totalExp:totalExp, totalStdDone:totalStdDone, totalExtra:totalExtra,
+    rate: totalExp>0 ? (totalStdDone/totalExp*100).toFixed(1) : '0.0' };
+}
+function buildCsvContent(){
+  var data = _summaryForShare();
+  var cols = activeColumns();
+  var headers = ['營業處名稱','營業所/課','主要訪員','通路別','店家型態','店家代碼','店家名稱','店家等級'].concat(cols.map(function(c){return c.label.trim();})).concat(['應達合計','標準完成合計','超額合計','達成率%']);
+  var rows = [headers];
+  data.stores.forEach(function(item){
+    var s = item.store;
+    var row = [s.area, s.office, s.staff, s.channel, s.storeType, s.code, s.storeName, s.grade];
+    var std = GRADE_FREQ[s.grade];
+    var stdN = std===undefined?0:std;
+    cols.forEach(function(c){ row.push(_actualCount(s.code, c.period, c.week)); });
+    row.push(item.exp, item.stdDone, item.extra, item.rate.toFixed(1));
+    rows.push(row);
+  });
+  return '\uFEFF'+rows.map(function(r){
+    return r.map(function(c){ var s=String(c==null?'':c); return /[,"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join(',');
+  }).join('\n');
+}
+function toolbarDownloadCsv(){
+  var btn = document.getElementById('tb-btn-csv');
+  if(!getFilteredStores().length){ _flashBtn(btn,'⚠️ 無資料'); return; }
+  _triggerCsvDownload(buildCsvContent(), PROJ_NAME);
+  _flashBtn(btn,'✅ 已下載');
+}
+function toolbarCopyLine(){
+  var btn = document.getElementById('tb-btn-line');
+  var data = _summaryForShare();
+  if(!data.stores.length){ _flashBtn(btn,'⚠️ 無資料'); return; }
+  var lines = ['【'+PROJ_NAME+'】', '篩選：檔期'+FILTER.period+'／通路'+FILTER.channel+'／等級'+FILTER.grade+'／區域'+FILTER.area, ''];
+  lines.push('過濾店數 '+data.stores.length+'　應達總次數 '+data.totalExp+'　達成率 '+data.rate+'%　超額 '+data.totalExtra);
+  lines.push('');
+  data.stores.filter(function(it){ return it.rate<100; }).slice(0,50).forEach(function(it){
+    lines.push('❌ '+it.store.storeName+'('+it.store.code+') '+it.store.staff+'　'+it.stdDone+'/'+it.exp);
+  });
+  lines.push('');
+  lines.push('📅 '+new Date().toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}));
+  _doCopy(lines.join('\n'), btn);
+}
+function toolbarCopyLineBrief(){
+  var btn = document.getElementById('tb-btn-line-brief');
+  var data = _summaryForShare();
+  if(!data.stores.length){ _flashBtn(btn,'⚠️ 無資料'); return; }
+  var text = '【'+PROJ_NAME+'】過濾店數 '+data.stores.length+'／應達 '+data.totalExp+'／達成率 '+data.rate+'%／超額 '+data.totalExtra;
+  _doCopy(text, btn);
+}
+function toolbarScreenshot(){
+  var btn = document.getElementById('tb-btn-screenshot');
+  var el = document.querySelector('.stage');
+  _captureElement(el, btn, PROJ_NAME);
+}
+
+/* ════ 共用層載入防呆 ════ */
+(function _checkSharedLoaded(){
+  var missing = [];
+  if(typeof esc !== 'function') missing.push('core-utils.js（esc）');
+  if(typeof gvizParse !== 'function') missing.push('core-utils.js（gvizParse）');
+  if(typeof _flashBtn !== 'function') missing.push('copy-utils.js（_flashBtn）');
+  if(typeof _doCopy !== 'function') missing.push('copy-utils.js（_doCopy）');
+  if(typeof _triggerCsvDownload !== 'function') missing.push('csv-export.js');
+  if(typeof _captureElement !== 'function') missing.push('capture-clipboard.js');
+  if(typeof updateStickyTops !== 'function') missing.push('ui-chrome.js');
+  if(missing.length){
+    document.body.innerHTML = '<div style="padding:40px;font-family:sans-serif;line-height:1.8;">'
+      + '<h2 style="color:#A32020;">⚠️ 共用層檔案沒有載入成功</h2>'
+      + '<p>以下檔案讀不到，通常是因為 <code>shared/</code> 資料夾沒有跟 <code>patrol_board.html</code> 放在同一層目錄：</p>'
+      + '<ul>' + missing.map(function(m){ return '<li>'+m+'</li>'; }).join('') + '</ul>'
+      + '<pre style="background:#f0efe9;padding:12px;border-radius:8px;">你的資料夾/\n  patrol_board.html\n  shared/\n    core-utils.js\n    copy-utils.js\n    csv-export.js\n    capture-clipboard.js\n    ui-chrome.js\n    dashboard-common.css</pre>'
+      + '</div>';
+    throw new Error('shared 層未載入：' + missing.join('、'));
+  }
+})();
+
+init();
+</script>
+</body>
+</html>
