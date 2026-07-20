@@ -197,10 +197,21 @@
     <script> 拿掉即可。
 
 【版本紀錄】
-  1.3.1  2026-07-20  1)「依營業處執行狀況」總覽表改成量販／全聯分開列（各自
-                      一列＋各自小計），不再合併計算，避免兩通路應達次數
-                      標準不同（見 GRADE_FREQ）互相稀釋達成率；點列會多帶
-                      通路篩選進明細頁。2) 店家明細 Dialog 的「問卷內容」
+  1.3.2  2026-07-20  1)「依營業處執行狀況」表改成一個營業處一列，量販／
+                      全聯以「同一列內的兩組欄位」呈現（表頭兩層：上層
+                      量販／全聯分組，下層店數/應達/達標/達成率/超額），
+                      不再是量販、全聯各自獨立成一列；點對應通路的儲存格
+                      群組才會帶該通路篩選進明細頁。2) 修正店家明細 Dialog
+                      「問卷內容」仍讀不到資料的問題：1.3.1 的行數索引
+                      多加了 1（rowRecords[ri+1]），跟「處理層」的「行數」
+                      實際編號方式（扣掉表頭後的資料列 1-based 編號，等同
+                      迴圈本身的 ri）對不起來，造成查得到筆數、但每筆都
+                      取到下一列資料，內容自然全部空白／時間未知；改成
+                      直接用 rowRecords[ri] 即可對齊。
+  1.3.1  2026-07-20  1)「依營業處執行狀況」總覽表新增量販／全聯分開統計
+                      （不再合併計算），避免兩通路應達次數標準不同（見
+                      GRADE_FREQ）互相稀釋達成率（實際呈現方式見 1.3.2）。
+                      2) 店家明細 Dialog 的「問卷內容」
                       改成優先用「處理層」每筆巡補紀錄自帶的來源列號（來源
                       分頁+行數）直接定位問卷分頁的那一列，不再只靠問卷
                       分頁自己的「店家代碼」欄位文字反查比對——原本若那欄
@@ -407,9 +418,9 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 .ov-office-tbl th, .ov-office-tbl td { border:1px solid var(--border); padding:8px 10px; text-align:center; }
 .ov-office-tbl th { background:var(--bg); color:var(--sub); font-weight:700; }
 .ov-office-tbl td.oo-name { text-align:left; font-weight:700; vertical-align:middle; }
-.ov-office-tbl td.oo-chan { font-weight:700; color:var(--primary); white-space:nowrap; }
-.ov-office-tbl tbody tr { cursor:pointer; transition:background .12s; }
-.ov-office-tbl tbody tr:hover { background:var(--primary-bg); }
+.ov-office-tbl td.oo-clickable { cursor:pointer; transition:background .12s; }
+.ov-office-tbl td.oo-clickable:hover { background:var(--primary-bg); }
+.ov-office-tbl th[colspan] { background:var(--primary-bg); color:var(--primary); }
 .ov-office-tbl td.oo-rate { font-weight:800; color:var(--green); }
 .ov-office-tbl td.oo-extra { color:var(--bonus); font-weight:700; }
 .ov-office-tbl tr.oo-total td { background:#f6f4ef; font-weight:800; }
@@ -875,15 +886,20 @@ function _fetchQuestionnaireSheet(chanKey, callback){
     }
 
     /* codeToRecords：依這份問卷分頁自己的「店家代碼」欄分組（原始設計）。
-       rowRecords：額外依「實際試算表列號」（1-based，對齊 headers=0 回來的
-       rawRows 索引：rawRows[0]＝表頭列＝第1列，所以 rawRows[ri] 是第 ri+1 列）
-       建索引。1.3.1 新增——用意是店家明細 Dialog 其實已經從「處理層」的
-       「來源分頁+行數」欄位知道每一筆巡補紀錄具體落在問卷分頁的哪一列，
-       不需要再靠這份問卷分頁自己的「店家代碼」欄位文字去反查比對；如果
-       問卷分頁那欄有打字誤差、全半形不一致、或欄位根本沒填，只靠代碼
-       比對就會找不到資料（結果就是「明明知道在第428列，卻讀不到」），
-       改成優先用行數直接定位就不受這欄內容影響，openStoreDetail() 裡會
-       優先用 rowRecords，找不到才退回 codeToRecords 當備援 */
+       rowRecords：額外依「處理層」記錄的「行數」建索引。1.3.1 新增——用意
+       是店家明細 Dialog 其實已經從「處理層」的「來源分頁+行數」欄位知道
+       每一筆巡補紀錄具體落在問卷分頁的哪一列，不需要再靠這份問卷分頁
+       自己的「店家代碼」欄位文字去反查比對；如果問卷分頁那欄有打字
+       誤差、全半形不一致、或欄位根本沒填，只靠代碼比對就會找不到資料
+       （結果就是「明明知道在第428列，卻讀不到」），改成優先用行數直接
+       定位就不受這欄內容影響，openStoreDetail() 裡會優先用 rowRecords，
+       找不到才退回 codeToRecords 當備援。
+       行數對齊注意（1.3.2 修正）：GAS 端產生「行數」是對「扣掉表頭後的
+       資料列」1-based 編號（第1筆資料＝行數1），不是試算表本身的實體
+       列號；這裡的迴圈變數 ri 本來就是同一種編號（rawRows[0]＝表頭，
+       ri 從1開始正好對應「第 ri 筆資料」），索引直接用 ri，不要再 +1，
+       之前 rowRecords[ri+1] 會錯位取到下一筆資料，導致查得到筆數但
+       內容全部對不上（時間顯示未知、題目空白）*/
     var codeToRecords = {};
     var rowRecords = {};
     for(var ri=1; ri<rawRows.length; ri++){
@@ -908,7 +924,7 @@ function _fetchQuestionnaireSheet(chanKey, callback){
         sections: sectionOrder.map(function(s){ return { section:s, picks:sections[s] }; }),
         timeKey: _findTimeText(baseData)
       };
-      rowRecords[ri+1] = record; /* ri+1＝這一列在試算表上的實際列號 */
+      rowRecords[ri] = record; /* ri＝「處理層」行數欄位所指的同一種編號（扣掉表頭後第幾筆資料） */
       if(code){
         if(!codeToRecords[code]) codeToRecords[code] = [];
         codeToRecords[code].push(record);
@@ -1054,43 +1070,44 @@ function renderOfficeOverview(){
   });
   if(!areasPresent.length){ wrap.innerHTML = '<div class="ov-empty">目前沒有符合資料</div>'; return; }
   var CHANS = ['量販','全聯'];
-  var bodyRows = '';
+  /* 每個通路各自的 5 個統計儲存格（店數／應達／達標／達成率／超額），
+     hasData=false 時（該處沒有這個通路的店）顯示「—」且不可點擊 */
+  function _statCells(area, ck){
+    var hasData = STORE_ROWS.some(function(s){ return s.area===area && s.chanKey===ck; });
+    if(!hasData){
+      return '<td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>';
+    }
+    var r = _officeStatsFor(area, ck);
+    var click = ' class="oo-clickable" onclick="openDetailFromOffice(\''+area+'\',\''+ck+'\')"';
+    return '<td'+click+'>'+r.count+'</td>'
+      + '<td'+click+'>'+r.exp+'</td>'
+      + '<td'+click+'>'+r.stdDone+'</td>'
+      + '<td'+click+' class="oo-rate">'+r.rate.toFixed(1)+'%</td>'
+      + '<td'+click+' class="oo-extra">'+(r.extra>0?'+'+r.extra:'0')+'</td>';
+  }
   var chanTotals = { '量販':{exp:0,stdDone:0,extra:0,count:0}, '全聯':{exp:0,stdDone:0,extra:0,count:0} };
-  var grandExp=0, grandStdDone=0, grandExtra=0, grandCount=0;
-  areasPresent.forEach(function(area){
-    /* 只列出該營業處實際有店的通路，避免全空列造成困惑 */
-    var chansHere = CHANS.filter(function(ck){ return STORE_ROWS.some(function(s){ return s.area===area && s.chanKey===ck; }); });
-    if(!chansHere.length) return;
-    chansHere.forEach(function(ck, i){
+  var bodyRows = areasPresent.map(function(area){
+    var row = '<tr><td class="oo-name">'+esc(area)+'</td>';
+    CHANS.forEach(function(ck){
       var r = _officeStatsFor(area, ck);
       chanTotals[ck].exp += r.exp; chanTotals[ck].stdDone += r.stdDone; chanTotals[ck].extra += r.extra; chanTotals[ck].count += r.count;
-      grandExp += r.exp; grandStdDone += r.stdDone; grandExtra += r.extra; grandCount += r.count;
-      bodyRows += '<tr onclick="openDetailFromOffice(\''+area+'\',\''+ck+'\')">'
-        + (i===0 ? '<td class="oo-name" rowspan="'+chansHere.length+'">'+esc(area)+'</td>' : '')
-        + '<td class="oo-chan">'+esc(ck)+'</td>'
-        + '<td>'+r.count+'</td>'
-        + '<td>'+r.exp+'</td>'
-        + '<td>'+r.stdDone+'</td>'
-        + '<td class="oo-rate">'+r.rate.toFixed(1)+'%</td>'
-        + '<td class="oo-extra">'+(r.extra>0?'+'+r.extra:'0')+'</td>'
-        + '</tr>';
+      row += _statCells(area, ck);
     });
-  });
-  var chanTotalRows = CHANS.map(function(ck){
+    row += '</tr>';
+    return row;
+  }).join('');
+  var totalRow = '<tr class="oo-total"><td class="oo-name">全部合計</td>' + CHANS.map(function(ck){
     var t = chanTotals[ck];
     var rate = t.exp>0 ? (t.stdDone/t.exp*100) : 0;
-    return '<tr class="oo-total"><td class="oo-name">'+ck+' 合計</td><td class="oo-chan">—</td><td>'+t.count+'</td><td>'+t.exp+'</td>'
-      + '<td>'+t.stdDone+'</td><td class="oo-rate">'+rate.toFixed(1)+'%</td>'
-      + '<td class="oo-extra">'+(t.extra>0?'+'+t.extra:'0')+'</td></tr>';
-  }).join('');
-  var grandRate = grandExp>0 ? (grandStdDone/grandExp*100) : 0;
-  var html = '<table class="ov-office-tbl"><tr><th>營業處</th><th>通路</th><th>店數</th><th>應達次數</th>'
-    + '<th>達標次數</th><th>達成率%</th><th>超額次數</th></tr>'
+    return '<td>'+t.count+'</td><td>'+t.exp+'</td><td>'+t.stdDone+'</td>'
+      + '<td class="oo-rate">'+rate.toFixed(1)+'%</td>'
+      + '<td class="oo-extra">'+(t.extra>0?'+'+t.extra:'0')+'</td>';
+  }).join('') + '</tr>';
+  var html = '<table class="ov-office-tbl">'
+    + '<tr><th rowspan="2">營業處</th><th colspan="5">📦 量販</th><th colspan="5">🛒 全聯</th></tr>'
+    + '<tr>' + CHANS.map(function(){ return '<th>店數</th><th>應達次數</th><th>達標次數</th><th>達成率%</th><th>超額次數</th>'; }).join('') + '</tr>'
     + bodyRows
-    + chanTotalRows
-    + '<tr class="oo-total"><td class="oo-name" colspan="2">全部合計</td><td>'+grandCount+'</td><td>'+grandExp+'</td>'
-    + '<td>'+grandStdDone+'</td><td class="oo-rate">'+grandRate.toFixed(1)+'%</td>'
-    + '<td class="oo-extra">'+(grandExtra>0?'+'+grandExtra:'0')+'</td></tr>'
+    + totalRow
     + '</table>';
   wrap.innerHTML = html;
 }
