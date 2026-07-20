@@ -268,14 +268,18 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .td-code { color:var(--sub); font-size:13.5px; }
 .td-name { font-weight:700; }
 .grade-tag { font-size:13px; color:var(--sub); }
+.sum-col { font-weight:800; white-space:nowrap; }
+.sum-extra { color:var(--bonus); font-weight:700; font-size:12.5px; }
 
 /* ── 檔期欄位分組底色＋跨欄分隔（強化不同檔期／同檔期不同週的視覺區隔） ── */
 .pg-zhong { background:rgba(26,80,139,.08); }
 .pg-mid { background:rgba(230,81,0,.08); }
 .main-tbl thead th.pg-zhong { color:var(--primary); }
 .main-tbl thead th.pg-mid { color:var(--bonus); }
-.th-period-name { display:inline-block; font-size:13.5px; font-weight:800; letter-spacing:.04em; margin-bottom:2px; }
-.th-date-range { display:block; font-size:11px; font-weight:600; color:var(--sub); margin-top:2px; }
+.th-wk-flex { display:flex; align-items:baseline; justify-content:center; gap:5px; white-space:nowrap; }
+.th-period-name { font-size:13.5px; font-weight:800; letter-spacing:.04em; }
+.th-week-label { font-size:13.5px; font-weight:700; }
+.th-date-range { font-size:11.5px; font-weight:600; color:var(--sub); }
 .wk-divider { border-left:1px solid var(--border); }
 .pg-divider { border-left:3px solid var(--text) !important; }
 
@@ -298,6 +302,7 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 
 @media (max-width:640px) {
   .chip-label { width:auto; margin-right:4px; }
+  .office-label { flex-basis:100%; margin-left:0 !important; margin-top:6px; }
   .toolbar-controls {
     display:none; position:absolute; top:52px; left:0; right:0; z-index:60;
     background:#fff; border-bottom:1px solid var(--border); padding:10px 16px;
@@ -313,18 +318,18 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 /* ── 概況主畫面（戰情室，比照 alpha 版 mainDashboard） ── */
 .ov-wrap { max-width:1600px; margin:0 auto; padding:20px; }
 .ov-header { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:18px; flex-wrap:wrap; }
-.ov-header h1 { font-size:19px; font-weight:800; }
-.ov-all-btn { padding:10px 22px; border-radius:8px; border:1px solid var(--primary); background:var(--primary); color:#fff; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; white-space:nowrap; }
+.ov-header h1 { font-size:22px; font-weight:800; }
+.ov-all-btn { padding:10px 22px; border-radius:8px; border:1px solid var(--primary); background:var(--primary); color:#fff; font-size:16px; font-weight:700; cursor:pointer; font-family:inherit; white-space:nowrap; }
 .ov-all-btn:hover { opacity:.9; }
 .ov-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
 .ov-card { background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:18px 20px; cursor:pointer; transition:.2s; box-shadow:0 2px 8px rgba(0,0,0,.04); }
 .ov-card:hover { transform:translateY(-3px); box-shadow:0 8px 18px rgba(0,0,0,.09); }
-.ov-card h2 { font-size:15px; font-weight:700; border-left:4px solid var(--primary); padding-left:10px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; }
-.ov-perc { color:var(--green); font-size:20px; font-weight:800; }
-.ov-mini { width:100%; border-collapse:collapse; font-size:12px; }
+.ov-card h2 { font-size:18px; font-weight:700; border-left:4px solid var(--primary); padding-left:10px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; }
+.ov-perc { color:var(--green); font-size:23px; font-weight:800; }
+.ov-mini { width:100%; border-collapse:collapse; font-size:15px; }
 .ov-mini th, .ov-mini td { border:1px solid var(--border); padding:7px; text-align:center; }
 .ov-mini th { background:var(--bg); color:var(--sub); font-weight:700; }
-.ov-empty { color:var(--sub); font-size:12.5px; text-align:center; padding:20px 0; }
+.ov-empty { color:var(--sub); font-size:15.5px; text-align:center; padding:20px 0; }
 @media (max-width:640px) {
   .ov-grid { grid-template-columns:1fr; }
   .ov-wrap { padding:14px 12px; }
@@ -385,10 +390,8 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
     <div class="chip-row">
       <span class="chip-label">營業處</span>
       <div class="chip-group" id="chip-area"></div>
-    </div>
-    <div class="chip-row" id="office-row" style="display:none">
-      <span class="chip-label">營業所/課</span>
-      <div class="chip-group" id="chip-office"></div>
+      <span class="chip-label office-label" id="office-label" style="width:auto;margin-left:8px;display:none;">營業所/課</span>
+      <div class="chip-group" id="chip-office" style="display:none;"></div>
     </div>
   </div>
 
@@ -665,11 +668,12 @@ function buildFilterUI(){
 }
 /* ════ 營業所/課 chip：選定「營業處」後才出現，選項依實際資料動態產生 ════ */
 function updateOfficeChipRow(){
-  var rowEl = document.getElementById('office-row');
+  var labelEl = document.getElementById('office-label');
   var grp = document.getElementById('chip-office');
   if(FILTER.area==='全部'){
     FILTER.office = '全部';
-    rowEl.style.display = 'none';
+    labelEl.style.display = 'none';
+    grp.style.display = 'none';
     grp.innerHTML = '';
     return;
   }
@@ -681,7 +685,8 @@ function updateOfficeChipRow(){
   grp.innerHTML = opts.map(function(v){
     return '<div class="chip'+(v===FILTER.office?' active':'')+'" data-v="'+esc(v)+'" onclick="setChip(this,\'office\')">'+(v==='全部'?'全部所':esc(v))+'</div>';
   }).join('');
-  rowEl.style.display = '';
+  labelEl.style.display = '';
+  grp.style.display = '';
 }
 function setChip(el, key){
   var parent = el.parentElement;
@@ -863,12 +868,15 @@ function render(){
   });
 
   var head = document.getElementById('tbl-head');
-  var headHtml = '<tr><th class="th-left">區域</th><th class="th-left">店家</th><th>通路</th><th>等級</th><th>主要訪員</th>';
+  var headHtml = '<tr><th class="th-left">區域</th><th class="th-left">店家</th><th>通路</th><th>等級</th><th>主要訪員</th><th>勾選次數合計</th>';
   cols.forEach(function(c, idx){
     var m = colMeta[idx];
-    var periodTxt = (idx===0 || m.isGroupDivider) ? '<span class="th-period-name">'+esc(periodLabelMap[c.period]||c.period)+'</span><br>' : '';
     var dividerCls = m.isGroupDivider ? ' pg-divider' : (m.isWeekDivider ? ' wk-divider' : '');
-    headHtml += '<th class="'+m.periodCls+dividerCls+'">'+periodTxt+'W'+c.week+'<span class="th-date-range">'+esc(m.dateRange)+'</span></th>';
+    headHtml += '<th class="'+m.periodCls+dividerCls+'"><div class="th-wk-flex">'
+      + '<span class="th-period-name">'+esc(periodLabelMap[c.period]||c.period)+'</span>'
+      + '<span class="th-week-label">W'+c.week+'</span>'
+      + '<span class="th-date-range">'+esc(m.dateRange)+'</span>'
+      + '</div></th>';
   });
   headHtml += '</tr>';
   head.innerHTML = headHtml;
@@ -882,26 +890,31 @@ function render(){
     if(std===undefined){ unknownGradeCount++; }
     var gradeLabel = GRADE_LABEL[s.grade] || s.grade;
 
-    var row = '<tr onclick="openStoreDetail(\''+esc(s.code)+'\')">'
-      + '<td class="td-left">'+esc(s.area)+' '+esc(s.office)+'</td>'
-      + '<td class="td-left"><div class="td-name">'+esc(s.storeName)+'</div><div class="td-code">'+esc(s.code)+'</div></td>'
-      + '<td>'+esc(s.storeType||'—')+'</td>'
-      + '<td class="grade-tag">'+(std===undefined?'<span class="unknown-grade">'+esc(s.grade||'未設定')+' ⚠️</span>':esc(gradeLabel))+'</td>'
-      + '<td>'+esc(s.staff)+'</td>';
-
+    var colsHtml = '';
+    var rowExp=0, rowStdDone=0, rowExtra=0;
     cols.forEach(function(c, idx){
       var actual = _actualCount(s.code, c.period, c.week);
       var stdN = std===undefined ? 0 : std;
       var stdDone = Math.min(actual, stdN);
       var extra = Math.max(0, actual - stdN);
-      if(std!==undefined){ totalExp += stdN; totalStdDone += stdDone; totalExtra += extra; }
+      if(std!==undefined){ totalExp += stdN; totalStdDone += stdDone; totalExtra += extra; rowExp += stdN; rowStdDone += stdDone; rowExtra += extra; }
       var m = colMeta[idx];
       var dividerCls = m.isGroupDivider ? ' pg-divider' : (m.isWeekDivider ? ' wk-divider' : '');
-      row += '<td class="'+m.periodCls+dividerCls+'"><div class="box-container">';
-      for(var i=1;i<=stdN;i++){ row += '<input type="checkbox" class="std-check" '+(actual>=i?'checked':'')+'>'; }
-      for(var j=1;j<=extra;j++){ row += '<input type="checkbox" class="extra-check" checked>'; }
-      row += '</div></td>';
+      colsHtml += '<td class="'+m.periodCls+dividerCls+'"><div class="box-container">';
+      for(var i=1;i<=stdN;i++){ colsHtml += '<input type="checkbox" class="std-check" '+(actual>=i?'checked':'')+'>'; }
+      for(var j=1;j<=extra;j++){ colsHtml += '<input type="checkbox" class="extra-check" checked>'; }
+      colsHtml += '</div></td>';
     });
+    var sumTxt = rowStdDone+'/'+rowExp + (rowExtra>0 ? ' <span class="sum-extra">+'+rowExtra+'</span>' : '');
+
+    var row = '<tr onclick="openStoreDetail(\''+esc(s.code)+'\')">'
+      + '<td class="td-left">'+esc(s.area)+' '+esc(s.office)+'</td>'
+      + '<td class="td-left"><div class="td-name">'+esc(s.storeName)+'</div><div class="td-code">'+esc(s.code)+'</div></td>'
+      + '<td>'+esc(s.storeType||'—')+'</td>'
+      + '<td class="grade-tag">'+(std===undefined?'<span class="unknown-grade">'+esc(s.grade||'未設定')+' ⚠️</span>':esc(gradeLabel))+'</td>'
+      + '<td>'+esc(s.staff)+'</td>'
+      + '<td class="sum-col">'+sumTxt+'</td>'
+      + colsHtml;
     row += '</tr>';
     rowsHtml += row;
   });
