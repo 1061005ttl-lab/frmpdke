@@ -34,7 +34,12 @@
   1.「店家名冊」── 母體，量販通路與全聯社（超市）通路合併一份名冊。
      欄位（表頭列文字需完全一致，程式用欄名比對，不用欄位順序）：
        營業處名稱／營業所/課／主要訪員／通路別／店家型態／店家代碼／店家名稱／店家等級
-     ‧ 通路別：目前僅「量販」「全聯」兩種值。
+     ‧ 通路／全聯的判斷改用真實欄位值分類（畫面上仍只顯示「量販」
+       「全聯」簡稱），不是直接比對整欄：
+         量販：通路別＝「量販通路」
+         全聯：店家型態＝「全聯社」（不看通路別欄）
+       比對邏輯集中在常數區的 _chanKey() 函式，日後真實值再變動，
+       改這支函式即可，不要在別處另外加比對條件。
      ‧ 店家等級：決定「每週應達巡補次數」的依據，目前支援四種值，
        對照表寫死在本檔常數 GRADE_FREQ（見下方【等級應達次數對照】），
        日後若需要新增等級或調整標準次數，直接改這個常數即可，
@@ -74,9 +79,11 @@
 
 【等級應達次數對照（寫死在常數 GRADE_FREQ）】
   量販 A 級：每週 5 次　量販 B 級：每週 3 次　量販 C 級：每週 2 次
-  全聯 超市A：每週 1 次
+  全聯 連鎖超市A：每週 1 次（畫面上簡稱顯示為「超市A」，對照表見
+  GRADE_LABEL，「店家名冊」裡「店家等級」欄的真實值須為「連鎖超市A」）
   （對照表已與需求方確認先寫死在 HTML 常數，不做管理表可調整設定；
-   日後真的要調整，直接改 GRADE_FREQ 物件即可，不需要改動其餘邏輯）
+   日後真的要調整，直接改 GRADE_FREQ／GRADE_LABEL 物件即可，
+   不需要改動其餘邏輯）
 
 ────────────────────────────────────────────────────────────
 【核心計算邏輯（自動化格子觸發＋資料隔離，比照 alpha 版規格書）】
@@ -99,6 +106,11 @@
 
 ────────────────────────────────────────────────────────────
 【畫面設計】
+  ‧ 進站先看「概況主畫面」（比照 alpha 版 mainDashboard 設計）：
+    中元／中秋 × 量販／全聯，四張卡片各顯示整體達成率＋依等級拆分的
+    店數／應達總量／達成率 mini table，點卡片才帶著對應檔期＋通路
+    篩選條件進入明細頁（明細頁「← 返回總覽」可回到概況，回去時會
+    重新整理卡片數字）；「進入整體明細」按鈕則不帶篩選直接進明細。
   ‧ 上方摘要列：目前篩選範圍的 過濾店數／標準應達總次數／
     目標達成率(%)／自動觸發超額次數，四項比照 alpha 版數據摘要區。
   ‧ 篩選列（filterbar，四組 chip + 關鍵字搜尋）：
@@ -128,7 +140,7 @@
     務必是 Google Sheet 的日期格式（gviz 才能正確解析 Date(y,m,d)），
     不要存成純文字字串。
   ‧ 「店家名冊」的「店家等級」欄位值務必跟 GRADE_FREQ 常數的 key
-    完全一致（量販A／量販B／量販C／超市A，含全形字），否則該店
+    完全一致（量販A／量販B／量販C／連鎖超市A，含全形字），否則該店
     會被判斷為「等級未知」，應達次數算 0，不會出現在達成率分母
     （畫面上會照樣列出該店但四項摘要都不會把它算進去，屬於刻意
     設計成「不要讓未知等級污染統計」，但仍要能被人工發現，故保留
@@ -139,6 +151,15 @@
     <script> 拿掉即可。
 
 【版本紀錄】
+  1.1.0  2026-07-20  1) 通路／全聯判斷改用真實欄位值分類（量販：
+                      通路別＝「量販通路」；全聯：店家型態＝「全聯社」，
+                      不看通路別欄），畫面上仍只顯示「量販」「全聯」
+                      簡稱，比對邏輯集中在 _chanKey()。2) 店家等級
+                      GRADE_FREQ 的全聯等級 key 由「超市A」改為真實值
+                      「連鎖超市A」，新增 GRADE_LABEL 讓畫面維持「超市A」
+                      簡稱顯示。3) 新增「概況主畫面」（比照 alpha 版
+                      mainDashboard，見上方【畫面設計】），進站不再
+                      直接跳明細表格。
   1.0.0  2026-07-20  首版。以 contract_board.html 的三表比對架構
                       （母體＋處理層）為底，計算邏輯改為「週次巡補
                       次數 vs 等級標準」的標準/超額拆分（比照
@@ -266,6 +287,26 @@ input.extra-check { accent-color:var(--bonus); outline:1px solid var(--bonus); o
   .stage { padding:10px 12px 30px; }
 }
 
+/* ── 概況主畫面（戰情室，比照 alpha 版 mainDashboard） ── */
+.ov-wrap { max-width:1600px; margin:0 auto; padding:20px; }
+.ov-header { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:18px; flex-wrap:wrap; }
+.ov-header h1 { font-size:19px; font-weight:800; }
+.ov-all-btn { padding:10px 22px; border-radius:8px; border:1px solid var(--primary); background:var(--primary); color:#fff; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; white-space:nowrap; }
+.ov-all-btn:hover { opacity:.9; }
+.ov-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+.ov-card { background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:18px 20px; cursor:pointer; transition:.2s; box-shadow:0 2px 8px rgba(0,0,0,.04); }
+.ov-card:hover { transform:translateY(-3px); box-shadow:0 8px 18px rgba(0,0,0,.09); }
+.ov-card h2 { font-size:15px; font-weight:700; border-left:4px solid var(--primary); padding-left:10px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; }
+.ov-perc { color:var(--green); font-size:20px; font-weight:800; }
+.ov-mini { width:100%; border-collapse:collapse; font-size:12px; }
+.ov-mini th, .ov-mini td { border:1px solid var(--border); padding:7px; text-align:center; }
+.ov-mini th { background:var(--bg); color:var(--sub); font-weight:700; }
+.ov-empty { color:var(--sub); font-size:12.5px; text-align:center; padding:20px 0; }
+@media (max-width:640px) {
+  .ov-grid { grid-template-columns:1fr; }
+  .ov-wrap { padding:14px 12px; }
+}
+
 /* ── 店家明細 Dialog：巡補時間軸 ── */
 .visit-timeline { padding:16px 20px 30px; }
 .visit-summary { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:16px; padding:12px 16px; background:var(--bg); border-radius:10px; }
@@ -282,60 +323,73 @@ input.extra-check { accent-color:var(--bonus); outline:1px solid var(--bonus); o
 
 <div class="loading" id="loading">載入中…</div>
 
-<div class="toolbar">
-  <span class="toolbar-title" id="tb-title">節慶巡補看板</span>
-  <span class="sync-note" id="tb-sync"></span>
-  <div class="toolbar-spacer"></div>
-  <button class="hamburger-btn" id="hamburger-btn" onclick="toggleMobileMenu(event)">☰</button>
-  <div class="toolbar-controls" id="toolbar-controls">
-    <button class="tb-act-btn" id="tb-btn-csv" onclick="toolbarDownloadCsv();closeMobileMenu();">📥 CSV</button>
-    <button class="tb-act-btn" id="tb-btn-line" onclick="toolbarCopyLine();closeMobileMenu();">💬 LINE</button>
-    <button class="tb-act-btn" id="tb-btn-line-brief" onclick="toolbarCopyLineBrief();closeMobileMenu();">✂️ 精簡</button>
-    <button class="tb-act-btn" id="tb-btn-screenshot" onclick="toolbarScreenshot();closeMobileMenu();">📸 截圖</button>
+<!-- ════ 概況主畫面（戰情室）：進站先看總覽卡片，不直接跳明細 ════ -->
+<div id="mainDashboard" class="ov-wrap">
+  <div class="ov-header">
+    <h1 id="ov-title">節慶巡補看板</h1>
+    <button class="ov-all-btn" onclick="openDetailAll()">進入整體明細 →</button>
   </div>
+  <div class="ov-grid" id="ov-cards"></div>
 </div>
 
-<div class="filterbar" id="filterbar">
-  <div class="chip-row">
-    <span class="chip-label">檔期</span>
-    <div class="chip-group" id="chip-period"></div>
+<!-- ════ 明細頁面：點卡片或「進入整體明細」後才顯示 ════ -->
+<div id="detailPage" style="display:none">
+  <div class="toolbar">
+    <button class="tb-act-btn" onclick="backToOverview()" style="flex-shrink:0;">← 返回總覽</button>
+    <span class="toolbar-title" id="tb-title">節慶巡補看板</span>
+    <span class="sync-note" id="tb-sync"></span>
+    <div class="toolbar-spacer"></div>
+    <button class="hamburger-btn" id="hamburger-btn" onclick="toggleMobileMenu(event)">☰</button>
+    <div class="toolbar-controls" id="toolbar-controls">
+      <button class="tb-act-btn" id="tb-btn-csv" onclick="toolbarDownloadCsv();closeMobileMenu();">📥 CSV</button>
+      <button class="tb-act-btn" id="tb-btn-line" onclick="toolbarCopyLine();closeMobileMenu();">💬 LINE</button>
+      <button class="tb-act-btn" id="tb-btn-line-brief" onclick="toolbarCopyLineBrief();closeMobileMenu();">✂️ 精簡</button>
+      <button class="tb-act-btn" id="tb-btn-screenshot" onclick="toolbarScreenshot();closeMobileMenu();">📸 截圖</button>
+    </div>
   </div>
-  <div class="chip-row">
-    <span class="chip-label">通路</span>
-    <div class="chip-group" id="chip-channel"></div>
-  </div>
-  <div class="chip-row">
-    <span class="chip-label">等級</span>
-    <div class="chip-group" id="chip-grade"></div>
-  </div>
-  <div class="chip-row">
-    <span class="chip-label">區域</span>
-    <div class="chip-group" id="chip-area"></div>
-    <input class="fb-input" id="fb-keyword" placeholder="搜尋店名／店代碼／主要訪員" oninput="onFilterChange()">
-  </div>
-</div>
 
-<div class="summary-row">
-  <div class="sum-card"><div class="sc-label">目前過濾店數</div><div class="sc-val" id="stat-store-count">0</div></div>
-  <div class="sum-card"><div class="sc-label">標準應達總次數</div><div class="sc-val" id="stat-exp-visits">0</div></div>
-  <div class="sum-card rate"><div class="sc-label">目標達成率</div><div class="sc-val" id="stat-rate">0.0%</div></div>
-  <div class="sum-card extra"><div class="sc-label">自動觸發超額次數</div><div class="sc-val" id="stat-extra">0</div>
-    <div class="sc-val sc-val-note" style="display:none"></div>
+  <div class="filterbar" id="filterbar">
+    <div class="chip-row">
+      <span class="chip-label">檔期</span>
+      <div class="chip-group" id="chip-period"></div>
+    </div>
+    <div class="chip-row">
+      <span class="chip-label">通路</span>
+      <div class="chip-group" id="chip-channel"></div>
+    </div>
+    <div class="chip-row">
+      <span class="chip-label">等級</span>
+      <div class="chip-group" id="chip-grade"></div>
+    </div>
+    <div class="chip-row">
+      <span class="chip-label">區域</span>
+      <div class="chip-group" id="chip-area"></div>
+      <input class="fb-input" id="fb-keyword" placeholder="搜尋店名／店代碼／主要訪員" oninput="onFilterChange()">
+    </div>
   </div>
-</div>
 
-<div class="stage">
-  <div class="result-count" id="result-count"></div>
-  <div class="tbl-wrap">
-    <table class="main-tbl">
-      <thead id="tbl-head"></thead>
-      <tbody id="tbl-body"></tbody>
-    </table>
+  <div class="summary-row">
+    <div class="sum-card"><div class="sc-label">目前過濾店數</div><div class="sc-val" id="stat-store-count">0</div></div>
+    <div class="sum-card"><div class="sc-label">標準應達總次數</div><div class="sc-val" id="stat-exp-visits">0</div></div>
+    <div class="sum-card rate"><div class="sc-label">目標達成率</div><div class="sc-val" id="stat-rate">0.0%</div></div>
+    <div class="sum-card extra"><div class="sc-label">自動觸發超額次數</div><div class="sc-val" id="stat-extra">0</div>
+      <div class="sc-val sc-val-note" style="display:none"></div>
+    </div>
   </div>
-  <div class="empty" id="empty-msg" style="display:none">目前篩選條件下沒有符合的店家</div>
-  <div class="footnote">
-    💡 藍色格代表標準應達次數；若實際巡補次數超過標準，系統自動顯示並勾選橘色格子（超額），
-    橘色次數只計入「自動觸發超額次數」，不列入達成率 %，超額也不會外溢補足其他店家的未達成。
+
+  <div class="stage">
+    <div class="result-count" id="result-count"></div>
+    <div class="tbl-wrap">
+      <table class="main-tbl">
+        <thead id="tbl-head"></thead>
+        <tbody id="tbl-body"></tbody>
+      </table>
+    </div>
+    <div class="empty" id="empty-msg" style="display:none">目前篩選條件下沒有符合的店家</div>
+    <div class="footnote">
+      💡 藍色格代表標準應達次數；若實際巡補次數超過標準，系統自動顯示並勾選橘色格子（超額），
+      橘色次數只計入「自動觸發超額次數」，不列入達成率 %，超額也不會外溢補足其他店家的未達成。
+    </div>
   </div>
 </div>
 
@@ -380,9 +434,23 @@ var PERIODS = [
   { key:'zhong', label:'中元專案', y:2026, mo:8, d:8,  weeks:3 },
   { key:'mid',   label:'中秋專案', y:2026, mo:9, d:14, weeks:2 }
 ];
-/* 等級 → 每週應達次數（已與需求方確認先寫死，不做管理表） */
-var GRADE_FREQ = { '量販A':5, '量販B':3, '量販C':2, '超市A':1 };
+/* 等級 → 每週應達次數（已與需求方確認先寫死，不做管理表）
+   key 必須跟「店家名冊」的「店家等級」欄位真實值完全一致（含全形字） */
+var GRADE_FREQ = { '量販A':5, '量販B':3, '量販C':2, '連鎖超市A':1 };
+/* 等級的畫面簡稱（真實值較長時，畫面上仍顯示簡稱，不影響比對邏輯） */
+var GRADE_LABEL = { '量販A':'量販A', '量販B':'量販B', '量販C':'量販C', '連鎖超市A':'超市A' };
 var AREA_ORDER = ['北部','桃園','臺中','嘉義','臺南','高雄','花蓮'];
+
+/* 通路判斷（依真實欄位值分類為「量販」／「全聯」兩種內部簡稱 key，
+   畫面上的 chip／badge 一律顯示簡稱，篩選比對則一律用這個 key）：
+   ‧ 通路別＝「量販通路」→ 判定為量販
+   ‧ 店家型態＝「全聯社」→ 判定為全聯（不看通路別欄，避免全聯的通路別
+     欄值寫法不一致時漏判） */
+function _chanKey(channelVal, storeTypeVal){
+  if(channelVal === '量販通路') return '量販';
+  if(storeTypeVal === '全聯社') return '全聯';
+  return '';
+}
 
 var STORE_ROWS  = [];   /* 店家名冊，含 __visits 索引 */
 var VISIT_ROWS  = [];   /* 處理層原始列（供明細 Dialog 用） */
@@ -396,6 +464,7 @@ function hideLoading(){ document.getElementById('loading').classList.remove('sho
 /* ════ 初始化 ════ */
 function init(){
   document.getElementById('tb-title').textContent = PROJ_NAME;
+  document.getElementById('ov-title').textContent = PROJ_NAME;
   document.title = PROJ_NAME;
   if(!SHEET_ID){
     hideLoading();
@@ -408,7 +477,7 @@ function init(){
   fetchPopulation(function(){
     fetchProcessLayer(function(){
       hideLoading();
-      onFilterChange();
+      renderOverview(); /* 先進概況主畫面，不直接跳明細 */
     });
   });
   fetchSyncTime();
@@ -431,11 +500,14 @@ function fetchPopulation(callback){
         var v = (cell.v!==null && cell.v!==undefined) ? cell.v : '';
         obj[colName] = (v!=='' && v!==null && v!==undefined) ? v : (cell.f||'');
       });
+      var channelVal = String(obj[P_CHANNEL]||'').trim();
+      var storeTypeVal = String(obj[P_STORETYPE]||'').trim();
       return {
         area: String(obj[P_AREA]||'').trim(),
         office: String(obj[P_OFFICE]||'').trim(),
-        channel: String(obj[P_CHANNEL]||'').trim(),
-        storeType: String(obj[P_STORETYPE]||'').trim(),
+        channel: channelVal,
+        storeType: storeTypeVal,
+        chanKey: _chanKey(channelVal, storeTypeVal),
         storeName: String(obj[P_STORENAME]||'').trim(),
         code: String(obj[P_CODE]||'').trim(),
         grade: String(obj[P_GRADE]||'').trim(),
@@ -446,6 +518,8 @@ function fetchPopulation(callback){
     STORE_ROWS = [];
     document.getElementById('empty-msg').style.display = 'block';
     document.getElementById('empty-msg').textContent = '⚠️ 店家名冊載入失敗：'+err;
+    var ov = document.getElementById('ov-cards');
+    if(ov) ov.innerHTML = '<div class="ov-empty">⚠️ 店家名冊載入失敗：'+esc(String(err))+'</div>';
   }).then(function(){ callback(); });
 }
 
@@ -542,7 +616,7 @@ function buildFilterUI(){
 
   var gradeOpts = ['全部'].concat(Object.keys(GRADE_FREQ));
   document.getElementById('chip-grade').innerHTML = gradeOpts.map(function(v,i){
-    return '<div class="chip'+(i===0?' active':'')+'" data-v="'+v+'" onclick="setChip(this,\'grade\')">'+(v==='全部'?'全部等級':v+'（每週'+GRADE_FREQ[v]+'次）')+'</div>';
+    return '<div class="chip'+(i===0?' active':'')+'" data-v="'+v+'" onclick="setChip(this,\'grade\')">'+(v==='全部'?'全部等級':(GRADE_LABEL[v]||v)+'（每週'+GRADE_FREQ[v]+'次）')+'</div>';
   }).join('');
 
   var areaOpts = ['全部'].concat(AREA_ORDER);
@@ -560,6 +634,94 @@ function setChip(el, key){
 function onFilterChange(){
   FILTER.keyword = document.getElementById('fb-keyword').value.trim();
   render();
+}
+
+/* ════ 概況主畫面（戰情室）：中元/中秋 × 量販/全聯 四張卡片 ════ */
+function _periodColumns(periodKey){
+  var p = PERIODS.filter(function(pp){ return pp.key===periodKey; })[0];
+  if(!p) return [];
+  var cols = [];
+  for(var w=1; w<=p.weeks; w++) cols.push({ period:p.key, week:w });
+  return cols;
+}
+function _statsFor(storesSubset, cols){
+  var totalExp=0, totalStdDone=0;
+  var byGrade = {}; /* grade → {count, exp, stdDone} */
+  storesSubset.forEach(function(s){
+    var std = GRADE_FREQ[s.grade];
+    if(std===undefined) return; /* 等級未知不計入概況統計，跟主表邏輯一致 */
+    var exp=0, stdDone=0;
+    cols.forEach(function(c){
+      var actual = _actualCount(s.code, c.period, c.week);
+      exp += std; stdDone += Math.min(actual, std);
+    });
+    totalExp += exp; totalStdDone += stdDone;
+    if(!byGrade[s.grade]) byGrade[s.grade] = { count:0, exp:0, stdDone:0 };
+    byGrade[s.grade].count++;
+    byGrade[s.grade].exp += exp;
+    byGrade[s.grade].stdDone += stdDone;
+  });
+  return { rate: totalExp>0 ? (totalStdDone/totalExp*100) : 0, totalExp:totalExp, byGrade:byGrade };
+}
+function renderOverview(){
+  var wrap = document.getElementById('ov-cards');
+  if(!wrap) return;
+  var cardsHtml = PERIODS.map(function(p){
+    var icon = p.key==='zhong' ? '🏮' : '🎑';
+    return ['量販','全聯'].map(function(chanKey){
+      var cols = _periodColumns(p.key);
+      var subset = STORE_ROWS.filter(function(s){ return s.chanKey===chanKey; });
+      var stat = _statsFor(subset, cols);
+      var gradeKeys = Object.keys(stat.byGrade).sort(function(a,b){
+        return (GRADE_FREQ[b]||0) - (GRADE_FREQ[a]||0);
+      });
+      var body = gradeKeys.length ? (
+        '<table class="ov-mini"><tr><th>等級</th><th>店數</th><th>應達總量</th><th>達成率%</th></tr>'
+        + gradeKeys.map(function(g){
+            var gd = stat.byGrade[g];
+            var r = gd.exp>0 ? (gd.stdDone/gd.exp*100).toFixed(1) : '0.0';
+            var label = (GRADE_LABEL[g]||g) + '（' + GRADE_FREQ[g] + '）';
+            return '<tr><td>'+esc(label)+'</td><td>'+gd.count+'</td><td>'+gd.exp+'</td>'
+              + '<td style="color:var(--green);font-weight:700;">'+r+'%</td></tr>';
+          }).join('')
+        + '</table>'
+      ) : '<div class="ov-empty">目前沒有符合資料</div>';
+      return '<div class="ov-card" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\')">'
+        + '<h2><span>'+icon+' '+esc(p.label)+' - '+(chanKey==='量販'?'量販通路':'全聯通路')+'</span>'
+        + '<span class="ov-perc">'+stat.rate.toFixed(1)+'%</span></h2>'
+        + body + '</div>';
+    }).join('');
+  }).join('');
+  wrap.innerHTML = cardsHtml;
+}
+function _enterDetail(){
+  document.getElementById('mainDashboard').style.display = 'none';
+  document.getElementById('detailPage').style.display = 'block';
+  document.getElementById('fb-keyword').value = FILTER.keyword;
+  syncChipsToFilter();
+  render();
+}
+function openDetailFromOverview(periodKey, chanKey){
+  FILTER.period = periodKey; FILTER.channel = chanKey; FILTER.grade = '全部'; FILTER.area = '全部'; FILTER.keyword = '';
+  _enterDetail();
+}
+function openDetailAll(){
+  FILTER.period = '全部'; FILTER.channel = '全部'; FILTER.grade = '全部'; FILTER.area = '全部'; FILTER.keyword = '';
+  _enterDetail();
+}
+function backToOverview(){
+  document.getElementById('detailPage').style.display = 'none';
+  document.getElementById('mainDashboard').style.display = 'block';
+  renderOverview(); /* 回總覽時重新整理數字，避免跟明細篩選後的畫面對不上 */
+}
+function syncChipsToFilter(){
+  ['period','channel','grade','area'].forEach(function(key){
+    var grp = document.getElementById('chip-'+key);
+    if(!grp) return;
+    Array.from(grp.children).forEach(function(c){
+      c.classList.toggle('active', c.getAttribute('data-v')===FILTER[key]);
+    });
+  });
 }
 
 /* ════ 目前應顯示的欄位（依檔期篩選動態決定） ════ */
@@ -587,7 +749,7 @@ function _actualCount(code, period, week){
 function getFilteredStores(){
   var kw = (FILTER.keyword||'').toLowerCase();
   return STORE_ROWS.filter(function(r){
-    if(FILTER.channel!=='全部' && r.channel!==FILTER.channel) return false;
+    if(FILTER.channel!=='全部' && r.chanKey!==FILTER.channel) return false;
     if(FILTER.grade!=='全部' && r.grade!==FILTER.grade) return false;
     if(FILTER.area!=='全部' && r.area!==FILTER.area) return false;
     if(kw){
@@ -596,7 +758,7 @@ function getFilteredStores(){
     }
     return true;
   }).sort(function(a,b){
-    var cols=['area','office','channel','code'];
+    var cols=['area','office','chanKey','code'];
     for(var i=0;i<cols.length;i++){
       var va=String(a[cols[i]]||''), vb=String(b[cols[i]]||'');
       if(va!==vb) return va>vb?1:-1;
@@ -623,13 +785,14 @@ function render(){
   stores.forEach(function(s){
     var std = GRADE_FREQ[s.grade];
     if(std===undefined){ unknownGradeCount++; }
-    var chanBadgeCls = s.channel==='量販' ? 'badge-hyper' : 'badge-px';
+    var chanBadgeCls = s.chanKey==='量販' ? 'badge-hyper' : 'badge-px';
+    var gradeLabel = GRADE_LABEL[s.grade] || s.grade;
 
     var row = '<tr onclick="openStoreDetail(\''+esc(s.code)+'\')">'
       + '<td class="td-left">'+esc(s.area)+' '+esc(s.office)+'</td>'
       + '<td class="td-left"><div class="td-name">'+esc(s.storeName)+'</div><div class="td-code">'+esc(s.code)+'</div></td>'
-      + '<td><span class="badge '+chanBadgeCls+'">'+esc(s.channel)+'</span></td>'
-      + '<td class="grade-tag">'+(std===undefined?'<span class="unknown-grade">'+esc(s.grade||'未設定')+' ⚠️</span>':esc(s.grade))+'</td>'
+      + '<td><span class="badge '+chanBadgeCls+'">'+esc(s.chanKey||'—')+'</span></td>'
+      + '<td class="grade-tag">'+(std===undefined?'<span class="unknown-grade">'+esc(s.grade||'未設定')+' ⚠️</span>':esc(gradeLabel))+'</td>'
       + '<td>'+esc(s.staff)+'</td>';
 
     cols.forEach(function(c){
@@ -697,7 +860,7 @@ function openStoreDetail(code){
     + '<div class="visit-summary">'
     + '<div class="vs-item">單位<br><b>'+esc(store.area)+' '+esc(store.office)+'</b></div>'
     + '<div class="vs-item">主要訪員<br><b>'+esc(store.staff)+'</b></div>'
-    + '<div class="vs-item">等級<br><b>'+esc(store.grade||'未設定')+'</b></div>'
+    + '<div class="vs-item">等級<br><b>'+esc(store.grade ? (GRADE_LABEL[store.grade]||store.grade) : '未設定')+'</b></div>'
     + '<div class="vs-item">目前篩選範圍達成率<br><b>'+stdDoneTotal+'/'+expTotal+'（'+rate+'%）</b></div>'
     + '<div class="vs-item">超額次數<br><b style="color:var(--bonus)">'+extraTotal+'</b></div>'
     + '</div>';
