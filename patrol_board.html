@@ -197,6 +197,16 @@
     <script> 拿掉即可。
 
 【版本紀錄】
+  1.3.1  2026-07-20  1)「依營業處執行狀況」總覽表改成量販／全聯分開列（各自
+                      一列＋各自小計），不再合併計算，避免兩通路應達次數
+                      標準不同（見 GRADE_FREQ）互相稀釋達成率；點列會多帶
+                      通路篩選進明細頁。2) 店家明細 Dialog 的「問卷內容」
+                      改成優先用「處理層」每筆巡補紀錄自帶的來源列號（來源
+                      分頁+行數）直接定位問卷分頁的那一列，不再只靠問卷
+                      分頁自己的「店家代碼」欄位文字反查比對——原本若那欄
+                      有打字誤差、全半形不一致、或沒確實填寫，即使巡補紀錄
+                      明明知道在第幾列，也會找不到內容或讀到不相關的空列；
+                      找不到列號時仍保留舊的代碼比對當備援。
   1.3.0  2026-07-20  1) 概況主畫面新增「依營業處執行狀況」總覽表
                       （不分檔期／通路的整體表現，點列可直接進明細）。
                       2) 新增「📖 使用說明」面板（概況頁與明細頁工具列都
@@ -396,7 +406,8 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 .ov-office-tbl { width:100%; border-collapse:collapse; font-size:14.5px; }
 .ov-office-tbl th, .ov-office-tbl td { border:1px solid var(--border); padding:8px 10px; text-align:center; }
 .ov-office-tbl th { background:var(--bg); color:var(--sub); font-weight:700; }
-.ov-office-tbl td.oo-name { text-align:left; font-weight:700; }
+.ov-office-tbl td.oo-name { text-align:left; font-weight:700; vertical-align:middle; }
+.ov-office-tbl td.oo-chan { font-weight:700; color:var(--primary); white-space:nowrap; }
 .ov-office-tbl tbody tr { cursor:pointer; transition:background .12s; }
 .ov-office-tbl tbody tr:hover { background:var(--primary-bg); }
 .ov-office-tbl td.oo-rate { font-weight:800; color:var(--green); }
@@ -863,12 +874,22 @@ function _fetchQuestionnaireSheet(chanKey, callback){
       }
     }
 
+    /* codeToRecords：依這份問卷分頁自己的「店家代碼」欄分組（原始設計）。
+       rowRecords：額外依「實際試算表列號」（1-based，對齊 headers=0 回來的
+       rawRows 索引：rawRows[0]＝表頭列＝第1列，所以 rawRows[ri] 是第 ri+1 列）
+       建索引。1.3.1 新增——用意是店家明細 Dialog 其實已經從「處理層」的
+       「來源分頁+行數」欄位知道每一筆巡補紀錄具體落在問卷分頁的哪一列，
+       不需要再靠這份問卷分頁自己的「店家代碼」欄位文字去反查比對；如果
+       問卷分頁那欄有打字誤差、全半形不一致、或欄位根本沒填，只靠代碼
+       比對就會找不到資料（結果就是「明明知道在第428列，卻讀不到」），
+       改成優先用行數直接定位就不受這欄內容影響，openStoreDetail() 裡會
+       優先用 rowRecords，找不到才退回 codeToRecords 當備援 */
     var codeToRecords = {};
+    var rowRecords = {};
     for(var ri=1; ri<rawRows.length; ri++){
       var row = rawRows[ri];
       if(!row || !row.c) continue;
       var code = codeColIdx!==-1 ? String(cellVal(row, codeColIdx)||'').trim() : '';
-      if(!code) continue;
       var baseData = {};
       baseColNames.forEach(function(b){ baseData[b.name] = cellVal(row, b.col); });
       var sections = {}, sectionOrder = [];
@@ -878,18 +899,26 @@ function _fetchQuestionnaireSheet(chanKey, callback){
         if(!sections[qc.section]){ sections[qc.section]=[]; sectionOrder.push(qc.section); }
         sections[qc.section].push({ option:qc.option, value:v });
       });
-      if(!codeToRecords[code]) codeToRecords[code] = [];
-      codeToRecords[code].push({
+      /* 這一列若「店家代碼」以外的欄位全部是空的，視為空白列（例如表尾
+         殘留的空列），不建索引，避免污染 rowRecords／codeToRecords */
+      var hasAnyData = sectionOrder.length>0 || baseColNames.some(function(b){ return String(baseData[b.name]||'').trim()!==''; });
+      if(!hasAnyData) continue;
+      var record = {
         base: baseData,
         sections: sectionOrder.map(function(s){ return { section:s, picks:sections[s] }; }),
         timeKey: _findTimeText(baseData)
-      });
+      };
+      rowRecords[ri+1] = record; /* ri+1＝這一列在試算表上的實際列號 */
+      if(code){
+        if(!codeToRecords[code]) codeToRecords[code] = [];
+        codeToRecords[code].push(record);
+      }
     }
     Object.keys(codeToRecords).forEach(function(code){
       codeToRecords[code].sort(function(a,b){ return a.timeKey < b.timeKey ? 1 : (a.timeKey > b.timeKey ? -1 : 0); });
     });
 
-    _qSheetCache[chanKey] = { codeToRecords:codeToRecords };
+    _qSheetCache[chanKey] = { codeToRecords:codeToRecords, rowRecords:rowRecords };
     _qSheetLoading[chanKey] = false;
     callback(_qSheetCache[chanKey]);
     (_qSheetWaiters[chanKey]||[]).forEach(function(cb){ cb(_qSheetCache[chanKey]); });
@@ -995,8 +1024,15 @@ function _allPeriodColumns(){
   PERIODS.forEach(function(p){ for(var w=1; w<=p.weeks; w++) cols.push({ period:p.key, week:w }); });
   return cols;
 }
-function _officeStatsFor(area){
-  var subset = STORE_ROWS.filter(function(s){ return s.area===area; });
+/* 1.3.1：量販／全聯應達次數標準不同（見 GRADE_FREQ），混在一起算「達成率」
+   會互相稀釋，看不出兩個通路各自的執行狀況，改成依「營業處＋通路」分開
+   統計，chanKey 傳 null／不傳則維持舊的「不分通路」合計（保留給總計列用） */
+function _officeStatsFor(area, chanKey){
+  var subset = STORE_ROWS.filter(function(s){
+    if(s.area!==area) return false;
+    if(chanKey && s.chanKey!==chanKey) return false;
+    return true;
+  });
   var cols = _allPeriodColumns();
   var exp=0, stdDone=0, extra=0, unknownGrade=0;
   subset.forEach(function(s){
@@ -1007,7 +1043,7 @@ function _officeStatsFor(area){
       exp += std; stdDone += Math.min(actual, std); extra += Math.max(0, actual-std);
     });
   });
-  return { area:area, count:subset.length, exp:exp, stdDone:stdDone, extra:extra,
+  return { area:area, chanKey:chanKey||'', count:subset.length, exp:exp, stdDone:stdDone, extra:extra,
     unknownGrade:unknownGrade, rate: exp>0 ? (stdDone/exp*100) : 0 };
 }
 function renderOfficeOverview(){
@@ -1017,31 +1053,50 @@ function renderOfficeOverview(){
     return STORE_ROWS.some(function(s){ return s.area===a; });
   });
   if(!areasPresent.length){ wrap.innerHTML = '<div class="ov-empty">目前沒有符合資料</div>'; return; }
-  var rows = areasPresent.map(_officeStatsFor);
-  var totalExp=0, totalStdDone=0, totalExtra=0, totalCount=0;
-  rows.forEach(function(r){ totalExp+=r.exp; totalStdDone+=r.stdDone; totalExtra+=r.extra; totalCount+=r.count; });
-  var totalRate = totalExp>0 ? (totalStdDone/totalExp*100) : 0;
-  var html = '<table class="ov-office-tbl"><tr><th>營業處</th><th>店數</th><th>應達次數</th>'
+  var CHANS = ['量販','全聯'];
+  var bodyRows = '';
+  var chanTotals = { '量販':{exp:0,stdDone:0,extra:0,count:0}, '全聯':{exp:0,stdDone:0,extra:0,count:0} };
+  var grandExp=0, grandStdDone=0, grandExtra=0, grandCount=0;
+  areasPresent.forEach(function(area){
+    /* 只列出該營業處實際有店的通路，避免全空列造成困惑 */
+    var chansHere = CHANS.filter(function(ck){ return STORE_ROWS.some(function(s){ return s.area===area && s.chanKey===ck; }); });
+    if(!chansHere.length) return;
+    chansHere.forEach(function(ck, i){
+      var r = _officeStatsFor(area, ck);
+      chanTotals[ck].exp += r.exp; chanTotals[ck].stdDone += r.stdDone; chanTotals[ck].extra += r.extra; chanTotals[ck].count += r.count;
+      grandExp += r.exp; grandStdDone += r.stdDone; grandExtra += r.extra; grandCount += r.count;
+      bodyRows += '<tr onclick="openDetailFromOffice(\''+area+'\',\''+ck+'\')">'
+        + (i===0 ? '<td class="oo-name" rowspan="'+chansHere.length+'">'+esc(area)+'</td>' : '')
+        + '<td class="oo-chan">'+esc(ck)+'</td>'
+        + '<td>'+r.count+'</td>'
+        + '<td>'+r.exp+'</td>'
+        + '<td>'+r.stdDone+'</td>'
+        + '<td class="oo-rate">'+r.rate.toFixed(1)+'%</td>'
+        + '<td class="oo-extra">'+(r.extra>0?'+'+r.extra:'0')+'</td>'
+        + '</tr>';
+    });
+  });
+  var chanTotalRows = CHANS.map(function(ck){
+    var t = chanTotals[ck];
+    var rate = t.exp>0 ? (t.stdDone/t.exp*100) : 0;
+    return '<tr class="oo-total"><td class="oo-name">'+ck+' 合計</td><td class="oo-chan">—</td><td>'+t.count+'</td><td>'+t.exp+'</td>'
+      + '<td>'+t.stdDone+'</td><td class="oo-rate">'+rate.toFixed(1)+'%</td>'
+      + '<td class="oo-extra">'+(t.extra>0?'+'+t.extra:'0')+'</td></tr>';
+  }).join('');
+  var grandRate = grandExp>0 ? (grandStdDone/grandExp*100) : 0;
+  var html = '<table class="ov-office-tbl"><tr><th>營業處</th><th>通路</th><th>店數</th><th>應達次數</th>'
     + '<th>達標次數</th><th>達成率%</th><th>超額次數</th></tr>'
-    + rows.map(function(r){
-        return '<tr onclick="openDetailFromOffice(\''+r.area+'\')">'
-          + '<td class="oo-name">'+esc(r.area)+'</td>'
-          + '<td>'+r.count+'</td>'
-          + '<td>'+r.exp+'</td>'
-          + '<td>'+r.stdDone+'</td>'
-          + '<td class="oo-rate">'+r.rate.toFixed(1)+'%</td>'
-          + '<td class="oo-extra">'+(r.extra>0?'+'+r.extra:'0')+'</td>'
-          + '</tr>';
-      }).join('')
-    + '<tr class="oo-total"><td class="oo-name">全部合計</td><td>'+totalCount+'</td><td>'+totalExp+'</td>'
-    + '<td>'+totalStdDone+'</td><td class="oo-rate">'+totalRate.toFixed(1)+'%</td>'
-    + '<td class="oo-extra">'+(totalExtra>0?'+'+totalExtra:'0')+'</td></tr>'
+    + bodyRows
+    + chanTotalRows
+    + '<tr class="oo-total"><td class="oo-name" colspan="2">全部合計</td><td>'+grandCount+'</td><td>'+grandExp+'</td>'
+    + '<td>'+grandStdDone+'</td><td class="oo-rate">'+grandRate.toFixed(1)+'%</td>'
+    + '<td class="oo-extra">'+(grandExtra>0?'+'+grandExtra:'0')+'</td></tr>'
     + '</table>';
   wrap.innerHTML = html;
 }
-/* 點營業處列 → 帶著該處篩選進明細頁（檔期／通路／等級都回到全部，只鎖營業處） */
-function openDetailFromOffice(area){
-  FILTER.period = '全部'; FILTER.channel = '全部'; FILTER.grade = '全部';
+/* 點營業處列 → 帶著該處＋該通路篩選進明細頁（檔期／等級回到全部，鎖營業處＋通路） */
+function openDetailFromOffice(area, chanKey){
+  FILTER.period = '全部'; FILTER.channel = chanKey||'全部'; FILTER.grade = '全部';
   FILTER.area = area; FILTER.office = '全部'; FILTER.keyword = '';
   _enterDetail();
 }
@@ -1330,6 +1385,13 @@ function _buildQuestionnaireList(records, storeName, ridBase){
   }).join('') + '</div>';
 }
 
+/* 從「來源分頁+行數」參考字串取出行數（字串結尾那段數字，例如
+   「問卷資料量販_57」或「卷_巡全聯_428」都抓最後的 57／428），
+   用來直接定位問卷分頁的實際列，不用再靠問卷分頁自己的店家代碼欄反查 */
+function _refRowNum(ref){
+  var m = String(ref||'').match(/(\d+)\s*$/);
+  return m ? parseInt(m[1],10) : null;
+}
 function openStoreDetail(code){
   _detailCode = code;
   var store = STORE_ROWS.filter(function(s){ return s.code===code; })[0];
@@ -1407,7 +1469,22 @@ function openStoreDetail(code){
       liveEl.innerHTML = '<div style="padding:8px 0;font-size:12px;color:#B23A3A;">⚠️ '+esc(qData.error)+'</div>';
       return;
     }
-    var records = (qData.codeToRecords && qData.codeToRecords[code]) || [];
+    /* 優先用「處理層」每筆巡補紀錄自帶的來源列號（v.ref）直接定位問卷分頁
+       的那一列，不靠問卷分頁自己的店家代碼欄反查——這樣即使那欄打字有
+       誤差／全半形不一致／沒填，只要行數對得上，內容還是讀得到。
+       visits 本身已經是「新到舊」排序，records 順序自然跟時間軸一致 */
+    var records = [], seenRows = {};
+    visits.forEach(function(v){
+      var rowNum = _refRowNum(v.ref);
+      if(rowNum==null || !qData.rowRecords || !qData.rowRecords[rowNum] || seenRows[rowNum]) return;
+      seenRows[rowNum] = true;
+      records.push(qData.rowRecords[rowNum]);
+    });
+    /* 備援：行數解析不出來或該行沒索引到（例如舊資料的 ref 格式不同），
+       退回原本「用店家代碼比對問卷分頁」的方式 */
+    if(!records.length){
+      records = (qData.codeToRecords && qData.codeToRecords[code]) || [];
+    }
     liveEl.innerHTML = _buildQuestionnaireList(records, store.storeName, qRid);
   });
 }
