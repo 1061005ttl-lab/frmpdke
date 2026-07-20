@@ -111,7 +111,12 @@
     店數／各週(W1~Wn)達成率／總達成率 mini table，點卡片才帶著對應
     檔期＋通路篩選條件進入明細頁（明細頁「← 返回總覽」可回到概況，
     回去時會重新整理卡片數字）；「進入整體明細」按鈕則不帶篩選直接
-    進明細。
+    進明細。四張卡片下方（1.3.0 新增）再加一份「依營業處執行狀況」
+    總覽表，不分檔期／通路，看每個營業處的整體表現，點列同樣可直接
+    帶著該營業處篩選進明細頁。
+  ‧ 概況頁與明細頁工具列都有「📖 使用說明」按鈕（1.3.0 新增），開啟
+    一個純文字說明的浮層，只講畫面數字/顏色代表的意思，不涉及後台
+    計算公式，給不熟悉系統的操作者快速上手用。
   ‧ 上方摘要列：目前篩選範圍的 過濾店數／標準應達總次數／
     目標達成率(%)／自動觸發超額次數，四項比照 alpha 版數據摘要區。
   ‧ 篩選列（filterbar，關鍵字搜尋 + 動態列數的 chip，通路／等級因
@@ -133,10 +138,40 @@
     disabled 屬性（改用 CSS pointer-events:none 擋互動），避免瀏覽器
     對 disabled 控制項套用預設灰階，確保已勾選格子顏色維持明亮。
   ‧ 點一列店家 → 開店家明細 Dialog，列出該店在目前篩選檔期範圍內
-    的逐筆巡補紀錄時間軸（日期＋週次＋來源分頁+行數參考）。
+    的逐筆巡補紀錄時間軸（日期＋週次＋來源分頁+行數參考；同一天有
+    多筆紀錄會加註「同日N筆」徽章）。時間軸下方（1.3.0 新增）再接一段
+    「問卷內容」，非同步從對應通路的問卷分頁抓該店的完整填答，逐筆
+    可展開／收合，見上方【店家明細 Dialog 的「問卷內容」怎麼接上原始
+    問卷】專門段落。
   ‧ 工具列：📥CSV／💬LINE全文／✂️LINE精簡／📸截圖，皆針對「目前
     篩選後的完整結果」（不受表格是否分頁載入影響——本檔資料量
     預期不大，未做 contract_board 式的「顯示更多」分批載入）。
+
+────────────────────────────────────────────────────────────
+【店家明細 Dialog 的「問卷內容」怎麼接上原始問卷（1.3.0 新增）】
+  比照 coverage_board.html 的 _fetchQuestionnaireSheet 設計（headers=0
+  抓資料、另發 headers=1 只拿欄名，避免日期型別欄位的表頭文字被 gviz
+  型別推斷吃掉；欄名含「_」視為「大題_選項」，其餘視為基本欄位），
+  差異是本檔問卷分成「問卷資料(量販)」「問卷資料(全聯)」兩個分頁
+  （常數 QUESTIONNAIRE_SHEETS），依店家的 chanKey 決定查哪一份，
+  用「店家代碼」欄位（沿用 R_CODE 常數）分組。
+  ‧ 前提假設：這兩份問卷分頁裡都要有一欄叫「店家代碼」，且值要跟
+    「店家名冊」的店家代碼完全一致，才能對得上——這點如果跟後端
+    GAS 產出的欄位命名對不上，問卷內容會顯示「找不到這家店的問卷
+    紀錄」（不是程式壞掉，是店家代碼欄名或值對不上）。
+  ‧ 渲染共用 shared/photo-viewer.js 的 _renderQuizSections（跟
+    coverage/audit 同一支，照片／文字答案的標準化顯示邏輯不重寫），
+    因此本檔新增掛載 shared/photo-viewer.js（原本刻意不掛載，
+    1.3.0 起為了問卷內容顯示需要而加回）。
+
+【巡補次數計算：每日每店計 1 次（1.3.0 修正，此前為未落實的文件承諾）】
+  舊版文件已經寫明「有效計算方式是每日每店計 1 次」，但 _actualCount()
+  實際上是直接數處理層筆數，沒有依日期去重——如果同一天同一店有兩筆
+  問卷紀錄（重填、誤送出兩次等狀況），會被誤算成 2 次巡補，可能墊高
+  達成率或多算超額次數。1.3.0 改成依「年-月-日」用 Set 去重再計數，
+  只影響「算幾次」；店家明細 Dialog 的時間軸仍會列出全部原始紀錄（供
+  人工核對是否真的重複填寫），同一天有多筆時會加註橘色「同日N筆」
+  徽章提醒。
 
 ────────────────────────────────────────────────────────────
 【已知待確認/待部署事項（非本檔程式問題，交接時務必告知後端）】
@@ -146,6 +181,10 @@
     extractSurveyDataToMasterRegistry() 寫法即可，「巡補日期」
     務必是 Google Sheet 的日期格式（gviz 才能正確解析 Date(y,m,d)），
     不要存成純文字字串。
+  ‧ 「問卷資料(量販)」「問卷資料(全聯)」兩份問卷分頁務必各自有一欄
+    「店家代碼」，且值要跟「店家名冊」對得上，否則店家明細 Dialog 的
+    「問卷內容」區塊會顯示找不到資料（見上方【店家明細 Dialog 的
+    「問卷內容」怎麼接上原始問卷】說明）。
   ‧ 「店家名冊」的「店家等級」欄位值務必跟 GRADE_FREQ 常數的 key
     完全一致（量販A／量販B／量販C／連鎖超市A，含全形字），否則該店
     會被判斷為「等級未知」，應達次數算 0，不會出現在達成率分母
@@ -158,6 +197,16 @@
     <script> 拿掉即可。
 
 【版本紀錄】
+  1.3.0  2026-07-20  1) 概況主畫面新增「依營業處執行狀況」總覽表
+                      （不分檔期／通路的整體表現，點列可直接進明細）。
+                      2) 新增「📖 使用說明」面板（概況頁與明細頁工具列都
+                      有入口），只講畫面數字/顏色代表的意思，不談後台
+                      計算公式。3) 店家明細 Dialog 新增「問卷內容」區塊
+                      （見上方專門段落），改用 shared/photo-viewer.js
+                      渲染，因此新增掛載此檔案。4) 修正 _actualCount 未
+                      落實「每日每店計1次」的問題，改依日期去重；時間軸
+                      同一天有多筆紀錄時加註「同日N筆」徽章提醒（見上方
+                      專門段落）。
   1.2.0  2026-07-20  1) 概況主畫面卡片新增依「週」拆分的達成率欄位
                       （W1~Wn），不再只看整體彙總。2) box-container
                       改靠左排列；checkbox 拿掉 disabled 屬性改用
@@ -182,9 +231,11 @@
                       alpha 版的四組 chip 設計；共用 shared/core-utils.js
                       ／copy-utils.js／csv-export.js／capture-clipboard.js
                       ／ui-chrome.js／dashboard-common.css，不含
-                      photo-viewer.js／question-drilldown.js／
-                      pivot-dialog.js（本檔無照片牆／逐題彙整／多分頁
-                      彙整看板需求，刻意不掛載以減少相依）。
+                      question-drilldown.js／pivot-dialog.js（本檔無
+                      逐題彙整／多分頁彙整看板需求，刻意不掛載以減少
+                      相依）。photo-viewer.js 原本也不掛載，1.3.0 起
+                      為了店家明細 Dialog 顯示問卷內容而新增掛載，
+                      見下方 1.3.0 版本紀錄。
 ════════════════════════════════════════════════════════════
 -->
 <!DOCTYPE html>
@@ -340,6 +391,65 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
   .ov-wrap { padding:14px 12px; }
 }
 
+/* ── 概況主畫面：依營業處執行狀況總覽表 ── */
+.ov-office-card { margin-top:18px; }
+.ov-office-tbl { width:100%; border-collapse:collapse; font-size:14.5px; }
+.ov-office-tbl th, .ov-office-tbl td { border:1px solid var(--border); padding:8px 10px; text-align:center; }
+.ov-office-tbl th { background:var(--bg); color:var(--sub); font-weight:700; }
+.ov-office-tbl td.oo-name { text-align:left; font-weight:700; }
+.ov-office-tbl tbody tr { cursor:pointer; transition:background .12s; }
+.ov-office-tbl tbody tr:hover { background:var(--primary-bg); }
+.ov-office-tbl td.oo-rate { font-weight:800; color:var(--green); }
+.ov-office-tbl td.oo-extra { color:var(--bonus); font-weight:700; }
+.ov-office-tbl tr.oo-total td { background:#f6f4ef; font-weight:800; }
+
+/* ── 使用說明面板（比照 coverage_board 的 manual-bar / manual-inner） ── */
+.manual-btn { padding:5px 12px; border:1px solid var(--border); border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; color:var(--text); background:#fff; font-family:inherit; white-space:nowrap; }
+.manual-btn:hover { background:var(--primary-bg); border-color:var(--primary); color:var(--primary); }
+#manual-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:200; align-items:flex-start; justify-content:center; padding:40px 16px; overflow:auto; }
+#manual-overlay.open { display:flex; }
+#manual-box { background:#fffbe6; border:1px solid #f0e08a; border-radius:12px; max-width:720px; width:100%; padding:0; box-shadow:0 12px 30px rgba(0,0,0,.18); }
+#manual-box .manual-head { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid #f0e08a; }
+#manual-box .manual-head h3 { font-size:15px; font-weight:800; color:#444; }
+#manual-box .manual-close { border:none; background:none; font-size:18px; cursor:pointer; color:#888; }
+#manual-box .manual-close:hover { color:#333; }
+#manual-inner { font-size:13.5px; line-height:1.75; color:#555; padding:14px 20px 20px; max-height:74vh; overflow:auto; }
+#manual-inner p { margin:0 0 10px; }
+#manual-inner hr { border:none; border-top:1px solid #eee; margin:10px 0; }
+#manual-inner b { color:#333; }
+
+/* ── 店家明細 Dialog：問卷內容區塊（比照 coverage_board 的 store-history-* / raw-detail-*） ── */
+.raw-detail-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:8px 18px; margin-top:6px; }
+.raw-detail-item { min-width:0; }
+.raw-detail-label { font-size:10px; font-weight:700; color:var(--primary); margin-bottom:2px; letter-spacing:.3px; text-transform:uppercase; }
+.raw-detail-val { font-size:12.5px; font-weight:500; color:var(--text); word-break:break-word; line-height:1.5; }
+.store-history-list { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+.store-history-record { background:#fff; border:1px solid rgba(0,0,0,.07); border-radius:8px; overflow:hidden; }
+.store-history-head { display:flex; align-items:center; gap:8px; padding:8px 12px; cursor:pointer; user-select:none; transition:background .12s; }
+.store-history-head:hover { background:rgba(26,80,139,.05); }
+.store-history-record.open .store-history-head { border-bottom:1px dashed rgba(0,0,0,.08); }
+.store-history-badge { font-size:10px; font-weight:800; color:#fff; background:var(--primary); border-radius:5px; padding:2px 7px; flex-shrink:0; }
+.store-history-badge.dup { background:var(--bonus); }
+.store-history-time { font-size:12px; font-weight:700; color:var(--text); flex:1; min-width:0; }
+.store-history-expand-ico { display:inline-block; font-size:10px; color:var(--sub); transition:transform .15s; flex-shrink:0; }
+.store-history-record.open .store-history-expand-ico { transform:rotate(90deg); color:var(--primary); }
+.store-history-body { padding:10px 12px 12px; }
+.store-history-empty { padding:20px 14px; font-size:12.5px; color:var(--sub); }
+.raw-detail-panel .raw-quiz-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:8px; }
+.raw-detail-panel .raw-quiz-section { margin:0; padding:7px 10px; }
+.raw-detail-panel .raw-quiz-title { font-size:11px; margin-bottom:5px; }
+.raw-detail-panel .raw-quiz-picks { flex-direction:row; flex-wrap:wrap; gap:5px; }
+.raw-detail-panel .raw-quiz-picks .raw-quiz-chip { display:inline-flex; flex-direction:column; width:auto; }
+.raw-detail-panel .raw-quiz-chip { padding:4px 9px; }
+.raw-detail-panel .raw-quiz-chip-q { font-size:9.5px; margin-bottom:1px; }
+.raw-detail-panel .raw-quiz-chip-a { font-size:12px; }
+.raw-detail-panel .raw-quiz-photos { margin-top:5px; }
+@media (max-width:640px){ .raw-detail-panel .raw-quiz-list { grid-template-columns:1fr 1fr; } }
+.raw-share-btn { font-size:11px; font-weight:600; padding:3px 10px; border-radius:6px; border:1px solid rgba(0,0,0,.12); background:#fff; color:var(--sub); cursor:pointer; font-family:inherit; transition:all .15s; white-space:nowrap; }
+.raw-share-btn:hover { border-color:var(--primary); color:var(--primary); }
+.raw-share-btn.done { border-color:var(--green); color:var(--green); background:var(--green-bg); }
+.q-section-title { font-size:13px; font-weight:800; color:var(--text); margin:16px 0 4px; padding-top:10px; border-top:1px dashed var(--border); }
+
 /* ── 店家明細 Dialog：巡補時間軸 ── */
 .visit-timeline { padding:16px 20px 30px; }
 .visit-summary { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:16px; padding:12px 16px; background:var(--bg); border-radius:10px; }
@@ -360,9 +470,27 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 <div id="mainDashboard" class="ov-wrap">
   <div class="ov-header">
     <h1 id="ov-title">節慶巡補看板</h1>
-    <button class="ov-all-btn" onclick="openDetailAll()">進入整體明細 →</button>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <button class="manual-btn" onclick="openManual()">📖 使用說明</button>
+      <button class="ov-all-btn" onclick="openDetailAll()">進入整體明細 →</button>
+    </div>
   </div>
   <div class="ov-grid" id="ov-cards"></div>
+  <div class="ov-card ov-office-card">
+    <h2><span>🏢 依營業處執行狀況</span></h2>
+    <div id="ov-office-wrap"></div>
+  </div>
+</div>
+
+<!-- ════ 使用說明 Dialog（給操作者看數據意義，不談後台計算公式） ════ -->
+<div id="manual-overlay" onclick="if(event.target===this)closeManual()">
+  <div id="manual-box">
+    <div class="manual-head">
+      <h3>📖 節慶巡補看板 — 使用說明</h3>
+      <button class="manual-close" onclick="closeManual()">✕</button>
+    </div>
+    <div id="manual-inner"></div>
+  </div>
 </div>
 
 <!-- ════ 明細頁面：點卡片或「進入整體明細」後才顯示 ════ -->
@@ -374,6 +502,7 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
     <div class="toolbar-spacer"></div>
     <button class="hamburger-btn" id="hamburger-btn" onclick="toggleMobileMenu(event)">☰</button>
     <div class="toolbar-controls" id="toolbar-controls">
+      <button class="tb-act-btn" onclick="openManual();closeMobileMenu();">📖 說明</button>
       <button class="tb-act-btn" id="tb-btn-csv" onclick="toolbarDownloadCsv();closeMobileMenu();">📥 CSV</button>
       <button class="tb-act-btn" id="tb-btn-line" onclick="toolbarCopyLine();closeMobileMenu();">💬 LINE</button>
       <button class="tb-act-btn" id="tb-btn-line-brief" onclick="toolbarCopyLineBrief();closeMobileMenu();">✂️ 精簡</button>
@@ -428,6 +557,7 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
     <div class="footnote">
       💡 藍色格代表標準應達次數；若實際巡補次數超過標準，系統自動顯示並勾選橘色格子（超額），
       橘色次數只計入「自動觸發超額次數」，不列入達成率 %，超額也不會外溢補足其他店家的未達成。
+      同一家店同一天不管填了幾筆問卷，都只算 1 次巡補。點「📖 說明」看完整操作說明。
     </div>
   </div>
 </div>
@@ -449,6 +579,7 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 <script src="shared/csv-export.js"></script>
 <script src="shared/capture-clipboard.js"></script>
 <script src="shared/ui-chrome.js"></script>
+<script src="shared/photo-viewer.js"></script>
 <script>
 window._STICKY_IDS = ['filterbar'];
 
@@ -461,6 +592,11 @@ var POP_SHEET  = '店家名冊';
 var PROC_SHEET = '處理層';
 var SYNC_SHEET = '輔助';
 var SYNC_CELL  = 'B1';
+/* 原始問卷分頁（給店家明細 Dialog 顯示「問卷內容」用，比照 coverage_board 的
+   _fetchQuestionnaireSheet 設計：欄名含「_」的視為「大題_選項」，其餘視為
+   基本欄位；用「店家代碼」分組建索引。跟 coverage 的差異：這裡問卷分成
+   量販／全聯兩個分頁，依店家的 chanKey 決定要查哪一份，快取也各自獨立） */
+var QUESTIONNAIRE_SHEETS = { '量販':'問卷資料(量販)', '全聯':'問卷資料(全聯)' };
 
 /* 母體（店家名冊）欄名 */
 var P_AREA='營業處名稱', P_OFFICE='營業所/課', P_STAFF='主要訪員', P_CHANNEL='通路別',
@@ -495,6 +631,13 @@ var STORE_ROWS  = [];   /* 店家名冊，含 __visits 索引 */
 var VISIT_ROWS  = [];   /* 處理層原始列（供明細 Dialog 用） */
 var VISIT_INDEX = {};   /* key: code → [{period,week,y,mo,d,ref}, ...]（新到舊） */
 
+/* 問卷內容快取，key 為 chanKey（'量販'／'全聯'），value 為
+   { codeToRecords:{ code: [{base,sections,timeKey}, ...] } } 或 { error:'訊息' }。
+   每個 chanKey 只抓一次、之後共用，跟 coverage_board 的 _qSheetCache 是同一個設計 */
+var _qSheetCache = {};
+var _qSheetLoading = {};
+var _qSheetWaiters = {};
+
 var FILTER = { period:'全部', channel:'全部', grade:'全部', area:'全部', office:'全部', keyword:'' };
 
 function showLoading(){ document.getElementById('loading').classList.add('show'); }
@@ -517,6 +660,10 @@ function init(){
     fetchProcessLayer(function(){
       hideLoading();
       renderOverview(); /* 先進概況主畫面，不直接跳明細 */
+      /* 背景預先載入兩份問卷分頁，點店家明細時就不用現點現等 */
+      Object.keys(QUESTIONNAIRE_SHEETS).forEach(function(chanKey){
+        _fetchQuestionnaireSheet(chanKey, function(){});
+      });
     });
   });
   fetchSyncTime();
@@ -660,6 +807,96 @@ function fetchProcessLayer(callback){
   }).catch(function(){ VISIT_ROWS = []; VISIT_INDEX = {}; }).then(function(){ callback(); });
 }
 
+/* ════ 讀原始問卷分頁（店家明細 Dialog「問卷內容」用，比照 coverage_board
+   的 _fetchQuestionnaireSheet：headers=0 抓資料、另發 headers=1 只拿欄名，
+   避免日期型別欄位的表頭文字被 gviz 型別推斷吃掉）════ */
+function _fetchQuestionnaireSheet(chanKey, callback){
+  var sheetName = QUESTIONNAIRE_SHEETS[chanKey];
+  if(!sheetName){ callback({ error:'找不到「'+chanKey+'」對應的問卷分頁設定' }); return; }
+  if(_qSheetCache[chanKey]){ callback(_qSheetCache[chanKey]); return; }
+  if(_qSheetLoading[chanKey]){ (_qSheetWaiters[chanKey]=_qSheetWaiters[chanKey]||[]).push(callback); return; }
+  _qSheetLoading[chanKey] = true;
+  var dataUrl = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+    '/gviz/tq?tqx=out:json&headers=0&sheet=' + encodeURIComponent(sheetName);
+  var headerUrl = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(sheetName);
+  function fail(msg){
+    _qSheetLoading[chanKey] = false;
+    var errResult = { error: msg };
+    callback(errResult);
+    (_qSheetWaiters[chanKey]||[]).forEach(function(cb){ cb(errResult); });
+    _qSheetWaiters[chanKey] = [];
+  }
+  Promise.all([
+    fetch(dataUrl).then(function(r){ return r.text(); }),
+    fetch(headerUrl).then(function(r){ return r.text(); })
+  ]).then(function(results){
+    var json = gvizParse(results[0]);
+    var headerJson = gvizParse(results[1]);
+    var rawRows = (json.table||{}).rows || [];
+    if(rawRows.length < 1){ fail('分頁「'+sheetName+'」沒有資料'); return; }
+    var headerLabels = ((headerJson.table||{}).cols || []).map(function(c){ return String(c.label||'').trim(); });
+
+    function cellVal(row, i){
+      if(!row) return '';
+      var c = row.c && row.c[i];
+      if(!c) return '';
+      var v=(c.v!==null&&c.v!==undefined)?c.v:'';
+      var f=c.f||'';
+      if(typeof v==='string' && /^Date\(/.test(v)) return f || parseGvizDate(v);
+      return (v!==''&&v!==null&&v!==undefined)?v:f;
+    }
+
+    var colCount = headerLabels.length;
+    var baseColNames = [];
+    var quizCols = []; /* [{col,section,option}]，欄名含「_」視為「大題_選項」 */
+    var codeColIdx = -1;
+    for(var i=0;i<colCount;i++){
+      var headerText = headerLabels[i];
+      if(!headerText) continue;
+      if(headerText.indexOf('_')!==-1){
+        var parts = headerText.split('_');
+        quizCols.push({ col:i, section:parts[0].trim(), option:parts.slice(1).join('_').trim() });
+      } else {
+        baseColNames.push({ name:headerText, col:i });
+        if(headerText === R_CODE) codeColIdx = i;
+      }
+    }
+
+    var codeToRecords = {};
+    for(var ri=1; ri<rawRows.length; ri++){
+      var row = rawRows[ri];
+      if(!row || !row.c) continue;
+      var code = codeColIdx!==-1 ? String(cellVal(row, codeColIdx)||'').trim() : '';
+      if(!code) continue;
+      var baseData = {};
+      baseColNames.forEach(function(b){ baseData[b.name] = cellVal(row, b.col); });
+      var sections = {}, sectionOrder = [];
+      quizCols.forEach(function(qc){
+        var v = String(cellVal(row, qc.col)||'').trim();
+        if(!v) return;
+        if(!sections[qc.section]){ sections[qc.section]=[]; sectionOrder.push(qc.section); }
+        sections[qc.section].push({ option:qc.option, value:v });
+      });
+      if(!codeToRecords[code]) codeToRecords[code] = [];
+      codeToRecords[code].push({
+        base: baseData,
+        sections: sectionOrder.map(function(s){ return { section:s, picks:sections[s] }; }),
+        timeKey: _findTimeText(baseData)
+      });
+    }
+    Object.keys(codeToRecords).forEach(function(code){
+      codeToRecords[code].sort(function(a,b){ return a.timeKey < b.timeKey ? 1 : (a.timeKey > b.timeKey ? -1 : 0); });
+    });
+
+    _qSheetCache[chanKey] = { codeToRecords:codeToRecords };
+    _qSheetLoading[chanKey] = false;
+    callback(_qSheetCache[chanKey]);
+    (_qSheetWaiters[chanKey]||[]).forEach(function(cb){ cb(_qSheetCache[chanKey]); });
+    _qSheetWaiters[chanKey] = [];
+  }).catch(function(err){ fail(String(err)); });
+}
+
 function fetchSyncTime(){
   var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
     '/gviz/tq?tqx=out:json&sheet=' + encodeURIComponent(SYNC_SHEET) + '&range=' + SYNC_CELL;
@@ -752,6 +989,62 @@ function _statsFor(storesSubset, cols){
   });
   return { rate: totalExp>0 ? (totalStdDone/totalExp*100) : 0, totalExp:totalExp, byGrade:byGrade };
 }
+/* ════ 依營業處的執行狀況總覽（不分檔期／通路，合計整體表現） ════ */
+function _allPeriodColumns(){
+  var cols = [];
+  PERIODS.forEach(function(p){ for(var w=1; w<=p.weeks; w++) cols.push({ period:p.key, week:w }); });
+  return cols;
+}
+function _officeStatsFor(area){
+  var subset = STORE_ROWS.filter(function(s){ return s.area===area; });
+  var cols = _allPeriodColumns();
+  var exp=0, stdDone=0, extra=0, unknownGrade=0;
+  subset.forEach(function(s){
+    var std = GRADE_FREQ[s.grade];
+    if(std===undefined){ unknownGrade++; return; }
+    cols.forEach(function(c){
+      var actual = _actualCount(s.code, c.period, c.week);
+      exp += std; stdDone += Math.min(actual, std); extra += Math.max(0, actual-std);
+    });
+  });
+  return { area:area, count:subset.length, exp:exp, stdDone:stdDone, extra:extra,
+    unknownGrade:unknownGrade, rate: exp>0 ? (stdDone/exp*100) : 0 };
+}
+function renderOfficeOverview(){
+  var wrap = document.getElementById('ov-office-wrap');
+  if(!wrap) return;
+  var areasPresent = AREA_ORDER.filter(function(a){
+    return STORE_ROWS.some(function(s){ return s.area===a; });
+  });
+  if(!areasPresent.length){ wrap.innerHTML = '<div class="ov-empty">目前沒有符合資料</div>'; return; }
+  var rows = areasPresent.map(_officeStatsFor);
+  var totalExp=0, totalStdDone=0, totalExtra=0, totalCount=0;
+  rows.forEach(function(r){ totalExp+=r.exp; totalStdDone+=r.stdDone; totalExtra+=r.extra; totalCount+=r.count; });
+  var totalRate = totalExp>0 ? (totalStdDone/totalExp*100) : 0;
+  var html = '<table class="ov-office-tbl"><tr><th>營業處</th><th>店數</th><th>應達次數</th>'
+    + '<th>達標次數</th><th>達成率%</th><th>超額次數</th></tr>'
+    + rows.map(function(r){
+        return '<tr onclick="openDetailFromOffice(\''+r.area+'\')">'
+          + '<td class="oo-name">'+esc(r.area)+'</td>'
+          + '<td>'+r.count+'</td>'
+          + '<td>'+r.exp+'</td>'
+          + '<td>'+r.stdDone+'</td>'
+          + '<td class="oo-rate">'+r.rate.toFixed(1)+'%</td>'
+          + '<td class="oo-extra">'+(r.extra>0?'+'+r.extra:'0')+'</td>'
+          + '</tr>';
+      }).join('')
+    + '<tr class="oo-total"><td class="oo-name">全部合計</td><td>'+totalCount+'</td><td>'+totalExp+'</td>'
+    + '<td>'+totalStdDone+'</td><td class="oo-rate">'+totalRate.toFixed(1)+'%</td>'
+    + '<td class="oo-extra">'+(totalExtra>0?'+'+totalExtra:'0')+'</td></tr>'
+    + '</table>';
+  wrap.innerHTML = html;
+}
+/* 點營業處列 → 帶著該處篩選進明細頁（檔期／通路／等級都回到全部，只鎖營業處） */
+function openDetailFromOffice(area){
+  FILTER.period = '全部'; FILTER.channel = '全部'; FILTER.grade = '全部';
+  FILTER.area = area; FILTER.office = '全部'; FILTER.keyword = '';
+  _enterDetail();
+}
 function renderOverview(){
   var wrap = document.getElementById('ov-cards');
   if(!wrap) return;
@@ -790,6 +1083,7 @@ function renderOverview(){
     }).join('');
   }).join('');
   wrap.innerHTML = cardsHtml;
+  renderOfficeOverview();
 }
 function _enterDetail(){
   document.getElementById('mainDashboard').style.display = 'none';
@@ -833,13 +1127,38 @@ function activeColumns(){
   return cols;
 }
 
-/* ════ 單店在指定欄位上的實際次數 ════ */
+/* ════ 單店在指定欄位上的實際次數 ════
+   【1.3.0 修正】巡補的有效計算方式是「每日每店計 1 次」——同一天同一店
+   若有多筆問卷紀錄（例如重填、或訪員誤送出兩次），只算 1 次巡補，不應該
+   被算成 2 次而墊高達成率或超額次數。舊版直接數處理層筆數（list.length），
+   沒有依日期去重，若同一天有多筆紀錄會被誤算成多次巡補；改用
+   Set 依「年-月-日」去重後再計數。店家明細 Dialog 的時間軸仍會列出全部
+   原始紀錄（供人工核對是否真的重複填寫），兩者不衝突：這裡負責「算幾次」，
+   Dialog 負責「給你看每一筆長怎樣」。 */
 function _actualCount(code, period, week){
   var list = VISIT_INDEX[code];
   if(!list) return 0;
-  var n = 0;
-  for(var i=0;i<list.length;i++){ if(list[i].period===period && list[i].week===week) n++; }
-  return n;
+  var days = {};
+  for(var i=0;i<list.length;i++){
+    var v = list[i];
+    if(v.period!==period || v.week!==week) continue;
+    days[_toEpochDay(v.parts.y,v.parts.mo,v.parts.d)] = true;
+  }
+  return Object.keys(days).length;
+}
+/* 同一天是否有多筆原始紀錄（供店家明細 Dialog 標示「同日多筆，僅計1次」用，
+   不影響 _actualCount 的計算結果，純粹是給人看的提示） */
+function _dupDaysForStore(code){
+  var list = VISIT_INDEX[code];
+  if(!list) return {};
+  var countByDay = {};
+  list.forEach(function(v){
+    var key = _toEpochDay(v.parts.y,v.parts.mo,v.parts.d);
+    countByDay[key] = (countByDay[key]||0) + 1;
+  });
+  var dup = {};
+  Object.keys(countByDay).forEach(function(k){ if(countByDay[k]>1) dup[k] = countByDay[k]; });
+  return dup;
 }
 
 /* ════ 篩選店家清單 ════ */
@@ -971,8 +1290,46 @@ function render(){
   updateStickyTops();
 }
 
-/* ════ 店家明細 Dialog：巡補時間軸 ════ */
+/* ════ 店家明細 Dialog：巡補時間軸＋問卷內容 ════ */
 var _detailCode = '';
+
+/* 每筆問卷紀錄預設收合，點擊才展開完整內容（比照 coverage_board 的
+   _toggleHistoryRecord，避免多筆紀錄一次全部展開把畫面撐爆） */
+function _toggleHistoryRecord(hid){
+  var rec = document.getElementById('hrec-'+hid);
+  var body = document.getElementById('hbody-'+hid);
+  if(!rec || !body) return;
+  var isOpen = rec.classList.contains('open');
+  rec.classList.toggle('open', !isOpen);
+  body.style.display = isOpen ? 'none' : 'block';
+}
+
+/* 把 codeToRecords 底下某店的問卷紀錄陣列渲染成可展開時間軸，
+   內容渲染交給 shared/photo-viewer.js 的 _renderQuizSections（照片/文字
+   答案的標準化渲染，跟 coverage_board 共用同一支，不重寫一份） */
+function _buildQuestionnaireList(records, storeName, ridBase){
+  if(!records || !records.length){
+    return '<div class="store-history-empty">⏳ 目前篩選範圍找不到這家店的問卷紀錄'
+      + '（可能是巡補紀錄還沒同步，或問卷資料的店家代碼跟名冊對不上）</div>';
+  }
+  return '<div class="store-history-list">' + records.map(function(rec, idx){
+    var timeText = _findTimeText(rec.base) || '未知時間';
+    var badge = idx===0 ? '最新' : ('第 '+(records.length-idx)+' 筆');
+    var hid = ridBase + '-q' + idx;
+    var isOpen = idx === 0;
+    return '<div class="store-history-record'+(isOpen?' open':'')+'" id="hrec-'+hid+'">'
+      + '<div class="store-history-head" onclick="_toggleHistoryRecord(\''+hid+'\')">'
+      +   '<span class="store-history-badge">'+esc(badge)+'</span>'
+      +   '<span class="store-history-time">🕒 '+esc(String(timeText))+'</span>'
+      +   '<span class="store-history-expand-ico">▶</span>'
+      + '</div>'
+      + '<div class="store-history-body raw-detail-panel" id="hbody-'+hid+'" style="display:'+(isOpen?'block':'none')+';">'
+      +   _renderQuizSections(rec.sections, storeName)
+      + '</div>'
+      + '</div>';
+  }).join('') + '</div>';
+}
+
 function openStoreDetail(code){
   _detailCode = code;
   var store = STORE_ROWS.filter(function(s){ return s.code===code; })[0];
@@ -994,7 +1351,11 @@ function openStoreDetail(code){
   var visits = (VISIT_INDEX[code]||[]).filter(function(v){
     return cols.some(function(c){ return c.period===v.period && c.week===v.week; });
   });
+  /* 同一天有幾筆原始紀錄（僅供標示提醒，不影響達成率計算——
+     _actualCount 已經依日期去重，這裡純粹讓使用者知道「為什麼這天只算1次」 */
+  var dupDays = _dupDaysForStore(code);
 
+  var qRid = _rid(code);
   var html = '<div class="visit-timeline">'
     + '<div class="visit-summary">'
     + '<div class="vs-item">單位<br><b>'+esc(store.area)+' '+esc(store.office)+'</b></div>'
@@ -1009,19 +1370,46 @@ function openStoreDetail(code){
   } else {
     html += visits.map(function(v){
       var periodLabel = (PERIODS.filter(function(p){return p.key===v.period;})[0]||{}).label || v.period;
+      var dayKey = _toEpochDay(v.parts.y, v.parts.mo, v.parts.d);
+      var dupN = dupDays[dayKey];
+      var dupBadge = dupN ? '<span class="store-history-badge dup" title="同一天共 '+dupN+' 筆紀錄，達成率僅計1次巡補" style="flex-shrink:0;">同日'+dupN+'筆</span>' : '';
       return '<div class="visit-row">'
         + '<span class="v-date">'+esc(_fmtParts(v.parts))+'</span>'
         + '<span class="v-week">'+esc(periodLabel.replace('專案',''))+' W'+v.week+'</span>'
+        + dupBadge
         + '<span class="v-ref">'+esc(v.ref||'—')+'</span>'
         + '</div>';
     }).join('');
   }
   html += '</div>';
 
+  html += '<div style="padding:0 20px;">'
+    + '<div class="q-section-title">📋 問卷內容</div>'
+    + '<div id="q-panel-'+qRid+'">⏳ 讀取問卷內容…</div>'
+    + '</div>';
+
   document.getElementById('dlg-body').innerHTML = html;
   var dlg = document.getElementById('detail-dialog');
   dlg.style.display = 'flex';
   setTimeout(function(){ dlg.classList.add('open'); }, 10);
+
+  /* 問卷內容依店家的通路（量販／全聯）決定要抓哪一份問卷分頁，
+     非同步載入，載入期間不擋住時間軸先顯示 */
+  var panelEl = document.getElementById('q-panel-'+qRid);
+  if(!store.chanKey){
+    if(panelEl) panelEl.innerHTML = '<div class="store-history-empty">⚠️ 這家店的通路無法判斷（通路別／店家型態欄位對不到量販或全聯），無法查找對應的問卷分頁</div>';
+    return;
+  }
+  _fetchQuestionnaireSheet(store.chanKey, function(qData){
+    var liveEl = document.getElementById('q-panel-'+qRid);
+    if(!liveEl || _detailCode !== code) return; /* 使用者可能已切換到別家店或關閉 dialog */
+    if(qData.error){
+      liveEl.innerHTML = '<div style="padding:8px 0;font-size:12px;color:#B23A3A;">⚠️ '+esc(qData.error)+'</div>';
+      return;
+    }
+    var records = (qData.codeToRecords && qData.codeToRecords[code]) || [];
+    liveEl.innerHTML = _buildQuestionnaireList(records, store.storeName, qRid);
+  });
 }
 function closeStoreDetail(){
   var dlg = document.getElementById('detail-dialog');
@@ -1029,7 +1417,10 @@ function closeStoreDetail(){
   setTimeout(function(){ dlg.style.display='none'; }, 220);
 }
 document.addEventListener('keydown', function(e){
-  if(e.key==='Escape') closeStoreDetail();
+  if(e.key!=='Escape') return;
+  var manualOverlay = document.getElementById('manual-overlay');
+  if(manualOverlay && manualOverlay.classList.contains('open')){ closeManual(); return; }
+  closeStoreDetail();
 });
 
 /* ════ CSV／LINE／截圖 ════ */
@@ -1102,6 +1493,72 @@ function toolbarScreenshot(){
   _captureElement(el, btn, PROJ_NAME);
 }
 
+/* ════ 使用說明 Dialog：給操作者看「數據代表什麼」，刻意不寫後台怎麼算
+   （檔期週次判斷、gviz 欄位比對等實作細節），只講畫面上的數字跟顏色是
+   什麼意思，避免非技術使用者被公式淹沒 ════ */
+var _manualBuilt = false;
+function _buildManualContent(){
+  return ''
+    + '<p><b>【這是什麼看板？】</b>追蹤中元／中秋節慶專案，各店家每週有沒有'
+    + '達到應該去巡補的次數。看板依店家等級自動抓「這家店這週該去幾次」，'
+    + '再跟實際去過的次數比對，一眼看出誰達標、誰超標、誰還沒去。</p>'
+    + '<hr>'
+    + '<p><b>【概況主畫面怎麼看？】</b></p>'
+    + '<p>上方四張卡片＝中元／中秋 ×量販／全聯，每張顯示整體達成率，卡片內'
+    + '表格再依店家等級拆分各週達成率。點卡片會帶著對應的檔期／通路篩選'
+    + '直接進明細表格。</p>'
+    + '<p>下方「依營業處執行狀況」表格是同一批資料換一個角度看——不分檔期'
+    + '／通路，看每個營業處整體表現，點一列同樣可以直接進明細（只鎖定該'
+    + '營業處）。</p>'
+    + '<hr>'
+    + '<p><b>【篩選列】</b></p>'
+    + '<p><b>檔期</b>：只看中元或只看中秋，或全部一起看（欄位會跟著變成 W1~W5）<br>'
+    + '<b>通路／等級</b>：量販店與全聯社的應達次數標準不同（等級旁邊的數字'
+    + '就是每週該去幾次），可個別篩選<br>'
+    + '<b>營業處／營業所</b>：依組織層級篩選，選定營業處後才會出現底下的'
+    + '營業所選項</p>'
+    + '<hr>'
+    + '<p><b>【主表格的格子代表什麼？】</b></p>'
+    + '<p><span style="display:inline-block;width:13px;height:13px;background:#2F86EB;border-radius:3px;vertical-align:middle;"></span>'
+    + ' <b>藍色格</b>：這次巡補算進「應達次數」裡，已經完成<br>'
+    + '<span style="display:inline-block;width:13px;height:13px;border:2px solid #c8ccd2;border-radius:3px;vertical-align:middle;"></span>'
+    + ' <b>灰框空格</b>：這格還沒完成（若該週已經過去，會顯示 ✖ 提醒未達成）<br>'
+    + '<span style="display:inline-block;width:13px;height:13px;background:#FF7A00;border-radius:3px;vertical-align:middle;"></span>'
+    + ' <b>橘色發光格（超額）</b>：實際去的次數超過標準，多出來的部分自動顯示；'
+    + '超額次數不會拉高達成率，也不會拿去補其他店家的不足，純粹是額外的努力紀錄</p>'
+    + '<hr>'
+    + '<p><b>【達成率 % 是怎麼定義的？】</b>達成率 ＝ 目前篩選範圍內「已完成'
+    + '的標準次數」除以「應達到的標準次數」。重點是分母只看「應達次數」，'
+    + '不是「實際次數」——巡補超標的店不會把分母墊高，也不會拉低其他店家'
+    + '看起來的表現。</p>'
+    + '<hr>'
+    + '<p><b>【「每日每店計 1 次」是什麼意思？】</b>同一家店同一天不管填了'
+    + '幾筆問卷紀錄，都只算 1 次巡補；同一天重複的紀錄不會被灌水成多次，'
+    + '也不會多墊超額次數。</p>'
+    + '<hr>'
+    + '<p><b>【店家明細 Dialog】</b>點主表格任一列，可看到這家店在目前篩選'
+    + '範圍內的完整巡補時間軸，包含每次的日期、屬於哪個檔期第幾週；點某一'
+    + '筆時間軸紀錄，還能展開看該次填寫的問卷內容（大題與選項）。若同一天'
+    + '出現多筆紀錄，會用橘色徽章標示「同日多筆」，提醒這幾筆只會被算成'
+    + '1 次巡補。</p>'
+    + '<hr>'
+    + '<p><b>【工具列按鈕】</b><br>'
+    + '<b>📥 CSV</b>：下載目前篩選結果的完整表格<br>'
+    + '<b>💬 LINE</b>：複製包含未達標店家清單的完整文字，可直接貼到 LINE 群組<br>'
+    + '<b>✂️ 精簡</b>：只複製統計摘要數字，不列店家名稱<br>'
+    + '<b>📸 截圖</b>：把目前畫面截圖直接複製到剪貼簿，貼上即可分享</p>';
+}
+function openManual(){
+  if(!_manualBuilt){
+    document.getElementById('manual-inner').innerHTML = _buildManualContent();
+    _manualBuilt = true;
+  }
+  document.getElementById('manual-overlay').classList.add('open');
+}
+function closeManual(){
+  document.getElementById('manual-overlay').classList.remove('open');
+}
+
 /* ════ 共用層載入防呆 ════ */
 (function _checkSharedLoaded(){
   var missing = [];
@@ -1112,12 +1569,13 @@ function toolbarScreenshot(){
   if(typeof _triggerCsvDownload !== 'function') missing.push('csv-export.js');
   if(typeof _captureElement !== 'function') missing.push('capture-clipboard.js');
   if(typeof updateStickyTops !== 'function') missing.push('ui-chrome.js');
+  if(typeof _renderQuizSections !== 'function') missing.push('photo-viewer.js（_renderQuizSections）');
   if(missing.length){
     document.body.innerHTML = '<div style="padding:40px;font-family:sans-serif;line-height:1.8;">'
       + '<h2 style="color:#A32020;">⚠️ 共用層檔案沒有載入成功</h2>'
       + '<p>以下檔案讀不到，通常是因為 <code>shared/</code> 資料夾沒有跟 <code>patrol_board.html</code> 放在同一層目錄：</p>'
       + '<ul>' + missing.map(function(m){ return '<li>'+m+'</li>'; }).join('') + '</ul>'
-      + '<pre style="background:#f0efe9;padding:12px;border-radius:8px;">你的資料夾/\n  patrol_board.html\n  shared/\n    core-utils.js\n    copy-utils.js\n    csv-export.js\n    capture-clipboard.js\n    ui-chrome.js\n    dashboard-common.css</pre>'
+      + '<pre style="background:#f0efe9;padding:12px;border-radius:8px;">你的資料夾/\n  patrol_board.html\n  shared/\n    core-utils.js\n    copy-utils.js\n    csv-export.js\n    capture-clipboard.js\n    ui-chrome.js\n    photo-viewer.js\n    dashboard-common.css</pre>'
       + '</div>';
     throw new Error('shared 層未載入：' + missing.join('、'));
   }
