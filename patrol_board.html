@@ -395,7 +395,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
    sc-val-note（等級未知警示）維持獨立一行，用 flex-basis:100% 讓它換行
    顯示在下方，不擠壓 label／數字那一列 */
 .sum-card { flex:1; min-width:140px; background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:9px 14px; display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:2px 10px; }
-.sum-card .sc-label { font-size:11px; color:var(--sub); font-weight:600; white-space:nowrap; }
+.sum-card .sc-label { font-size:15px; color:var(--sub); font-weight:600; white-space:nowrap; }
 .sum-card .sc-val { font-size:19px; font-weight:800; letter-spacing:-1px; }
 .sum-card.rate .sc-val { color:var(--primary); }
 .sum-card.extra .sc-val { color:var(--bonus); }
@@ -444,7 +444,7 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 .miss-mark { display:inline-flex; align-items:center; justify-content:center; width:17px; height:17px; border-radius:3px; background:var(--red-bg); border:1px solid rgba(163,32,32,.4); color:var(--red); font-size:12px; font-weight:800; line-height:1; }
 /* 1.5.0：非應達格的「幽靈格」佔位，近似透明，若有似無——只佔版面、不搶視覺焦點，
    一旦實際次數蓋過這格才會被換成 .extra-check（見 render() 的 7 格迴圈） */
-.box-ghost { display:inline-block; width:17px; height:17px; border-radius:3px; border:1px solid rgba(0,0,0,.045); background:rgba(0,0,0,.015); }
+.box-ghost { display:inline-block; width:17px; height:17px; border-radius:3px; border:1px solid rgba(0,0,0,.045); background:#C7C7E2; }
 
 .loadmore-wrap { text-align:center; margin-top:16px; }
 .loadmore-btn { padding:8px 22px; border:1px solid var(--border); border-radius:20px; background:#fff; font-size:13px; font-weight:600; color:var(--text); cursor:pointer; font-family:inherit; }
@@ -480,12 +480,21 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 .ov-all-btn { padding:7px 18px; border-radius:8px; border:1px solid var(--primary); background:var(--primary); color:#fff; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; white-space:nowrap; }
 .ov-all-btn:hover { opacity:.9; }
 .ov-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-.ov-card { background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:12px 16px; cursor:pointer; transition:box-shadow .2s; box-shadow:0 1px 4px rgba(0,0,0,.03); }
+.ov-card { background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:14px 18px 16px; transition:box-shadow .2s; box-shadow:0 1px 4px rgba(0,0,0,.03); }
 .ov-card:hover { box-shadow:0 4px 12px rgba(0,0,0,.08); }
 .ov-card h2 { font-size:15px; font-weight:700; border-left:4px solid var(--primary); padding-left:9px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; }
 .ov-perc { color:var(--green); font-size:18px; font-weight:800; }
-.ov-mini { width:100%; border-collapse:collapse; font-size:12.5px; }
-.ov-mini th, .ov-mini td { border:1px solid var(--border); padding:4px 5px; text-align:center; }
+/* 1.6.0：中元/中秋卡片改成「量販在上、全聯在下」同框垂直排列，減少全聯
+   單一等級表格獨立成框時的閒置空間；量販／全聯兩個子區塊各自可點擊
+   帶篩選進明細，彼此互不影響 */
+.ov-subsec { cursor:pointer; border-radius:8px; transition:background .15s; padding:4px 2px; margin:0 -2px; }
+.ov-subsec:hover { background:var(--primary-bg); }
+.ov-subsec + .ov-subsec { margin-top:10px; padding-top:10px; border-top:1px dashed var(--border); }
+.ov-subsec-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+.ov-subsec-title { font-size:13.5px; font-weight:700; color:var(--sub); }
+.ov-subsec-rate { color:var(--green); font-size:16px; font-weight:800; }
+.ov-mini { width:100%; border-collapse:collapse; font-size:13.5px; }
+.ov-mini th, .ov-mini td { border:1px solid var(--border); padding:6px 7px; text-align:center; }
 .ov-mini th { background:var(--bg); color:var(--sub); font-weight:700; }
 .ov-empty { color:var(--sub); font-size:13.5px; text-align:center; padding:12px 0; }
 @media (max-width:640px) {
@@ -503,8 +512,8 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 .chip-sub { display:block; font-size:9.5px; font-weight:500; color:var(--sub); margin-top:0; }
 #ov-office-week-chips .chip.active .chip-sub { color:rgba(255,255,255,.8); }
 .oo-tbl-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
-.ov-office-tbl { width:100%; border-collapse:collapse; font-size:12.5px; }
-.ov-office-tbl th, .ov-office-tbl td { border:1px solid var(--border); padding:5px 8px; text-align:center; }
+.ov-office-tbl { width:100%; border-collapse:collapse; font-size:13.5px; }
+.ov-office-tbl th, .ov-office-tbl td { border:1px solid var(--border); padding:7px 10px; text-align:center; }
 .ov-office-tbl th { background:var(--bg); color:var(--sub); font-weight:700; }
 .ov-office-tbl td.oo-name { text-align:left; font-weight:700; vertical-align:middle; }
 .ov-office-tbl td.oo-clickable { cursor:pointer; transition:background .12s; }
@@ -522,8 +531,8 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 .oo-mcard-chan:last-child { border-bottom:none; }
 .oo-mcard-chan.oo-clickable { cursor:pointer; }
 .oo-mcard-chan.oo-clickable:active { background:var(--primary-bg); }
-.oo-mcard-chan-title { font-size:12.5px; font-weight:700; color:var(--sub); margin-bottom:6px; }
-.oo-mcard-empty { color:var(--sub); font-size:12.5px; padding:2px 0; }
+.oo-mcard-chan-title { font-size:13.5px; font-weight:700; color:var(--sub); margin-bottom:6px; }
+.oo-mcard-empty { color:var(--sub); font-size:13.5px; padding:2px 0; }
 .oo-mcard-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(56px,1fr)); gap:6px 4px; text-align:center; }
 .oo-mstat { display:flex; flex-direction:column; gap:2px; }
 .oo-mstat .k { font-size:10px; color:var(--sub); }
@@ -1384,11 +1393,18 @@ function openDetailFromOffice(area, chanKey){
 function renderOverview(){
   var wrap = document.getElementById('ov-cards');
   if(!wrap) return;
+  /* 1.6.0：同一檔期的量販／全聯改成同框「上下垂直排列」（量販在上、
+     全聯在下），取代原本兩個各自獨立、平行排列的卡片——全聯通路只有
+     單一等級（超市A），獨立成框時右上角再重複顯示一次跟表格內同樣的
+     達成率沒有意義，故合併後全聯子區塊不再另外標示達成率徽章，直接
+     以表格裡唯一一列的達成率%為準；量販維持子區塊標題旁的整體達成率，
+     因為量販有多個等級，這個數字是好幾列的加總，跟表格內任一列都不同，
+     仍有參考價值。 */
   var cardsHtml = PERIODS.map(function(p){
     var icon = p.key==='zhong' ? '🏮' : '🎑';
     var cols = _periodColumns(p.key);
     var weekNums = cols.map(function(c){ return c.week; });
-    return ['量販','全聯'].map(function(chanKey){
+    var subsecsHtml = ['量販','全聯'].map(function(chanKey){
       var subset = STORE_ROWS.filter(function(s){ return s.chanKey===chanKey; });
       var stat = _statsFor(subset, cols);
       var gradeKeys = Object.keys(stat.byGrade).sort(function(a,b){
@@ -1412,11 +1428,16 @@ function renderOverview(){
           }).join('')
         + '</table>'
       ) : '<div class="ov-empty">目前沒有符合資料</div>';
-      return '<div class="ov-card" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\')">'
-        + '<h2><span>'+icon+' '+esc(p.label)+' - '+(chanKey==='量販'?'量販通路':'全聯通路')+'</span>'
-        + '<span class="ov-perc">'+stat.rate.toFixed(1)+'%</span></h2>'
+      var chanIcon = chanKey==='量販' ? '🛒' : '🏪';
+      var chanLabel = chanKey==='量販' ? '量販通路' : '全聯通路';
+      var rateHtml = chanKey==='量販' ? '<span class="ov-subsec-rate">'+stat.rate.toFixed(1)+'%</span>' : '';
+      return '<div class="ov-subsec" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\')">'
+        + '<div class="ov-subsec-head"><span class="ov-subsec-title">'+chanIcon+' '+chanLabel+'</span>'+rateHtml+'</div>'
         + body + '</div>';
     }).join('');
+    return '<div class="ov-card">'
+      + '<h2><span>'+icon+' '+esc(p.label)+'</span></h2>'
+      + subsecsHtml + '</div>';
   }).join('');
   wrap.innerHTML = cardsHtml;
   renderOfficeOverview();
@@ -1532,7 +1553,8 @@ function render(){
   /* 依「期」把連續欄位分組（中元 W1~W3 一組／中秋 W1~W2 一組），
      用來畫出跨欄的檔期分組表頭 + 組間強分隔線；同檔期內週與週之間也加上
      較細的分隔線，強化不同檔期／不同週次的視覺區隔 */
-  var periodLabelMap = {}; PERIODS.forEach(function(p){ periodLabelMap[p.key] = p.label.replace('專案',''); });
+  /* 1.6.0：欄頭中元/中秋字樣前方加 emoji，比照總覽卡片圖示（🏮中元／🎑中秋），美化明細表頭 */
+  var periodLabelMap = {}; PERIODS.forEach(function(p){ periodLabelMap[p.key] = (p.key==='zhong'?'🏮':'🎑') + p.label.replace('專案',''); });
   var colGroups = [];
   var colMeta = [];
   cols.forEach(function(c, idx){
