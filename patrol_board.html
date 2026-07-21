@@ -309,6 +309,20 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .tb-act-btn.loading { opacity:.6; pointer-events:none; }
 .toolbar-spacer { flex:1; }
 
+/* ── toolbar 功能分組（1.4.0 新增，比照 coverage_board.html）：
+   「彙整看板」（照片牆／逐題彙整／細項匯出）跟「分享」（CSV／LINE／截圖）
+   各自淡底色＋小標籤，用直向分隔線隔開，一眼看出這是兩種不同性質的功能，
+   不要跟單純的「說明」按鈕混在同一排看不出分組 ── */
+.tb-group {
+  display:flex; align-items:center; gap:5px; flex-shrink:0;
+  padding:4px 8px 4px 6px; border-radius:10px; background:var(--bg);
+}
+.tb-group-tag {
+  font-size:10px; font-weight:700; color:var(--sub);
+  white-space:nowrap; letter-spacing:.02em; padding-right:1px;
+}
+.ctrl-sep { width:1px; align-self:stretch; margin:4px 2px; background:var(--border); flex-shrink:0; }
+
 /* ── filter bar ── */
 .filterbar { background:#fff; border-bottom:1px solid var(--border); padding:10px 20px; position:sticky; top:52px; z-index:40; }
 .chip-row { display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap; }
@@ -388,6 +402,9 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
   }
   .toolbar-controls.open { display:flex; }
   .toolbar-controls .tb-act-btn { width:100%; text-align:left; }
+  .toolbar-controls .ctrl-sep { width:auto; height:1px; background:var(--border); margin:0; flex-shrink:0; align-self:auto; }
+  .toolbar-controls .tb-group { display:flex; flex-direction:column; align-items:stretch; gap:6px; width:100%; background:none; padding:0; border-radius:0; }
+  .toolbar-controls .tb-group-tag { padding:0 2px; }
   .summary-row { padding:10px 12px 0; }
   .stage { padding:10px 12px 30px; }
 }
@@ -559,10 +576,21 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
     <button class="hamburger-btn" id="hamburger-btn" onclick="toggleMobileMenu(event)">☰</button>
     <div class="toolbar-controls" id="toolbar-controls">
       <button class="tb-act-btn" onclick="openManual();closeMobileMenu();">📖 說明</button>
-      <button class="tb-act-btn" id="tb-btn-csv" onclick="toolbarDownloadCsv();closeMobileMenu();">📥 CSV</button>
-      <button class="tb-act-btn" id="tb-btn-line" onclick="toolbarCopyLine();closeMobileMenu();">💬 LINE</button>
-      <button class="tb-act-btn" id="tb-btn-line-brief" onclick="toolbarCopyLineBrief();closeMobileMenu();">✂️ 精簡</button>
-      <button class="tb-act-btn" id="tb-btn-screenshot" onclick="toolbarScreenshot();closeMobileMenu();">📸 截圖</button>
+      <div class="ctrl-sep"></div>
+      <div class="tb-group" id="toolbar-actions-board">
+        <span class="tb-group-tag">彙整看板</span>
+        <button class="tb-act-btn" onclick="openPivotDialog('photos');closeMobileMenu();">🖼️ 照片牆</button>
+        <button class="tb-act-btn" onclick="openPivotDialog('drilldown');closeMobileMenu();">🔍 逐題彙整</button>
+        <button class="tb-act-btn" onclick="openPivotDialog('subcol');closeMobileMenu();">🧩 細項匯出</button>
+      </div>
+      <div class="ctrl-sep"></div>
+      <div class="tb-group" id="toolbar-actions-share">
+        <span class="tb-group-tag">分享</span>
+        <button class="tb-act-btn" id="tb-btn-csv" onclick="toolbarDownloadCsv();closeMobileMenu();">📥 CSV</button>
+        <button class="tb-act-btn" id="tb-btn-line" onclick="toolbarCopyLine();closeMobileMenu();">💬 LINE</button>
+        <button class="tb-act-btn" id="tb-btn-line-brief" onclick="toolbarCopyLineBrief();closeMobileMenu();">✂️ 精簡</button>
+        <button class="tb-act-btn" id="tb-btn-screenshot" onclick="toolbarScreenshot();closeMobileMenu();">📸 截圖</button>
+      </div>
     </div>
   </div>
 
@@ -630,12 +658,40 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
   </div>
 </div>
 
+<!-- ════ 彙整看板 Dialog：照片牆／逐題彙整／細項匯出 三分頁快速切換（1.4.0 新增） ════ -->
+<div id="summary-dialog" style="display:none" onclick="if(event.target===this)closeSummaryDialog()">
+  <div class="dlg-box">
+    <div class="dlg-header">
+      <span id="sum-title" style="font-size:14px;font-weight:900;flex:1;min-width:0;"></span>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+        <button class="dlg-action-btn" id="btn-sum-csv" onclick="downloadSummaryCsv()"><span>📥</span><span class="btn-txt"> CSV</span></button>
+        <button class="dlg-action-btn" id="btn-sum-screenshot" onclick="summaryScreenshot()"><span>📸</span><span class="btn-txt"> 截圖</span></button>
+        <button class="dlg-close" onclick="closeSummaryDialog()">✕</button>
+      </div>
+    </div>
+    <div class="pivot-tabs">
+      <button class="pivot-tab active" onclick="switchPivotTab('photos',this)">🖼️ 照片牆</button>
+      <button class="pivot-tab"        onclick="switchPivotTab('drilldown',this)">🔍 逐題彙整</button>
+      <button class="pivot-tab"        onclick="switchPivotTab('subcol',this)">🧩 細項匯出</button>
+    </div>
+    <div class="pivot-viewport">
+      <div class="pivot-slides" id="pivot-slides" style="width:300%;">
+        <div class="pivot-slide" id="pivot-slide-photos"    style="width:calc(100%/3);"></div>
+        <div class="pivot-slide" id="pivot-slide-drilldown" style="width:calc(100%/3);"></div>
+        <div class="pivot-slide" id="pivot-slide-subcol"    style="width:calc(100%/3);"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="shared/core-utils.js"></script>
 <script src="shared/copy-utils.js"></script>
 <script src="shared/csv-export.js"></script>
 <script src="shared/capture-clipboard.js"></script>
 <script src="shared/ui-chrome.js"></script>
 <script src="shared/photo-viewer.js"></script>
+<script src="shared/question-drilldown.js"></script>
+<script src="shared/pivot-dialog.js"></script>
 <script>
 window._STICKY_IDS = ['filterbar'];
 
@@ -939,15 +995,6 @@ function _fetchQuestionnaireSheet(chanKey, callback){
        ri 從1開始正好對應「第 ri 筆資料」），索引直接用 ri，不要再 +1，
        之前 rowRecords[ri+1] 會錯位取到下一筆資料，導致查得到筆數但
        內容全部對不上（時間顯示未知、題目空白）*/
-    console.log('[問卷分頁除錯]', sheetName,
-      'headerLabels=', headerLabels,
-      'baseColNames=', baseColNames.map(function(b){return b.name+'(col'+b.col+')';}),
-      'quizCols=', quizCols.length, quizCols.slice(0,5),
-      'codeColIdx=', codeColIdx,
-      'rawRows.length=', rawRows.length);
-    var _dbgRow = rawRows[215];
-    console.log('[問卷分頁除錯] rawRows[215]=', _dbgRow, 'c陣列長度=', _dbgRow && _dbgRow.c ? _dbgRow.c.length : 'row不存在');
-
     var codeToRecords = {};
     var rowRecords = {};
     for(var ri=1; ri<rawRows.length; ri++){
@@ -972,9 +1019,6 @@ function _fetchQuestionnaireSheet(chanKey, callback){
         sections: sectionOrder.map(function(s){ return { section:s, picks:sections[s] }; }),
         timeKey: _findTimeText(baseData)
       };
-      if(ri===215){
-        console.log('[問卷分頁除錯] 第215筆 baseData=', baseData, 'sectionOrder=', sectionOrder, 'timeKey=', record.timeKey);
-      }
       rowRecords[ri] = record; /* ri＝「處理層」行數欄位所指的同一種編號（扣掉表頭後第幾筆資料） */
       if(code){
         if(!codeToRecords[code]) codeToRecords[code] = [];
@@ -985,7 +1029,12 @@ function _fetchQuestionnaireSheet(chanKey, callback){
       codeToRecords[code].sort(function(a,b){ return a.timeKey < b.timeKey ? 1 : (a.timeKey > b.timeKey ? -1 : 0); });
     });
 
-    _qSheetCache[chanKey] = { codeToRecords:codeToRecords, rowRecords:rowRecords };
+    /* quizDefs：這份問卷分頁裡「大題_選項」欄名的去重清單（依欄位原始順序），
+       給彙整看板的「細項匯出」分頁當作可勾選子欄位清單用——不用等使用者展開
+       逐題彙整才臨時掃描 records 才知道有哪些題目，開分頁當下就能直接列出 */
+    var quizDefs = quizCols.map(function(qc){ return { section:qc.section, option:qc.option }; });
+
+    _qSheetCache[chanKey] = { codeToRecords:codeToRecords, rowRecords:rowRecords, quizDefs:quizDefs };
     _qSheetLoading[chanKey] = false;
     callback(_qSheetCache[chanKey]);
     (_qSheetWaiters[chanKey]||[]).forEach(function(cb){ cb(_qSheetCache[chanKey]); });
@@ -1534,6 +1583,64 @@ function _refRowNum(ref){
   var m = String(ref||'').match(/(\d+)\s*$/);
   return m ? parseInt(m[1],10) : null;
 }
+
+/* ════ 彙整看板（照片牆／逐題彙整／細項匯出）共用的「店家 → 問卷紀錄」
+   查找邏輯，跟店家明細 Dialog 是同一套規則，抽出來兩邊共用，不要各自
+   複製一份——這是 1.3.2 才修好的行數對齊邏輯，之後只會改這一處 ════ */
+
+/* 這家店在「目前篩選檔期範圍」內的巡補紀錄（cols 預設用 activeColumns()，
+   彙整看板／店家明細都遵循同一套「檔期」篩選，但通路／等級／區域／關鍵字
+   這幾項篩選已經先反映在呼叫端傳進來的店家清單本身，這裡不用重複判斷） */
+function _visitsInScope(code, cols){
+  cols = cols || activeColumns();
+  return (VISIT_INDEX[code]||[]).filter(function(v){
+    return cols.some(function(c){ return c.period===v.period && c.week===v.week; });
+  });
+}
+
+/* 優先用「處理層」自帶的來源列號直接定位問卷分頁那一列，找不到再退回
+   用店家代碼比對——跟 openStoreDetail 原本的邏輯一模一樣，只是抽成參數化
+   版本讓彙整看板也能呼叫。qData 需已經是 _qSheetCache[chanKey]（呼叫端
+   自行確保已載入，這支不負責觸發載入／等待）。 */
+function _resolveQuestionnaireRecords(code, visits, qData){
+  if(!qData || qData.error) return [];
+  var records = [], seenRows = {};
+  visits.forEach(function(v){
+    var rowNum = _refRowNum(v.ref);
+    if(rowNum==null || !qData.rowRecords || !qData.rowRecords[rowNum] || seenRows[rowNum]) return;
+    seenRows[rowNum] = true;
+    records.push(qData.rowRecords[rowNum]);
+  });
+  if(!records.length){
+    records = (qData.codeToRecords && qData.codeToRecords[code]) || [];
+  }
+  return records;
+}
+
+/* 給彙整看板用的一站式版本：直接吃一筆 store 物件，回傳「目前篩選檔期
+   範圍」內能找到的問卷紀錄陣列（找不到對應通路或問卷分頁尚未載入成功時
+   回傳空陣列，不拋錯，呼叫端不用另外包 try/catch）。 */
+function _questionnaireRecordsForStore(store, cols){
+  if(!store || !store.chanKey) return [];
+  var qData = _qSheetCache[store.chanKey];
+  if(!qData) return [];
+  var visits = _visitsInScope(store.code, cols);
+  return _resolveQuestionnaireRecords(store.code, visits, qData);
+}
+
+/* 確保「量販」「全聯」兩份問卷分頁都已經載入完成（成功或失敗都算完成）
+   才呼叫 callback——彙整看板的照片牆／逐題彙整／細項匯出都要同時橫跨
+   兩個通路的問卷資料，不能只等其中一份。init() 背景已經預先觸發載入，
+   使用者實際點開彙整看板時通常早已就緒，這裡多半是立即 resolve。 */
+function _ensureAllQSheets(callback){
+  var keys = Object.keys(QUESTIONNAIRE_SHEETS);
+  var remaining = keys.length;
+  if(!remaining){ callback(); return; }
+  keys.forEach(function(k){
+    _fetchQuestionnaireSheet(k, function(){ remaining--; if(remaining<=0) callback(); });
+  });
+}
+
 function openStoreDetail(code){
   _detailCode = code;
   var store = STORE_ROWS.filter(function(s){ return s.code===code; })[0];
@@ -1615,19 +1722,9 @@ function openStoreDetail(code){
     /* 優先用「處理層」每筆巡補紀錄自帶的來源列號（v.ref）直接定位問卷分頁
        的那一列，不靠問卷分頁自己的店家代碼欄反查——這樣即使那欄打字有
        誤差／全半形不一致／沒填，只要行數對得上，內容還是讀得到。
-       visits 本身已經是「新到舊」排序，records 順序自然跟時間軸一致 */
-    var records = [], seenRows = {};
-    visits.forEach(function(v){
-      var rowNum = _refRowNum(v.ref);
-      if(rowNum==null || !qData.rowRecords || !qData.rowRecords[rowNum] || seenRows[rowNum]) return;
-      seenRows[rowNum] = true;
-      records.push(qData.rowRecords[rowNum]);
-    });
-    /* 備援：行數解析不出來或該行沒索引到（例如舊資料的 ref 格式不同），
-       退回原本「用店家代碼比對問卷分頁」的方式 */
-    if(!records.length){
-      records = (qData.codeToRecords && qData.codeToRecords[code]) || [];
-    }
+       visits 本身已經是「新到舊」排序，records 順序自然跟時間軸一致。
+       （邏輯抽到 _resolveQuestionnaireRecords，跟彙整看板共用同一份） */
+    var records = _resolveQuestionnaireRecords(code, visits, qData);
     liveEl.innerHTML = _buildQuestionnaireList(records, store.storeName, qRid);
   });
 }
@@ -1642,6 +1739,322 @@ document.addEventListener('keydown', function(e){
   if(manualOverlay && manualOverlay.classList.contains('open')){ closeManual(); return; }
   closeStoreDetail();
 });
+
+/* ══════════════════════════════════════════
+   彙整看板 Dialog（1.4.0 新增，比照 coverage_board.html 的設計）：
+   照片牆／逐題彙整／細項匯出 三分頁，範圍固定是「目前整體篩選範圍」
+   （getFilteredStores() × activeColumns()，跟主表格、店家明細 Dialog
+   遵循同一套篩選規則），跟目前有沒有點開某一列無關。
+   分頁切頁／開關 Dialog 的機械動作在 shared/pivot-dialog.js，這裡只管
+   「資料從哪來、每個分頁長怎樣」。
+   ══════════════════════════════════════════ */
+var _pivotMode = 'photos';
+var _pivotTabIndex = { photos:0, drilldown:1, subcol:2 };
+var PIVOT_TITLES = { photos:'照片牆', drilldown:'逐題彙整', subcol:'細項匯出' };
+
+/* 工具列三顆「彙整看板」按鈕的共同入口：先確保量販／全聯兩份問卷分頁都
+   已經載入完成（init() 背景早已預先觸發，這裡多半是立即完成，不會真的
+   卡在 loading），再開 Dialog 並定位到對應分頁。細項匯出的勾選狀態每次
+   重新開啟都歸零，避免使用者以為上次選的欄位還套用在新的篩選範圍上。 */
+function openPivotDialog(mode){
+  _subColSel = {};
+  showLoading();
+  _ensureAllQSheets(function(){
+    hideLoading();
+    openSummaryDialog(mode, function(){ return getFilteredStores(); });
+  });
+}
+
+function _renderPivotSlide(mode){
+  var el = document.getElementById('pivot-slide-' + mode);
+  if(!el) return;
+  var stores = _pivotRows || [];
+  if(mode === 'photos') el.innerHTML = _buildPhotoWall(stores);
+  else if(mode === 'drilldown') el.innerHTML = _buildDrilldownTab(stores);
+  else if(mode === 'subcol'){ el.innerHTML = _buildSubColPanel(); _subColUpdateCount(); }
+}
+
+/* 兩份問卷分頁若有任一份載入失敗，組一段提示文字（不阻擋另一份還能正常
+   顯示的內容，只是提醒使用者這份範圍可能不完整） */
+function _qSheetErrorNote(){
+  var errs = [];
+  Object.keys(QUESTIONNAIRE_SHEETS).forEach(function(k){
+    var qd = _qSheetCache[k];
+    if(qd && qd.error) errs.push(k+'：'+qd.error);
+  });
+  return errs.length ? '<div class="store-history-empty" style="margin-bottom:10px;">⚠️ '+esc(errs.join('；'))+'（該通路的資料本次無法顯示）</div>' : '';
+}
+
+/* 把「目前篩選範圍內」每家店 × 每筆問卷紀錄攤平成一份標準化 entries
+   陣列（跟 shared/question-drilldown.js 期待的格式一致），照片牆／逐題
+   彙整／細項匯出三個分頁共用同一份組裝邏輯，不要各自重複掃一次。 */
+function _pivotEntriesFromStores(stores){
+  var entries = [];
+  stores.forEach(function(s){
+    var records = _questionnaireRecordsForStore(s);
+    records.forEach(function(rec){
+      if(!rec.sections || !rec.sections.length) return;
+      var metaParts = [s.area, s.office, s.staff].filter(function(v){ return v; });
+      entries.push({
+        store: s,
+        label: s.storeName,
+        meta: metaParts.join(' · '),
+        timeText: String(_findTimeText(rec.base)||''),
+        sections: rec.sections
+      });
+    });
+  });
+  return entries;
+}
+
+/* ── 照片牆：把範圍內所有巡補紀錄攤平成一份時間軸，只列出有照片的紀錄，
+   新到舊排序，比照 coverage_board.html 的 _buildPhotoWall ── */
+function _buildPhotoWall(stores){
+  if(!stores.length) return '<div class="empty">無資料</div>';
+  var errNote = _qSheetErrorNote();
+  var cards = [];
+  stores.forEach(function(s){
+    var records = _questionnaireRecordsForStore(s);
+    records.forEach(function(rec){
+      var photos = _extractPhotosFromSections(rec.sections);
+      if(!photos.length) return;
+      cards.push({ store:s, rec:rec, photos:photos });
+    });
+  });
+  if(!cards.length) return errNote + '<div class="empty">目前範圍內的巡補紀錄都沒有找到照片</div>';
+
+  cards.sort(function(a,b){ return a.rec.timeKey < b.rec.timeKey ? 1 : (a.rec.timeKey > b.rec.timeKey ? -1 : 0); });
+  var totalPhotos = cards.reduce(function(sum,c){ return sum+c.photos.length; }, 0);
+
+  /* 整個照片牆包一層 .photo-gallery-wall，讓 shared/photo-viewer.js 的燈箱
+     能跨店家/大題無限左右切換（見 photo-viewer.js _PHOTO_GALLERY_SCOPE_SELECTOR） */
+  var html = errNote + '<div class="photo-gallery-wall">'
+    + '<div class="photo-gallery-summary">📸 共 <strong>'+cards.length+'</strong> 筆巡補紀錄　🖼️ 共 <strong>'+totalPhotos+'</strong> 張照片'
+    + '　<span style="font-weight:500;opacity:.7;">（僅列出目前篩選範圍內、且有照片的巡補紀錄，新到舊排序）</span></div>';
+
+  cards.forEach(function(c){
+    var s = c.store;
+    var timeText = _dateOnly(_findTimeText(c.rec.base)) || '未知時間';
+    var bySection = {}, order = [];
+    c.photos.forEach(function(p){
+      if(!bySection[p.section]){ bySection[p.section]=[]; order.push(p.section); }
+      bySection[p.section].push(p);
+    });
+    var sectionsHtml = order.map(function(sec){
+      var photosHtml = bySection[sec].map(function(p){
+        return _renderPhotoChip(p.option, p.url, null, { store:s.storeName, section:sec });
+      }).join('');
+      return '<div class="raw-quiz-section"><div class="raw-quiz-title">📋 '+esc(sec)+'</div>'
+        + '<div class="raw-quiz-photos">'+photosHtml+'</div></div>';
+    }).join('');
+    var metaParts = [s.area, s.office, s.staff].filter(function(v){ return v; });
+    html += '<div class="photo-store-card">'
+      + '<div class="photo-store-head">'
+      + '<span class="photo-store-name">🏪 '+esc(s.storeName)+'</span>'
+      + '<span class="photo-store-meta">🕒 '+esc(String(timeText))+'　'+esc(metaParts.join(' · '))+'</span>'
+      + '</div>'
+      + '<div class="photo-gallery-sections">'+sectionsHtml+'</div>'
+      + '</div>';
+  });
+  html += '</div>';
+  return html;
+}
+
+/* ── 逐題彙整：組好 entries 直接交給 shared/question-drilldown.js 的
+   _qdBuildTabHtml，選題／看結果的介面完全交給共用層，這裡不重寫 ── */
+function _buildDrilldownTab(stores){
+  if(!stores.length) return '<div class="empty">無資料</div>';
+  return _qSheetErrorNote() + _qdBuildTabHtml(_pivotEntriesFromStores(stores));
+}
+
+/* ── 細項匯出：跨「量販」「全聯」兩份問卷分頁的大題/選項清單，讓使用者
+   勾選 1～N 個子欄位，即時列出目前範圍內命中的巡補紀錄，可輸出 LINE
+   文字或 CSV。比照 coverage_board.html 的細項匯出，差別是這裡的「子欄位」
+   是問卷的大題/選項，不是店家名冊的固定欄位。 ── */
+var _subColSel = {}; /* key: section+"\u0001"+option → true，每次重新開啟彙整看板時歸零 */
+
+function _allSubColDefs(){
+  var seen = {}, defs = [];
+  Object.keys(QUESTIONNAIRE_SHEETS).forEach(function(chanKey){
+    var qData = _qSheetCache[chanKey];
+    if(!qData || !qData.quizDefs) return;
+    qData.quizDefs.forEach(function(d){
+      var key = d.section+'\u0001'+d.option;
+      if(seen[key]) return;
+      seen[key] = true;
+      defs.push({ section:d.section, option:d.option, key:key });
+    });
+  });
+  return defs;
+}
+function _subColScopeTitle(){ return PROJ_NAME; }
+function _buildSubColPanel(){
+  var defs = _allSubColDefs();
+  if(!defs.length){
+    return _qSheetErrorNote() + '<div style="padding:10px 12px;font-size:12px;color:var(--sub);">目前沒有可選的子欄位（問卷分頁可能還沒載入完成，或裡面沒有任何「大題_選項」格式的欄位）</div>';
+  }
+  var byGroup = {}, order = [];
+  defs.forEach(function(d){
+    if(!byGroup[d.section]){ byGroup[d.section]=[]; order.push(d.section); }
+    byGroup[d.section].push(d);
+  });
+  var html = _qSheetErrorNote() + '<div style="padding:10px 12px;font-size:12px;">';
+  html += '<div style="font-weight:700;margin-bottom:2px;">🧩 細項匯出 ── 勾選想匯出的大題/選項（可跨大題、可只選其中幾項）</div>';
+  html += '<div style="color:var(--sub);margin-bottom:8px;">範圍：目前篩選店家 × 目前檔期（跟彙整看板其他分頁相同範圍）</div>';
+  order.forEach(function(sec){
+    var items = byGroup[sec];
+    var allChecked = items.every(function(d){ return !!_subColSel[d.key]; });
+    html += '<div style="margin:6px 0 4px;">';
+    html += '<label style="font-weight:600;cursor:pointer;"><input type="checkbox" '+(allChecked?'checked':'')+' onclick="_subColToggleGroup(\''+esc(sec)+'\',this.checked)"> 📋 '+esc(sec)+'（整題）</label>';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 0 18px;">';
+    items.forEach(function(d){
+      html += '<label style="cursor:pointer;"><input type="checkbox" onclick="_subColToggle(\''+esc(d.key)+'\',this.checked)" '+(_subColSel[d.key]?'checked':'')+'> '+esc(d.option)+'</label>';
+    });
+    html += '</div></div>';
+  });
+  html += '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">'
+    + '<button class="dlg-action-btn" onclick="_subColLineCopy(this)"><span class="btn-icon">💬</span><span class="btn-txt"> 複製LINE文字</span></button>'
+    + '<button class="dlg-action-btn" onclick="_subColCsvDownload(this)"><span class="btn-icon">📥</span><span class="btn-txt"> 下載CSV</span></button>'
+    + '<span id="subcol-match-count" style="color:var(--sub);"></span>'
+    + '</div></div>';
+  return html;
+}
+function _subColToggle(key, checked){
+  if(checked) _subColSel[key] = true; else delete _subColSel[key];
+  _subColUpdateCount();
+}
+function _subColToggleGroup(section, checked){
+  _allSubColDefs().filter(function(d){ return d.section===section; }).forEach(function(d){
+    if(checked) _subColSel[d.key] = true; else delete _subColSel[d.key];
+  });
+  var slide = document.getElementById('pivot-slide-subcol');
+  if(slide) slide.innerHTML = _buildSubColPanel();
+  _subColUpdateCount();
+}
+function _subColSelectedDefs(){
+  return _allSubColDefs().filter(function(d){ return _subColSel[d.key]; });
+}
+function _subColFindPick(entry, section, option){
+  var secs = (entry.sections||[]).filter(function(s){ return s.section===section; });
+  if(!secs.length) return null;
+  var hit = (secs[0].picks||[]).filter(function(p){ return p.option===option; });
+  return hit.length ? hit[0] : null;
+}
+/* 範圍用彙整看板當下的 _pivotRows（跟其他分頁一致），逐筆巡補紀錄（不是
+   逐店）去比對是否命中任一已勾選子欄位——同一家店這次篩選範圍內可能有
+   不只一筆巡補，各筆填的答案不一定相同，攤平成逐筆才不會互相蓋掉。 */
+function _subColMatchedEntries(){
+  var defs = _subColSelectedDefs();
+  if(!defs.length) return [];
+  var entries = _pivotEntriesFromStores(_pivotRows || []);
+  var out = [];
+  entries.forEach(function(e){
+    var matched = [];
+    defs.forEach(function(d){
+      var p = _subColFindPick(e, d.section, d.option);
+      var raw = p ? String(p.value||'').trim() : '';
+      if(!raw) return;
+      var textOnly = raw.replace(/https?:\/\/\S+/gi,'').trim();
+      var isJustMark = /^[vV✓]$/.test(textOnly);
+      matched.push({ def:d, valText: isJustMark ? '' : raw });
+    });
+    if(matched.length) out.push({ entry:e, matched:matched });
+  });
+  return out;
+}
+function _subColUpdateCount(){
+  var el = document.getElementById('subcol-match-count');
+  if(!el) return;
+  var n = _subColSelectedDefs().length;
+  var m = n ? _subColMatchedEntries().length : 0;
+  el.textContent = n ? ('已選 '+n+' 個子欄位，符合 '+m+' 筆填寫紀錄') : '尚未勾選任何子欄位';
+}
+/* LINE 分享文字：依「單位 → 人員」分組（同單位的人集中排在一起），
+   每位人員小節帶「（共 N 筆）」小計；只勾 1 項且該筆沒有附加文字時，
+   店名這行本身已是完整資訊，省略 └ 明細行（比照 coverage_board.html 的
+   同一設計），否則列出每項命中的大題/選項＋文字內容。 */
+function _subColLineText(){
+  var DIV = '─────────────────';
+  var defs = _subColSelectedDefs();
+  var matchedList = _subColMatchedEntries();
+  var groups = {}, order = [];
+  matchedList.forEach(function(m){
+    var s = m.entry.store;
+    var office = String(s.office||'—'), staff = String(s.staff||'—');
+    var key = office+'\u0001'+staff;
+    if(!groups[key]){ groups[key] = { office:office, staff:staff, items:[] }; order.push(key); }
+    groups[key].items.push(m);
+  });
+  order.sort(function(ka, kb){
+    var ga = groups[ka], gb = groups[kb];
+    if(ga.office !== gb.office) return ga.office.localeCompare(gb.office, 'zh-TW');
+    return ga.staff.localeCompare(gb.staff, 'zh-TW');
+  });
+  var singleDefNoText = defs.length === 1;
+  var lines = ['【'+_subColScopeTitle()+'】細項匯出 ── '+defs.map(function(d){return d.section+'/'+d.option;}).join('、'), '共 '+matchedList.length+' 筆', DIV];
+  order.forEach(function(key){
+    var g = groups[key];
+    lines.push('');
+    lines.push('▌ '+g.office+'．'+g.staff+'（共 '+g.items.length+' 筆）');
+    g.items.forEach(function(m){
+      var s = m.entry.store;
+      var hasText = m.matched.some(function(x){ return x.valText; });
+      lines.push('  '+s.storeName+(s.code?'('+s.code+')':'')+'　🕒'+(m.entry.timeText||'未知時間'));
+      if(!singleDefNoText || hasText){
+        m.matched.forEach(function(x){
+          lines.push('   └'+x.def.section+'/'+x.def.option+(x.valText?'：'+x.valText:''));
+        });
+      }
+    });
+  });
+  lines.push('');
+  lines.push('📅 '+new Date().toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}));
+  return lines.join('\n');
+}
+function _subColLineCopy(btn){
+  if(!_subColSelectedDefs().length){ _flashBtn(btn,'⚠️ 請先勾選欄位'); return; }
+  if(!_subColMatchedEntries().length){ _flashBtn(btn,'⚠️ 無符合資料'); return; }
+  _doCopy(_subColLineText(), btn);
+}
+function _subColCsvContent(){
+  var defs = _subColSelectedDefs();
+  var matchedList = _subColMatchedEntries();
+  var headers = ['營業處','營業所/課','執行人員','店代碼','店名','時間'].concat(defs.map(function(d){return d.section+'/'+d.option;}));
+  var rows = [headers];
+  matchedList.forEach(function(m){
+    var s = m.entry.store;
+    var row = [s.area, s.office, s.staff, s.code, s.storeName, m.entry.timeText||''];
+    defs.forEach(function(d){
+      var hit = m.matched.filter(function(x){ return x.def.key===d.key; })[0];
+      row.push(hit ? (hit.valText||1) : 0);
+    });
+    rows.push(row);
+  });
+  return '\uFEFF'+rows.map(function(rw){ return rw.map(function(c){ var s2=String(c==null?'':c); return /[,"\n]/.test(s2)?'"'+s2.replace(/"/g,'""')+'"':s2; }).join(','); }).join('\n');
+}
+function _subColCsvDownload(btn){
+  if(!_subColSelectedDefs().length){ _flashBtn(btn,'⚠️ 請先勾選欄位'); return; }
+  if(!_subColMatchedEntries().length){ _flashBtn(btn,'⚠️ 無符合資料'); return; }
+  _triggerCsvDownload(_subColCsvContent(), _subColScopeTitle()+'_細項匯出');
+  _flashBtn(btn,'✅ 已下載');
+}
+
+/* ── 彙整看板 Dialog 右上角 CSV／截圖：照片牆／逐題彙整沿用工具列同一份
+   「目前篩選範圍」表格 CSV（跟分頁內容呈現方式不同，但資料範圍一致）；
+   細項匯出分頁則改用它自己的勾選結果 CSV，兩者意義不同不能共用 ── */
+function downloadSummaryCsv(){
+  var btn = document.getElementById('btn-sum-csv');
+  if(_pivotMode === 'subcol'){ _subColCsvDownload(btn); return; }
+  if(!_pivotRows || !_pivotRows.length){ _flashBtn(btn,'⚠️ 無資料'); return; }
+  _triggerCsvDownload(buildCsvContent(), PROJ_NAME+'_'+(PIVOT_TITLES[_pivotMode]||''));
+  _flashBtn(btn,'✅ 已下載');
+}
+function summaryScreenshot(){
+  var btn = document.getElementById('btn-sum-screenshot');
+  var el = document.getElementById('pivot-slide-'+_pivotMode);
+  if(!el){ _flashBtn(btn,'⚠️ 無畫面'); return; }
+  _captureElement(el, btn, PROJ_NAME+'_'+(PIVOT_TITLES[_pivotMode]||''));
+}
 
 /* ════ CSV／LINE／截圖 ════ */
 function _summaryForShare(){
@@ -1790,12 +2203,14 @@ function closeManual(){
   if(typeof _captureElement !== 'function') missing.push('capture-clipboard.js');
   if(typeof updateStickyTops !== 'function') missing.push('ui-chrome.js');
   if(typeof _renderQuizSections !== 'function') missing.push('photo-viewer.js（_renderQuizSections）');
+  if(typeof _qdBuildTabHtml !== 'function') missing.push('question-drilldown.js（_qdBuildTabHtml）');
+  if(typeof openSummaryDialog !== 'function') missing.push('pivot-dialog.js（openSummaryDialog）');
   if(missing.length){
     document.body.innerHTML = '<div style="padding:40px;font-family:sans-serif;line-height:1.8;">'
       + '<h2 style="color:#A32020;">⚠️ 共用層檔案沒有載入成功</h2>'
       + '<p>以下檔案讀不到，通常是因為 <code>shared/</code> 資料夾沒有跟 <code>patrol_board.html</code> 放在同一層目錄：</p>'
       + '<ul>' + missing.map(function(m){ return '<li>'+m+'</li>'; }).join('') + '</ul>'
-      + '<pre style="background:#f0efe9;padding:12px;border-radius:8px;">你的資料夾/\n  patrol_board.html\n  shared/\n    core-utils.js\n    copy-utils.js\n    csv-export.js\n    capture-clipboard.js\n    ui-chrome.js\n    photo-viewer.js\n    dashboard-common.css</pre>'
+      + '<pre style="background:#f0efe9;padding:12px;border-radius:8px;">你的資料夾/\n  patrol_board.html\n  shared/\n    core-utils.js\n    copy-utils.js\n    csv-export.js\n    capture-clipboard.js\n    ui-chrome.js\n    photo-viewer.js\n    question-drilldown.js\n    pivot-dialog.js\n    dashboard-common.css</pre>'
       + '</div>';
     throw new Error('shared 層未載入：' + missing.join('、'));
   }
