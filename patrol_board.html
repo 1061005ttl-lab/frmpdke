@@ -386,6 +386,10 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .chip-fgroup-divider { padding-left:14px; margin-left:2px; border-left:2px solid var(--border); }
 .chip-label { font-size:11px; color:var(--sub); font-weight:700; width:64px; flex-shrink:0; letter-spacing:.03em; }
 .chip-group { display:flex; gap:6px; flex-wrap:wrap; background:rgba(26,80,139,.045); border:1px solid rgba(26,80,139,.08); padding:4px; border-radius:18px; }
+/* 1.6.1：訪員 chip 數量多、常需要換行成 2 排以上時，讓 chip-group 直接吃掉
+   同一列剩下的寬度（而不是被當成一個「太寬塞不下」的整塊被擠到下一行），
+   這樣「訪員」label 才能穩定貼著第一排 chip，不會自己獨立佔一整行 */
+.chip-group-wrap { flex:1 1 300px; min-width:0; }
 .chip { padding:4px 12px; background:#fff; border:1px solid var(--border); border-radius:16px; cursor:pointer; font-size:12px; font-weight:600; color:var(--sub); font-family:inherit; transition:all .15s; white-space:nowrap; }
 .chip:hover { background:var(--primary-bg); color:var(--primary); }
 .chip.active { background:var(--primary); color:#fff; border-color:var(--primary); }
@@ -709,9 +713,9 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
         <span class="chip-label" style="width:auto;">營業所/課</span>
         <div class="chip-group" id="chip-office"></div>
       </div>
-      <div class="chip-fgroup chip-fgroup-divider" id="staff-fgroup" style="display:none;">
+      <div class="chip-fgroup chip-fgroup-divider" id="staff-fgroup" style="display:none;align-items:flex-start;">
         <span class="chip-label" style="width:auto;">訪員</span>
-        <div class="chip-group" id="chip-staff"></div>
+        <div class="chip-group chip-group-wrap" id="chip-staff"></div>
       </div>
     </div>
   </div>
@@ -1912,16 +1916,18 @@ function closeStoreDetail(){
    不重開一個新 dialog）。範圍＝這位訪員名下「全部」店家（不受目前通路／
    等級／區域篩選影響，因為看的是這個人整體負責的店，不是目前篩選出的
    子集合），但巡補次數／達成率仍依照目前「檔期」篩選對應的週次範圍計算
-   （activeColumns()），維持跟主表格同一份時間窗口，數字才對得起來。 */
-function openStaffDetail(staffName, evt){
-  if(evt){ evt.stopPropagation(); } /* 避免同時觸發整列的 openStoreDetail */
-  _detailCode = null;
-  document.getElementById('dlg-title').textContent = '👤 '+staffName+'　訪員總覽';
-
+   （activeColumns()），維持跟主表格同一份時間窗口，數字才對得起來。
+   1.6.1：拿掉原本的「🔍 主表格只篩這位訪員」按鈕（食之無味的功能，使用
+   者反應用不到，直接砍掉對應的 _applyStaffFilterFromDialog）；改成加上
+   📥CSV／💬複製文字兩顆匯出按鈕——主管點開訪員總覽通常就是要把這份
+   資料拿去跟對方溝通，沒有匯出等於白開一個視窗給人看爽的，共用
+   _staffStatsData() 一份計算，三個地方（畫面／CSV／複製文字）數字才會
+   保證一致。 */
+function _staffStatsData(staffName){
   var stores = STORE_ROWS.filter(function(s){ return s.staff===staffName; });
   var cols = activeColumns();
   var totalExp=0, totalStdDone=0, totalExtra=0;
-  var rowsHtml = stores.map(function(s){
+  var rows = stores.map(function(s){
     var std = GRADE_FREQ[s.grade];
     var stdN = std===undefined?0:std;
     var exp=0, stdDone=0, extra=0;
@@ -1930,26 +1936,42 @@ function openStaffDetail(staffName, evt){
       exp += stdN; stdDone += Math.min(actual,stdN); extra += Math.max(0,actual-stdN);
     });
     if(std!==undefined){ totalExp+=exp; totalStdDone+=stdDone; totalExtra+=extra; }
-    var rate = exp>0 ? (stdDone/exp*100).toFixed(1) : '0.0';
+    var rate = exp>0 ? (stdDone/exp*100) : 0;
+    return { store:s, exp:exp, stdDone:stdDone, extra:extra, rate:rate };
+  });
+  var overallRate = totalExp>0 ? (totalStdDone/totalExp*100) : 0;
+  return { staffName:staffName, stores:stores, rows:rows, totalExp:totalExp, totalStdDone:totalStdDone, totalExtra:totalExtra, overallRate:overallRate };
+}
+function openStaffDetail(staffName, evt){
+  if(evt){ evt.stopPropagation(); } /* 避免同時觸發整列的 openStoreDetail */
+  _detailCode = null;
+  document.getElementById('dlg-title').textContent = '👤 '+staffName+'　訪員總覽';
+
+  var data = _staffStatsData(staffName);
+  var rowsHtml = data.rows.map(function(it){
+    var s = it.store;
+    var std = GRADE_FREQ[s.grade];
     var gradeLabel = std===undefined ? (s.grade||'未設定')+' ⚠️' : (GRADE_LABEL[s.grade]||s.grade);
     return '<tr><td class="td-left">'+esc(s.storeName)+'<div class="td-code">'+esc(s.code)+'</div></td>'
       + '<td>'+esc(s.chanKey||'—')+'</td>'
       + '<td>'+esc(gradeLabel)+'</td>'
-      + '<td>'+stdDone+'/'+exp+'</td>'
-      + '<td style="color:var(--green);font-weight:700;">'+rate+'%</td>'
-      + '<td style="color:var(--bonus);font-weight:700;">'+(extra>0?'+'+extra:'0')+'</td>'
+      + '<td>'+it.stdDone+'/'+it.exp+'</td>'
+      + '<td style="color:var(--green);font-weight:700;">'+it.rate.toFixed(1)+'%</td>'
+      + '<td style="color:var(--bonus);font-weight:700;">'+(it.extra>0?'+'+it.extra:'0')+'</td>'
       + '</tr>';
   }).join('');
-  var overallRate = totalExp>0 ? (totalStdDone/totalExp*100).toFixed(1) : '0.0';
 
   var html = '<div class="visit-timeline">'
     + '<div class="visit-summary">'
-    + '<div class="vs-item">名下店數<br><b>'+stores.length+'</b></div>'
-    + '<div class="vs-item">目前篩選範圍達成率<br><b>'+totalStdDone+'/'+totalExp+'（'+overallRate+'%）</b></div>'
-    + '<div class="vs-item">超額次數<br><b style="color:var(--bonus)">'+totalExtra+'</b></div>'
+    + '<div class="vs-item">名下店數<br><b>'+data.stores.length+'</b></div>'
+    + '<div class="vs-item">目前篩選範圍達成率<br><b>'+data.totalStdDone+'/'+data.totalExp+'（'+data.overallRate.toFixed(1)+'%）</b></div>'
+    + '<div class="vs-item">超額次數<br><b style="color:var(--bonus)">'+data.totalExtra+'</b></div>'
     + '</div>'
-    + (stores.length
-        ? '<div style="text-align:right;margin-bottom:8px;"><button class="raw-share-btn" onclick="_applyStaffFilterFromDialog(\''+esc(staffName)+'\')">🔍 主表格只篩這位訪員</button></div>'
+    + (data.stores.length
+        ? '<div style="display:flex;gap:8px;justify-content:flex-end;margin-bottom:8px;">'
+          + '<button class="raw-share-btn" id="staff-csv-btn" onclick="_staffDownloadCsv(\''+esc(staffName)+'\',event)">📥 CSV</button>'
+          + '<button class="raw-share-btn" id="staff-line-btn" onclick="_staffCopyLine(\''+esc(staffName)+'\',event)">💬 複製文字</button>'
+          + '</div>'
           + '<table class="ov-mini" style="width:100%;"><tr><th>店家</th><th>通路</th><th>等級</th><th>達標/應達</th><th>達成率%</th><th>超額</th></tr>'+rowsHtml+'</table>'
         : '<div class="empty">目前沒有這位訪員名下的店家資料</div>')
     + '</div>';
@@ -1959,16 +1981,39 @@ function openStaffDetail(staffName, evt){
   dlg.style.display = 'flex';
   setTimeout(function(){ dlg.classList.add('open'); }, 10);
 }
-/* 訪員總覽 Dialog 裡的「只篩這位訪員」快捷鍵：關閉 dialog 並套用 1.6.0
-   新增的訪員 chip 篩選（連帶把營業處收斂到這位訪員所屬的處，chip 才會
-   跟著出現；營業所留「全部所」，避免這位訪員剛好橫跨多個所時篩過頭）。 */
-function _applyStaffFilterFromDialog(staffName){
-  var s = STORE_ROWS.filter(function(r){ return r.staff===staffName; })[0];
-  if(!s) return;
-  FILTER.period = '全部'; FILTER.channel = '全部'; FILTER.grade = '全部';
-  FILTER.area = s.area; FILTER.office = '全部'; FILTER.staff = staffName; FILTER.keyword = '';
-  closeStoreDetail();
-  setTimeout(function(){ _enterDetail(); }, 230);
+/* 訪員總覽 Dialog 的匯出：CSV 下載完整店家清單，複製文字則是可以直接
+   貼到 LINE／訊息跟人溝通的精簡摘要（只列未達標的店，比照主工具列
+   toolbarCopyLine 的邏輯，但範圍換成這位訪員名下的店） */
+function _staffDownloadCsv(staffName, evt){
+  var btn = evt ? evt.currentTarget : document.getElementById('staff-csv-btn');
+  var data = _staffStatsData(staffName);
+  if(!data.stores.length){ _flashBtn(btn,'⚠️ 無資料'); return; }
+  var headers = ['店家名稱','店家代碼','通路','等級','達標次數','應達次數','達成率%','超額次數'];
+  var rows = [headers];
+  data.rows.forEach(function(it){
+    var s = it.store;
+    rows.push([s.storeName, s.code, s.chanKey||'', GRADE_LABEL[s.grade]||s.grade||'未設定', it.stdDone, it.exp, it.rate.toFixed(1), it.extra]);
+  });
+  rows.push(['合計','','','', data.totalStdDone, data.totalExp, data.overallRate.toFixed(1), data.totalExtra]);
+  var csv = '\uFEFF'+rows.map(function(r){
+    return r.map(function(c){ var s=String(c==null?'':c); return /[,"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join(',');
+  }).join('\n');
+  _triggerCsvDownload(csv, PROJ_NAME+'_'+staffName+'_訪員總覽');
+  _flashBtn(btn,'✅ 已下載');
+}
+function _staffCopyLine(staffName, evt){
+  var btn = evt ? evt.currentTarget : document.getElementById('staff-line-btn');
+  var data = _staffStatsData(staffName);
+  if(!data.stores.length){ _flashBtn(btn,'⚠️ 無資料'); return; }
+  var lines = ['👤 '+staffName+' 訪員總覽', '篩選：檔期'+FILTER.period, ''];
+  lines.push('名下店數 '+data.stores.length+'　達成率 '+data.overallRate.toFixed(1)+'%（'+data.totalStdDone+'/'+data.totalExp+'）　超額 '+data.totalExtra);
+  lines.push('');
+  data.rows.filter(function(it){ return it.rate<100; }).forEach(function(it){
+    lines.push('❌ '+it.store.storeName+'('+it.store.code+')　'+it.stdDone+'/'+it.exp+'（'+it.rate.toFixed(1)+'%）');
+  });
+  lines.push('');
+  lines.push('📅 '+new Date().toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}));
+  _doCopy(lines.join('\n'), btn);
 }
 document.addEventListener('keydown', function(e){
   if(e.key!=='Escape') return;
