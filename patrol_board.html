@@ -939,6 +939,15 @@ function _fetchQuestionnaireSheet(chanKey, callback){
        ri 從1開始正好對應「第 ri 筆資料」），索引直接用 ri，不要再 +1，
        之前 rowRecords[ri+1] 會錯位取到下一筆資料，導致查得到筆數但
        內容全部對不上（時間顯示未知、題目空白）*/
+    console.log('[問卷分頁除錯]', sheetName,
+      'headerLabels=', headerLabels,
+      'baseColNames=', baseColNames.map(function(b){return b.name+'(col'+b.col+')';}),
+      'quizCols=', quizCols.length, quizCols.slice(0,5),
+      'codeColIdx=', codeColIdx,
+      'rawRows.length=', rawRows.length);
+    var _dbgRow = rawRows[215];
+    console.log('[問卷分頁除錯] rawRows[215]=', _dbgRow, 'c陣列長度=', _dbgRow && _dbgRow.c ? _dbgRow.c.length : 'row不存在');
+
     var codeToRecords = {};
     var rowRecords = {};
     for(var ri=1; ri<rawRows.length; ri++){
@@ -963,6 +972,9 @@ function _fetchQuestionnaireSheet(chanKey, callback){
         sections: sectionOrder.map(function(s){ return { section:s, picks:sections[s] }; }),
         timeKey: _findTimeText(baseData)
       };
+      if(ri===215){
+        console.log('[問卷分頁除錯] 第215筆 baseData=', baseData, 'sectionOrder=', sectionOrder, 'timeKey=', record.timeKey);
+      }
       rowRecords[ri] = record; /* ri＝「處理層」行數欄位所指的同一種編號（扣掉表頭後第幾筆資料） */
       if(code){
         if(!codeToRecords[code]) codeToRecords[code] = [];
