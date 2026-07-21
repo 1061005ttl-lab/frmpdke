@@ -426,6 +426,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .main-tbl thead th.pg-mid { color:var(--bonus); }
 .th-wk-flex { display:flex; align-items:baseline; justify-content:center; gap:5px; white-space:nowrap; }
 .th-period-name { font-size:13.5px; font-weight:800; letter-spacing:.04em; }
+.th-period-emoji { font-size:2em; line-height:1; vertical-align:middle; }
 .th-week-label { font-size:13.5px; font-weight:700; }
 .th-date-range { font-size:13px; font-weight:600; color:var(--sub); }
 .wk-divider { border-left:1px solid var(--border); }
@@ -445,6 +446,9 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 /* 1.5.0：非應達格的「幽靈格」佔位，近似透明，若有似無——只佔版面、不搶視覺焦點，
    一旦實際次數蓋過這格才會被換成 .extra-check（見 render() 的 7 格迴圈） */
 .box-ghost { display:inline-block; width:17px; height:17px; border-radius:3px; border:1px solid rgba(0,0,0,.045); background:#E6E6F2; }
+/* 1.6.0：主要訪員姓名可點擊，開啟該訪員的個人總覽 Dialog（見 openStaffDetail） */
+.staff-link { cursor:pointer; color:var(--primary); text-decoration:underline; text-decoration-style:dotted; text-underline-offset:2px; }
+.staff-link:hover { color:var(--red); }
 
 .loadmore-wrap { text-align:center; margin-top:16px; }
 .loadmore-btn { padding:8px 22px; border:1px solid var(--border); border-radius:20px; background:#fff; font-size:13px; font-weight:600; color:var(--text); cursor:pointer; font-family:inherit; }
@@ -483,6 +487,7 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 .ov-card { background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:14px 18px 16px; transition:box-shadow .2s; box-shadow:0 1px 4px rgba(0,0,0,.03); }
 .ov-card:hover { box-shadow:0 4px 12px rgba(0,0,0,.08); }
 .ov-card h2 { font-size:15px; font-weight:700; border-left:4px solid var(--primary); padding-left:9px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; }
+.ov-card-emoji { font-size:2em; line-height:1; vertical-align:middle; margin-right:2px; display:inline-block; }
 .ov-perc { color:var(--green); font-size:18px; font-weight:800; }
 /* 1.6.0：中元/中秋卡片改成「量販在上、全聯在下」同框垂直排列，減少全聯
    單一等級表格獨立成框時的閒置空間；量販／全聯兩個子區塊各自可點擊
@@ -495,6 +500,8 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 .ov-subsec-rate { color:var(--green); font-size:16px; font-weight:800; }
 .ov-mini { width:100%; border-collapse:collapse; font-size:13.5px; }
 .ov-mini th, .ov-mini td { border:1px solid var(--border); padding:6px 7px; text-align:center; }
+.ov-mini tr.ov-mini-row { cursor:pointer; }
+.ov-mini tr.ov-mini-row:hover td { background:var(--primary-bg); }
 .ov-mini th { background:var(--bg); color:var(--sub); font-weight:700; }
 .ov-empty { color:var(--sub); font-size:13.5px; text-align:center; padding:12px 0; }
 @media (max-width:640px) {
@@ -702,11 +709,15 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
         <span class="chip-label" style="width:auto;">營業所/課</span>
         <div class="chip-group" id="chip-office"></div>
       </div>
+      <div class="chip-fgroup chip-fgroup-divider" id="staff-fgroup" style="display:none;">
+        <span class="chip-label" style="width:auto;">訪員</span>
+        <div class="chip-group" id="chip-staff"></div>
+      </div>
     </div>
   </div>
 
   <div class="summary-row">
-    <div class="sum-card"><div class="sc-label">目前過濾店數</div><div class="sc-val" id="stat-store-count">0</div></div>
+    <div class="sum-card"><div class="sc-label">目前篩選店數</div><div class="sc-val" id="stat-store-count">0</div></div>
     <div class="sum-card"><div class="sc-label">標準應達總次數</div><div class="sc-val" id="stat-exp-visits">0</div></div>
     <div class="sum-card rate"><div class="sc-label">目標達成率</div><div class="sc-val" id="stat-rate">0.0%</div></div>
     <div class="sum-card extra"><div class="sc-label">超額次數</div><div class="sc-val" id="stat-extra">0</div>
@@ -834,7 +845,7 @@ var _qSheetCache = {};
 var _qSheetLoading = {};
 var _qSheetWaiters = {};
 
-var FILTER = { period:'全部', channel:'全部', grade:'全部', area:'全部', office:'全部', keyword:'' };
+var FILTER = { period:'全部', channel:'全部', grade:'全部', area:'全部', office:'全部', staff:'全部', keyword:'' };
 /* 營業處執行狀況表：目前檢視的檔期／週次範圍。
      null                      ＝整體（不分檔期／週次，原本行為）
      {period,week:null}        ＝該檔期整個彙總（1.5.0 新增，例如「中元」＝
@@ -1182,12 +1193,41 @@ function updateOfficeChipRow(){
   }).join('');
   fgroupEl.style.display = '';
 }
+/* ════ 訪員 chip（1.6.0 新增）：跟營業所/課同一層級的篩選，選定「營業處」
+   後才出現，選項依「目前選定的營業處＋營業所」動態產生（選了營業所會
+   再收斂一層，只列該所底下的訪員；只選營業處、營業所還是全部所，則列
+   該處全部訪員）——不是每位訪員都列出來，避免全部處/全部所時 chip 一次
+   跑出上百顆，版面爆版 ════ */
+function updateStaffChipRow(){
+  var fgroupEl = document.getElementById('staff-fgroup');
+  var grp = document.getElementById('chip-staff');
+  if(FILTER.area==='全部'){
+    FILTER.staff = '全部';
+    fgroupEl.style.display = 'none';
+    grp.innerHTML = '';
+    return;
+  }
+  var staffList = Array.from(new Set(
+    STORE_ROWS.filter(function(r){
+      if(r.area!==FILTER.area) return false;
+      if(FILTER.office!=='全部' && r.office!==FILTER.office) return false;
+      return true;
+    }).map(function(r){ return r.staff; })
+  )).filter(Boolean).sort();
+  if(staffList.indexOf(FILTER.staff)===-1) FILTER.staff = '全部';
+  var opts = ['全部'].concat(staffList);
+  grp.innerHTML = opts.map(function(v){
+    return '<div class="chip'+(v===FILTER.staff?' active':'')+'" data-v="'+esc(v)+'" onclick="setChip(this,\'staff\')">'+(v==='全部'?'全部訪員':esc(v))+'</div>';
+  }).join('');
+  fgroupEl.style.display = '';
+}
 function setChip(el, key){
   var parent = el.parentElement;
   Array.from(parent.children).forEach(function(c){ c.classList.remove('active'); });
   el.classList.add('active');
   FILTER[key] = el.getAttribute('data-v');
-  if(key==='area'){ updateOfficeChipRow(); }
+  if(key==='area'){ updateOfficeChipRow(); updateStaffChipRow(); }
+  if(key==='office'){ updateStaffChipRow(); }
   onFilterChange();
 }
 function onFilterChange(){
@@ -1387,7 +1427,7 @@ function renderOfficeOverview(){
 /* 點營業處列 → 帶著該處＋該通路篩選進明細頁（檔期／等級回到全部，鎖營業處＋通路） */
 function openDetailFromOffice(area, chanKey){
   FILTER.period = '全部'; FILTER.channel = chanKey||'全部'; FILTER.grade = '全部';
-  FILTER.area = area; FILTER.office = '全部'; FILTER.keyword = '';
+  FILTER.area = area; FILTER.office = '全部'; FILTER.staff = '全部'; FILTER.keyword = '';
   _enterDetail();
 }
 function renderOverview(){
@@ -1423,7 +1463,10 @@ function renderOverview(){
               var wr = wd.exp>0 ? (wd.stdDone/wd.exp*100).toFixed(0) : '0';
               return '<td>'+wr+'%</td>';
             }).join('');
-            return '<tr><td>'+esc(label)+'</td><td>'+gd.count+'</td>'+weekCells
+            /* 1.6.0：每一列（等級）都能點擊帶著「檔期＋通路＋等級」篩選進明細，
+               不只整個子區塊標題可點——stopPropagation 避免同時觸發外層
+               .ov-subsec 的整通路（不分等級）篩選 */
+            return '<tr class="ov-mini-row" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event)"><td>'+esc(label)+'</td><td>'+gd.count+'</td>'+weekCells
               + '<td style="color:var(--green);font-weight:700;">'+r+'%</td></tr>';
           }).join('')
         + '</table>'
@@ -1436,7 +1479,7 @@ function renderOverview(){
         + body + '</div>';
     }).join('');
     return '<div class="ov-card">'
-      + '<h2><span>'+icon+' '+esc(p.label)+'</span></h2>'
+      + '<h2><span class="ov-card-emoji">'+icon+'</span> '+esc(p.label)+'</h2>'
       + subsecsHtml + '</div>';
   }).join('');
   wrap.innerHTML = cardsHtml;
@@ -1448,12 +1491,13 @@ function _enterDetail(){
   syncChipsToFilter();
   render();
 }
-function openDetailFromOverview(periodKey, chanKey){
-  FILTER.period = periodKey; FILTER.channel = chanKey; FILTER.grade = '全部'; FILTER.area = '全部'; FILTER.keyword = '';
+function openDetailFromOverview(periodKey, chanKey, grade, evt){
+  if(evt){ evt.stopPropagation(); } /* 列點擊（帶等級）不應該再讓外層子區塊的整通路點擊重複觸發 */
+  FILTER.period = periodKey; FILTER.channel = chanKey; FILTER.grade = grade||'全部'; FILTER.area = '全部'; FILTER.staff = '全部'; FILTER.keyword = '';
   _enterDetail();
 }
 function openDetailAll(){
-  FILTER.period = '全部'; FILTER.channel = '全部'; FILTER.grade = '全部'; FILTER.area = '全部'; FILTER.keyword = '';
+  FILTER.period = '全部'; FILTER.channel = '全部'; FILTER.grade = '全部'; FILTER.area = '全部'; FILTER.staff = '全部'; FILTER.keyword = '';
   _enterDetail();
 }
 /* ── 離開本看板，回到入口首頁（1.5.0 新增，比照 coverage_board.html 的 goBack） ── */
@@ -1467,7 +1511,8 @@ function backToOverview(){
 }
 function syncChipsToFilter(){
   updateOfficeChipRow();
-  ['period','channel','grade','area','office'].forEach(function(key){
+  updateStaffChipRow();
+  ['period','channel','grade','area','office','staff'].forEach(function(key){
     var grp = document.getElementById('chip-'+key);
     if(!grp) return;
     Array.from(grp.children).forEach(function(c){
@@ -1530,6 +1575,7 @@ function getFilteredStores(){
     if(FILTER.grade!=='全部' && r.grade!==FILTER.grade) return false;
     if(FILTER.area!=='全部' && r.area!==FILTER.area) return false;
     if(FILTER.office!=='全部' && r.office!==FILTER.office) return false;
+    if(FILTER.staff!=='全部' && r.staff!==FILTER.staff) return false;
     if(kw){
       var hay = (r.storeName+' '+r.code+' '+r.staff).toLowerCase();
       if(hay.indexOf(kw)===-1) return false;
@@ -1553,8 +1599,9 @@ function render(){
   /* 依「期」把連續欄位分組（中元 W1~W3 一組／中秋 W1~W2 一組），
      用來畫出跨欄的檔期分組表頭 + 組間強分隔線；同檔期內週與週之間也加上
      較細的分隔線，強化不同檔期／不同週次的視覺區隔 */
-  /* 1.6.0：欄頭中元/中秋字樣前方加 emoji，比照總覽卡片圖示（🏮中元／🎑中秋），美化明細表頭 */
-  var periodLabelMap = {}; PERIODS.forEach(function(p){ periodLabelMap[p.key] = (p.key==='zhong'?'🏮':'🎑') + p.label.replace('專案',''); });
+  /* 1.6.0：欄頭中元/中秋 emoji 獨立成 span 以便放大，字樣本身維持原字級 */
+  var periodLabelMap = {}; PERIODS.forEach(function(p){ periodLabelMap[p.key] = p.label.replace('專案',''); });
+  var periodIconMap = { zhong:'🏮', mid:'🎑' };
   var colGroups = [];
   var colMeta = [];
   cols.forEach(function(c, idx){
@@ -1579,6 +1626,7 @@ function render(){
     var m = colMeta[idx];
     var dividerCls = m.isGroupDivider ? ' pg-divider' : (m.isWeekDivider ? ' wk-divider' : '');
     headHtml += '<th class="'+m.periodCls+dividerCls+'"><div class="th-wk-flex">'
+      + '<span class="th-period-emoji">'+(periodIconMap[c.period]||'')+'</span>'
       + '<span class="th-period-name">'+esc(periodLabelMap[c.period]||c.period)+'</span>'
       + '<span class="th-week-label">W'+c.week+'</span>'
       + '<span class="th-date-range">'+esc(m.dateRange)+'</span>'
@@ -1635,7 +1683,7 @@ function render(){
       + '<td class="td-left"><div class="td-name">'+esc(s.storeName)+'</div><div class="td-code">'+esc(s.code)+'</div></td>'
       + '<td>'+esc(s.storeType||'—')+'</td>'
       + '<td class="grade-tag">'+(std===undefined?'<span class="unknown-grade">'+esc(s.grade||'未設定')+' ⚠️</span>':esc(gradeLabel))+'</td>'
-      + '<td>'+esc(s.staff)+'</td>'
+      + '<td><span class="staff-link" onclick="openStaffDetail(\''+esc(s.staff)+'\',event)">'+esc(s.staff)+'</span></td>'
       + '<td class="sum-col">'+sumHtml+'</td>'
       + colsHtml;
     row += '</tr>';
@@ -1859,6 +1907,68 @@ function closeStoreDetail(){
   var dlg = document.getElementById('detail-dialog');
   dlg.classList.remove('open');
   setTimeout(function(){ dlg.style.display='none'; }, 220);
+}
+/* 1.6.0：主要訪員姓名點擊 → 個人總覽 Dialog（沿用同一個 #detail-dialog 骨架，
+   不重開一個新 dialog）。範圍＝這位訪員名下「全部」店家（不受目前通路／
+   等級／區域篩選影響，因為看的是這個人整體負責的店，不是目前篩選出的
+   子集合），但巡補次數／達成率仍依照目前「檔期」篩選對應的週次範圍計算
+   （activeColumns()），維持跟主表格同一份時間窗口，數字才對得起來。 */
+function openStaffDetail(staffName, evt){
+  if(evt){ evt.stopPropagation(); } /* 避免同時觸發整列的 openStoreDetail */
+  _detailCode = null;
+  document.getElementById('dlg-title').textContent = '👤 '+staffName+'　訪員總覽';
+
+  var stores = STORE_ROWS.filter(function(s){ return s.staff===staffName; });
+  var cols = activeColumns();
+  var totalExp=0, totalStdDone=0, totalExtra=0;
+  var rowsHtml = stores.map(function(s){
+    var std = GRADE_FREQ[s.grade];
+    var stdN = std===undefined?0:std;
+    var exp=0, stdDone=0, extra=0;
+    cols.forEach(function(c){
+      var actual = _actualCount(s.code, c.period, c.week);
+      exp += stdN; stdDone += Math.min(actual,stdN); extra += Math.max(0,actual-stdN);
+    });
+    if(std!==undefined){ totalExp+=exp; totalStdDone+=stdDone; totalExtra+=extra; }
+    var rate = exp>0 ? (stdDone/exp*100).toFixed(1) : '0.0';
+    var gradeLabel = std===undefined ? (s.grade||'未設定')+' ⚠️' : (GRADE_LABEL[s.grade]||s.grade);
+    return '<tr><td class="td-left">'+esc(s.storeName)+'<div class="td-code">'+esc(s.code)+'</div></td>'
+      + '<td>'+esc(s.chanKey||'—')+'</td>'
+      + '<td>'+esc(gradeLabel)+'</td>'
+      + '<td>'+stdDone+'/'+exp+'</td>'
+      + '<td style="color:var(--green);font-weight:700;">'+rate+'%</td>'
+      + '<td style="color:var(--bonus);font-weight:700;">'+(extra>0?'+'+extra:'0')+'</td>'
+      + '</tr>';
+  }).join('');
+  var overallRate = totalExp>0 ? (totalStdDone/totalExp*100).toFixed(1) : '0.0';
+
+  var html = '<div class="visit-timeline">'
+    + '<div class="visit-summary">'
+    + '<div class="vs-item">名下店數<br><b>'+stores.length+'</b></div>'
+    + '<div class="vs-item">目前篩選範圍達成率<br><b>'+totalStdDone+'/'+totalExp+'（'+overallRate+'%）</b></div>'
+    + '<div class="vs-item">超額次數<br><b style="color:var(--bonus)">'+totalExtra+'</b></div>'
+    + '</div>'
+    + (stores.length
+        ? '<div style="text-align:right;margin-bottom:8px;"><button class="raw-share-btn" onclick="_applyStaffFilterFromDialog(\''+esc(staffName)+'\')">🔍 主表格只篩這位訪員</button></div>'
+          + '<table class="ov-mini" style="width:100%;"><tr><th>店家</th><th>通路</th><th>等級</th><th>達標/應達</th><th>達成率%</th><th>超額</th></tr>'+rowsHtml+'</table>'
+        : '<div class="empty">目前沒有這位訪員名下的店家資料</div>')
+    + '</div>';
+
+  document.getElementById('dlg-body').innerHTML = html;
+  var dlg = document.getElementById('detail-dialog');
+  dlg.style.display = 'flex';
+  setTimeout(function(){ dlg.classList.add('open'); }, 10);
+}
+/* 訪員總覽 Dialog 裡的「只篩這位訪員」快捷鍵：關閉 dialog 並套用 1.6.0
+   新增的訪員 chip 篩選（連帶把營業處收斂到這位訪員所屬的處，chip 才會
+   跟著出現；營業所留「全部所」，避免這位訪員剛好橫跨多個所時篩過頭）。 */
+function _applyStaffFilterFromDialog(staffName){
+  var s = STORE_ROWS.filter(function(r){ return r.staff===staffName; })[0];
+  if(!s) return;
+  FILTER.period = '全部'; FILTER.channel = '全部'; FILTER.grade = '全部';
+  FILTER.area = s.area; FILTER.office = '全部'; FILTER.staff = staffName; FILTER.keyword = '';
+  closeStoreDetail();
+  setTimeout(function(){ _enterDetail(); }, 230);
 }
 document.addEventListener('keydown', function(e){
   if(e.key!=='Escape') return;
