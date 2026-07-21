@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.5.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-07-21
+  版本：Ver. 1.7.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-07-21
 
 【這個檔案是什麼】
   單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 讀取同一份
@@ -209,6 +209,60 @@
     <script> 拿掉即可。
 
 【版本紀錄】
+  1.7.0  2026-07-21  手機／平板版面「智能自動調節」大改版（原本只有單一
+                      640px 斷點，寬度一跨過就在「滿版桌機表格」跟「手機
+                      卡片」兩種狀態間硬切換，中間寬度的裝置——尤其平板
+                      直放——沒有對應調整）。1) 新增 641px～1024px 的
+                      「平板過渡層」：整體明細主表格維持表格型態（此寬度
+                      欄位還擠得下），但字級／間距／格子尺寸整體收斂一輪，
+                      不是保持桌機原尺寸硬撐。2) 手機卡片版新增 380px 以下
+                      的「極窄手機層」：卡片內距與格子間距再收一輪，格子
+                      本身固定 17px（維持可點擊面積）不再繼續縮小。
+                      3) toolbar／filterbar／summary-row／stage／ov-wrap
+                      的水平留白，從固定 px 改成 clamp(12px,2.5vw,20px)
+                      這類流體公式，隨視窗寬度連續縮放，不會在斷點前後
+                      留白量瞬間跳一階；toolbar-title／ov-header h1／手機
+                      卡片內的店名字級同樣改用 clamp()，讓不同尺寸手機
+                      （例如 iPhone SE 375px 跟一般手機 414px）字級也是
+                      連續漸變，不是只認 640px 這一個斷點。
+  1.6.2  2026-07-21  1)【整體明細】主表格 sum-cell（次數合計欄）新增單店
+                      達成率 %，原本只有「達標/應達次數」跟「超額」，但
+                      訪員總覽 Dialog 裡每家店都有列達成率 %，主表格卻沒有
+                      對應欄位可以直接看單店表現，這裡補齊、跟訪員總覽共用
+                      同一份 rowStdDone/rowExp 算出來的數字，不會兜不起來。
+                      2) 訪員總覽 Dialog 的「📥CSV／💬複製文字」兩顆匯出
+                      按鈕，從內容區塊搬到跟彙整看板一致的 Dialog header
+                      位置，並新增「📸截圖」按鈕（直接截 #dlg-body 整個
+                      畫面，摘要數字＋店家清單一起截）——原本長官點開訪員
+                      總覽只能匯出文字檔，沒有辦法直接把畫面截圖傳出去跟
+                      對方溝通。店家明細／訪員總覽共用同一個 Dialog 骨架，
+                      改用 #dlg-header-actions 插槽區分：openStoreDetail()
+                      開頭清空、openStaffDetail() 才塞入這三顆按鈕，兩種
+                      模式不會互相殘留上一次的按鈕。3) 修正總覽卡片標題
+                      （中元/中秋 emoji＋專案名）原本 h2 用
+                      justify-content:space-between，在只有 emoji＋文字兩個
+                      節點時會把專案名字推到最右邊、跟 emoji 分開，改成
+                      flex-start+gap 讓兩者緊貼在一起。4) 使用說明面板同步
+                      補上「訪員總覽 Dialog」跟「手機版畫面」兩段說明。
+  1.6.1  2026-07-21  1) 訪員 chip 數量多、常需要換到 2 排以上時，原本
+                      「訪員」label 本身會被當成太寬塞不下的整塊擠到下一行
+                      獨立佔一整行；新增 .chip-group-wrap 讓 chip-group 吃掉
+                      同一列剩下的寬度，label 才能穩定貼著第一排 chip。
+                      2) 拿掉主表格「🔍 只篩這位訪員」按鈕（原本點開訪員
+                      總覽會多一顆可以把主表格篩選成只顯示這位訪員名下店家
+                      的按鈕，使用者反應用不到，直接砍掉按鈕跟對應的
+                      _applyStaffFilterFromDialog，改把版面留給匯出功能）。
+  1.6.0  2026-07-21  1) 主表格「主要訪員」姓名改成可點擊，開啟該訪員的
+                      個人總覽 Dialog（沿用 #detail-dialog 骨架，不重開一個
+                      新 Dialog）：範圍＝這位訪員名下「全部」店家（不受
+                      目前通路／等級／區域篩選影響），但巡補次數／達成率
+                      仍依照目前「檔期」篩選對應的週次範圍計算，數字才會
+                      跟主表格對得起來。2) 欄頭中元/中秋 emoji 獨立成 span
+                      以便放大（原本跟字樣同一個字級，emoji 不夠顯眼），
+                      字樣本身字級不變。3) 中元/中秋卡片改成「量販在上、
+                      全聯在下」同框垂直排列，減少全聯單一等級表格獨立成框
+                      時的閒置空間；量販／全聯兩個子區塊各自可點擊帶篩選
+                      進明細，彼此互不影響。
   1.5.0  2026-07-21  1)【整體明細】週次格子改成固定畫 7 格（一週最多
                       7 天），不再依應達/超額動態決定格數：前 stdN 格是
                       實線「應達」格，其餘用近似透明的「幽靈格」
@@ -355,8 +409,8 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .loading.show { display:flex; }
 
 /* ── toolbar ── */
-.toolbar { background:#fff; border-bottom:1px solid var(--border); padding:0 20px; height:52px; display:flex; align-items:center; gap:12px; position:sticky; top:0; z-index:50; }
-.toolbar-title { font-size:15px; font-weight:700; flex-shrink:0; }
+.toolbar { background:#fff; border-bottom:1px solid var(--border); padding:0 clamp(12px,2.5vw,20px); height:52px; display:flex; align-items:center; gap:12px; position:sticky; top:0; z-index:50; }
+.toolbar-title { font-size:clamp(13px,3.6vw,15px); font-weight:700; flex-shrink:0; }
 .sync-note { font-size:11px; color:var(--sub); white-space:nowrap; }
 .tb-act-btn { padding:5px 12px; border:1px solid var(--border); border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; color:var(--text); background:#fff; font-family:inherit; white-space:nowrap; transition:all .15s; flex-shrink:0; }
 .tb-act-btn:hover { background:var(--primary-bg); border-color:var(--primary); color:var(--primary); }
@@ -379,7 +433,10 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .ctrl-sep { width:1px; align-self:stretch; margin:4px 2px; background:var(--border); flex-shrink:0; }
 
 /* ── filter bar ── */
-.filterbar { background:#fff; border-bottom:1px solid var(--border); padding:10px 20px; position:sticky; top:52px; z-index:40; }
+.filterbar { background:#fff; border-bottom:1px solid var(--border); padding:10px clamp(12px,2.5vw,20px); position:sticky; top:52px; z-index:40; }
+/* 1.6.2：手機版篩選收合鍵，桌機版一律隱藏（body 恆為展開狀態） */
+.filter-toggle-btn { display:none; }
+.filter-toggle-summary { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11.5px; font-weight:600; color:var(--sub); text-align:left; }
 .chip-row { display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap; }
 .chip-row:last-child { margin-bottom:0; }
 .chip-fgroup { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
@@ -394,7 +451,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .chip:hover { background:var(--primary-bg); color:var(--primary); }
 .chip.active { background:var(--primary); color:#fff; border-color:var(--primary); }
 /* ── summary row ── */
-.summary-row { padding:10px 20px 0; display:flex; gap:10px; flex-wrap:wrap; }
+.summary-row { padding:10px clamp(12px,2.5vw,20px) 0; display:flex; gap:10px; flex-wrap:wrap; }
 /* 1.5.0：label／數字改成同一列平行排列（原本是上下兩層），節省卡片高度；
    sc-val-note（等級未知警示）維持獨立一行，用 flex-basis:100% 讓它換行
    顯示在下方，不擠壓 label／數字那一列 */
@@ -406,7 +463,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .sum-card .sc-val-note { flex-basis:100%; font-size:11px; color:var(--bonus); }
 
 /* ── stage / table ── */
-.stage { padding:16px 20px 40px; }
+.stage { padding:16px clamp(12px,2.5vw,20px) 40px; }
 .empty { padding:60px 20px; text-align:center; color:var(--sub); font-size:16px; }
 .tbl-wrap { overflow-x:auto; background:var(--card); border-radius:var(--r); border:1px solid var(--border); }
 .main-tbl { width:100%; border-collapse:collapse; font-size:15px; }
@@ -421,7 +478,28 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .sum-col { white-space:nowrap; }
 .sum-cell { display:flex; flex-direction:column; align-items:center; gap:3px; }
 .sum-main { font-weight:800; font-size:15px; }
+.sum-rate { font-weight:700; font-size:12.5px; color:var(--green); }
 .sum-extra-badge { display:inline-block; padding:1px 8px; border-radius:10px; background:var(--bonus-bg); color:var(--bonus); font-size:11.5px; font-weight:700; white-space:nowrap; }
+
+/* ── 1.7.0：平板／窄螢幕過渡層（641px～1024px）──────────────────────
+   原本只有一個 640px 斷點，寬度一跨過 640 就直接變回桌機版滿版表格，
+   但平板直放（例如 iPad 直放 ~768px）欄位其實還是會被壓得很擠。這裡加一層
+   「表格還在，但字級/間距整體收斂一輪」的過渡層，讓縮放不是二選一的
+   「滿版表格」或「卡片」，中間寬度也有對應調整；真正的卡片版仍保留給
+   640px 以下的手機（表格欄位數多，窄到某個程度後再怎麼縮小字也擠不下，
+   此時直接換成卡片閱讀體驗才是正解，不是無限縮小字級硬撐）。 */
+@media (max-width:1024px) {
+  .main-tbl { font-size:13.5px; }
+  .main-tbl thead th { padding:8px 5px; font-size:12px; }
+  .main-tbl tbody td { padding:6px 4px; }
+  .th-period-emoji { font-size:1.5em; }
+  .th-date-range { font-size:11.5px; }
+  .box-container input[type="checkbox"], .box-ghost, .miss-mark { width:15px; height:15px; }
+  .chip-label { width:auto; margin-right:4px; }
+  .chip { padding:3px 10px; font-size:11.5px; }
+  .sum-card .sc-label { font-size:13px; }
+  .sum-card .sc-val { font-size:17px; }
+}
 
 /* ── 檔期欄位分組底色＋跨欄分隔（強化不同檔期／同檔期不同週的視覺區隔） ── */
 .pg-zhong { background:rgba(26,80,139,.08); }
@@ -453,6 +531,53 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 /* 1.6.0：主要訪員姓名可點擊，開啟該訪員的個人總覽 Dialog（見 openStaffDetail） */
 .staff-link { cursor:pointer; color:var(--primary); text-decoration:underline; text-decoration-style:dotted; text-underline-offset:2px; }
 .staff-link:hover { color:var(--red); }
+/* 1.6.2：店家明細／訪員總覽共用的 Dialog header 新增「匯出/分享」按鈕插槽——
+   訪員總覽開啟時才會塞入 CSV／複製文字／截圖三顆按鈕，店家明細維持空白，
+   兩種 Dialog 共用同一個 header，靠 openStoreDetail() / openStaffDetail() 開頭
+   各自清空或填入 #dlg-header-actions 來區分，不需要另外開兩個 Dialog 骨架 */
+.dlg-header-actions { display:flex; align-items:center; gap:6px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end; }
+@media (max-width:640px) { .dlg-header-actions .btn-txt { display:none; } }
+
+/* ── 整體明細：手機版卡片（取代橫向表格，1.6.2 大改版）──────────────
+   手機上原本的橫向表格因為欄位太多（區域/店家/通路/等級/訪員/次數合計＋
+   每個檔期週次各一欄的 7 格勾選框），overflow-x 只能一次看一小條，訪員
+   要嘛橫向一直滑、要嘛每欄被壓到看不清楚。改成「一店一卡」直向卡片：
+   上半部店家基本資訊＋達成率彙總（跟桌機 sum-cell 同一份資料），下半部
+   把每個檔期週次拆成獨立小節、各自標明「檔期 週次（日期範圍）」再放
+   那一週的 7 格勾選框，橫向空間全部留給格子本身，不用再跟其他欄位擠。
+   卡片本身可點擊進店家明細，跟桌機表格列點擊行為一致。 */
+.main-mobile-cards { display:none; flex-direction:column; gap:10px; }
+.main-mcard { border:1px solid var(--border); border-radius:10px; overflow:hidden; background:#fff; cursor:pointer; transition:box-shadow .12s; }
+.main-mcard:active { background:var(--primary-bg); }
+.main-mcard-head { padding:clamp(8px,2.5vw,10px) clamp(10px,3vw,12px) 8px; border-bottom:1px solid #f0efe9; }
+.main-mcard-title { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+.main-mcard-title .td-name { font-size:clamp(13.5px,4vw,15px); }
+.main-mcard-sub { margin-top:4px; font-size:clamp(11px,3.2vw,12.5px); color:var(--sub); display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.main-mcard-sub .grade-tag { font-size:inherit; }
+.main-mcard-sum { display:flex; gap:clamp(8px,3vw,14px); padding:9px clamp(10px,3vw,12px); background:var(--bg); }
+.main-mcard-weeks { display:flex; flex-direction:column; }
+.main-mcard-period { padding:8px clamp(10px,3vw,12px); border-top:1px dashed var(--border); }
+.main-mcard-period:first-child { border-top:none; }
+.main-mcard-period-head { display:flex; align-items:baseline; gap:6px; font-size:clamp(11.5px,3.4vw,12.5px); font-weight:700; margin-bottom:6px; flex-wrap:wrap; }
+.main-mcard-period-head .th-period-emoji { font-size:1.3em; }
+.main-mcard-period-head .th-date-range { font-weight:500; color:var(--sub); font-size:0.92em; }
+.main-mcard-period.pg-zhong .main-mcard-period-head { color:var(--primary); }
+.main-mcard-period.pg-mid .main-mcard-period-head { color:var(--bonus); }
+.main-mcard.unknown-grade-card .main-mcard-head { background:var(--red-bg); }
+@media (max-width:640px) {
+  .tbl-wrap { display:none; }
+  .main-mobile-cards { display:flex; }
+}
+/* 1.7.0：極窄手機（例如 iPhone SE 直放 ~375px 或更窄）再收斂一輪——
+   格子本身固定 17px 才點得準，不能再縮小，改成縮減格子間距跟卡片內距，
+   把版面寬度讓給格子而不是犧牲可點擊面積 */
+@media (max-width:380px) {
+  .main-mcard-head, .main-mcard-sum, .main-mcard-period { padding-left:8px; padding-right:8px; }
+  .box-container { gap:2px; padding-left:2px; }
+  .main-mcard-sum { gap:8px; }
+  .oo-mstat .k { font-size:9px; }
+  .oo-mstat .v { font-size:12.5px; }
+}
 
 .loadmore-wrap { text-align:center; margin-top:16px; }
 .loadmore-btn { padding:8px 22px; border:1px solid var(--border); border-radius:20px; background:#fff; font-size:13px; font-weight:600; color:var(--text); cursor:pointer; font-family:inherit; }
@@ -463,6 +588,17 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 @media (max-width:640px) {
   .chip-label { width:auto; margin-right:4px; }
   .chip-fgroup-divider { flex-basis:100%; padding-left:0; margin-left:0; border-left:none; padding-top:8px; margin-top:4px; border-top:1px dashed var(--border); }
+  /* 1.6.2：篩選 chip 列預設收合，只留一行「🔍 篩選條件」按鈕，大幅縮減
+     固定在畫面上方的高度，把螢幕還給下面的資料表格 */
+  .filterbar { padding:6px 12px; }
+  .filter-toggle-btn {
+    display:flex; align-items:center; gap:6px; width:100%; padding:6px 2px;
+    background:none; border:none; font-size:13px; font-weight:700; color:var(--text);
+    font-family:inherit; cursor:pointer;
+  }
+  #filter-toggle-ico { flex-shrink:0; color:var(--sub); }
+  .filterbar-body { display:none; padding-top:8px; }
+  .filterbar-body.open { display:block; }
   .toolbar-controls {
     display:none; position:absolute; top:52px; left:0; right:0; z-index:60;
     background:#fff; border-bottom:1px solid var(--border); padding:10px 16px;
@@ -482,15 +618,15 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 /* 1.5.0：整體主畫面改走「盡量一頁看完，不滾動」的壓縮版面——paddings／
    字級／間距全面縮小一輪，卡片不再靠 hover 位移＋大陰影吸引注意力
    （原本的位移動畫在資訊密度拉高後反而顯得晃動干擾，改成單純陰影變化）。 */
-.ov-wrap { max-width:1600px; margin:0 auto; padding:14px 18px; }
+.ov-wrap { max-width:1600px; margin:0 auto; padding:14px clamp(12px,4vw,18px); }
 .ov-header { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:10px; flex-wrap:wrap; }
-.ov-header h1 { font-size:19px; font-weight:800; }
+.ov-header h1 { font-size:clamp(16px,4.5vw,19px); font-weight:800; }
 .ov-all-btn { padding:7px 18px; border-radius:8px; border:1px solid var(--primary); background:var(--primary); color:#fff; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; white-space:nowrap; }
 .ov-all-btn:hover { opacity:.9; }
 .ov-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 .ov-card { background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:14px 18px 16px; transition:box-shadow .2s; box-shadow:0 1px 4px rgba(0,0,0,.03); }
 .ov-card:hover { box-shadow:0 4px 12px rgba(0,0,0,.08); }
-.ov-card h2 { font-size:15px; font-weight:700; border-left:4px solid var(--primary); padding-left:9px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; }
+.ov-card h2 { font-size:15px; font-weight:700; border-left:4px solid var(--primary); padding-left:9px; margin-bottom:8px; display:flex; justify-content:flex-start; align-items:center; gap:4px; }
 .ov-card-emoji { font-size:2em; line-height:1; vertical-align:middle; margin-right:2px; display:inline-block; }
 .ov-perc { color:var(--green); font-size:18px; font-weight:800; }
 /* 1.6.0：中元/中秋卡片改成「量販在上、全聯在下」同框垂直排列，減少全聯
@@ -690,32 +826,37 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
   </div>
 
   <div class="filterbar" id="filterbar">
-    <div class="chip-row">
-      <div class="chip-fgroup">
-        <span class="chip-label">檔期</span>
-        <div class="chip-group" id="chip-period"></div>
+    <button class="filter-toggle-btn" id="filter-toggle-btn" onclick="toggleFilterbar()">
+      <span>🔍 篩選條件</span><span id="filter-toggle-summary" class="filter-toggle-summary"></span><span id="filter-toggle-ico">▾</span>
+    </button>
+    <div class="filterbar-body" id="filterbar-body">
+      <div class="chip-row">
+        <div class="chip-fgroup">
+          <span class="chip-label">檔期</span>
+          <div class="chip-group" id="chip-period"></div>
+        </div>
+        <div class="chip-fgroup chip-fgroup-divider">
+          <span class="chip-label" style="width:auto;">通路</span>
+          <div class="chip-group" id="chip-channel"></div>
+        </div>
+        <div class="chip-fgroup chip-fgroup-divider">
+          <span class="chip-label" style="width:auto;">等級</span>
+          <div class="chip-group" id="chip-grade"></div>
+        </div>
       </div>
-      <div class="chip-fgroup chip-fgroup-divider">
-        <span class="chip-label" style="width:auto;">通路</span>
-        <div class="chip-group" id="chip-channel"></div>
-      </div>
-      <div class="chip-fgroup chip-fgroup-divider">
-        <span class="chip-label" style="width:auto;">等級</span>
-        <div class="chip-group" id="chip-grade"></div>
-      </div>
-    </div>
-    <div class="chip-row">
-      <div class="chip-fgroup">
-        <span class="chip-label">營業處</span>
-        <div class="chip-group" id="chip-area"></div>
-      </div>
-      <div class="chip-fgroup chip-fgroup-divider" id="office-fgroup" style="display:none;">
-        <span class="chip-label" style="width:auto;">營業所/課</span>
-        <div class="chip-group" id="chip-office"></div>
-      </div>
-      <div class="chip-fgroup chip-fgroup-divider" id="staff-fgroup" style="display:none;align-items:flex-start;">
-        <span class="chip-label" style="width:auto;">訪員</span>
-        <div class="chip-group chip-group-wrap" id="chip-staff"></div>
+      <div class="chip-row">
+        <div class="chip-fgroup">
+          <span class="chip-label">營業處</span>
+          <div class="chip-group" id="chip-area"></div>
+        </div>
+        <div class="chip-fgroup chip-fgroup-divider" id="office-fgroup" style="display:none;">
+          <span class="chip-label" style="width:auto;">營業所/課</span>
+          <div class="chip-group" id="chip-office"></div>
+        </div>
+        <div class="chip-fgroup chip-fgroup-divider" id="staff-fgroup" style="display:none;align-items:flex-start;">
+          <span class="chip-label" style="width:auto;">訪員</span>
+          <div class="chip-group chip-group-wrap" id="chip-staff"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -736,6 +877,7 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
         <tbody id="tbl-body"></tbody>
       </table>
     </div>
+    <div class="main-mobile-cards" id="main-mobile-cards"></div>
     <div class="empty" id="empty-msg" style="display:none">目前篩選條件下沒有符合的店家</div>
     <div class="footnote">
       💡 藍色格代表標準應達次數；若實際巡補次數超過標準，系統自動顯示並勾選橘色格子（超額），
@@ -749,8 +891,8 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 <div id="detail-dialog" style="display:none" onclick="if(event.target===this)closeStoreDetail()">
   <div class="dlg-box">
     <div class="dlg-header">
-      <div id="dlg-title">店家明細</div>
-      <div style="flex:1;"></div>
+      <div id="dlg-title" style="flex:1;min-width:0;"></div>
+      <div class="dlg-header-actions" id="dlg-header-actions"></div>
       <button class="dlg-close" onclick="closeStoreDetail()">✕</button>
     </div>
     <div class="dlg-body" id="dlg-body" style="overflow:auto;"></div>
@@ -1523,6 +1665,30 @@ function syncChipsToFilter(){
       c.classList.toggle('active', c.getAttribute('data-v')===FILTER[key]);
     });
   });
+  _updateFilterToggleSummary();
+}
+/* 1.6.2：手機版篩選條件收合按鈕上的一行小字摘要——收合時仍能一眼看出
+   目前套用了哪些篩選，不用展開才知道，只列出「非全部」的項目，避免全部
+   都是預設值時顯示一長串「全部」沒有意義 */
+function _updateFilterToggleSummary(){
+  var el = document.getElementById('filter-toggle-summary');
+  if(!el) return;
+  var parts = [];
+  if(FILTER.period!=='全部') parts.push(FILTER.period);
+  if(FILTER.channel!=='全部') parts.push(FILTER.channel);
+  if(FILTER.grade!=='全部') parts.push(GRADE_LABEL[FILTER.grade]||FILTER.grade);
+  if(FILTER.area!=='全部') parts.push(FILTER.area);
+  if(FILTER.office!=='全部') parts.push(FILTER.office);
+  if(FILTER.staff!=='全部') parts.push(FILTER.staff);
+  el.textContent = parts.length ? parts.join('・') : '全部';
+}
+/* 手機版：篩選 chip 列預設收合，避免固定工具列＋篩選列一次佔掉大半螢幕，
+   點一下標題列才展開；桌機版此按鈕本身用 CSS 隱藏，body 一直保持展開 */
+function toggleFilterbar(){
+  var body = document.getElementById('filterbar-body');
+  var ico = document.getElementById('filter-toggle-ico');
+  var open = body.classList.toggle('open');
+  ico.textContent = open ? '▴' : '▾';
 }
 
 /* ════ 目前應顯示的欄位（依檔期篩選動態決定） ════ */
@@ -1596,6 +1762,24 @@ function getFilteredStores(){
 }
 
 /* ════ 渲染 ════ */
+/* 1.6.2：週次格子的 7 格渲染邏輯抽成獨立 helper，讓桌機表格欄位跟手機
+   卡片小節共用同一份輸出，不用維護兩份重複邏輯（也避免兩邊格子邏輯
+   之後改壞其中一份卻沒同步改到另一份） */
+function _buildBoxCells(actual, stdN, isPastWeek){
+  var html = '';
+  for(var i=1;i<=7;i++){
+    if(i<=stdN){
+      if(actual>=i){ html += '<input type="checkbox" class="std-check" checked>'; }
+      else if(isPastWeek){ html += '<span class="miss-mark" title="過去週未達成">✖</span>'; }
+      else { html += '<input type="checkbox" class="std-check">'; }
+    } else if(actual>=i){
+      html += '<input type="checkbox" class="extra-check" checked>';
+    } else {
+      html += '<span class="box-ghost" aria-hidden="true"></span>';
+    }
+  }
+  return html;
+}
 function render(){
   var stores = getFilteredStores();
   var cols = activeColumns();
@@ -1642,6 +1826,8 @@ function render(){
   var totalExp=0, totalStdDone=0, totalExtra=0, unknownGradeCount=0;
   var body = document.getElementById('tbl-body');
   var rowsHtml = '';
+  var mcardsHtml = ''; /* 1.6.2：手機版「一店一卡」卡片，跟桌機表格同一輪迴圈組出來，
+                           確保兩邊資料保證一致，不用另外算第二次 */
 
   stores.forEach(function(s){
     var std = GRADE_FREQ[s.grade];
@@ -1649,6 +1835,7 @@ function render(){
     var gradeLabel = GRADE_LABEL[s.grade] || s.grade;
 
     var colsHtml = '';
+    var periodsHtml = ''; /* 手機卡片：依檔期週次拆成一個個小節，而非橫向欄位 */
     var rowExp=0, rowStdDone=0, rowExtra=0;
     cols.forEach(function(c, idx){
       var actual = _actualCount(s.code, c.period, c.week);
@@ -1658,27 +1845,20 @@ function render(){
       if(std!==undefined){ totalExp += stdN; totalStdDone += stdDone; totalExtra += extra; rowExp += stdN; rowStdDone += stdDone; rowExtra += extra; }
       var m = colMeta[idx];
       var dividerCls = m.isGroupDivider ? ' pg-divider' : (m.isWeekDivider ? ' wk-divider' : '');
-      colsHtml += '<td class="'+m.periodCls+dividerCls+'"><div class="box-container">';
-      /* 1.5.0：格子改成固定畫 7 格（一週最多 7 天），不再依 stdN/extra 動態
-         決定要畫幾格——前 stdN 格是「應達」格（實線），維持原本 checked／
-         未達／過去週✖ 三種狀態；第 stdN+1 格到第 7 格預設用近似透明的
-         「幽靈格」渲染（表示「理論上還能再去，但不是硬性要求」），只有
-         實際次數真的蓋過該格序位，才把那一格渲染成超額色。這樣每欄版面
-         寬度固定，橫向掃視「這一週還有多少餘裕」也更直覺。 */
-      for(var i=1;i<=7;i++){
-        if(i<=stdN){
-          if(actual>=i){ colsHtml += '<input type="checkbox" class="std-check" checked>'; }
-          else if(m.isPastWeek){ colsHtml += '<span class="miss-mark" title="過去週未達成">✖</span>'; }
-          else { colsHtml += '<input type="checkbox" class="std-check">'; }
-        } else if(actual>=i){
-          colsHtml += '<input type="checkbox" class="extra-check" checked>';
-        } else {
-          colsHtml += '<span class="box-ghost" aria-hidden="true"></span>';
-        }
-      }
-      colsHtml += '</div></td>';
+      var boxesHtml = _buildBoxCells(actual, stdN, m.isPastWeek);
+      colsHtml += '<td class="'+m.periodCls+dividerCls+'"><div class="box-container">'+boxesHtml+'</div></td>';
+      periodsHtml += '<div class="main-mcard-period '+m.periodCls+'">'
+        + '<div class="main-mcard-period-head">'
+        + '<span class="th-period-emoji">'+(periodIconMap[c.period]||'')+'</span>'
+        + '<span>'+esc(periodLabelMap[c.period]||c.period)+' W'+c.week+'</span>'
+        + '<span class="th-date-range">'+esc(m.dateRange)+'</span>'
+        + '</div>'
+        + '<div class="box-container">'+boxesHtml+'</div>'
+        + '</div>';
     });
+    var rowRate = rowExp>0 ? (rowStdDone/rowExp*100) : 0;
     var sumHtml = '<div class="sum-cell"><div class="sum-main">'+rowStdDone+'/'+rowExp+'</div>'
+      + '<div class="sum-rate">'+rowRate.toFixed(1)+'%</div>'
       + (rowExtra>0 ? '<div class="sum-extra-badge">超額 +'+rowExtra+'</div>' : '')
       + '</div>';
 
@@ -1692,9 +1872,28 @@ function render(){
       + colsHtml;
     row += '</tr>';
     rowsHtml += row;
+
+    var gradeHtml = std===undefined ? '<span class="unknown-grade">'+esc(s.grade||'未設定')+' ⚠️</span>' : esc(gradeLabel);
+    mcardsHtml += '<div class="main-mcard'+(std===undefined?' unknown-grade-card':'')+'" onclick="openStoreDetail(\''+esc(s.code)+'\')">'
+      + '<div class="main-mcard-head">'
+      + '<div class="main-mcard-title"><span class="td-name">'+esc(s.storeName)+'</span><span class="td-code">'+esc(s.code)+'</span></div>'
+      + '<div class="main-mcard-sub">'
+      + '<span>'+esc(s.area)+' '+esc(s.office)+'</span>'
+      + '<span>・'+esc(s.storeType||'—')+'</span>'
+      + '<span class="grade-tag">・'+gradeHtml+'</span>'
+      + '<span>・<span class="staff-link" onclick="openStaffDetail(\''+esc(s.staff)+'\',event)">'+esc(s.staff)+'</span></span>'
+      + '</div></div>'
+      + '<div class="main-mcard-sum">'
+      + '<div class="oo-mstat"><span class="k">達標/應達</span><span class="v">'+rowStdDone+'/'+rowExp+'</span></div>'
+      + '<div class="oo-mstat"><span class="k">達成率</span><span class="v rate">'+rowRate.toFixed(1)+'%</span></div>'
+      + '<div class="oo-mstat"><span class="k">超額</span><span class="v extra">'+rowExtra+'</span></div>'
+      + '</div>'
+      + '<div class="main-mcard-weeks">'+periodsHtml+'</div>'
+      + '</div>';
   });
 
   body.innerHTML = rowsHtml;
+  document.getElementById('main-mobile-cards').innerHTML = mcardsHtml;
   document.getElementById('empty-msg').style.display = stores.length ? 'none' : 'block';
 
   document.getElementById('stat-store-count').textContent = stores.length;
@@ -1824,6 +2023,7 @@ function openStoreDetail(code){
   _detailCode = code;
   var store = STORE_ROWS.filter(function(s){ return s.code===code; })[0];
   if(!store) return;
+  document.getElementById('dlg-header-actions').innerHTML = '';
   document.getElementById('dlg-title').textContent = store.storeName+'（'+store.code+'）';
 
   var cols = activeColumns();
@@ -1961,6 +2161,15 @@ function openStaffDetail(staffName, evt){
       + '</tr>';
   }).join('');
 
+  /* 1.6.2：CSV／複製文字／截圖 三顆匯出按鈕移到 Dialog header（跟彙整看板
+     一致的位置），不再塞在內容區塊裡；截圖直接對 #dlg-body 整個畫面截圖，
+     讓長官截圖出去的畫面同時包含摘要數字＋完整店家清單 */
+  document.getElementById('dlg-header-actions').innerHTML = data.stores.length
+    ? '<button class="dlg-action-btn" id="staff-csv-btn" onclick="_staffDownloadCsv(\''+esc(staffName)+'\',event)"><span>📥</span><span class="btn-txt"> CSV</span></button>'
+      + '<button class="dlg-action-btn" id="staff-line-btn" onclick="_staffCopyLine(\''+esc(staffName)+'\',event)"><span>💬</span><span class="btn-txt"> 複製文字</span></button>'
+      + '<button class="dlg-action-btn" id="staff-screenshot-btn" onclick="_staffScreenshot(\''+esc(staffName)+'\',event)"><span>📸</span><span class="btn-txt"> 截圖</span></button>'
+    : '';
+
   var html = '<div class="visit-timeline">'
     + '<div class="visit-summary">'
     + '<div class="vs-item">名下店數<br><b>'+data.stores.length+'</b></div>'
@@ -1968,11 +2177,7 @@ function openStaffDetail(staffName, evt){
     + '<div class="vs-item">超額次數<br><b style="color:var(--bonus)">'+data.totalExtra+'</b></div>'
     + '</div>'
     + (data.stores.length
-        ? '<div style="display:flex;gap:8px;justify-content:flex-end;margin-bottom:8px;">'
-          + '<button class="raw-share-btn" id="staff-csv-btn" onclick="_staffDownloadCsv(\''+esc(staffName)+'\',event)">📥 CSV</button>'
-          + '<button class="raw-share-btn" id="staff-line-btn" onclick="_staffCopyLine(\''+esc(staffName)+'\',event)">💬 複製文字</button>'
-          + '</div>'
-          + '<table class="ov-mini" style="width:100%;"><tr><th>店家</th><th>通路</th><th>等級</th><th>達標/應達</th><th>達成率%</th><th>超額</th></tr>'+rowsHtml+'</table>'
+        ? '<table class="ov-mini" style="width:100%;"><tr><th>店家</th><th>通路</th><th>等級</th><th>達標/應達</th><th>達成率%</th><th>超額</th></tr>'+rowsHtml+'</table>'
         : '<div class="empty">目前沒有這位訪員名下的店家資料</div>')
     + '</div>';
 
@@ -1980,6 +2185,11 @@ function openStaffDetail(staffName, evt){
   var dlg = document.getElementById('detail-dialog');
   dlg.style.display = 'flex';
   setTimeout(function(){ dlg.classList.add('open'); }, 10);
+}
+function _staffScreenshot(staffName, evt){
+  var btn = evt ? evt.currentTarget : document.getElementById('staff-screenshot-btn');
+  var el = document.getElementById('dlg-body');
+  _captureElement(el, btn, PROJ_NAME+'_'+staffName+'_訪員總覽');
 }
 /* 訪員總覽 Dialog 的匯出：CSV 下載完整店家清單，複製文字則是可以直接
    貼到 LINE／訊息跟人溝通的精簡摘要（只列未達標的店，比照主工具列
@@ -2461,7 +2671,14 @@ function _buildManualContent(){
     + '範圍內的完整巡補時間軸，包含每次的日期、屬於哪個檔期第幾週；點某一'
     + '筆時間軸紀錄，還能展開看該次填寫的問卷內容（大題與選項）。若同一天'
     + '出現多筆紀錄，會用橘色徽章標示「同日多筆」，提醒這幾筆只會被算成'
-    + '1 次巡補。</p>'
+    + '1 次巡補。每一列右側的「次數合計」欄同時顯示這家店的達標/應達次數'
+    + '跟達成率 %，不用點進明細也能看單店表現。</p>'
+    + '<hr>'
+    + '<p><b>【訪員總覽 Dialog】</b>點主表格「主要訪員」欄的姓名，會開啟這位'
+    + '訪員名下「全部」店家的總覽（不受目前通路／等級／區域篩選影響，但'
+    + '巡補次數／達成率仍照目前選定的檔期計算），列出每家店的達標/應達、'
+    + '達成率、超額次數。標題列右上角有 <b>📥 CSV</b>／<b>💬 複製文字</b>／'
+    + '<b>📸 截圖</b> 三顆按鈕，方便直接把這份資料匯出或截圖傳給對方溝通。</p>'
     + '<hr>'
     + '<p><b>【明細頁工具列 ─ 彙整看板】</b>範圍固定是「目前整體篩選範圍」，'
     + '跟主表格篩選連動：<br>'
@@ -2478,7 +2695,12 @@ function _buildManualContent(){
     + '<hr>'
     + '<p><b>【← 返回】</b>概況主畫面左上角的「← 返回」會離開本看板，回到'
     + '看板入口首頁；跟明細頁的「← 返回總覽」不同——後者只是回到概況主'
-    + '畫面，不會離開本看板。</p>';
+    + '畫面，不會離開本看板。</p>'
+    + '<hr>'
+    + '<p><b>【手機版畫面】</b>螢幕較窄時，篩選 chip 列預設收合成一行'
+    + '「🔍 篩選條件」按鈕（會顯示目前套用的篩選摘要），點一下展開/收合；'
+    + '主表格也會自動改成一店一卡的直式卡片，每個檔期週次獨立一小節，'
+    + '不用再左右滑動查看。</p>';
 }
 function openManual(){
   if(!_manualBuilt){
