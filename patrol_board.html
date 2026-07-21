@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.8.1 ｜ 建立：2026-07-20 ｜ 最後更新：2026-07-21
+  版本：Ver. 1.9.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-07-21
 
 【這個檔案是什麼】
   單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 讀取同一份
@@ -209,6 +209,24 @@
     <script> 拿掉即可。
 
 【版本紀錄】
+  1.9.0  2026-07-21  新增「🧮 人次估算工具」（PM 排班規劃用，概況主畫面
+                      與明細頁工具列都有入口）：
+                      1) 目的跟看板本體不同——本體是「開跑後」比對實際
+                      巡補 vs. 應達次數的達成率追蹤；這個工具是「開跑前」
+                      單純依「店家名冊」＋「等級應達次數標準」(GRADE_FREQ)
+                      往下加總，算出要完美覆蓋所選範圍整季需要安排多少
+                      「人次」，完全不看處理層的實際巡補紀錄。
+                      2) 篩選深度可以一路收斂到「檔期／通路／等級／
+                      營業處／營業所」，用獨立的 MANPOWER_FILTER 狀態，
+                      跟主畫面的 FILTER 互不影響，開工具不會弄亂主畫面
+                      正在看的篩選範圍。
+                      3) 表格最細列到「營業所×通路」一列，逐週列出應達
+                      人次，並自動加總各營業處小計、檔期小計（同時看
+                      中元＋中秋時）與全部合計；同一組每週數字理論上會
+                      相同（等級標準不逐週變動），這是真實排班需求，
+                      不是計算錯誤。
+                      4) 可 📥 匯出 CSV，跟畫面同一份已算好的資料，不
+                      重新計算。
   1.8.1  2026-07-21  手機介面資訊密度／自動排版三處修正：
                       1) 店卡「店名／店碼／通路(店家型態)／等級」原本
                       拆成兩行（店碼掛在店名下、通路+等級另成一行
@@ -795,6 +813,40 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 #manual-inner hr { border:none; border-top:1px solid #eee; margin:10px 0; }
 #manual-inner b { color:#333; }
 
+/* ── 人次估算工具 Dialog（PM 排班規劃用，1.9.0 新增）：跟看板本體的
+   達成率追蹤是兩件事——這裡純粹依店家名冊＋等級標準往下算「應達人次」，
+   不看實際巡補資料，回答「開戰前要排多少人力」。比照 manual-overlay 的
+   浮層框架，但內容是篩選 chip ＋深入到營業所的表格，需要更寬的版面 ── */
+#manpower-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:200; align-items:flex-start; justify-content:center; padding:30px 16px; overflow:auto; }
+#manpower-overlay.open { display:flex; }
+#manpower-box { background:#fff; border:1px solid var(--border); border-radius:12px; max-width:1180px; width:100%; padding:0; box-shadow:0 12px 30px rgba(0,0,0,.18); }
+#manpower-box .manual-head { background:#eef5ff; }
+#manpower-inner { padding:14px 20px 22px; max-height:82vh; overflow:auto; }
+.mp-desc { font-size:12.5px; color:var(--sub); line-height:1.6; margin:0 0 12px; background:var(--bg); padding:10px 12px; border-radius:8px; }
+.mp-filter-row { display:flex; flex-wrap:wrap; gap:10px 18px; margin-bottom:12px; }
+.mp-summary { display:flex; flex-wrap:wrap; gap:10px; margin:2px 0 12px; }
+.mp-summary .mp-sum-card { background:var(--primary-bg); border-radius:10px; padding:8px 16px; min-width:110px; }
+.mp-summary .mp-sum-card .k { font-size:11px; color:var(--sub); }
+.mp-summary .mp-sum-card .v { font-size:19px; font-weight:800; color:var(--primary); }
+.mp-toolbar { display:flex; justify-content:flex-end; gap:8px; margin-bottom:10px; }
+.mp-tbl-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; border:1px solid var(--border); border-radius:10px; }
+.mp-tbl { width:100%; border-collapse:collapse; font-size:12.5px; white-space:nowrap; }
+.mp-tbl th, .mp-tbl td { border:1px solid var(--border); padding:6px 9px; text-align:center; }
+.mp-tbl th { background:var(--bg); color:var(--sub); font-weight:700; }
+.mp-tbl th.mp-period-head { background:var(--primary-bg); color:var(--primary); }
+.mp-tbl td.mp-office-cell { text-align:left; font-weight:700; }
+.mp-tbl td.mp-sub { color:var(--primary); font-weight:700; background:#f6f9ff; }
+.mp-tbl td.mp-total { color:var(--bonus); font-weight:800; }
+.mp-tbl tr.mp-area-head td { text-align:left; background:#2c3e50; color:#fff; font-weight:800; padding:6px 10px; }
+.mp-tbl tr.mp-area-sub td { background:#f6f4ef; font-weight:700; }
+.mp-tbl tr.mp-grand td { background:#2c3e50; color:#fff; font-weight:800; }
+.mp-empty { padding:30px; text-align:center; color:var(--sub); font-size:13px; }
+@media (max-width:640px){
+  #manpower-overlay { padding:0; }
+  #manpower-box { max-width:100%; height:100%; border-radius:0; }
+  #manpower-inner { max-height:none; height:calc(100% - 50px); }
+}
+
 /* ── 店家明細 Dialog：問卷內容區塊（比照 coverage_board 的 store-history-* / raw-detail-*） ── */
 .raw-detail-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:8px 18px; margin-top:6px; }
 .raw-detail-item { min-width:0; }
@@ -856,6 +908,7 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
       <h1 id="ov-title">節慶巡補看板</h1>
     </div>
     <div style="display:flex;gap:10px;align-items:center;">
+      <button class="manual-btn" onclick="openManpower()">🧮 人次估算</button>
       <button class="manual-btn" onclick="openManual()">📖 使用說明</button>
       <button class="ov-all-btn" onclick="openDetailAll()">進入整體明細 →</button>
     </div>
@@ -881,6 +934,53 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
   </div>
 </div>
 
+<!-- ════ 人次估算工具 Dialog（PM 排班規劃用，純粹依店家名冊＋等級標準算
+     「應達人次」，不看實際巡補紀錄，跟看板本體的達成率追蹤資料來源不同、
+     互不影響；獨立的 MANPOWER_FILTER 篩選狀態） ════ -->
+<div id="manpower-overlay" onclick="if(event.target===this)closeManpower()">
+  <div id="manpower-box">
+    <div class="manual-head">
+      <h3>🧮 人次估算工具</h3>
+      <button class="manual-close" onclick="closeManpower()">✕</button>
+    </div>
+    <div id="manpower-inner">
+      <p class="mp-desc">回答「要完美覆蓋這個範圍，整季需要安排多少人次巡補」——純粹依「店家名冊」＋
+        「店家等級應達次數標準」往下加總，<b>不看實際巡補紀錄</b>，可以在專案開跑前就先估算人力，
+        跟看板本體的達成率追蹤（比對實際 vs. 應達）是兩件事、互不影響。下方篩選可以一路收斂到
+        「檔期／週／通路／營業所」。</p>
+      <div class="mp-filter-row">
+        <div class="chip-fgroup">
+          <span class="chip-label">檔期</span>
+          <div class="chip-group" id="mp-chip-period"></div>
+        </div>
+        <div class="chip-fgroup">
+          <span class="chip-label" style="width:auto;">通路</span>
+          <div class="chip-group" id="mp-chip-channel"></div>
+        </div>
+        <div class="chip-fgroup">
+          <span class="chip-label" style="width:auto;">等級</span>
+          <div class="chip-group" id="mp-chip-grade"></div>
+        </div>
+      </div>
+      <div class="mp-filter-row">
+        <div class="chip-fgroup">
+          <span class="chip-label">營業處</span>
+          <div class="chip-group" id="mp-chip-area"></div>
+        </div>
+        <div class="chip-fgroup" id="mp-office-fgroup" style="display:none;">
+          <span class="chip-label" style="width:auto;">營業所/課</span>
+          <div class="chip-group" id="mp-chip-office"></div>
+        </div>
+      </div>
+      <div class="mp-summary" id="mp-summary"></div>
+      <div class="mp-toolbar">
+        <button class="tb-act-btn" onclick="mpDownloadCsv()">📥 匯出 CSV</button>
+      </div>
+      <div id="mp-table-wrap"></div>
+    </div>
+  </div>
+</div>
+
 <!-- ════ 明細頁面：點卡片或「進入整體明細」後才顯示 ════ -->
 <div id="detailPage" style="display:none">
   <div class="toolbar">
@@ -890,6 +990,7 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
     <div class="toolbar-spacer"></div>
     <button class="hamburger-btn" id="hamburger-btn" onclick="toggleMobileMenu(event)">☰</button>
     <div class="toolbar-controls" id="toolbar-controls">
+      <button class="tb-act-btn" onclick="openManpower();closeMobileMenu();">🧮 人次估算</button>
       <button class="tb-act-btn" onclick="openManual();closeMobileMenu();">📖 說明</button>
       <div class="ctrl-sep"></div>
       <div class="tb-group" id="toolbar-actions-board">
@@ -1654,6 +1755,240 @@ function renderOfficeOverview(){
 
   wrap.innerHTML = tableHtml + mobileHtml;
 }
+
+/* ════════════════════════════════════════════════════════════
+   人次估算工具（PM 排班規劃用，1.9.0 新增）
+   ────────────────────────────────────────────────────────────
+   跟看板本體「達成率追蹤」（比對實際巡補 vs. 應達次數）資料來源不同、
+   目的也不同：這裡回答的是「專案開跑前」要排多少人次巡補，才能完美
+   覆蓋整個範圍——純粹依「店家名冊」＋「等級應達次數標準」(GRADE_FREQ)
+   往下加總，完全不看「處理層」的實際巡補紀錄，跟主表 exp（應達次數）
+   算法一致，只是這裡不比對 actual、也不受目前主篩選 FILTER 影響
+   （獨立的 MANPOWER_FILTER 狀態，開這個工具不會弄亂看板本體正在看的
+   篩選範圍，也可以兩邊各自切換情境比較）。
+   可以一路收斂到「檔期／週／通路／營業所」四個維度，一次看到位。 ════ */
+var MANPOWER_FILTER = { period:'全部', channel:'全部', grade:'全部', area:'全部', office:'全部' };
+
+function mpBuildFilterUI(){
+  var periodOpts = [['全部','全部檔期 (W1-W5)']].concat(PERIODS.map(function(p){ return [p.key, p.label]; }));
+  document.getElementById('mp-chip-period').innerHTML = periodOpts.map(function(o,i){
+    return '<div class="chip'+(o[0]===MANPOWER_FILTER.period?' active':'')+'" data-v="'+o[0]+'" onclick="mpSetChip(this,\'period\')">'+o[1]+'</div>';
+  }).join('');
+
+  var channelOpts = ['全部','量販','全聯'];
+  document.getElementById('mp-chip-channel').innerHTML = channelOpts.map(function(v){
+    return '<div class="chip'+(v===MANPOWER_FILTER.channel?' active':'')+'" data-v="'+v+'" onclick="mpSetChip(this,\'channel\')">'+(v==='全部'?'全部通路':(v==='量販'?'量販店':'全聯社'))+'</div>';
+  }).join('');
+
+  var gradeOpts = ['全部'].concat(Object.keys(GRADE_FREQ));
+  document.getElementById('mp-chip-grade').innerHTML = gradeOpts.map(function(v){
+    return '<div class="chip'+(v===MANPOWER_FILTER.grade?' active':'')+'" data-v="'+v+'" onclick="mpSetChip(this,\'grade\')">'+(v==='全部'?'全部等級':(GRADE_LABEL[v]||v))+'</div>';
+  }).join('');
+
+  var areaOpts = ['全部'].concat(AREA_ORDER);
+  document.getElementById('mp-chip-area').innerHTML = areaOpts.map(function(v){
+    return '<div class="chip'+(v===MANPOWER_FILTER.area?' active':'')+'" data-v="'+v+'" onclick="mpSetChip(this,\'area\')">'+(v==='全部'?'全部處':v)+'</div>';
+  }).join('');
+  mpUpdateOfficeChipRow();
+}
+/* 營業所/課 chip：比照主篩選列的 updateOfficeChipRow，選定「營業處」後才出現 */
+function mpUpdateOfficeChipRow(){
+  var fgroupEl = document.getElementById('mp-office-fgroup');
+  var grp = document.getElementById('mp-chip-office');
+  if(MANPOWER_FILTER.area==='全部'){
+    MANPOWER_FILTER.office = '全部';
+    fgroupEl.style.display = 'none';
+    grp.innerHTML = '';
+    return;
+  }
+  var offices = Array.from(new Set(
+    STORE_ROWS.filter(function(r){ return r.area===MANPOWER_FILTER.area; }).map(function(r){ return r.office; })
+  )).filter(Boolean).sort();
+  if(offices.indexOf(MANPOWER_FILTER.office)===-1) MANPOWER_FILTER.office = '全部';
+  var opts = ['全部'].concat(offices);
+  grp.innerHTML = opts.map(function(v){
+    return '<div class="chip'+(v===MANPOWER_FILTER.office?' active':'')+'" data-v="'+esc(v)+'" onclick="mpSetChip(this,\'office\')">'+(v==='全部'?'全部所':esc(v))+'</div>';
+  }).join('');
+  fgroupEl.style.display = '';
+}
+function mpSetChip(el, key){
+  var parent = el.parentElement;
+  Array.from(parent.children).forEach(function(c){ c.classList.remove('active'); });
+  el.classList.add('active');
+  MANPOWER_FILTER[key] = el.getAttribute('data-v');
+  if(key==='area'){ mpUpdateOfficeChipRow(); }
+  renderManpowerTable();
+}
+
+/* 目前篩選下的欄位（週次）清單，邏輯跟 activeColumns() 一致，只是吃
+   MANPOWER_FILTER 而不是主篩選的全域 FILTER，兩邊各自獨立 */
+function mpActiveColumns(){
+  var cols = [];
+  PERIODS.forEach(function(p){
+    if(MANPOWER_FILTER.period!=='全部' && MANPOWER_FILTER.period!==p.key) return;
+    for(var w=1; w<=p.weeks; w++){ cols.push({ period:p.key, week:w }); }
+  });
+  return cols;
+}
+function mpFilteredStores(){
+  return STORE_ROWS.filter(function(r){
+    if(MANPOWER_FILTER.channel!=='全部' && r.chanKey!==MANPOWER_FILTER.channel) return false;
+    if(MANPOWER_FILTER.grade!=='全部' && r.grade!==MANPOWER_FILTER.grade) return false;
+    if(MANPOWER_FILTER.area!=='全部' && r.area!==MANPOWER_FILTER.area) return false;
+    if(MANPOWER_FILTER.office!=='全部' && r.office!==MANPOWER_FILTER.office) return false;
+    return true;
+  });
+}
+/* 依「營業處｜營業所｜通路」分組，把每一家店的「等級應達次數」往下加總到
+   每個欄位（週）／每個檔期小計／總計；等級未對照到標準的店（跟主表邏輯
+   一致）不計入。同一家店每週的應達次數固定＝該店等級標準，不會逐週變動，
+   所以同一組的每個週次欄位數字理論上會相同——這是真實的排班需求（每週
+   都要排這麼多次），不是計算錯誤。 */
+function mpBuildData(){
+  var stores = mpFilteredStores();
+  var cols = mpActiveColumns();
+  var groups = {};
+  stores.forEach(function(s){
+    var std = GRADE_FREQ[s.grade];
+    if(std===undefined || !s.chanKey) return;
+    var key = s.area+'‖'+s.office+'‖'+s.chanKey;
+    if(!groups[key]){
+      var newG = { area:s.area, office:s.office, chanKey:s.chanKey, count:0, colExp:{}, periodExp:{}, total:0 };
+      cols.forEach(function(c){ newG.colExp[c.period+'_'+c.week] = 0; });
+      PERIODS.forEach(function(p){ newG.periodExp[p.key] = 0; });
+      groups[key] = newG;
+    }
+    var g = groups[key];
+    g.count++;
+    cols.forEach(function(c){
+      g.colExp[c.period+'_'+c.week] += std;
+      g.periodExp[c.period] += std;
+      g.total += std;
+    });
+  });
+  return { groups:groups, cols:cols };
+}
+function _mpEmptyAgg(cols){
+  var agg = { count:0, colExp:{}, periodExp:{}, total:0 };
+  cols.forEach(function(c){ agg.colExp[c.period+'_'+c.week] = 0; });
+  PERIODS.forEach(function(p){ agg.periodExp[p.key] = 0; });
+  return agg;
+}
+function _mpAddInto(target, g){
+  target.count += g.count; target.total += g.total;
+  Object.keys(g.colExp).forEach(function(k){ target.colExp[k] = (target.colExp[k]||0) + g.colExp[k]; });
+  Object.keys(g.periodExp).forEach(function(k){ target.periodExp[k] = (target.periodExp[k]||0) + g.periodExp[k]; });
+}
+var _mpLastResult = null; /* 供 CSV 匯出沿用同一份已算好的資料，不重算 */
+function renderManpowerTable(){
+  var wrap = document.getElementById('mp-table-wrap');
+  var sumWrap = document.getElementById('mp-summary');
+  if(!wrap || !sumWrap) return;
+  var data = mpBuildData();
+  var groups = data.groups, cols = data.cols;
+  var periodsShown = PERIODS.filter(function(p){ return cols.some(function(c){ return c.period===p.key; }); });
+  var periodLabelMap = {}; PERIODS.forEach(function(p){ periodLabelMap[p.key] = p.label.replace('專案',''); });
+  var areasPresent = AREA_ORDER.filter(function(a){
+    return Object.keys(groups).some(function(k){ return groups[k].area===a; });
+  });
+
+  if(!areasPresent.length){
+    wrap.innerHTML = '<div class="mp-empty">目前篩選範圍內沒有符合資料（可能是等級未對照到標準，或範圍內沒有店家）</div>';
+    sumWrap.innerHTML = '';
+    _mpLastResult = null;
+    return;
+  }
+
+  var leadCols = 3; /* 營業所/課、通路、店數 */
+  var totalColCount = leadCols + cols.length + (periodsShown.length>1?periodsShown.length:0) + 1;
+
+  /* 表頭 */
+  var head = '<tr><th rowspan="2">營業所/課</th><th rowspan="2">通路</th><th rowspan="2">店數</th>';
+  periodsShown.forEach(function(p){
+    var wCount = cols.filter(function(c){ return c.period===p.key; }).length;
+    head += '<th colspan="'+wCount+'" class="mp-period-head">'+esc(periodLabelMap[p.key])+'</th>';
+  });
+  if(periodsShown.length>1){
+    periodsShown.forEach(function(p){ head += '<th rowspan="2">'+esc(periodLabelMap[p.key])+'小計</th>'; });
+  }
+  head += '<th rowspan="2">總計人次</th></tr><tr>';
+  cols.forEach(function(c){ head += '<th>W'+c.week+'</th>'; });
+  head += '</tr>';
+
+  function _rowCells(g){
+    var html = '';
+    cols.forEach(function(c){ html += '<td>'+g.colExp[c.period+'_'+c.week]+'</td>'; });
+    if(periodsShown.length>1){
+      periodsShown.forEach(function(p){ html += '<td class="mp-sub">'+g.periodExp[p.key]+'</td>'; });
+    }
+    html += '<td class="mp-total">'+g.total+'</td>';
+    return html;
+  }
+
+  var body = '';
+  var grand = _mpEmptyAgg(cols);
+  var csvRows = []; /* 供匯出 CSV 用，跟畫面同一份資料來源 */
+
+  areasPresent.forEach(function(area){
+    var officesInArea = Array.from(new Set(
+      Object.keys(groups).filter(function(k){ return groups[k].area===area; }).map(function(k){ return groups[k].office; })
+    )).sort();
+    var areaSub = _mpEmptyAgg(cols);
+    var areaBody = '';
+    officesInArea.forEach(function(office){
+      ['量販','全聯'].forEach(function(ck){
+        var g = groups[area+'‖'+office+'‖'+ck];
+        if(!g) return;
+        areaBody += '<tr>'
+          + '<td class="mp-office-cell">'+esc(office)+'</td>'
+          + '<td>'+(ck==='量販'?'📦 量販':'🛒 全聯')+'</td>'
+          + '<td>'+g.count+'</td>'
+          + _rowCells(g)
+          + '</tr>';
+        _mpAddInto(areaSub, g);
+        csvRows.push([area, office, ck, g.count].concat(cols.map(function(c){ return g.colExp[c.period+'_'+c.week]; }))
+          .concat(periodsShown.length>1?periodsShown.map(function(p){ return g.periodExp[p.key]; }):[]).concat([g.total]));
+      });
+    });
+    body += '<tr class="mp-area-head"><td colspan="'+totalColCount+'">🏢 '+esc(area)+'</td></tr>'
+      + areaBody
+      + '<tr class="mp-area-sub"><td class="mp-office-cell" colspan="2">'+esc(area)+' 合計</td><td>'+areaSub.count+'</td>'+_rowCells(areaSub)+'</tr>';
+    _mpAddInto(grand, areaSub);
+  });
+
+  body += '<tr class="mp-grand"><td colspan="2">全部合計</td><td>'+grand.count+'</td>'+_rowCells(grand)+'</tr>';
+
+  wrap.innerHTML = '<div class="mp-tbl-scroll"><table class="mp-tbl">'+head+body+'</table></div>';
+
+  sumWrap.innerHTML =
+      '<div class="mp-sum-card"><div class="k">篩選店數</div><div class="v">'+grand.count+'</div></div>'
+    + '<div class="mp-sum-card"><div class="k">涵蓋週數</div><div class="v">'+cols.length+'</div></div>'
+    + '<div class="mp-sum-card"><div class="k">整季應達人次總計</div><div class="v">'+grand.total+'</div></div>';
+
+  _mpLastResult = { cols:cols, periodsShown:periodsShown, csvRows:csvRows, grand:grand, periodLabelMap:periodLabelMap };
+}
+function mpDownloadCsv(){
+  if(!_mpLastResult || !_mpLastResult.csvRows.length){ return; }
+  var r = _mpLastResult;
+  var headers = ['營業處','營業所/課','通路','店數']
+    .concat(r.cols.map(function(c){ return r.periodLabelMap[c.period]+'W'+c.week; }))
+    .concat(r.periodsShown.length>1 ? r.periodsShown.map(function(p){ return r.periodLabelMap[p.key]+'小計'; }) : [])
+    .concat(['總計人次']);
+  var rows = [headers].concat(r.csvRows);
+  var csv = '\uFEFF'+rows.map(function(row){
+    return row.map(function(c){ var s=String(c==null?'':c); return /[,"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join(',');
+  }).join('\n');
+  _triggerCsvDownload(csv, PROJ_NAME+'_人次估算');
+}
+function openManpower(){
+  document.getElementById('manpower-overlay').classList.add('open');
+  mpBuildFilterUI();
+  renderManpowerTable();
+}
+function closeManpower(){
+  document.getElementById('manpower-overlay').classList.remove('open');
+}
+
 /* 點營業處列 → 帶著該處＋該通路篩選進明細頁（檔期／等級回到全部，鎖營業處＋通路） */
 function openDetailFromOffice(area, chanKey){
   FILTER.period = '全部'; FILTER.channel = chanKey||'全部'; FILTER.grade = '全部';
@@ -2797,6 +3132,15 @@ function _buildManualContent(){
     + '<p>下方四張卡片＝中元／中秋 ×量販／全聯，每張顯示整體達成率，卡片內'
     + '表格再依店家等級拆分各週達成率。點卡片會帶著對應的檔期／通路篩選'
     + '直接進明細表格。</p>'
+    + '<hr>'
+    + '<p><b>【🧮 人次估算工具】</b>給承辦（PM）在專案「開跑前」規劃人力用：'
+    + '純粹依店家名冊＋等級應達次數標準往下加總，算出要完美覆蓋所選範圍，'
+    + '整季總共需要安排多少「人次」巡補，<b>不看實際巡補紀錄</b>，跟看板本體'
+    + '的達成率追蹤（比對實際 vs. 應達）是兩件事、互不影響，兩邊篩選也各自'
+    + '獨立，開這個工具不會弄亂主畫面正在看的篩選範圍。可以一路篩到'
+    + '「檔期／通路／等級／營業處／營業所」，表格最細會列到「營業所×通路」'
+    + '一列，逐週列出應達人次，並自動算出各營業處小計與全部合計；也能'
+    + '📥 匯出 CSV 帶去排班。</p>'
     + '<hr>'
     + '<p><b>【篩選列】</b></p>'
     + '<p><b>檔期</b>：只看中元或只看中秋，或全部一起看（欄位會跟著變成 W1~W5）<br>'
