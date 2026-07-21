@@ -355,7 +355,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .th-wk-flex { display:flex; align-items:baseline; justify-content:center; gap:5px; white-space:nowrap; }
 .th-period-name { font-size:13.5px; font-weight:800; letter-spacing:.04em; }
 .th-week-label { font-size:13.5px; font-weight:700; }
-.th-date-range { font-size:11.5px; font-weight:600; color:var(--sub); }
+.th-date-range { font-size:13px; font-weight:600; color:var(--sub); }
 .wk-divider { border-left:1px solid var(--border); }
 .pg-divider { border-left:3px solid var(--text) !important; }
 
@@ -414,6 +414,11 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 
 /* ── 概況主畫面：依營業處執行狀況總覽表 ── */
 .ov-office-card { margin-top:18px; }
+#ov-office-week-chips { margin-bottom:12px; }
+#ov-office-week-chips .chip { text-align:center; line-height:1.3; }
+.chip-sub { display:block; font-size:10px; font-weight:500; color:var(--sub); margin-top:1px; }
+#ov-office-week-chips .chip.active .chip-sub { color:rgba(255,255,255,.8); }
+.oo-tbl-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
 .ov-office-tbl { width:100%; border-collapse:collapse; font-size:14.5px; }
 .ov-office-tbl th, .ov-office-tbl td { border:1px solid var(--border); padding:8px 10px; text-align:center; }
 .ov-office-tbl th { background:var(--bg); color:var(--sub); font-weight:700; }
@@ -424,6 +429,29 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 .ov-office-tbl td.oo-rate { font-weight:800; color:var(--green); }
 .ov-office-tbl td.oo-extra { color:var(--bonus); font-weight:700; }
 .ov-office-tbl tr.oo-total td { background:#f6f4ef; font-weight:800; }
+
+/* ── 依營業處執行狀況：手機版卡片（取代表格，避免橫向資料被裁切） ── */
+.oo-mobile-cards { display:none; flex-direction:column; gap:10px; }
+.oo-mcard { border:1px solid var(--border); border-radius:10px; overflow:hidden; background:#fff; }
+.oo-mcard-head { padding:8px 12px; font-weight:800; font-size:14px; background:var(--bg); border-bottom:1px solid var(--border); }
+.oo-mcard-chan { padding:9px 12px; border-bottom:1px dashed var(--border); }
+.oo-mcard-chan:last-child { border-bottom:none; }
+.oo-mcard-chan.oo-clickable { cursor:pointer; }
+.oo-mcard-chan.oo-clickable:active { background:var(--primary-bg); }
+.oo-mcard-chan-title { font-size:12.5px; font-weight:700; color:var(--sub); margin-bottom:6px; }
+.oo-mcard-empty { color:var(--sub); font-size:12.5px; padding:2px 0; }
+.oo-mcard-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(56px,1fr)); gap:6px 4px; text-align:center; }
+.oo-mstat { display:flex; flex-direction:column; gap:2px; }
+.oo-mstat .k { font-size:10px; color:var(--sub); }
+.oo-mstat .v { font-size:13.5px; font-weight:700; }
+.oo-mstat .v.rate { color:var(--green); }
+.oo-mstat .v.extra { color:var(--bonus); }
+.oo-mcard-total { background:#f6f4ef; }
+.oo-mcard-total .oo-mcard-head { background:#efece4; }
+@media (max-width:640px){
+  .oo-tbl-scroll { display:none; }
+  .oo-mobile-cards { display:flex; }
+}
 
 /* ── 使用說明面板（比照 coverage_board 的 manual-bar / manual-inner） ── */
 .manual-btn { padding:5px 12px; border:1px solid var(--border); border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; color:var(--text); background:#fff; font-family:inherit; white-space:nowrap; }
@@ -481,7 +509,12 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 .visit-row:last-child { border-bottom:none; }
 .visit-row .v-date { font-weight:700; width:110px; flex-shrink:0; }
 .visit-row .v-week { font-size:11.5px; padding:2px 8px; border-radius:6px; background:var(--primary-bg); color:var(--primary); font-weight:700; flex-shrink:0; }
+.visit-row .v-staff { font-size:12.5px; color:var(--text); font-weight:600; flex-shrink:0; }
 .visit-row .v-ref { color:var(--sub); font-size:11px; flex:1; text-align:right; }
+@media (max-width:640px){
+  .visit-row { flex-wrap:wrap; }
+  .visit-row .v-ref { flex-basis:100%; text-align:left; margin-top:2px; }
+}
 </style>
 </head>
 <body>
@@ -500,6 +533,7 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
   <div class="ov-grid" id="ov-cards"></div>
   <div class="ov-card ov-office-card">
     <h2><span>🏢 依營業處執行狀況</span></h2>
+    <div class="chip-group" id="ov-office-week-chips"></div>
     <div id="ov-office-wrap"></div>
   </div>
 </div>
@@ -624,7 +658,7 @@ var QUESTIONNAIRE_SHEETS = { '量販':'問卷資料(量販)', '全聯':'問卷�
 var P_AREA='營業處名稱', P_OFFICE='營業所/課', P_STAFF='主要訪員', P_CHANNEL='通路別',
     P_STORETYPE='店家型態', P_CODE='店家代碼', P_STORENAME='店家名稱', P_GRADE='店家等級';
 /* 處理層欄名 */
-var R_CODE='店家代碼', R_DATE='巡補日期', R_SOURCEREF='來源分頁+行數';
+var R_CODE='店家代碼', R_DATE='巡補日期', R_SOURCEREF='來源分頁+行數', R_STAFF='執行人員';
 
 /* 檔期定義：起始日 + 週數。之後年度數字要改就改這裡，不用動下方邏輯 */
 var PERIODS = [
@@ -661,6 +695,10 @@ var _qSheetLoading = {};
 var _qSheetWaiters = {};
 
 var FILTER = { period:'全部', channel:'全部', grade:'全部', area:'全部', office:'全部', keyword:'' };
+/* 依營業處執行狀況表：目前檢視的週次。null＝整體（不分檔期／週次，原本行為），
+   否則為 {period,week} 只看該檔期該週，讓現場能看「當週進度」而不是被
+   整段檔期的合計數字蓋掉。跟主表 FILTER 是各自獨立的狀態，互不影響。 */
+var OFFICE_WEEK_SEL = null;
 
 function showLoading(){ document.getElementById('loading').classList.add('show'); }
 function hideLoading(){ document.getElementById('loading').classList.remove('show'); }
@@ -802,7 +840,7 @@ function fetchProcessLayer(callback){
     var json = gvizParse(txt);
     var tbl = json.table || {};
     var cols = (tbl.cols||[]).map(function(c){ return c.label||''; });
-    var idxCode = cols.indexOf(R_CODE), idxDate = cols.indexOf(R_DATE), idxRef = cols.indexOf(R_SOURCEREF);
+    var idxCode = cols.indexOf(R_CODE), idxDate = cols.indexOf(R_DATE), idxRef = cols.indexOf(R_SOURCEREF), idxStaff = cols.indexOf(R_STAFF);
     function cv(c){ return (c && (c.v!=null ? c.v : c.f)) || ''; }
     var index = {};
     var rows = [];
@@ -813,7 +851,8 @@ function fetchProcessLayer(callback){
       var cls = _classifyParts(parts);
       if(!code || !cls) return; /* 不屬於任何已定義檔期週次的紀錄，不計入統計 */
       var ref = idxRef!==-1 ? String(cv(c[idxRef])).trim() : '';
-      var rec = { code:code, period:cls.period, week:cls.week, parts:parts, ref:ref };
+      var staff = idxStaff!==-1 ? String(cv(c[idxStaff])).trim() : '';
+      var rec = { code:code, period:cls.period, week:cls.week, parts:parts, ref:ref, staff:staff };
       rows.push(rec);
       if(!index[code]) index[code] = [];
       index[code].push(rec);
@@ -1049,7 +1088,7 @@ function _officeStatsFor(area, chanKey){
     if(chanKey && s.chanKey!==chanKey) return false;
     return true;
   });
-  var cols = _allPeriodColumns();
+  var cols = OFFICE_WEEK_SEL ? [{ period:OFFICE_WEEK_SEL.period, week:OFFICE_WEEK_SEL.week }] : _allPeriodColumns();
   var exp=0, stdDone=0, extra=0, unknownGrade=0;
   subset.forEach(function(s){
     var std = GRADE_FREQ[s.grade];
@@ -1062,14 +1101,46 @@ function _officeStatsFor(area, chanKey){
   return { area:area, chanKey:chanKey||'', count:subset.length, exp:exp, stdDone:stdDone, extra:extra,
     unknownGrade:unknownGrade, rate: exp>0 ? (stdDone/exp*100) : 0 };
 }
+/* 依營業處執行狀況表的「週次」選單：null(整體) + 每個檔期底下的每一週，
+   讓現場能切到「當週」看進度，不是永遠只看整段檔期合計 */
+function _officeWeekOptions(){
+  var opts = [{ period:null, week:null, label:'整體', range:'' }];
+  PERIODS.forEach(function(p){
+    for(var w=1; w<=p.weeks; w++){
+      opts.push({ period:p.key, week:w, label:p.label.replace('專案','')+' W'+w, range:_weekDateRange(p.key,w) });
+    }
+  });
+  return opts;
+}
+function renderOfficeWeekChips(){
+  var wrap = document.getElementById('ov-office-week-chips');
+  if(!wrap) return;
+  var opts = _officeWeekOptions();
+  wrap.innerHTML = opts.map(function(o){
+    var active = OFFICE_WEEK_SEL ? (o.period===OFFICE_WEEK_SEL.period && o.week===OFFICE_WEEK_SEL.week) : !o.period;
+    var pArg = o.period ? "'"+o.period+"'" : 'null';
+    var wArg = o.week || 'null';
+    return '<div class="chip'+(active?' active':'')+'" onclick="setOfficeWeek(this,'+pArg+','+wArg+')">'
+      + esc(o.label) + (o.range ? '<span class="chip-sub">'+esc(o.range)+'</span>' : '')
+      + '</div>';
+  }).join('');
+}
+function setOfficeWeek(el, period, week){
+  document.querySelectorAll('#ov-office-week-chips .chip').forEach(function(c){ c.classList.remove('active'); });
+  el.classList.add('active');
+  OFFICE_WEEK_SEL = period ? { period:period, week:week } : null;
+  renderOfficeOverview();
+}
 function renderOfficeOverview(){
   var wrap = document.getElementById('ov-office-wrap');
   if(!wrap) return;
+  renderOfficeWeekChips();
   var areasPresent = AREA_ORDER.filter(function(a){
     return STORE_ROWS.some(function(s){ return s.area===a; });
   });
   if(!areasPresent.length){ wrap.innerHTML = '<div class="ov-empty">目前沒有符合資料</div>'; return; }
   var CHANS = ['量販','全聯'];
+  var chanIcon = { '量販':'📦', '全聯':'🛒' };
   /* 每個通路各自的 5 個統計儲存格（店數／應達／達標／達成率／超額），
      hasData=false 時（該處沒有這個通路的店）顯示「—」且不可點擊 */
   function _statCells(area, ck){
@@ -1103,13 +1174,55 @@ function renderOfficeOverview(){
       + '<td class="oo-rate">'+rate.toFixed(1)+'%</td>'
       + '<td class="oo-extra">'+(t.extra>0?'+'+t.extra:'0')+'</td>';
   }).join('') + '</tr>';
-  var html = '<table class="ov-office-tbl">'
+  var tableHtml = '<div class="oo-tbl-scroll"><table class="ov-office-tbl">'
     + '<tr><th rowspan="2">營業處</th><th colspan="5">📦 量販</th><th colspan="5">🛒 全聯</th></tr>'
     + '<tr>' + CHANS.map(function(){ return '<th>店數</th><th>應達次數</th><th>達標次數</th><th>達成率%</th><th>超額次數</th>'; }).join('') + '</tr>'
     + bodyRows
     + totalRow
-    + '</table>';
-  wrap.innerHTML = html;
+    + '</table></div>';
+
+  /* 手機版：改成一處一張直式卡片（量販／全聯各一區塊），避免表格橫向
+     欄位在窄螢幕被裁到看不到，同一份統計數字（_officeStatsFor／
+     chanTotals）只是換一種排版，不重算 */
+  function _mcardChan(area, ck){
+    var hasData = STORE_ROWS.some(function(s){ return s.area===area && s.chanKey===ck; });
+    var title = '<div class="oo-mcard-chan-title">'+chanIcon[ck]+' '+ck+'</div>';
+    if(!hasData){ return '<div class="oo-mcard-chan">'+title+'<div class="oo-mcard-empty">—</div></div>'; }
+    var r = _officeStatsFor(area, ck);
+    return '<div class="oo-mcard-chan oo-clickable" onclick="openDetailFromOffice(\''+area+'\',\''+ck+'\')">'
+      + title
+      + '<div class="oo-mcard-grid">'
+      + '<div class="oo-mstat"><span class="k">店數</span><span class="v">'+r.count+'</span></div>'
+      + '<div class="oo-mstat"><span class="k">應達</span><span class="v">'+r.exp+'</span></div>'
+      + '<div class="oo-mstat"><span class="k">達標</span><span class="v">'+r.stdDone+'</span></div>'
+      + '<div class="oo-mstat"><span class="k">達成率</span><span class="v rate">'+r.rate.toFixed(1)+'%</span></div>'
+      + '<div class="oo-mstat"><span class="k">超額</span><span class="v extra">'+(r.extra>0?'+'+r.extra:'0')+'</span></div>'
+      + '</div></div>';
+  }
+  var mobileCards = areasPresent.map(function(area){
+    return '<div class="oo-mcard"><div class="oo-mcard-head">'+esc(area)+'</div>'
+      + CHANS.map(function(ck){ return _mcardChan(area, ck); }).join('')
+      + '</div>';
+  }).join('');
+  var totalChanBlocks = CHANS.map(function(ck){
+    var t = chanTotals[ck];
+    var rate = t.exp>0 ? (t.stdDone/t.exp*100) : 0;
+    return '<div class="oo-mcard-chan">'
+      + '<div class="oo-mcard-chan-title">'+chanIcon[ck]+' '+ck+'</div>'
+      + '<div class="oo-mcard-grid">'
+      + '<div class="oo-mstat"><span class="k">店數</span><span class="v">'+t.count+'</span></div>'
+      + '<div class="oo-mstat"><span class="k">應達</span><span class="v">'+t.exp+'</span></div>'
+      + '<div class="oo-mstat"><span class="k">達標</span><span class="v">'+t.stdDone+'</span></div>'
+      + '<div class="oo-mstat"><span class="k">達成率</span><span class="v rate">'+rate.toFixed(1)+'%</span></div>'
+      + '<div class="oo-mstat"><span class="k">超額</span><span class="v extra">'+(t.extra>0?'+'+t.extra:'0')+'</span></div>'
+      + '</div></div>';
+  }).join('');
+  var mobileHtml = '<div class="oo-mobile-cards">'
+    + mobileCards
+    + '<div class="oo-mcard oo-mcard-total"><div class="oo-mcard-head">全部合計</div>' + totalChanBlocks + '</div>'
+    + '</div>';
+
+  wrap.innerHTML = tableHtml + mobileHtml;
 }
 /* 點營業處列 → 帶著該處＋該通路篩選進明細頁（檔期／等級回到全部，鎖營業處＋通路） */
 function openDetailFromOffice(area, chanKey){
@@ -1325,7 +1438,7 @@ function render(){
       for(var j=1;j<=extra;j++){ colsHtml += '<input type="checkbox" class="extra-check" checked>'; }
       colsHtml += '</div></td>';
     });
-    var sumHtml = '<div class="sum-cell"><div class="sum-main">達標 '+rowStdDone+'/'+rowExp+'</div>'
+    var sumHtml = '<div class="sum-cell"><div class="sum-main">'+rowStdDone+'/'+rowExp+'</div>'
       + (rowExtra>0 ? '<div class="sum-extra-badge">超額 +'+rowExtra+'</div>' : '')
       + '</div>';
 
@@ -1455,6 +1568,7 @@ function openStoreDetail(code){
       return '<div class="visit-row">'
         + '<span class="v-date">'+esc(_fmtParts(v.parts))+'</span>'
         + '<span class="v-week">'+esc(periodLabel.replace('專案',''))+' W'+v.week+'</span>'
+        + '<span class="v-staff">'+esc(v.staff||'—')+'</span>'
         + dupBadge
         + '<span class="v-ref">'+esc(v.ref||'—')+'</span>'
         + '</div>';
