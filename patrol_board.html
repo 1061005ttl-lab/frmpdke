@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.7.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-07-21
+  版本：Ver. 1.8.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-07-21
 
 【這個檔案是什麼】
   單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 讀取同一份
@@ -209,6 +209,37 @@
     <script> 拿掉即可。
 
 【版本紀錄】
+  1.8.0  2026-07-21  【整體明細】依「主要訪員」分組排序＋資訊密度優化
+                      （原本店家清單只依區域／營業所／通路／店代碼排序，
+                      同一位訪員名下的店家會散落在清單各處，要看單一人員
+                      的轄區得整段捲動、逐列比對訪員欄）：
+                      1) 排序鍵加入「主要訪員」（區域→營業所→訪員→通路→
+                      店代碼），同一位訪員的店家在清單裡連續排列；段落
+                      交界插入一列訪員分組標題（桌機 .staff-group-row／
+                      手機 .m-group-head），標示「👤 姓名／營業處／這段
+                      小計（店數、達標/應達、達成率、超額）」，點姓名
+                      直接開訪員總覽 Dialog（沿用 1.6.0 的 openStaffDetail，
+                      只是觸發位置從「每列都重複的訪員欄」搬到「每段只
+                      出現一次的分組標題」）。桌機表格因此拿掉了逐列重複
+                      顯示的「主要訪員」欄，欄寬讓給週次格子。
+                      2) 手機版整個換掉 1.6.2 的「一店一卡、每個檔期週次
+                      各自展開完整 7 格勾選框」大卡片——這個版型雖然資訊
+                      完整，但一家店要佔掉大半個螢幕，捲動很久才看得到
+                      幾家店。改成比照「訪員總覽」Dialog 手機版的密度：
+                      一店一行，店名／代碼／等級／每週狀態全部濃縮進一張
+                      小卡，週次改用「W1 3/5」這種文字徽章＋顏色（達標綠／
+                      部分黃／超額紫／過去週未達紅／尚無資料灰）取代整排
+                      checkbox，橫向排列可換行，一眼掃過整季表現不用逐週
+                      展開捲動。桌機／手機共用同一份分組與逐店計算結果
+                      （render() 內先算好 rowsData 再依訪員分組鍵切段組
+                      HTML，不會兩邊各自計算而兜不攏）。
+                      3) 這兩處改動是接續前一版一支未併入主線的實驗分支
+                      （曾經另存的「半修護版」）而來——該分支已經做出同樣
+                      的分組排序與精簡卡片邏輯，但落後主線好幾個版本（缺
+                      1.5.0～1.7.0 的固定 7 格／訪員總覽 Dialog／平板過渡層
+                      等），這裡是把它「分組＋精簡卡片」這部分的構想在
+                      目前主線（1.7.0）上重新實作一次，該分支本身不再
+                      維護、也不會被部署。
   1.7.0  2026-07-21  手機／平板版面「智能自動調節」大改版（原本只有單一
                       640px 斷點，寬度一跨過就在「滿版桌機表格」跟「手機
                       卡片」兩種狀態間硬切換，中間寬度的裝置——尤其平板
@@ -481,6 +512,18 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .sum-rate { font-weight:700; font-size:12.5px; color:var(--green); }
 .sum-extra-badge { display:inline-block; padding:1px 8px; border-radius:10px; background:var(--bonus-bg); color:var(--bonus); font-size:11.5px; font-weight:700; white-space:nowrap; }
 
+/* ── 訪員分組標題列（1.8.0：同一訪員的店家排序後連續排列，段落交界插入
+   這一列，一眼看到「換人了」＋這個人轄區的小計，不用逐列比對訪員欄——
+   桌機表格原本每列都重複顯示「主要訪員」欄，改成只在分組標題出現一次，
+   省下的欄寬讓給週次格子。桌機／手機共用同一套分組資料，見 render()。 */
+tr.staff-group-row { cursor:default; background:#f6f4ef !important; }
+tr.staff-group-row:hover { background:#f6f4ef !important; }
+td.staff-group-cell { padding:8px 14px !important; text-align:left !important; border-bottom:2px solid var(--border) !important; }
+.sg-staff { font-weight:800; font-size:14px; color:var(--text); cursor:pointer; }
+.sg-staff:hover { color:var(--red); }
+.sg-office { font-size:12px; color:var(--sub); margin-left:10px; }
+.sg-stat { font-size:12px; color:var(--primary); font-weight:700; float:right; }
+
 /* ── 1.7.0：平板／窄螢幕過渡層（641px～1024px）──────────────────────
    原本只有一個 640px 斷點，寬度一跨過 640 就直接變回桌機版滿版表格，
    但平板直放（例如 iPad 直放 ~768px）欄位其實還是會被壓得很擠。這裡加一層
@@ -528,9 +571,6 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 /* 1.5.0：非應達格的「幽靈格」佔位，近似透明，若有似無——只佔版面、不搶視覺焦點，
    一旦實際次數蓋過這格才會被換成 .extra-check（見 render() 的 7 格迴圈） */
 .box-ghost { display:inline-block; width:17px; height:17px; border-radius:3px; border:1px solid rgba(0,0,0,.045); background:#E6E6F2; }
-/* 1.6.0：主要訪員姓名可點擊，開啟該訪員的個人總覽 Dialog（見 openStaffDetail） */
-.staff-link { cursor:pointer; color:var(--primary); text-decoration:underline; text-decoration-style:dotted; text-underline-offset:2px; }
-.staff-link:hover { color:var(--red); }
 /* 1.6.2：店家明細／訪員總覽共用的 Dialog header 新增「匯出/分享」按鈕插槽——
    訪員總覽開啟時才會塞入 CSV／複製文字／截圖三顆按鈕，店家明細維持空白，
    兩種 Dialog 共用同一個 header，靠 openStoreDetail() / openStaffDetail() 開頭
@@ -538,50 +578,54 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 .dlg-header-actions { display:flex; align-items:center; gap:6px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end; }
 @media (max-width:640px) { .dlg-header-actions .btn-txt { display:none; } }
 
-/* ── 整體明細：手機版卡片（取代橫向表格，1.6.2 大改版）──────────────
-   手機上原本的橫向表格因為欄位太多（區域/店家/通路/等級/訪員/次數合計＋
-   每個檔期週次各一欄的 7 格勾選框），overflow-x 只能一次看一小條，訪員
-   要嘛橫向一直滑、要嘛每欄被壓到看不清楚。改成「一店一卡」直向卡片：
-   上半部店家基本資訊＋達成率彙總（跟桌機 sum-cell 同一份資料），下半部
-   把每個檔期週次拆成獨立小節、各自標明「檔期 週次（日期範圍）」再放
-   那一週的 7 格勾選框，橫向空間全部留給格子本身，不用再跟其他欄位擠。
-   卡片本身可點擊進店家明細，跟桌機表格列點擊行為一致。 */
-.main-mobile-cards { display:none; flex-direction:column; gap:10px; }
-.main-mcard { border:1px solid var(--border); border-radius:10px; overflow:hidden; background:#fff; cursor:pointer; transition:box-shadow .12s; }
-.main-mcard:active { background:var(--primary-bg); }
-.main-mcard-head { padding:clamp(8px,2.5vw,10px) clamp(10px,3vw,12px) 8px; border-bottom:1px solid #f0efe9; }
-.main-mcard-title { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
-.main-mcard-title .td-name { font-size:clamp(13.5px,4vw,15px); }
-.main-mcard-sub { margin-top:4px; font-size:clamp(11px,3.2vw,12.5px); color:var(--sub); display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
-.main-mcard-sub .grade-tag { font-size:inherit; }
-.main-mcard-sum { display:flex; gap:clamp(8px,3vw,14px); padding:9px clamp(10px,3vw,12px); background:var(--bg); }
-.main-mcard-weeks { display:flex; flex-direction:column; }
-.main-mcard-period { padding:8px clamp(10px,3vw,12px); border-top:1px dashed var(--border); }
-.main-mcard-period:first-child { border-top:none; }
-.main-mcard-period-head { display:flex; align-items:baseline; gap:6px; font-size:clamp(11.5px,3.4vw,12.5px); font-weight:700; margin-bottom:6px; flex-wrap:wrap; }
-.main-mcard-period-head .th-period-emoji { font-size:1.3em; }
-.main-mcard-period-head .th-date-range { font-weight:500; color:var(--sub); font-size:0.92em; }
-.main-mcard-period.pg-zhong .main-mcard-period-head { color:var(--primary); }
-.main-mcard-period.pg-mid .main-mcard-period-head { color:var(--bonus); }
-.main-mcard.unknown-grade-card .main-mcard-head { background:var(--red-bg); }
+/* ── 整體明細：手機版清單（取代橫向表格，1.8.0 改成資訊密度優先的
+   緊湊列表）─────────────────────────────────────────────────────
+   手機上原本的橫向表格因為欄位太多，overflow-x 只能一次看一小條；
+   中間曾經改成「一店一卡、每個週次各自展開完整 7 格勾選框」的直向大卡片
+   （1.6.2），但每家店要佔掉一整個螢幕的高度，捲動半天才看得到幾家店，
+   多店比較／找店反而更累。1.8.0 改成比照「訪員總覽」Dialog 手機版的
+   密度：一店一行，店名／代碼／等級／每週狀態全部濃縮進一張小卡，
+   週次用「W1 3/5」這種文字徽章＋顏色（達標綠／部分黃／超額紫／
+   過去週未達紅／尚無資料灰）取代整排 checkbox，橫向排列可換行，
+   一眼掃過一家店的整季表現，不用再逐週展開捲動。同一訪員的店家會
+   連續排列並在最前面插入 .m-group-head 分組標題（跟桌機 .staff-group-row
+   對應同一份 group 資料，見 render()），彼此互相呼應，同一個人的轄區
+   不用再跳著找。卡片本身可點擊進店家明細，跟桌機表格列點擊行為一致。 */
+.main-mobile-cards { display:none; flex-direction:column; gap:8px; }
+.m-group-head { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; padding:6px 4px 2px; }
+.mg-staff { font-weight:800; font-size:14.5px; color:var(--text); cursor:pointer; }
+.mg-office { font-size:11.5px; color:var(--sub); }
+.mg-stat { font-size:11.5px; color:var(--primary); font-weight:700; margin-left:auto; }
+.m-store-card { border:1px solid var(--border); border-radius:10px; padding:10px 12px; background:#fff; cursor:pointer; }
+.m-store-card:active { background:var(--primary-bg); }
+.m-store-card.unknown-grade-card { background:var(--red-bg); }
+.m-store-top { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+.m-store-name { font-weight:800; font-size:clamp(13.5px,4vw,14.5px); }
+.m-store-code { display:block; font-weight:500; font-size:11.5px; color:var(--sub); margin-top:1px; }
+.m-store-badge { flex-shrink:0; font-size:14px; font-weight:800; padding:3px 9px; border-radius:8px; white-space:nowrap; }
+.m-store-badge small { font-weight:700; font-size:10.5px; margin-left:3px; }
+.m-rate-full { background:var(--green-bg); color:var(--green); }
+.m-rate-part { background:var(--bonus-bg); color:var(--bonus); }
+.m-rate-zero { background:var(--red-bg); color:var(--red); }
+.m-rate-none { background:var(--bg); color:var(--sub); }
+.m-store-meta { font-size:12px; color:var(--sub); margin-top:4px; }
+.m-store-weeks { display:flex; flex-wrap:wrap; gap:5px; margin-top:7px; }
+.m-wk { font-size:11px; font-weight:700; padding:3px 7px; border-radius:6px; white-space:nowrap; }
+.m-wk b { font-weight:800; }
+.m-wk-full { background:var(--green-bg); color:var(--green); }
+.m-wk-part { background:#fff6e0; color:#a3730a; }
+.m-wk-extra { background:var(--bonus-bg); color:var(--bonus); }
+.m-wk-miss { background:var(--red-bg); color:var(--red); }
+.m-wk-empty { background:var(--bg); color:var(--sub); }
 @media (max-width:640px) {
   .tbl-wrap { display:none; }
   .main-mobile-cards { display:flex; }
 }
-/* 1.7.0：極窄手機（例如 iPhone SE 直放 ~375px 或更窄）再收斂一輪——
-   格子本身固定 17px 才點得準，不能再縮小，改成縮減格子間距跟卡片內距，
-   把版面寬度讓給格子而不是犧牲可點擊面積 */
+/* 極窄手機（例如 iPhone SE 直放 ~375px 或更窄）再收斂一輪內距／間距 */
 @media (max-width:380px) {
-  .main-mcard-head, .main-mcard-sum, .main-mcard-period { padding-left:8px; padding-right:8px; }
-  .box-container { gap:2px; padding-left:2px; }
-  .main-mcard-sum { gap:8px; }
-  .oo-mstat .k { font-size:9px; }
-  .oo-mstat .v { font-size:12.5px; }
+  .m-store-card { padding:8px 10px; }
+  .m-store-weeks { gap:4px; }
 }
-
-.loadmore-wrap { text-align:center; margin-top:16px; }
-.loadmore-btn { padding:8px 22px; border:1px solid var(--border); border-radius:20px; background:#fff; font-size:13px; font-weight:600; color:var(--text); cursor:pointer; font-family:inherit; }
-.loadmore-btn:hover { border-color:var(--primary); color:var(--primary); }
 
 .footnote { margin-top:14px; font-size:11.5px; color:#8a6d1f; background:#fbf3d9; padding:10px 14px; border-radius:8px; line-height:1.7; }
 
@@ -628,7 +672,6 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 .ov-card:hover { box-shadow:0 4px 12px rgba(0,0,0,.08); }
 .ov-card h2 { font-size:15px; font-weight:700; border-left:4px solid var(--primary); padding-left:9px; margin-bottom:8px; display:flex; justify-content:flex-start; align-items:center; gap:4px; }
 .ov-card-emoji { font-size:2em; line-height:1; vertical-align:middle; margin-right:2px; display:inline-block; }
-.ov-perc { color:var(--green); font-size:18px; font-weight:800; }
 /* 1.6.0：中元/中秋卡片改成「量販在上、全聯在下」同框垂直排列，減少全聯
    單一等級表格獨立成框時的閒置空間；量販／全聯兩個子區塊各自可點擊
    帶篩選進明細，彼此互不影響 */
@@ -1752,7 +1795,11 @@ function getFilteredStores(){
     }
     return true;
   }).sort(function(a,b){
-    var cols=['area','office','chanKey','code'];
+    /* 1.8.0：排序鍵加入「主要訪員」，且放在通路／店代碼之前，讓同一位
+       訪員名下的店家在清單裡連續排列，render() 才能依這個順序切段插入
+       分組標題（桌機 .staff-group-row／手機 .m-group-head），一次看完
+       一個人的轄區，不用整段捲動、跳著比對訪員欄才找得到要看的店。 */
+    var cols=['area','office','staff','chanKey','code'];
     for(var i=0;i<cols.length;i++){
       var va=String(a[cols[i]]||''), vb=String(b[cols[i]]||'');
       if(va!==vb) return va>vb?1:-1;
@@ -1809,7 +1856,12 @@ function render(){
   });
 
   var head = document.getElementById('tbl-head');
-  var headHtml = '<tr><th class="th-left">區域</th><th class="th-left">店家</th><th>通路</th><th>等級</th><th>主要訪員</th><th>次數合計</th>';
+  /* 1.8.0：桌機表頭拿掉「主要訪員」欄——store 清單已依訪員分組（見
+     getFilteredStores 的排序鍵），每組最前面會插入訪員分組標題列，
+     再讓每一列重複顯示同一個訪員姓名是純粹的畫面雜訊，拿掉後也讓寬度
+     多一點空間給週次格子。手機清單同理，訪員只在分組標題出現一次。 */
+  var COLSPAN_FIXED = 5; /* 區域／店家／通路／等級／次數合計 */
+  var headHtml = '<tr><th class="th-left">區域</th><th class="th-left">店家</th><th>通路</th><th>等級</th><th>次數合計</th>';
   cols.forEach(function(c, idx){
     var m = colMeta[idx];
     var dividerCls = m.isGroupDivider ? ' pg-divider' : (m.isWeekDivider ? ' wk-divider' : '');
@@ -1824,75 +1876,102 @@ function render(){
   head.innerHTML = headHtml;
 
   var totalExp=0, totalStdDone=0, totalExtra=0, unknownGradeCount=0;
-  var body = document.getElementById('tbl-body');
-  var rowsHtml = '';
-  var mcardsHtml = ''; /* 1.6.2：手機版「一店一卡」卡片，跟桌機表格同一輪迴圈組出來，
-                           確保兩邊資料保證一致，不用另外算第二次 */
 
-  stores.forEach(function(s){
+  /* 第一輪：逐店計算應達／達標／超額，同時存「同店逐週狀態」(colStats)
+     供桌機 checkbox 格與手機週次徽章共用（都呼叫同一支 _buildBoxCells／
+     用同一份 actual/std 數字），不必為兩種畫面各算一次 _actualCount。
+     groupKey 是這家店在分組排序下所屬的「區域＋營業所＋訪員」段落，
+     必須跟 getFilteredStores() 的排序鍵一致，這裡才切得出正確的連續段落
+     （排序鍵之後如果要調整，這裡要同步改）。 */
+  var rowsData = stores.map(function(s){
     var std = GRADE_FREQ[s.grade];
     if(std===undefined){ unknownGradeCount++; }
     var gradeLabel = GRADE_LABEL[s.grade] || s.grade;
 
-    var colsHtml = '';
-    var periodsHtml = ''; /* 手機卡片：依檔期週次拆成一個個小節，而非橫向欄位 */
+    var colStats = [];
     var rowExp=0, rowStdDone=0, rowExtra=0;
-    cols.forEach(function(c, idx){
+    cols.forEach(function(c){
       var actual = _actualCount(s.code, c.period, c.week);
       var stdN = std===undefined ? 0 : std;
       var stdDone = Math.min(actual, stdN);
       var extra = Math.max(0, actual - stdN);
       if(std!==undefined){ totalExp += stdN; totalStdDone += stdDone; totalExtra += extra; rowExp += stdN; rowStdDone += stdDone; rowExtra += extra; }
-      var m = colMeta[idx];
-      var dividerCls = m.isGroupDivider ? ' pg-divider' : (m.isWeekDivider ? ' wk-divider' : '');
-      var boxesHtml = _buildBoxCells(actual, stdN, m.isPastWeek);
-      colsHtml += '<td class="'+m.periodCls+dividerCls+'"><div class="box-container">'+boxesHtml+'</div></td>';
-      periodsHtml += '<div class="main-mcard-period '+m.periodCls+'">'
-        + '<div class="main-mcard-period-head">'
-        + '<span class="th-period-emoji">'+(periodIconMap[c.period]||'')+'</span>'
-        + '<span>'+esc(periodLabelMap[c.period]||c.period)+' W'+c.week+'</span>'
-        + '<span class="th-date-range">'+esc(m.dateRange)+'</span>'
-        + '</div>'
-        + '<div class="box-container">'+boxesHtml+'</div>'
-        + '</div>';
+      colStats.push({ col:c, actual:actual, std:stdN, extra:extra });
     });
-    var rowRate = rowExp>0 ? (rowStdDone/rowExp*100) : 0;
-    var sumHtml = '<div class="sum-cell"><div class="sum-main">'+rowStdDone+'/'+rowExp+'</div>'
-      + '<div class="sum-rate">'+rowRate.toFixed(1)+'%</div>'
-      + (rowExtra>0 ? '<div class="sum-extra-badge">超額 +'+rowExtra+'</div>' : '')
-      + '</div>';
-
-    var row = '<tr onclick="openStoreDetail(\''+esc(s.code)+'\')">'
-      + '<td class="td-left">'+esc(s.area)+' '+esc(s.office)+'</td>'
-      + '<td class="td-left"><div class="td-name">'+esc(s.storeName)+'</div><div class="td-code">'+esc(s.code)+'</div></td>'
-      + '<td>'+esc(s.storeType||'—')+'</td>'
-      + '<td class="grade-tag">'+(std===undefined?'<span class="unknown-grade">'+esc(s.grade||'未設定')+' ⚠️</span>':esc(gradeLabel))+'</td>'
-      + '<td><span class="staff-link" onclick="openStaffDetail(\''+esc(s.staff)+'\',event)">'+esc(s.staff)+'</span></td>'
-      + '<td class="sum-col">'+sumHtml+'</td>'
-      + colsHtml;
-    row += '</tr>';
-    rowsHtml += row;
-
-    var gradeHtml = std===undefined ? '<span class="unknown-grade">'+esc(s.grade||'未設定')+' ⚠️</span>' : esc(gradeLabel);
-    mcardsHtml += '<div class="main-mcard'+(std===undefined?' unknown-grade-card':'')+'" onclick="openStoreDetail(\''+esc(s.code)+'\')">'
-      + '<div class="main-mcard-head">'
-      + '<div class="main-mcard-title"><span class="td-name">'+esc(s.storeName)+'</span><span class="td-code">'+esc(s.code)+'</span></div>'
-      + '<div class="main-mcard-sub">'
-      + '<span>'+esc(s.area)+' '+esc(s.office)+'</span>'
-      + '<span>・'+esc(s.storeType||'—')+'</span>'
-      + '<span class="grade-tag">・'+gradeHtml+'</span>'
-      + '<span>・<span class="staff-link" onclick="openStaffDetail(\''+esc(s.staff)+'\',event)">'+esc(s.staff)+'</span></span>'
-      + '</div></div>'
-      + '<div class="main-mcard-sum">'
-      + '<div class="oo-mstat"><span class="k">達標/應達</span><span class="v">'+rowStdDone+'/'+rowExp+'</span></div>'
-      + '<div class="oo-mstat"><span class="k">達成率</span><span class="v rate">'+rowRate.toFixed(1)+'%</span></div>'
-      + '<div class="oo-mstat"><span class="k">超額</span><span class="v extra">'+rowExtra+'</span></div>'
-      + '</div>'
-      + '<div class="main-mcard-weeks">'+periodsHtml+'</div>'
-      + '</div>';
+    return { s:s, std:std, gradeLabel:gradeLabel, colStats:colStats, rowExp:rowExp, rowStdDone:rowStdDone, rowExtra:rowExtra,
+      groupKey: s.area+'␟'+s.office+'␟'+s.staff };
   });
 
-  body.innerHTML = rowsHtml;
+  /* 第二輪：依訪員分組鍵切段，段落交界插入分組標題（含小計），桌機／
+     手機各自組出對應的 HTML 字串；兩邊共用同一份 rowsData／同一個 group
+     累計，數字保證兜得起來，不會各自算一次而兜不攏。 */
+  var rowsHtml = '', mcardsHtml = '';
+  var group = null;
+  function flushGroup(){
+    if(!group) return;
+    var rate = group.exp>0 ? (group.done/group.exp*100).toFixed(1) : '0.0';
+    var statText = group.count+' 店 · '+group.done+'/'+group.exp+'（'+rate+'%）'+(group.extra>0?' · 超額 +'+group.extra:'');
+    rowsHtml += '<tr class="staff-group-row"><td class="staff-group-cell" colspan="'+(COLSPAN_FIXED+cols.length)+'">'
+      + '<span class="sg-staff" onclick="openStaffDetail(\''+esc(group.staff)+'\',event)">👤 '+esc(group.staff||'未設定訪員')+'</span>'
+      + '<span class="sg-office">'+esc(group.area)+' '+esc(group.office)+'</span>'
+      + '<span class="sg-stat">'+statText+'</span>'
+      + '</td></tr>' + group.rowsHtml;
+    mcardsHtml += '<div class="m-group-head"><span class="mg-staff" onclick="openStaffDetail(\''+esc(group.staff)+'\',event)">👤 '+esc(group.staff||'未設定訪員')+'</span>'
+      + '<span class="mg-office">'+esc(group.area)+' '+esc(group.office)+'</span>'
+      + '<span class="mg-stat">'+statText+'</span></div>' + group.cardsHtml;
+  }
+
+  rowsData.forEach(function(rd){
+    if(!group || group.key!==rd.groupKey){
+      flushGroup();
+      group = { key:rd.groupKey, area:rd.s.area, office:rd.s.office, staff:rd.s.staff, count:0, exp:0, done:0, extra:0, rowsHtml:'', cardsHtml:'' };
+    }
+    group.count++; group.exp+=rd.rowExp; group.done+=rd.rowStdDone; group.extra+=rd.rowExtra;
+
+    var colsHtml = '';
+    var weeksHtml = ''; /* 手機：每個週次濃縮成一個文字徽章（顏色代表達成狀態），
+                            取代整排 checkbox，讓一張卡塞得下整季所有週次 */
+    rd.colStats.forEach(function(cs, idx){
+      var m = colMeta[idx];
+      var dividerCls = m.isGroupDivider ? ' pg-divider' : (m.isWeekDivider ? ' wk-divider' : '');
+      var boxesHtml = _buildBoxCells(cs.actual, cs.std, m.isPastWeek);
+      colsHtml += '<td class="'+m.periodCls+dividerCls+'"><div class="box-container">'+boxesHtml+'</div></td>';
+
+      if(cs.std>0){
+        var wkCls = cs.extra>0 ? 'm-wk-extra' : (cs.actual>=cs.std ? 'm-wk-full' : (cs.actual>0 ? 'm-wk-part' : (m.isPastWeek ? 'm-wk-miss' : 'm-wk-empty')));
+        var wkLabel = periodLabelMap[cs.col.period]+'W'+cs.col.week;
+        weeksHtml += '<span class="m-wk '+wkCls+'" title="'+esc(wkLabel+'：'+cs.actual+'/'+cs.std+'次')+'">'+esc(wkLabel)+' '+cs.actual+'/'+cs.std+(cs.extra>0?'<b>+'+cs.extra+'</b>':'')+'</span>';
+      }
+    });
+
+    var rowRate = rd.rowExp>0 ? (rd.rowStdDone/rd.rowExp*100) : 0;
+    var sumHtml = '<div class="sum-cell"><div class="sum-main">'+rd.rowStdDone+'/'+rd.rowExp+'</div>'
+      + '<div class="sum-rate">'+rowRate.toFixed(1)+'%</div>'
+      + (rd.rowExtra>0 ? '<div class="sum-extra-badge">超額 +'+rd.rowExtra+'</div>' : '')
+      + '</div>';
+
+    group.rowsHtml += '<tr onclick="openStoreDetail(\''+esc(rd.s.code)+'\')">'
+      + '<td class="td-left">'+esc(rd.s.area)+' '+esc(rd.s.office)+'</td>'
+      + '<td class="td-left"><div class="td-name">'+esc(rd.s.storeName)+'</div><div class="td-code">'+esc(rd.s.code)+'</div></td>'
+      + '<td>'+esc(rd.s.storeType||'—')+'</td>'
+      + '<td class="grade-tag">'+(rd.std===undefined?'<span class="unknown-grade">'+esc(rd.s.grade||'未設定')+' ⚠️</span>':esc(rd.gradeLabel))+'</td>'
+      + '<td class="sum-col">'+sumHtml+'</td>'
+      + colsHtml
+      + '</tr>';
+
+    var rateClass = rd.rowExp===0 ? 'm-rate-none' : (rd.rowStdDone>=rd.rowExp ? 'm-rate-full' : (rd.rowStdDone>0 ? 'm-rate-part' : 'm-rate-zero'));
+    group.cardsHtml += '<div class="m-store-card'+(rd.std===undefined?' unknown-grade-card':'')+'" onclick="openStoreDetail(\''+esc(rd.s.code)+'\')">'
+      + '<div class="m-store-top">'
+      +   '<div class="m-store-name">'+esc(rd.s.storeName)+'<span class="m-store-code">'+esc(rd.s.code)+'</span></div>'
+      +   '<div class="m-store-badge '+rateClass+'">'+rd.rowStdDone+'/'+rd.rowExp+(rd.rowExtra>0?'<small>+'+rd.rowExtra+'</small>':'')+'</div>'
+      + '</div>'
+      + '<div class="m-store-meta">'+esc(rd.s.storeType||'—')+' · '+(rd.std===undefined?'<span class="unknown-grade">'+esc(rd.s.grade||'未設定')+' ⚠️</span>':esc(rd.gradeLabel))+'</div>'
+      + (weeksHtml ? '<div class="m-store-weeks">'+weeksHtml+'</div>' : '')
+      + '</div>';
+  });
+  flushGroup();
+
+  document.getElementById('tbl-body').innerHTML = rowsHtml;
   document.getElementById('main-mobile-cards').innerHTML = mcardsHtml;
   document.getElementById('empty-msg').style.display = stores.length ? 'none' : 'block';
 
@@ -2667,18 +2746,25 @@ function _buildManualContent(){
     + '幾筆問卷紀錄，都只算 1 次巡補；同一天重複的紀錄不會被灌水成多次，'
     + '也不會多墊超額次數。</p>'
     + '<hr>'
-    + '<p><b>【店家明細 Dialog】</b>點主表格任一列，可看到這家店在目前篩選'
-    + '範圍內的完整巡補時間軸，包含每次的日期、屬於哪個檔期第幾週；點某一'
-    + '筆時間軸紀錄，還能展開看該次填寫的問卷內容（大題與選項）。若同一天'
-    + '出現多筆紀錄，會用橘色徽章標示「同日多筆」，提醒這幾筆只會被算成'
-    + '1 次巡補。每一列右側的「次數合計」欄同時顯示這家店的達標/應達次數'
-    + '跟達成率 %，不用點進明細也能看單店表現。</p>'
+    + '<p><b>【店家清單怎麼排序？】</b>同一位訪員名下的店家會連續排在一起'
+    + '（依區域→營業所→訪員→通路→店代碼排序），段落交界會插入一列灰底的'
+    + '訪員分組標題，標示這位訪員＋所屬營業處＋這段店家的小計（店數、'
+    + '達標/應達、達成率、超額），看完一個人的轄區不用再整段捲動、跳著'
+    + '比對訪員欄。</p>'
     + '<hr>'
-    + '<p><b>【訪員總覽 Dialog】</b>點主表格「主要訪員」欄的姓名，會開啟這位'
-    + '訪員名下「全部」店家的總覽（不受目前通路／等級／區域篩選影響，但'
-    + '巡補次數／達成率仍照目前選定的檔期計算），列出每家店的達標/應達、'
-    + '達成率、超額次數。標題列右上角有 <b>📥 CSV</b>／<b>💬 複製文字</b>／'
-    + '<b>📸 截圖</b> 三顆按鈕，方便直接把這份資料匯出或截圖傳給對方溝通。</p>'
+    + '<p><b>【店家明細 Dialog】</b>點主表格任一列（分組標題列除外），可看到'
+    + '這家店在目前篩選範圍內的完整巡補時間軸，包含每次的日期、屬於哪個'
+    + '檔期第幾週；點某一筆時間軸紀錄，還能展開看該次填寫的問卷內容'
+    + '（大題與選項）。若同一天出現多筆紀錄，會用橘色徽章標示「同日多筆」，'
+    + '提醒這幾筆只會被算成 1 次巡補。每一列右側的「次數合計」欄同時顯示'
+    + '這家店的達標/應達次數跟達成率 %，不用點進明細也能看單店表現。</p>'
+    + '<hr>'
+    + '<p><b>【訪員總覽 Dialog】</b>點分組標題列上的訪員姓名（👤 開頭），會'
+    + '開啟這位訪員名下「全部」店家的總覽（不受目前通路／等級／區域篩選'
+    + '影響，但巡補次數／達成率仍照目前選定的檔期計算），列出每家店的'
+    + '達標/應達、達成率、超額次數。標題列右上角有 <b>📥 CSV</b>／'
+    + '<b>💬 複製文字</b>／<b>📸 截圖</b> 三顆按鈕，方便直接把這份資料匯出'
+    + '或截圖傳給對方溝通。</p>'
     + '<hr>'
     + '<p><b>【明細頁工具列 ─ 彙整看板】</b>範圍固定是「目前整體篩選範圍」，'
     + '跟主表格篩選連動：<br>'
