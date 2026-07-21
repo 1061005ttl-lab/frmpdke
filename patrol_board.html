@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.8.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-07-21
+  版本：Ver. 1.8.1 ｜ 建立：2026-07-20 ｜ 最後更新：2026-07-21
 
 【這個檔案是什麼】
   單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 讀取同一份
@@ -209,6 +209,27 @@
     <script> 拿掉即可。
 
 【版本紀錄】
+  1.8.1  2026-07-21  手機介面資訊密度／自動排版三處修正：
+                      1) 店卡「店名／店碼／通路(店家型態)／等級」原本
+                      拆成兩行（店碼掛在店名下、通路+等級另成一行
+                      meta），改成全部併進同一行 .m-store-line，固定
+                      font 12px；放不下時不用 ellipsis 裁字，改由新增
+                      的 _autoFitStoreLines() 在 render 後量測每張卡
+                      實際寬度，動態把字級一路縮小到 9px（STORE_LINE_
+                      MIN_FONT）為止，縮到底仍塞不下才允許自然換行；
+                      resize/轉向時debounce重跑一次。
+                      2) 週次徽章（m-wk）原本用單一 flex-wrap 容器逐格
+                      排列，窄螢幕換行時會把中元3週、中秋2週的徽章拆
+                      散、混在不同行；改成同檔期的徽章先包成一個
+                      nowrap 的 .m-wk-group，母層才允許換行，變成
+                      「整個檔期一起換行」（中元3週一行／中秋2週
+                      一行），保持資料群體性。
+                      3)「營業處執行狀況」手機卡片的 5 項統計
+                      （店數/應達/達標/達成率/超額）原本用 grid
+                      auto-fit + minmax(56px,1fr)，欄位塞不進最小寬度
+                      就會被擠成兩行（如3+2）；改成固定 repeat(5,1fr)，
+                      永遠 5 欄同一列、欄寬隨螢幕寬度等比縮小，極窄
+                      手機（≤380px）再加一輪字級收斂避免數字被裁到。
   1.8.0  2026-07-21  【整體明細】依「主要訪員」分組排序＋資訊密度優化
                       （原本店家清單只依區域／營業所／通路／店代碼排序，
                       同一位訪員名下的店家會散落在清單各處，要看單一人員
@@ -599,17 +620,28 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 .m-store-card { border:1px solid var(--border); border-radius:10px; padding:10px 12px; background:#fff; cursor:pointer; }
 .m-store-card:active { background:var(--primary-bg); }
 .m-store-card.unknown-grade-card { background:var(--red-bg); }
-.m-store-top { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
-.m-store-name { font-weight:800; font-size:clamp(13.5px,4vw,14.5px); }
-.m-store-code { display:block; font-weight:500; font-size:11.5px; color:var(--sub); margin-top:1px; }
+.m-store-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+/* 1.8.1：店名／店碼／通路(店家型態)／等級併成同一行（原本店碼另起一行、
+   通路+等級又獨立一行 meta，窄螢幕上店卡一開頭就佔兩三行），固定 font
+   12px；單行放不下時不用 ellipsis 裁字（會吃掉資訊），改由
+   _autoFitStoreLines() 在 render 後量測寬度、動態縮小字級，縮到
+   STORE_LINE_MIN_FONT 仍塞不下才允許換行當最後手段 */
+.m-store-line { display:flex; align-items:baseline; gap:5px; font-size:12px; min-width:0; flex:1; overflow:hidden; white-space:nowrap; }
+.m-line-name { font-weight:800; color:var(--text); overflow:hidden; text-overflow:ellipsis; }
+.m-line-code, .m-line-type, .m-line-grade { color:var(--sub); font-weight:500; flex-shrink:0; }
+.m-line-sep { color:var(--border); flex-shrink:0; }
 .m-store-badge { flex-shrink:0; font-size:14px; font-weight:800; padding:3px 9px; border-radius:8px; white-space:nowrap; }
 .m-store-badge small { font-weight:700; font-size:10.5px; margin-left:3px; }
 .m-rate-full { background:var(--green-bg); color:var(--green); }
 .m-rate-part { background:var(--bonus-bg); color:var(--bonus); }
 .m-rate-zero { background:var(--red-bg); color:var(--red); }
 .m-rate-none { background:var(--bg); color:var(--sub); }
-.m-store-meta { font-size:12px; color:var(--sub); margin-top:4px; }
-.m-store-weeks { display:flex; flex-wrap:wrap; gap:5px; margin-top:7px; }
+/* 1.8.1：中元(3週)／中秋(2週) 各自的週次徽章包成一個不可拆的群組
+   （.m-wk-group 內 nowrap），母層 .m-store-weeks 允許換行——這樣窄螢幕
+   放不下兩檔期時，是「整個檔期群組」一起換到下一行（中元3週一行、
+   中秋2週一行），不會把同一檔期的週次拆散到兩行 */
+.m-store-weeks { display:flex; flex-wrap:wrap; gap:8px 10px; margin-top:7px; }
+.m-wk-group { display:inline-flex; flex-wrap:nowrap; gap:5px; }
 .m-wk { font-size:11px; font-weight:700; padding:3px 7px; border-radius:6px; white-space:nowrap; }
 .m-wk b { font-weight:800; }
 .m-wk-full { background:var(--green-bg); color:var(--green); }
@@ -625,6 +657,11 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 @media (max-width:380px) {
   .m-store-card { padding:8px 10px; }
   .m-store-weeks { gap:4px; }
+  /* 極窄手機：5 欄式的營業處執行狀況卡片欄寬已經很緊，字級跟著再收一輪，
+     避免數字被 ellipsis 裁掉 */
+  .oo-mcard-grid { gap:6px 2px; }
+  .oo-mstat .k { font-size:9px; }
+  .oo-mstat .v { font-size:12px; }
 }
 
 .footnote { margin-top:14px; font-size:11.5px; color:#8a6d1f; background:#fbf3d9; padding:10px 14px; border-radius:8px; line-height:1.7; }
@@ -723,10 +760,14 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 .oo-mcard-chan.oo-clickable:active { background:var(--primary-bg); }
 .oo-mcard-chan-title { font-size:13.5px; font-weight:700; color:var(--sub); margin-bottom:6px; }
 .oo-mcard-empty { color:var(--sub); font-size:13.5px; padding:2px 0; }
-.oo-mcard-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(56px,1fr)); gap:6px 4px; text-align:center; }
-.oo-mstat { display:flex; flex-direction:column; gap:2px; }
-.oo-mstat .k { font-size:10px; color:var(--sub); }
-.oo-mstat .v { font-size:13.5px; font-weight:700; }
+/* 1.8.1：原本 auto-fit + minmax(56px,1fr) 在窄螢幕下欄位塞不進最小寬度
+   就會被擠到下一行（5欄變成3+2兩行），破壞「同一列」的資料群體性；
+   改成固定 5 欄（店數/應達/達標/達成率/超額本來就是固定 5 項），
+   欄寬永遠用 1fr 均分可用空間自動變窄，不會再被強制換行 */
+.oo-mcard-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:6px 3px; text-align:center; }
+.oo-mstat { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.oo-mstat .k { font-size:10px; color:var(--sub); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.oo-mstat .v { font-size:13.5px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .oo-mstat .v.rate { color:var(--green); }
 .oo-mstat .v.extra { color:var(--bonus); }
 .oo-mcard-total { background:#f6f4ef; }
@@ -1930,7 +1971,14 @@ function render(){
 
     var colsHtml = '';
     var weeksHtml = ''; /* 手機：每個週次濃縮成一個文字徽章（顏色代表達成狀態），
-                            取代整排 checkbox，讓一張卡塞得下整季所有週次 */
+                            取代整排 checkbox，讓一張卡塞得下整季所有週次；1.8.1
+                            起同一檔期（中元3週／中秋2週）的徽章包成一個不可拆
+                            的 .m-wk-group，換行時整組一起換，避免中元／中秋
+                            被拆散到不同行、破壞資料群體性 */
+    var wkGroupBuf = ''; var wkGroupPeriod = null;
+    function _flushWkGroup(){
+      if(wkGroupBuf){ weeksHtml += '<span class="m-wk-group">'+wkGroupBuf+'</span>'; wkGroupBuf = ''; }
+    }
     rd.colStats.forEach(function(cs, idx){
       var m = colMeta[idx];
       var dividerCls = m.isGroupDivider ? ' pg-divider' : (m.isWeekDivider ? ' wk-divider' : '');
@@ -1938,11 +1986,13 @@ function render(){
       colsHtml += '<td class="'+m.periodCls+dividerCls+'"><div class="box-container">'+boxesHtml+'</div></td>';
 
       if(cs.std>0){
+        if(cs.col.period !== wkGroupPeriod){ _flushWkGroup(); wkGroupPeriod = cs.col.period; }
         var wkCls = cs.extra>0 ? 'm-wk-extra' : (cs.actual>=cs.std ? 'm-wk-full' : (cs.actual>0 ? 'm-wk-part' : (m.isPastWeek ? 'm-wk-miss' : 'm-wk-empty')));
         var wkLabel = periodLabelMap[cs.col.period]+'W'+cs.col.week;
-        weeksHtml += '<span class="m-wk '+wkCls+'" title="'+esc(wkLabel+'：'+cs.actual+'/'+cs.std+'次')+'">'+esc(wkLabel)+' '+cs.actual+'/'+cs.std+(cs.extra>0?'<b>+'+cs.extra+'</b>':'')+'</span>';
+        wkGroupBuf += '<span class="m-wk '+wkCls+'" title="'+esc(wkLabel+'：'+cs.actual+'/'+cs.std+'次')+'">'+esc(wkLabel)+' '+cs.actual+'/'+cs.std+(cs.extra>0?'<b>+'+cs.extra+'</b>':'')+'</span>';
       }
     });
+    _flushWkGroup();
 
     var rowRate = rd.rowExp>0 ? (rd.rowStdDone/rd.rowExp*100) : 0;
     var sumHtml = '<div class="sum-cell"><div class="sum-main">'+rd.rowStdDone+'/'+rd.rowExp+'</div>'
@@ -1960,12 +2010,17 @@ function render(){
       + '</tr>';
 
     var rateClass = rd.rowExp===0 ? 'm-rate-none' : (rd.rowStdDone>=rd.rowExp ? 'm-rate-full' : (rd.rowStdDone>0 ? 'm-rate-part' : 'm-rate-zero'));
+    var gradeLineHtml = rd.std===undefined ? '<span class="unknown-grade">'+esc(rd.s.grade||'未設定')+' ⚠️</span>' : esc(rd.gradeLabel);
     group.cardsHtml += '<div class="m-store-card'+(rd.std===undefined?' unknown-grade-card':'')+'" onclick="openStoreDetail(\''+esc(rd.s.code)+'\')">'
       + '<div class="m-store-top">'
-      +   '<div class="m-store-name">'+esc(rd.s.storeName)+'<span class="m-store-code">'+esc(rd.s.code)+'</span></div>'
+      +   '<div class="m-store-line">'
+      +     '<span class="m-line-name">'+esc(rd.s.storeName)+'</span>'
+      +     '<span class="m-line-sep">·</span><span class="m-line-code">'+esc(rd.s.code)+'</span>'
+      +     '<span class="m-line-sep">·</span><span class="m-line-type">'+esc(rd.s.storeType||'—')+'</span>'
+      +     '<span class="m-line-sep">·</span><span class="m-line-grade">'+gradeLineHtml+'</span>'
+      +   '</div>'
       +   '<div class="m-store-badge '+rateClass+'">'+rd.rowStdDone+'/'+rd.rowExp+(rd.rowExtra>0?'<small>+'+rd.rowExtra+'</small>':'')+'</div>'
       + '</div>'
-      + '<div class="m-store-meta">'+esc(rd.s.storeType||'—')+' · '+(rd.std===undefined?'<span class="unknown-grade">'+esc(rd.s.grade||'未設定')+' ⚠️</span>':esc(rd.gradeLabel))+'</div>'
       + (weeksHtml ? '<div class="m-store-weeks">'+weeksHtml+'</div>' : '')
       + '</div>';
   });
@@ -1974,6 +2029,7 @@ function render(){
   document.getElementById('tbl-body').innerHTML = rowsHtml;
   document.getElementById('main-mobile-cards').innerHTML = mcardsHtml;
   document.getElementById('empty-msg').style.display = stores.length ? 'none' : 'block';
+  requestAnimationFrame(_autoFitStoreLines); /* 1.8.1：DOM 塞進去後量測寬度，超出卡寬的店名/店碼/通路/等級那一行才動態縮字級 */
 
   document.getElementById('stat-store-count').textContent = stores.length;
   document.getElementById('stat-exp-visits').textContent = totalExp;
@@ -1992,6 +2048,32 @@ function render(){
 
   updateStickyTops();
 }
+
+/* 1.8.1：手機店卡「店名·店碼·通路·等級」單行字級智能調節
+   ─────────────────────────────────────────────────────────
+   固定 font 12px 排版塞不下時，不用 ellipsis 裁字（會吃掉店碼/等級
+   資訊），改成量測每張卡的實際內容寬度(scrollWidth) vs 卡片可用寬度
+   (clientWidth)，超出就一路縮小字級，縮到 STORE_LINE_MIN_FONT 仍塞不下
+   才放行讓它自然換行（最後手段，不強制單行擠爆）。render() 之後、
+   以及 resize/orientation 變化時都要重跑一次，因為可用寬度會變。 */
+var STORE_LINE_MAX_FONT = 12, STORE_LINE_MIN_FONT = 9, STORE_LINE_STEP = 0.5;
+function _autoFitStoreLines(){
+  document.querySelectorAll('.m-store-line').forEach(function(el){
+    el.style.fontSize = STORE_LINE_MAX_FONT + 'px';
+    var size = STORE_LINE_MAX_FONT;
+    while(el.scrollWidth > el.clientWidth && size > STORE_LINE_MIN_FONT){
+      size = Math.max(STORE_LINE_MIN_FONT, size - STORE_LINE_STEP);
+      el.style.fontSize = size + 'px';
+    }
+  });
+}
+(function _bindStoreLineResize(){
+  var t = null;
+  window.addEventListener('resize', function(){
+    clearTimeout(t);
+    t = setTimeout(_autoFitStoreLines, 150);
+  });
+})();
 
 /* ════ 店家明細 Dialog：巡補時間軸＋問卷內容 ════ */
 var _detailCode = '';
