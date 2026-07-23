@@ -1,7 +1,17 @@
 <!--
 ================================================================================
   全聯18天推廣進度看板 (award_board.html)
-  版本：Ver. 1.13.4 ｜ 最後更新：2026-07-23 (得獎人PDF效能修正：Ver.1.13.3的安全網
+  版本：Ver. 1.13.5 ｜ 最後更新：2026-07-23 (得獎人PDF重大BUG修正：實測發現Ver.1.13.4
+                        的退列邏輯，把退回的列unshift塞進「已存在的下一頁陣列」，
+                        當同一份PDF觸發多輪退列（例如某頁自己超頁又需要再退給下一頁）
+                        時，這種跨頁合併同一陣列的寫法會讓部分店家列整批消失
+                        （已重現：太平勤益、東平兩列完全不見，不是切一半）。
+                        改為退列一律「插入全新獨立頁面」，不再合併進任何既有頁面
+                        陣列，結構上不會再有跨頁互相干擾遺失資料的問題。並新增
+                        「列數守恆」防呆檢查：產生完所有頁面後比對排入頁面的
+                        店家列總數是否等於原始總列數，兜不起來就直接跳出警告，
+                        不讓有缺漏的PDF悄悄產生)
+  ｜ Ver. 1.13.4（得獎人PDF效能修正：Ver.1.13.3的安全網
                         原本「每次只退1列」再遞迴重新截圖比對，超出幅度大時要反覆
                         呼叫html2canvas很多輪才能收斂。改為依「實際超出高度／這頁
                         平均列高」一次算出應退回的列數，整批搬到下一頁，通常1次
@@ -3499,7 +3509,22 @@ function _buildOnePersonPDFBlob(p,cb){
 
     var pageIdx=0;
     function renderPage(){
-      if(pageIdx>=totalPages){ document.body.removeChild(wrapper); cb(pdf.output('blob')); return; }
+      if(pageIdx>=totalPages){
+        /* ★防呆檢查（本次新增）：不管退列邏輯寫得多小心，都用最後的結果再驗證
+           一次「列數有沒有守恆」——把所有頁面的店家列索引攤平，跟原始
+           dataRows.length比對數量，且不應該有重複或缺漏的索引。
+           如果對不起來，代表分頁邏輯本身還有bug，寧可明確跳出警告、
+           讓人知道這份PDF不能信，也不要讓有缺漏的PDF悄悄產生出來卻沒人發現。 */
+        var flatIdxs=[]; pageRowIdx.forEach(function(arr){ flatIdxs=flatIdxs.concat(arr); });
+        var seenSet={}; var dupOrBad=false;
+        flatIdxs.forEach(function(i){ if(seenSet[i]||i<0||i>=dataRows.length) dupOrBad=true; seenSet[i]=true; });
+        if(dupOrBad || flatIdxs.length!==dataRows.length){
+          document.body.removeChild(wrapper);
+          alert(p.displayName+' PDF分頁檢查失敗：預期'+dataRows.length+'列，實際排入頁面'+flatIdxs.length+'列（可能有缺漏或重複），此PDF可能不完整，請截圖回報此訊息。');
+          cb(null); return;
+        }
+        document.body.removeChild(wrapper); cb(pdf.output('blob')); return;
+      }
       var idxs=pageRowIdx[pageIdx];
       var pageWrap=document.createElement('div');
       pageWrap.style.cssText='background:#fff;width:'+contentWidthCss+'px;box-sizing:border-box;font-family:"Microsoft JhengHei","Noto Sans TC",sans-serif;position:fixed;top:-9999px;left:-9999px;padding:'+(pageIdx===0?'22px 26px 16px':'14px 26px 16px')+';';
@@ -3537,14 +3562,17 @@ function _buildOnePersonPDFBlob(p,cb){
            超出部分被頁面邊界直接裁掉。如此不論預估多不準，都保證不會再有資料
            被裁切，且大幅超出時也能較快收斂，不需逐列慢慢試。 */
         if(imgHmm>pageHeightMM+0.5 && idxs.length>1){
-          /* ★效能修正（本次）：先前這裡「每次只退1列」再遞迴呼叫renderPage()重新
-             截圖比對，超出幅度大時（例如一次塞了過多列）要反覆呼叫html2canvas
-             好幾輪才能收斂，很慢。改為：用「實際超出的高度」除以「這頁資料列的
-             平均列高」，一次估出大約要退幾列，一次性整批搬到下一頁，通常1次
-             重新截圖就能收斂，最多視情況再收斂一兩輪，不會再逐列慢慢試。
-             退列策略採保守做法：只求塞得下，不會在退太多、這頁變得比預估空時，
-             再把後面列往前遞補填滿頁面（那需要多一輪量測換版面利用率，
-             此處優先求穩定與效能）。 */
+          /* ★資料遺失BUG修正（本次）：上一版把退回的列用 unshift 塞進「已經存在的
+             下一頁陣列」（pageRowIdx[pageIdx+1]），實測發現當同一份PDF出現多輪
+             退列（例如page0退一批給page1、page1自己又超頁需要再退給page2）時，
+             這種「跨頁互相合併同一個陣列」的寫法會在特定情況下讓部分店家列
+             整批消失（不是切一半，是兩頁都找不到），已經在真實案例中重現
+             （太平勤益、東平兩列完全消失）。
+             改為：退回的列一律「插入一個全新的獨立頁面」（splice插入，而不是
+             合併進任何已存在的頁面陣列），任何頁面陣列一旦建立，內容只會被
+             「拿走」（本頁自己超頁時再退一次）不會被「別頁塞東西進來」，
+             結構上不可能再發生跨頁合併導致的遺失。代價是極少數情況下可能
+             因此多切出1頁（沒有把後面頁面的列拿來遞補），但求穩定優先。 */
           var overflowMM=imgHmm-pageHeightMM;
           var overflowPx=overflowMM/mmPerCssPx;
           var sumH=0; idxs.forEach(function(i){ sumH+=rowHeights[i]; });
@@ -3552,8 +3580,7 @@ function _buildOnePersonPDFBlob(p,cb){
           var retreatCount=Math.max(1,Math.ceil(overflowPx/avgRowH));
           if(retreatCount>=idxs.length) retreatCount=idxs.length-1; /* 至少留1列在本頁，避免整頁清空造成無限循環 */
           var overflowIdxs=idxs.splice(idxs.length-retreatCount,retreatCount); /* 一次整批取出，保留原本的店家排序 */
-          if(pageIdx+1<pageRowIdx.length){ Array.prototype.unshift.apply(pageRowIdx[pageIdx+1],overflowIdxs); }
-          else{ pageRowIdx.push(overflowIdxs); }
+          pageRowIdx.splice(pageIdx+1,0,overflowIdxs); /* 永遠插入全新頁面，絕不合併進既有頁面陣列 */
           totalPages=pageRowIdx.length;
           renderPage(); /* 用退列後的份量重新渲染同一頁，不遞增pageIdx */
           return;
