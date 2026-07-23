@@ -3417,20 +3417,20 @@ function _buildOnePersonPDFBlob(p,cb){
 
     var theadEl=tableEl.querySelector('thead');
     var tbodyEl=tableEl.querySelector('tbody');
-    var dataRows=Array.prototype.slice.call(tbodyEl.children);
+    var dataRows=Array.prototype.slice.call(tbodyEl.children); /* 含一般店家列、合計列，DOM順序與畫面一致 */
     var detailScrollEl=wrapper.querySelector('.detail-scroll');
     var headNodes=[],footNodes=[],seenScroll=false;
     Array.prototype.forEach.call(wrapper.childNodes,function(n){
       if(n===detailScrollEl){seenScroll=true;return;}
       (seenScroll?footNodes:headNodes).push(n);
     });
-    /* 關鍵修正：headNodes/footNodes 只是「引用」wrapper的子節點，還沒真正離開wrapper。
-       若不把原始 detailScrollEl 從 wrapper 移除，原本完整未分頁的明細表仍留在畫面外的
-       wrapper中；且headNodes/footNodes被cloneNode複製進每個pageWrap時，
-       wrapper本身從未被清空或丟棄，導致「分頁後的表格」與「wrapper裡原始完整表格」
-       兩者都可能被截圖流程間接引用到，形成同一份明細被渲染兩次的問題。
-       分頁一旦決定要跑，就不再需要wrapper原本的detail-scroll，直接移除。 */
-    if(detailScrollEl) detailScrollEl.remove();
+    /* 注意：detailScrollEl 刻意不從 wrapper 移除。theadEl/dataRows 都是它的子孫節點，
+       量測 getBoundingClientRect() 需要節點仍在文件中，一旦 remove() 就會脫離DOM，
+       高度全部回傳0、fallback成不準的24px，導致分頁預算(BUDGET)估算失真，
+       使尾端內容（含合計列）被擠出A4頁面範圍外而消失。
+       wrapper本身在tableEl存在的情況下，從頭到尾都不會被直接截圖
+       （只有下面各自建立的pageWrap會被html2canvas截圖），
+       所以detailScrollEl留在wrapper裡不會造成重複渲染。 */
 
     var mmPerCssPx=pageWidthMM/contentWidthCss;
     var pageHeightCss=pageHeightMM/mmPerCssPx;
