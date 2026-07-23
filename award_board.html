@@ -1,7 +1,15 @@
 <!--
 ================================================================================
   全聯18天推廣進度看板 (award_board.html)
-  版本：Ver. 1.13.1 ｜ 最後更新：2026-07-23 (參考 trad_board.html 新增【人員表】與
+  版本：Ver. 1.13.2 ｜ 最後更新：2026-07-23 (修正得獎人PDF「店家明細」重複出現的BUG：
+                        _buildPersonPDFContainer() 原本用多一層 detailWrap div 包住
+                        buildDetailTable() 回傳的 .detail-scroll，使其變成 wrapper 的
+                        孫節點而非直接子節點；_buildOnePersonPDFBlob() 用
+                        wrapper.childNodes 比對 n===detailScrollEl 切分
+                        headNodes/footNodes 因而恆比對失敗，導致完整版明細表被誤判為
+                        headNodes、每頁都重繪一次，疊加分頁後的明細表造成重複。
+                        修正：拿掉多餘包裝層，讓 .detail-scroll 直接掛在 wrapper 下)
+  ｜ 舊版：Ver. 1.13.1（參考 trad_board.html 新增【人員表】與
                         【得獎人PDF製作】功能；並修正得獎資格判斷 _getAwardWinners()
                         與畫面「🎁預計核發+N箱」計數邏輯不一致的極小值邊界問題)
 ================================================================================
@@ -3374,13 +3382,22 @@ function _buildPersonPDFContainer(p){
   detailTitle.textContent='📋 店家明細　'+(curQ||'')+'　總家數 '+qd.totalStores;
   wrapper.appendChild(detailTitle);
 
-  /* noAlert=true：PDF不需要庫存異常高光，避免視覺干擾 */
-  var detailWrap=document.createElement('div');
-  detailWrap.innerHTML=buildDetailTable(qd,curQ,true);
-  detailWrap.querySelectorAll('*').forEach(function(el){if(el.style)el.style.overflow='visible';});
+  /* noAlert=true：PDF不需要庫存異常高光，避免視覺干擾
+     ★BUG修正（0723）：先前用一個額外的 detailWrap div 把 buildDetailTable() 回傳的
+     .detail-scroll 包起來再 appendChild，導致 .detail-scroll 變成 wrapper 的「孫節點」
+     而非「直接子節點」。_buildOnePersonPDFBlob() 用 wrapper.childNodes 逐一比對
+     n===detailScrollEl 來切分 headNodes/footNodes，因為永遠比對不到（少一層），
+     seenScroll 恆為 false，導致整個明細表（連同合計列）被誤判為 headNodes，
+     每頁都會先重繪一次「完整版明細表」，再疊上分頁後的明細表，造成明細重複出現。
+     修正方式：拿掉多餘的包裝層，讓 .detail-scroll 直接掛在 wrapper 底下。 */
+  var detailTmp=document.createElement('div');
+  detailTmp.innerHTML=buildDetailTable(qd,curQ,true);
+  var detailNode=detailTmp.firstElementChild; /* .detail-scroll（或無明細資料時的提示div） */
+  detailNode.querySelectorAll('*').forEach(function(el){if(el.style)el.style.overflow='visible';});
+  if(detailNode.style) detailNode.style.overflow='visible';
   /* .detail-tbl th 用 position:sticky，html2canvas對sticky支援不佳，PDF是靜態截圖不需要sticky */
-  detailWrap.querySelectorAll('th').forEach(function(el){el.style.position='static';el.style.boxShadow='none';});
-  wrapper.appendChild(detailWrap);
+  detailNode.querySelectorAll('th').forEach(function(el){el.style.position='static';el.style.boxShadow='none';});
+  wrapper.appendChild(detailNode);
 
   var ts=document.createElement('div');
   ts.style.cssText='font-size:10px;color:#bbb;margin-top:14px;text-align:right;';
