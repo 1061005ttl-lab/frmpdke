@@ -3458,8 +3458,21 @@ function _buildOnePersonPDFBlob(p,cb){
     var theadHeightCss=theadEl.getBoundingClientRect().height;
     var rowHeights=dataRows.map(function(tr){return tr.getBoundingClientRect().height||24;});
 
+    /* ★BUG修正（0723）：footNodes（頁尾時間戳記ts）只會被加到「最後一頁」，
+       但先前BUDGET只扣掉固定50px，完全沒把footNodes的高度算進去。
+       當某頁的資料列高度加總剛好逼近BUDGET上限、又剛好是最後一頁時，
+       疊上footNodes後該頁pageWrap的實際高度會超出BUDGET、進而換算成
+       imgHmm > pageHeightMM，使圖片比A4實際頁面還高——但addImage並不會
+       因此自動分頁，超出頁面範圍的部分在PDF裡直接被裁掉，且通常裁到的
+       正好是最貼近底部的合計列。
+       修法：把footNodes的高度也預先從BUDGET扣除（每一頁都保守預留，
+       因為分頁前無法預知哪一頁會是最後一頁），確保無論資料列被分到哪一頁，
+       就算之後真的被判定為最後一頁、疊加footNodes，也不會超出A4頁面高度。 */
+    var footHeightCss=0;
+    footNodes.forEach(function(n){ if(n.getBoundingClientRect){ footHeightCss+=n.getBoundingClientRect().height; } });
+
     var CONT_LABEL_H=34;
-    var BUDGET=pageHeightCss-50;
+    var BUDGET=pageHeightCss-50-footHeightCss;
 
     var pageRowIdx=[]; var cur=[]; var curH=headBottomCss+theadHeightCss;
     for(var i=0;i<dataRows.length;i++){
