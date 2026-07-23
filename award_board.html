@@ -3491,6 +3491,7 @@ function _buildOnePersonPDFBlob(p,cb){
     var totalPages=pageRowIdx.length;
 
     var pageIdx=0;
+    function sumRowHeights(idxArr){ var s=0; idxArr.forEach(function(i){s+=rowHeights[i];}); return s; }
     function renderPage(){
       if(pageIdx>=totalPages){ document.body.removeChild(wrapper); cb(pdf.output('blob')); return; }
       var idxs=pageRowIdx[pageIdx];
@@ -3521,19 +3522,24 @@ function _buildOnePersonPDFBlob(p,cb){
       html2canvas(pageWrap,{scale:2,backgroundColor:'#ffffff',useCORS:true,width:pageWrap.scrollWidth,height:pageWrap.scrollHeight}).then(function(canvas){
         document.body.removeChild(pageWrap);
         var imgHmm=canvas.height/canvas.width*pageWidthMM;
-        /* ★安全網（0723二次修正）：即使事前用列高「預估」分頁、並預留了footNodes高度，
-           仍可能因為子像素捨入、html2canvas clone時的樣式計算細微差異等因素造成預估
-           失準。這裡直接比對「實際截圖換算出的高度」是否真的超出A4一頁：
-           若超出，就把這頁最後一列退回下一頁（不夠的話就新增一頁），並用少一列的
-           份量重新渲染這一頁——而不是硬把過高的圖片addImage上去讓超出部分被頁面
-           邊界直接裁掉。如此不論預估多不準，都保證不會再有資料被裁切，
-           頂多是多分一頁。 */
+        /* ★真正的「渲染後驗證」分頁（0723三次修正，取代原本每次只退1列的慢速重試）：
+           不管事前用列高「估」得多準，一律以這裡實際截圖量到的高度為準——這跟「做一個
+           真正的表格、依每一列的真實高度決定要不要換頁」在效果上是等價的，差別只在於
+           這裡用「截圖量測」取代 jsPDF 原生文字量測，藉此保留中文字型的正確渲染
+           （jsPDF 原生表格文字無法顯示中文，需額外內嵌一套中文字型檔，成本很高）。
+           若量出來還是超出A4一頁：不再只退1列慢慢試，而是依「超出的高度 ÷ 這頁列的
+           平均列高」直接算出該退回幾列，一次退夠、退到下一頁最前面（沒有下一頁就新增
+           一頁），重新渲染這一頁，收斂快很多；且不論超出幅度多大、估算多不準，
+           都保證最終每一頁的圖片高度真的落在A4範圍內，不會再有任何一列被頁面邊界裁掉。 */
         if(imgHmm>pageHeightMM+0.5 && idxs.length>1){
-          var overflowIdx=idxs.pop();
-          if(pageIdx+1<pageRowIdx.length){ pageRowIdx[pageIdx+1].unshift(overflowIdx); }
-          else{ pageRowIdx.push([overflowIdx]); }
+          var overflowPx=(imgHmm-pageHeightMM)/mmPerCssPx;
+          var avgRowH=sumRowHeights(idxs)/idxs.length||24;
+          var removeN=Math.min(idxs.length-1,Math.max(1,Math.ceil(overflowPx/avgRowH)+1));
+          var overflowRows=idxs.splice(idxs.length-removeN,removeN);
+          if(pageIdx+1<pageRowIdx.length){ pageRowIdx[pageIdx+1]=overflowRows.concat(pageRowIdx[pageIdx+1]); }
+          else{ pageRowIdx.push(overflowRows); }
           totalPages=pageRowIdx.length;
-          renderPage(); /* 用少一列的份量重新渲染同一頁，不遞增pageIdx */
+          renderPage(); /* 用退回後較少的列數重新渲染同一頁，不遞增pageIdx */
           return;
         }
         var imgData=canvas.toDataURL('image/jpeg',0.92);
