@@ -1,7 +1,14 @@
 <!--
 ================================================================================
   全聯18天推廣進度看板 (award_board.html)
-  版本：Ver. 1.13.2 ｜ 最後更新：2026-07-23 (修正得獎人PDF「店家明細」重複出現的BUG：
+  版本：Ver. 1.13.3 ｜ 最後更新：2026-07-23 (得獎人PDF二次修正：發現即使預先扣除
+                        footNodes高度，少數店家數量剛好卡在臨界值的人仍會因為子像素
+                        捨入等預估誤差，使實際截圖高度略超出A4一頁、被頁面邊界裁掉
+                        底部合計列。改為在_buildOnePersonPDFBlob()每頁html2canvas
+                        截圖「渲染後」實際比對換算出的高度，超出A4就把該頁最後一列
+                        退回下一頁重新分配並重繪，直到真正塞得下為止，從根本上
+                        保證不再裁切，不再只靠事前的高度預估)
+  ｜ Ver. 1.13.2（修正得獎人PDF「店家明細」重複出現的BUG：
                         _buildPersonPDFContainer() 原本用多一層 detailWrap div 包住
                         buildDetailTable() 回傳的 .detail-scroll，使其變成 wrapper 的
                         孫節點而非直接子節點；_buildOnePersonPDFBlob() 用
@@ -3513,10 +3520,25 @@ function _buildOnePersonPDFBlob(p,cb){
       document.body.appendChild(pageWrap);
       html2canvas(pageWrap,{scale:2,backgroundColor:'#ffffff',useCORS:true,width:pageWrap.scrollWidth,height:pageWrap.scrollHeight}).then(function(canvas){
         document.body.removeChild(pageWrap);
-        var imgData=canvas.toDataURL('image/jpeg',0.92);
         var imgHmm=canvas.height/canvas.width*pageWidthMM;
+        /* ★安全網（0723二次修正）：即使事前用列高「預估」分頁、並預留了footNodes高度，
+           仍可能因為子像素捨入、html2canvas clone時的樣式計算細微差異等因素造成預估
+           失準。這裡直接比對「實際截圖換算出的高度」是否真的超出A4一頁：
+           若超出，就把這頁最後一列退回下一頁（不夠的話就新增一頁），並用少一列的
+           份量重新渲染這一頁——而不是硬把過高的圖片addImage上去讓超出部分被頁面
+           邊界直接裁掉。如此不論預估多不準，都保證不會再有資料被裁切，
+           頂多是多分一頁。 */
+        if(imgHmm>pageHeightMM+0.5 && idxs.length>1){
+          var overflowIdx=idxs.pop();
+          if(pageIdx+1<pageRowIdx.length){ pageRowIdx[pageIdx+1].unshift(overflowIdx); }
+          else{ pageRowIdx.push([overflowIdx]); }
+          totalPages=pageRowIdx.length;
+          renderPage(); /* 用少一列的份量重新渲染同一頁，不遞增pageIdx */
+          return;
+        }
+        var imgData=canvas.toDataURL('image/jpeg',0.92);
         if(pageIdx>0) pdf.addPage();
-        pdf.addImage(imgData,'JPEG',0,0,pageWidthMM,imgHmm);
+        pdf.addImage(imgData,'JPEG',0,0,pageWidthMM,Math.min(imgHmm,pageHeightMM));
         pageIdx++;
         renderPage();
       }).catch(function(err){
