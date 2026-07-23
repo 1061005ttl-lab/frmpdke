@@ -1,7 +1,9 @@
 <!--
 ================================================================================
   全聯18天推廣進度看板 (award_board.html)
-  版本：Ver. 1.12.5 ｜ 最後更新：2026-06-24 14:00
+  版本：Ver. 1.13.1 ｜ 最後更新：2026-07-23 (參考 trad_board.html 新增【人員表】與
+                        【得獎人PDF製作】功能；並修正得獎資格判斷 _getAwardWinners()
+                        與畫面「🎁預計核發+N箱」計數邏輯不一致的極小值邊界問題)
 ================================================================================
 
 【給下一位接手的 AI — 必讀事項】
@@ -34,6 +36,18 @@
   排名：    updateRank() / toggleRank() / closeRank()
   匯出：    downloadXLSX() → _exportPersonXLSX() / _exportOrgXLSX()
            XLSX 檔名格式：全聯18天_{Q}_{視角}_{單位}_{YYYYMMdd_HHmm}.xlsx
+  人員表：  openPersonTable() / closePersonTable() / _buildPersonTableData() / _personTableHTML()
+           篩選：_ptBuildOfficeChips()（處→所兩層，獨立於主頁 fArea/fOffice，可繼承）
+           匯出：personTableCopyLine() / personTableXLSX() / personTableScreenshot()
+           一律用「本季最終月份所屬處/所」彙總每個人（與人員視角卡片 getPersonList 邏輯一致），
+           不受 viewMode 影響（組織視角切到人員表看到的仍是人員彙總）。
+  得獎人PDF：exportAwardWinnersPDF()（人員表工具列，btn-ptbl-award-pdf）
+           得獎定義（沿用「🎁預計核發+N箱」同一套標準）：
+             qd.evalMonths.length≥2 且 qd.totalEvalRaw>0
+           _getAwardWinners() → 逐人 _buildPersonPDFContainer()（徽章＋makeCard彙整＋
+           buildDetailTable明細，noAlert=true 關閉庫存異常高光）→ _buildOnePersonPDFBlob()
+           （依實際列高逐頁分割，避免 canvas 過高裁切）→ JSZip 打包成一個 ZIP 下載。
+           動態載入 jsPDF 2.5.1／JSZip 3.10.1（cdnjs），移植自 trad_board.html v1.7.2 做法。
 
 ▌全域狀態變數
   allRows=[]          主資料列陣列（gviz row 物件）
@@ -656,8 +670,9 @@
   <div class="sep"></div>
   <button id="manual-toggle" onclick="toggleManual()">📋 說明書</button>
   <button class="tb-btn" onclick="toggleRank()" id="rank-btn" style="background:rgba(255,215,0,.15);border-color:rgba(200,160,0,.3);color:#7a5500;">🏆 品評排行</button>
+  <button class="tb-btn" onclick="openPersonTable()" id="ptbl-btn" style="background:rgba(74,122,85,.1);border-color:rgba(74,122,85,.3);color:#2d5a38;">👤 人員表</button>
   <div id="tb-right">
-    <div id="ver-ts">Ver. 1.12.5 (2026-06-24 14:00)</div>
+    <div id="ver-ts">Ver. 1.13.1 (2026-07-23)</div>
     <button class="tb-btn" onclick="mainCopyLine()" id="btn-main-line">💬 LINE</button>
     <button class="tb-btn" onclick="mainScreenshot()" id="btn-main-shot">📸 截圖</button>
     <button class="tb-btn" onclick="downloadXLSX()">📥 XLSX</button>
@@ -690,6 +705,9 @@
       </button>
       <button class="drawer-btn" onclick="toggleRank();closeMobileDrawer();">
         <span class="db-icon">🏆</span>品評排行
+      </button>
+      <button class="drawer-btn" onclick="openPersonTable();closeMobileDrawer();">
+        <span class="db-icon">👤</span>人員表
       </button>
       <button class="drawer-btn" id="md-summary-btn" onclick="openSummaryTable();closeMobileDrawer();" style="display:none;">
         <span class="db-icon">📊</span>彙整表
@@ -724,6 +742,9 @@
     <p><b>【上方篩選器怎麼用？】</b>點擊「北部」「桃園」等按鈕只看特定區域；點進去後可再選特定營業所；點「全部」回到整體。排序按鈕可依品評CTN、當期箱數、去年同期、庫存（組織視角）重新排列，庫存排序讓庫存最少的門市排最前面，方便快速找到需要補貨的店。</p>
     <p><b>【📊 彙整表是什麼？】</b>切到組織視角，點「📊 彙整表」開啟一張整合大表，把所有門市的業績與庫存集中呈現，適合開會逐店討論。可下載成 Excel 或截圖分享。</p>
     <p><b>【進銷存欄位怎麼看？】</b>上存＝月初庫存、進貨＝本月進貨量、退貨＝退回量、銷貨＝實際售出量、庫存＝現有剩餘、PSD＝每日平均銷速（越高代表賣越快）。資料時間顯示在區塊標題旁，確認是否為最新資料。</p>
+    <hr>
+    <p><b>【👤 人員表是什麼？】</b>點上方「👤 人員表」開啟全體業務員的彙整大表，依營業處分組、可依當期CTN／目標CTN／品評CTN／總家數排序，方便開會時一次看完所有人的達成狀況。表格右上角可再依處／所篩選，也能複製 LINE 摘要、下載 Excel 或截圖分享。</p>
+    <p><b>【🏆 得獎PDF是什麼？】</b>在「👤 人員表」視窗內點「🏆 得獎PDF」，會自動抓出本季<b>有效月份 ≥2 個月且品評CTN為正數</b>（即畫面上「🎁 預計核發 +N 箱」會算到的人）的所有人員，逐人產生一份PDF（含得獎徽章、個人業績卡片、店家明細），最後打包成一個 ZIP 檔下載，方便逐人核發或存檔。</p>
   </div>
 </div>
 
@@ -795,6 +816,30 @@
       </div>
     </div>
     <div style="flex:1;overflow:auto;" id="summary-body"></div>
+  </div>
+</div>
+
+<!-- 人員彙整表 Modal -->
+<div id="person-table-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:650;align-items:flex-start;justify-content:center;padding:20px 12px;overflow-y:auto;" onclick="if(event.target===this)closePersonTable()">
+  <div style="background:#fff;border-radius:14px;width:100%;max-width:1600px;min-height:200px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 80px rgba(0,0,0,.35);margin:auto;">
+    <div style="padding:13px 18px;border-bottom:1px solid rgba(0,0,0,.09);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:linear-gradient(135deg,rgba(248,250,248,1),rgba(240,248,240,1));flex-wrap:wrap;gap:8px;">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span style="font-size:14px;font-weight:900;color:var(--text);" id="ptbl-title">👤 人員彙整表</span>
+          <span style="font-size:11px;color:var(--sub);" id="ptbl-subtitle"></span>
+        </div>
+        <div id="ptbl-area-row" style="display:none;flex-wrap:wrap;gap:4px;margin-top:6px;align-items:center;"></div>
+        <div id="ptbl-office-row" style="display:none;flex-wrap:wrap;gap:4px;margin-top:4px;padding-top:4px;border-top:1px solid rgba(0,0,0,.06);align-items:center;"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <button class="dlg-action-btn" onclick="personTableCopyLine()" id="btn-ptbl-line">💬 LINE</button>
+        <button class="dlg-action-btn" onclick="personTableXLSX()" id="btn-ptbl-xlsx">📥 XLSX</button>
+        <button class="dlg-action-btn" onclick="personTableScreenshot()" id="btn-ptbl-shot">📸 截圖</button>
+        <button class="dlg-action-btn" onclick="exportAwardWinnersPDF()" id="btn-ptbl-award-pdf" style="background:rgba(255,215,0,.15);border-color:rgba(200,160,0,.35);color:#7a5500;font-weight:800;">🏆 得獎PDF</button>
+        <button class="dlg-close" onclick="closePersonTable()">✕</button>
+      </div>
+    </div>
+    <div style="flex:1;overflow:auto;" id="ptbl-body"></div>
   </div>
 </div>
 
@@ -1963,7 +2008,7 @@ function makeCard(c){
   return el;
 }
 
-function buildDetailTable(qd,q){
+function buildDetailTable(qd,q,noAlert){
   if(!qd.storeRows.length) return '<div style="padding:10px 13px;font-size:10px;color:var(--sub);">無明細資料</div>';
   var months=qd.months;
 
@@ -2006,12 +2051,12 @@ function buildDetailTable(qd,q){
       else if(inv.sale!==0&&inv.stock===0) alertType='zero';
       else if(inv.in===0&&inv.sale===0&&inv.upper<=0) alertType='dormant';
     }
-    var rowBg= alertType==='negative'?'background:rgba(214,30,30,.08);':
+    var rowBg= noAlert?'':(alertType==='negative'?'background:rgba(214,30,30,.08);':
                alertType==='zero'    ?'background:rgba(220,120,0,.09);':
-               alertType==='dormant' ?'background:rgba(130,60,200,.08);':'';
-    var alertBadge= alertType==='negative'?'<span style="margin-left:7px;font-size:12px;font-weight:900;color:#a01818;background:rgba(214,30,30,.14);border:1.5px solid rgba(214,30,30,.45);border-radius:5px;padding:2px 7px;vertical-align:middle;">🔴 預借</span>':
+               alertType==='dormant' ?'background:rgba(130,60,200,.08);':'');
+    var alertBadge= noAlert?'':(alertType==='negative'?'<span style="margin-left:7px;font-size:12px;font-weight:900;color:#a01818;background:rgba(214,30,30,.14);border:1.5px solid rgba(214,30,30,.45);border-radius:5px;padding:2px 7px;vertical-align:middle;">🔴 預借</span>':
                     alertType==='zero'    ?'<span style="margin-left:7px;font-size:12px;font-weight:900;color:#8a4a00;background:rgba(220,120,0,.14);border:1.5px solid rgba(220,120,0,.45);border-radius:5px;padding:2px 7px;vertical-align:middle;">⚠️ 歸零</span>':
-                    alertType==='dormant' ?'<span style="margin-left:7px;font-size:12px;font-weight:900;color:#6a2da0;background:rgba(130,60,200,.14);border:1.5px solid rgba(130,60,200,.45);border-radius:5px;padding:2px 7px;vertical-align:middle;">⬣ 停滯</span>':'';
+                    alertType==='dormant' ?'<span style="margin-left:7px;font-size:12px;font-weight:900;color:#6a2da0;background:rgba(130,60,200,.14);border:1.5px solid rgba(130,60,200,.45);border-radius:5px;padding:2px 7px;vertical-align:middle;">⬣ 停滯</span>':'');
 
     var rowHtml='<td>'+esc(s.code)+'</td><td>'+esc(s.name)+alertBadge+'</td>';
     var storeEvalSum=0, hasAnyData=false;
@@ -2117,7 +2162,7 @@ function closeDetailDialog(){
   setTimeout(function(){dlg.style.display='none';},220);
 }
 document.addEventListener('keydown',function(e){
-  if(e.key==='Escape'){ closeDetailDialog(); closeRank(); closeSummaryTable(); closeMobileDrawer(); }
+  if(e.key==='Escape'){ closeDetailDialog(); closeRank(); closeSummaryTable(); closePersonTable(); closeMobileDrawer(); }
 });
 
 /* \u2550\u2550 \u8907\u88FD\u5171\u7528\u5DE5\u5177 \u2550\u2550 */
@@ -2903,6 +2948,599 @@ function takeSummaryScreenshot(){
   }
 
   _withH2c(doCapture, btn);
+}
+
+/* ════════════════════════════════════════════════════
+   👤 人員彙整表（人員表）
+   一律用「本季最終月份所屬處/所」彙總每個人，與人員視角卡片
+   getPersonList()／render() 完全一致，不受 viewMode 影響。
+   ════════════════════════════════════════════════════ */
+var _ptOfficeFilter='';   /* 人員表自己的「所」篩選，獨立於主頁 fOffice */
+var _ptAreaFilter='';     /* 人員表自己的「處」篩選，獨立於主頁 fArea */
+var _ptSort={col:'eval',dir:-1};
+var _ptCurrentPersons=[]; /* 目前人員表渲染出的資料（供複製/匯出/得獎PDF共用，避免重算） */
+
+function _buildPersonTableData(){
+  /* ① 全體人員清單 — 用「全部 row」彙總，不在這一步做任何處/所篩選。
+     ⚠️ 核心原則（與人員卡片 getPersonList 完全一致）：
+        一個人本季的 area/office 一律以「最終月份（lastM）」為準，
+        絕不能在彙總前就依照目前選取的處/所去丟棄他的部分月份資料，
+        否則會出現「全部模式看得到、選定某處後卻消失」的不一致現象。 */
+  var allPMap={};
+  allRows.forEach(function(r){
+    var staff=gv(r,'staff')||'（未知）';
+    if(!allPMap[staff]) allPMap[staff]={rows:[],area:'',office:'',lastM:0,lastMAll:0};
+    allPMap[staff].rows.push(r);
+    var m=parseInt(gv(r,'month'))||0;
+    var qM=QUARTERS[curQ]||[];
+    if(qM.indexOf(m)>=0&&m>allPMap[staff].lastM){allPMap[staff].lastM=m;allPMap[staff].area=gv(r,'area');allPMap[staff].office=gv(r,'office');}
+    if(m>allPMap[staff].lastMAll){allPMap[staff].lastMAll=m;if(!allPMap[staff].area)allPMap[staff].area=gv(r,'area');if(!allPMap[staff].office)allPMap[staff].office=gv(r,'office');}
+  });
+  /* ② 計算全體季資料（使用完整 rows，不受篩選影響），並補上 monthArea/monthOffice
+     （與 render() 給人員卡片補的欄位完全一致，供 makeCard 判斷跨處月份＊標記用） */
+  var allPersons=Object.keys(allPMap).map(function(staff){
+    var info=allPMap[staff];
+    var qd=calcPersonQuarter(info.rows,curQ);
+    if(!qd.evalMonths.length) return null;
+    qd.monthArea={}; qd.monthOffice={};
+    info.rows.forEach(function(r){
+      var m=parseInt(gv(r,'month'))||0;
+      if(!qd.monthArea[m]) qd.monthArea[m]=gv(r,'area');
+      if(!qd.monthOffice[m]) qd.monthOffice[m]=gv(r,'office');
+    });
+    qd.personArea=info.area; qd.personOffice=info.office;
+    return{displayName:staff,area:info.area,office:info.office,qd:qd};
+  }).filter(Boolean);
+  /* ③ 套用顯示篩選 — 一律用「最終 area/office」過濾，與卡片顯示邏輯完全一致。
+     優先順序：人員表自己的兩層篩選（_ptAreaFilter/_ptOfficeFilter）> 主頁篩選（fArea/fOffice） */
+  var useArea=_ptAreaFilter||fArea;
+  var useOffice=_ptOfficeFilter||fOffice;
+  return allPersons.filter(function(p){
+    if(useArea&&p.area!==useArea) return false;
+    if(useOffice&&p.office!==useOffice) return false;
+    return true;
+  });
+}
+
+function _personTableHTML(persons){
+  /* 依處別分組 */
+  var groups={};
+  persons.forEach(function(p){
+    var a=p.area||'（未知）';
+    if(!groups[a])groups[a]=[];
+    groups[a].push(p);
+  });
+
+  var NCOLS=8;
+  var thS='padding:7px 10px;font-size:11px;font-weight:800;color:#444;background:#f0f4f0;border-bottom:2px solid #ccd8cc;border-right:1px solid #dde8dd;white-space:nowrap;text-align:right;position:sticky;top:0;z-index:2;';
+  var thSL=thS+'text-align:left;';
+
+  function _ptSortIcon(col){
+    if(_ptSort.col!==col) return '<span style="opacity:.3;margin-left:3px;">⇅</span>';
+    return _ptSort.dir===-1?'<span style="color:#1a73e8;margin-left:3px;">↓</span>':'<span style="color:#d93025;margin-left:3px;">↑</span>';
+  }
+  function _ptSortTh(col,label){
+    var active=_ptSort.col===col;
+    var bg=active?'background:#e0eaf8;':'';
+    return '<th onclick="__ptToggleSort(\''+col+'\')" style="'+thS+bg+'cursor:pointer;user-select:none;">'+label+_ptSortIcon(col)+'</th>';
+  }
+
+  var thead='<thead><tr>'+
+    '<th style="'+thSL+'">營業處</th>'+
+    '<th style="'+thSL+'">營業所</th>'+
+    '<th style="'+thSL+'">人名</th>'+
+    '<th style="'+thSL+'">身分別</th>'+
+    _ptSortTh('stores','總家數')+
+    _ptSortTh('cur','當期CTN')+
+    _ptSortTh('tgt','目標CTN')+
+    _ptSortTh('eval','品評CTN')+
+  '</tr></thead>';
+
+  var tdS='padding:6px 10px;font-size:12px;border-bottom:1px solid #eee;border-right:1px solid #f0f0f0;text-align:right;white-space:nowrap;';
+  var tdSL=tdS+'text-align:left;';
+  function dCl(v){return v>0?'color:#22a84c;font-weight:800;':v<0?'color:#d93025;font-weight:800;':'color:#aaa;';}
+
+  /* 小計函數 */
+  function makeSubtot(label,arr,trStyle){
+    var sStores=arr.reduce(function(s,p){return s+p.qd.totalStores;},0);
+    var sC=arr.reduce(function(s,p){return s+p.qd.totalCur;},0);
+    var sT=Math.round(arr.reduce(function(s,p){return s+p.qd.totalTgt;},0)*3)/3;
+    var sE=Math.round(arr.reduce(function(s,p){return s+(p.qd.totalEval||0);},0)*3)/3;
+    var eCls=sE>0?'d-pos':sE<0?'d-neg':'d-nil';
+    return '<tr style="'+trStyle+'">'+
+      '<td colspan="4" style="'+tdSL+'font-size:11px;">'+label+'</td>'+
+      '<td style="'+tdS+'font-weight:900;">'+sStores+'</td>'+
+      '<td style="'+tdS+'color:var(--blue);font-weight:900;">'+sC+'</td>'+
+      '<td style="'+tdS+'color:var(--purple);font-weight:900;">'+toFrac(sT)+'</td>'+
+      '<td style="'+tdS+'font-weight:900;" class="'+eCls+'">'+toFracEval(sE)+'</td>'+
+    '</tr>';
+  }
+
+  /* 排序 helper：依 _ptSort 欄位排序，evalMonths<2（品評尚不成立）者沉底，與主頁排序邏輯一致 */
+  function sortPersons(arr){
+    return arr.slice().sort(function(a,b){
+      var aLow=(a.qd.evalMonths.length<2)?1:0;
+      var bLow=(b.qd.evalMonths.length<2)?1:0;
+      if(aLow!==bLow) return aLow-bLow;
+      var av,bv;
+      if(_ptSort.col==='stores'){av=a.qd.totalStores||0;bv=b.qd.totalStores||0;}
+      else if(_ptSort.col==='cur'){av=a.qd.totalCur||0;bv=b.qd.totalCur||0;}
+      else if(_ptSort.col==='tgt'){av=a.qd.totalTgt||0;bv=b.qd.totalTgt||0;}
+      else{av=a.qd.totalEvalRaw!==null?a.qd.totalEvalRaw:-999999;bv=b.qd.totalEvalRaw!==null?b.qd.totalEvalRaw:-999999;}
+      return _ptSort.dir*(av-bv);
+    });
+  }
+
+  var tbody='<tbody>';
+  var allShown=[];
+  sortAreas(Object.keys(groups)).forEach(function(areaName){
+    var arr=sortPersons(groups[areaName]);
+    tbody+='<tr><td colspan="'+NCOLS+'" style="padding:6px 10px;font-size:11px;font-weight:900;color:#3a6a45;background:#edf5ed;border-top:2px solid #c0d8c0;border-bottom:1px solid #cce0cc;">🏢 '+esc(areaName)+'　<span style="font-weight:500;color:#888;">'+arr.length+' 人</span></td></tr>';
+    arr.forEach(function(p){
+      allShown.push(p);
+      var qd=p.qd;
+      var vm=qd.validMonths.length;
+      var validColor=vm>=2?'color:#22a84c;font-weight:700;':'color:#d93025;font-weight:800;';
+      var validLabel=(vm>=2?'✅':'⚠️')+' '+vm+'/2';
+      var rowBg=qd.evalMonths.length<2?'background:rgba(0,0,0,.025);':'';
+      var teCls=qd.totalEval===null?'d-nil':(qd.totalEval>0?'d-pos':qd.totalEval<0?'d-neg':'d-nil');
+      tbody+='<tr style="'+rowBg+'">'+
+        '<td style="'+tdSL+'color:#555;font-size:11px;">'+esc(p.area)+'</td>'+
+        '<td style="'+tdSL+'color:#555;font-size:11px;">'+esc(p.office)+'</td>'+
+        '<td style="'+tdSL+'font-weight:700;">'+(qd.evalMonths.length<2?'<span style="color:#bbb;">':'')+esc(p.displayName)+(qd.evalMonths.length<2?'</span>':'')+'</td>'+
+        '<td style="'+tdSL+validColor+'font-size:11px;">'+validLabel+'</td>'+
+        '<td style="'+tdS+'">'+qd.totalStores+'</td>'+
+        '<td style="'+tdS+'color:var(--blue);">'+qd.totalCur+'</td>'+
+        '<td style="'+tdS+'color:var(--purple);">'+toFrac(qd.totalTgt)+'</td>'+
+        '<td style="'+tdS+'" class="'+teCls+'">'+toFracEval(qd.totalEval)+'</td>'+
+      '</tr>';
+    });
+    tbody+=makeSubtot('　小計 '+arr.length+' 人',arr,'background:#edf5ed;font-weight:900;border-top:1.5px solid #c0d8c0;');
+  });
+  tbody+=makeSubtot('🔢 總計 '+allShown.length+' 人',allShown,'background:#c2dfc2;font-weight:900;border-top:3px solid #5a9a5a;');
+  tbody+='</tbody>';
+  _ptCurrentPersons=persons;
+  return '<table style="border-collapse:collapse;font-size:13px;min-width:100%;">'+thead+tbody+'</table>';
+}
+
+function __ptToggleSort(col){
+  if(_ptSort.col===col){_ptSort.dir*=-1;}else{_ptSort.col=col;_ptSort.dir=-1;}
+  var persons=_buildPersonTableData();
+  document.getElementById('ptbl-body').innerHTML=_personTableHTML(persons);
+}
+
+function _ptBuildOfficeChips(){
+  /* ── 兩層篩選：處 → 所，比照主頁工具列結構 ── */
+  var aRow=document.getElementById('ptbl-area-row');
+  var oRow=document.getElementById('ptbl-office-row');
+  if(!aRow||!oRow) return;
+  aRow.innerHTML=''; oRow.innerHTML='';
+
+  var areaOfficeMap={};
+  allRows.forEach(function(r){
+    var a=gv(r,'area'),o=gv(r,'office');
+    if(!a) return;
+    if(fArea&&a!==fArea) return; /* 主頁已選處，只保留該處 */
+    if(!areaOfficeMap[a])areaOfficeMap[a]=new Set();
+    if(o)areaOfficeMap[a].add(o);
+  });
+  var areas=sortAreas(Object.keys(areaOfficeMap));
+  if(!areas.length){aRow.style.display='none';oRow.style.display='none';return;}
+
+  if(fArea){
+    aRow.style.display='none';
+    _ptAreaFilter=fArea;
+  } else {
+    aRow.style.display='flex';
+    function aChip(label,val){
+      var b=document.createElement('button');
+      b.className='nav-chip'+((_ptAreaFilter===val)?' on':'');
+      b.style.cssText='font-size:11px;padding:2px 10px;flex-shrink:0;';
+      b.textContent=label;
+      b.onclick=function(){
+        _ptAreaFilter=val; _ptOfficeFilter='';
+        _ptBuildOfficeChips(); _ptRefresh();
+      };
+      aRow.appendChild(b);
+    }
+    aChip('全部','');
+    areas.forEach(function(a){aChip(a,a);});
+  }
+
+  var officeSet=new Set();
+  var targetAreas=_ptAreaFilter?[_ptAreaFilter]:areas;
+  targetAreas.forEach(function(a){
+    (areaOfficeMap[a]||new Set()).forEach(function(o){officeSet.add(o);});
+  });
+  var offices=Array.from(officeSet).sort();
+  if(!offices.length){oRow.style.display='none';return;}
+  oRow.style.display='flex';
+  function oChip(label,val){
+    var b=document.createElement('button');
+    b.className='nav-chip'+((_ptOfficeFilter===val)?' on':'');
+    b.style.cssText='font-size:11px;padding:2px 10px;flex-shrink:0;';
+    b.textContent=label;
+    b.onclick=function(){_ptOfficeFilter=val;_ptRefresh();};
+    oRow.appendChild(b);
+  }
+  oChip('全所','');
+  offices.forEach(function(o){oChip(o,o);});
+}
+
+function _ptRefresh(){
+  _ptBuildOfficeChips();
+  var persons=_buildPersonTableData();
+  var scopeLabel=_ptOfficeFilter||_ptAreaFilter||fOffice||fArea||'全體';
+  document.getElementById('ptbl-subtitle').textContent=curQ+'　'+scopeLabel+'　共 '+persons.length+' 人';
+  document.getElementById('ptbl-body').innerHTML=_personTableHTML(persons);
+  document.querySelectorAll('#ptbl-office-row .nav-chip').forEach(function(b){
+    b.classList.toggle('on',b.textContent===(_ptOfficeFilter||'全所'));
+  });
+}
+
+function openPersonTable(){
+  var modal=document.getElementById('person-table-modal');
+  if(!allRows.length){alert('尚無資料');return;}
+  _ptOfficeFilter=''; _ptAreaFilter=fArea; /* 繼承主頁處別篩選 */
+  var persons=_buildPersonTableData();
+  var scopeLabel=fOffice?fOffice:(fArea?fArea:'全體');
+  document.getElementById('ptbl-title').textContent='👤 人員彙整表';
+  document.getElementById('ptbl-subtitle').textContent=curQ+'　'+scopeLabel+'　共 '+persons.length+' 人';
+  document.getElementById('ptbl-body').innerHTML=_personTableHTML(persons);
+  _ptBuildOfficeChips();
+  modal.style.display='flex';
+  requestAnimationFrame(function(){modal.style.opacity='1';});
+}
+function closePersonTable(){
+  var m=document.getElementById('person-table-modal');
+  m.style.opacity='0';
+  setTimeout(function(){m.style.display='none';},200);
+}
+
+/* ══ 人員表：複製 LINE 摘要 ══ */
+function personTableCopyLine(){
+  var btn=document.getElementById('btn-ptbl-line');
+  if(!_ptCurrentPersons.length){ _flashBtn(btn,'⚠️ 無資料'); return; }
+  var scopeLabel=_ptOfficeFilter||_ptAreaFilter||fOffice||fArea||'全體';
+  var lines=[];
+  lines.push('【人員彙整表】'+(curQ||'')+'　'+scopeLabel);
+  lines.push('─────────────────');
+  var groups={};
+  _ptCurrentPersons.forEach(function(p){ var a=p.area||'（未知）'; (groups[a]=groups[a]||[]).push(p); });
+  sortAreas(Object.keys(groups)).forEach(function(a){
+    lines.push('🏢 '+a);
+    groups[a].forEach(function(p){
+      var qd=p.qd, vm=qd.validMonths.length;
+      var tag=vm>=2?'✅':'⚠️';
+      var evalStr=qd.totalEval!==null?_fracText(qd.totalEval):'—';
+      var sign=(qd.totalEval>0?'+':'');
+      lines.push('　'+tag+' '+p.displayName+'　家數'+qd.totalStores+'／當期'+qd.totalCur+'／目標'+_fracText(qd.totalTgt)+'／品評'+sign+evalStr);
+    });
+  });
+  lines.push('─────────────────');
+  var sC=_ptCurrentPersons.reduce(function(s,p){return s+p.qd.totalCur;},0);
+  var sT=Math.round(_ptCurrentPersons.reduce(function(s,p){return s+p.qd.totalTgt;},0)*3)/3;
+  var sE=Math.round(_ptCurrentPersons.reduce(function(s,p){return s+(p.qd.totalEval||0);},0)*3)/3;
+  lines.push('合計 '+_ptCurrentPersons.length+' 人：當期 '+sC+' / 目標 '+_fracText(sT)+' / 品評 '+(sE>0?'+':'')+_fracText(sE));
+  _doCopy(lines.join('\n'), btn);
+}
+
+/* ══ 人員表：下載 XLSX ══ */
+function personTableXLSX(){
+  var btn=document.getElementById('btn-ptbl-xlsx');
+  if(!window.XLSX){ alert('XLSX 套件載入中，請稍後再試'); return; }
+  if(!_ptCurrentPersons.length){ if(btn)_flashBtn(btn,'⚠️ 無資料'); return; }
+  var rows=[['營業處','營業所','人名','身分別','總家數','當期CTN','目標CTN','品評CTN']];
+  var groups={};
+  _ptCurrentPersons.forEach(function(p){ var a=p.area||'（未知）'; (groups[a]=groups[a]||[]).push(p); });
+  sortAreas(Object.keys(groups)).forEach(function(a){
+    groups[a].forEach(function(p){
+      var qd=p.qd, vm=qd.validMonths.length;
+      rows.push([p.area,p.office,p.displayName,(vm>=2?'✅':'⚠️')+' '+vm+'/2',qd.totalStores,qd.totalCur,_fracVal(qd.totalTgt),qd.totalEval!==null?_fracVal(qd.totalEval):'']);
+    });
+  });
+  var wb=XLSX.utils.book_new();
+  var ws=XLSX.utils.aoa_to_sheet(rows);
+  _xlsxAutoWidth(ws,rows);
+  XLSX.utils.book_append_sheet(wb,ws,(curQ||'')+'人員表');
+  var scopeLabel=_ptOfficeFilter||_ptAreaFilter||fOffice||fArea||'全體';
+  XLSX.writeFile(wb,'全聯18天_人員表_'+(curQ||'')+'_'+scopeLabel+'_'+_nowStr()+'.xlsx');
+}
+
+/* ══ 人員表：截圖 ══ */
+function personTableScreenshot(){
+  var btn=document.getElementById('btn-ptbl-shot');
+  btn.textContent='⏳ 截圖中...';
+
+  function doCapture(){
+    var body=document.getElementById('ptbl-body');
+    var titleEl=document.getElementById('ptbl-title');
+    var subtitleEl=document.getElementById('ptbl-subtitle');
+    var titleText=(titleEl?titleEl.textContent:'人員彙整表')+' '+(subtitleEl?subtitleEl.textContent:'');
+
+    var wrapper=document.createElement('div');
+    wrapper.style.cssText='background:#fff;padding:16px 20px;font-family:Microsoft JhengHei,Noto Sans TC,sans-serif;position:fixed;top:-9999px;left:-9999px;';
+
+    var h=document.createElement('div');
+    h.style.cssText='font-size:14px;font-weight:900;color:#1a2a1a;margin-bottom:12px;padding-bottom:10px;border-bottom:2px solid #c8dcc8;';
+    h.textContent=titleText;
+    wrapper.appendChild(h);
+
+    var bodyClone=body.cloneNode(true);
+    bodyClone.style.overflow='visible';
+    bodyClone.querySelectorAll('*').forEach(function(el){ if(el.style) el.style.overflow='visible'; });
+    bodyClone.querySelectorAll('th').forEach(function(el){ el.style.position='static'; });
+    wrapper.appendChild(bodyClone);
+
+    var ts=document.createElement('div');
+    ts.style.cssText='font-size:10px;color:#bbb;margin-top:10px;text-align:right;';
+    ts.textContent='全聯18天推廣進度看板　'+new Date().toLocaleString('zh-TW');
+    wrapper.appendChild(ts);
+
+    document.body.appendChild(wrapper);
+
+    html2canvas(wrapper,{
+      scale:2,backgroundColor:'#ffffff',useCORS:true,
+      width:wrapper.scrollWidth,height:wrapper.scrollHeight
+    }).then(function(canvas){
+      document.body.removeChild(wrapper);
+      var scopeLabel=_ptOfficeFilter||_ptAreaFilter||fOffice||fArea||'全體';
+      var filename='人員表_'+scopeLabel+'_'+_nowStr()+'.png';
+      if(navigator.clipboard&&window.ClipboardItem&&!_isMobileDevice()){
+        canvas.toBlob(function(blob){
+          try{
+            navigator.clipboard.write([new ClipboardItem({'image/png':blob})]).then(function(){
+              btn.textContent='✅ 已複製！';
+              setTimeout(function(){ btn.textContent='📸 截圖'; },2000);
+            }).catch(function(){ _downloadCanvas(canvas,filename,btn); });
+          }catch(e){ _downloadCanvas(canvas,filename,btn); }
+        },'image/png');
+      } else {
+        _downloadCanvas(canvas,filename,btn);
+      }
+    }).catch(function(err){
+      document.body.removeChild(wrapper);
+      btn.textContent='📸 截圖';
+      alert('截圖失敗：'+err);
+    });
+  }
+
+  _withH2c(doCapture, btn);
+}
+
+/* ════════════════════════════════════════════════════
+   🏆 得獎人PDF匯出（一人一份，內容＝個人卡片彙整＋店家明細）
+   得獎定義：qd.evalMonths.length≥2 且 qd.totalEvalRaw>0
+             （＝目前畫面「🎁 預計核發 +N 箱」同一套標準）
+   移植自 trad_board.html v1.7.2 的逐頁小容器渲染做法，
+   避免店家數很多時單一長圖 canvas 過高被瀏覽器裁切。
+   ════════════════════════════════════════════════════ */
+function _loadJsPDF(cb){
+  if(window.jspdf&&window.jspdf.jsPDF){cb();return;}
+  var s=document.createElement('script');
+  s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+  s.onload=cb; s.onerror=function(){alert('jsPDF 載入失敗，請檢查網路連線');};
+  document.head.appendChild(s);
+}
+function _loadJSZip(cb){
+  if(window.JSZip){cb();return;}
+  var s=document.createElement('script');
+  s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+  s.onload=cb; s.onerror=function(){alert('JSZip 載入失敗，請檢查網路連線');};
+  document.head.appendChild(s);
+}
+/* 取得單一得獎者的徽章清單（用於PDF標頭顯示） */
+function _getAwardBadges(p){
+  var qd=p.qd, ter=qd.totalEvalRaw, em=qd.evalMonths.length;
+  if(em<2||ter===null||ter<=0) return [];
+  var boxes=Math.ceil(fmt1(ter));
+  return ['🎁 品評CTN達標　核發 +'+boxes+' 箱'];
+}
+/* 篩出所有得獎者（沿用人員表同一套資料來源，會受目前處/所篩選影響） */
+function _getAwardWinners(){
+  var persons=_buildPersonTableData();
+  return persons.filter(function(p){
+    var qd=p.qd, em=qd.evalMonths.length, ter=qd.totalEvalRaw;
+    /* 與畫面「🎁預計核發+N箱」計數邏輯完全一致：先fmt1再Math.ceil，避免極小正數(如0.03)
+       在兩處判斷不一致（畫面沒算進+N箱，PDF卻誤列為得獎人） */
+    return em>=2 && ter!==null && Math.ceil(fmt1(ter))>0;
+  });
+}
+/* 組裝單一得獎者的PDF內容容器：標頭徽章 → 個人卡片(彙整) → 店家明細 */
+function _buildPersonPDFContainer(p){
+  var qd=p.qd;
+  var cardEl=makeCard({staff:p.displayName,area:p.area,office:p.office,qData:qd});
+  var btnRow=cardEl.querySelector('.pc-detail-btn-row'); if(btnRow) btnRow.remove(); /* PDF不需要互動按鈕 */
+  /* .person-card 在看板上是格狀排版用的固定寬度，直接搬進PDF容器會被擠壓，強制展開成容器全寬 */
+  cardEl.style.width='100%'; cardEl.style.minWidth='0'; cardEl.style.maxWidth='none';
+  cardEl.style.flexShrink='0'; cardEl.style.overflow='visible'; cardEl.style.boxSizing='border-box';
+
+  var badges=_getAwardBadges(p);
+  var wrapper=document.createElement('div');
+  wrapper.style.cssText='background:#fff;padding:22px 26px;width:900px;font-family:"Microsoft JhengHei","Noto Sans TC",sans-serif;position:fixed;top:-9999px;left:-9999px;';
+
+  var head=document.createElement('div');
+  head.style.cssText='margin-bottom:14px;padding-bottom:12px;border-bottom:3px solid #4a7a55;';
+  head.innerHTML='<div style="font-size:20px;font-weight:900;color:#1a2a1a;">🎉 '+esc(p.displayName)+'　得獎彙整</div>'+
+    '<div style="font-size:12px;color:#666;margin-top:4px;">'+esc(p.area)+'·'+esc(p.office)+'　'+esc(curQ||'')+'</div>'+
+    '<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">'+
+      badges.map(function(b){return '<span style="display:inline-block;background:#fff6dd;border:1px solid #e6c866;color:#8a6100;font-weight:800;font-size:12px;padding:4px 10px;border-radius:14px;">'+b+'</span>';}).join('')+
+    '</div>';
+  wrapper.appendChild(head);
+  wrapper.appendChild(cardEl);
+
+  var detailTitle=document.createElement('div');
+  detailTitle.style.cssText='font-size:13px;font-weight:900;color:#3a6a45;margin:16px 0 8px;padding-bottom:6px;border-bottom:2px solid #c8dcc8;';
+  detailTitle.textContent='📋 店家明細　'+(curQ||'')+'　總家數 '+qd.totalStores;
+  wrapper.appendChild(detailTitle);
+
+  /* noAlert=true：PDF不需要庫存異常高光，避免視覺干擾 */
+  var detailWrap=document.createElement('div');
+  detailWrap.innerHTML=buildDetailTable(qd,curQ,true);
+  detailWrap.querySelectorAll('*').forEach(function(el){if(el.style)el.style.overflow='visible';});
+  /* .detail-tbl th 用 position:sticky，html2canvas對sticky支援不佳，PDF是靜態截圖不需要sticky */
+  detailWrap.querySelectorAll('th').forEach(function(el){el.style.position='static';el.style.boxShadow='none';});
+  wrapper.appendChild(detailWrap);
+
+  var ts=document.createElement('div');
+  ts.style.cssText='font-size:10px;color:#bbb;margin-top:14px;text-align:right;';
+  ts.textContent='全聯18天推廣進度看板　'+new Date().toLocaleString('zh-TW');
+  wrapper.appendChild(ts);
+
+  return wrapper;
+}
+/* 將單一得獎者容器轉成PDF Blob。
+   依實際列高把資料列（含合計列）分配到各頁，每頁另外建立一個只含「該頁份量」的
+   獨立小容器分別呼叫 html2canvas，每張畫布高度都bound在一頁以內，避免店家數很多
+   （如200+家）時單一容器一次截圖產生過高canvas被瀏覽器悄悄裁掉尾端內容的問題。 */
+function _buildOnePersonPDFBlob(p,cb){
+  var wrapper=_buildPersonPDFContainer(p);
+  document.body.appendChild(wrapper);
+  try{
+    var pdf=new jspdf.jsPDF('p','mm','a4');
+    var pageWidthMM=pdf.internal.pageSize.getWidth();
+    var pageHeightMM=pdf.internal.pageSize.getHeight();
+    var contentWidthCss=wrapper.scrollWidth;
+
+    var tableEl=wrapper.querySelector('.detail-tbl');
+    if(!tableEl){
+      /* 無店家明細資料，直接單頁截圖即可 */
+      html2canvas(wrapper,{scale:2,backgroundColor:'#ffffff',useCORS:true,width:wrapper.scrollWidth,height:wrapper.scrollHeight}).then(function(canvas){
+        document.body.removeChild(wrapper);
+        var imgData=canvas.toDataURL('image/jpeg',0.92);
+        var imgHmm=canvas.height/canvas.width*pageWidthMM;
+        pdf.addImage(imgData,'JPEG',0,0,pageWidthMM,imgHmm);
+        cb(pdf.output('blob'));
+      }).catch(function(err){ document.body.removeChild(wrapper); alert(p.displayName+' 截圖失敗：'+err); cb(null); });
+      return;
+    }
+
+    var theadEl=tableEl.querySelector('thead');
+    var tbodyEl=tableEl.querySelector('tbody');
+    var dataRows=Array.prototype.slice.call(tbodyEl.children);
+    var detailScrollEl=wrapper.querySelector('.detail-scroll');
+    var headNodes=[],footNodes=[],seenScroll=false;
+    Array.prototype.forEach.call(wrapper.childNodes,function(n){
+      if(n===detailScrollEl){seenScroll=true;return;}
+      (seenScroll?footNodes:headNodes).push(n);
+    });
+
+    var mmPerCssPx=pageWidthMM/contentWidthCss;
+    var pageHeightCss=pageHeightMM/mmPerCssPx;
+
+    var wRect=wrapper.getBoundingClientRect();
+    var headBottomCss=0;
+    headNodes.forEach(function(n){ if(n.getBoundingClientRect){ var b=n.getBoundingClientRect().bottom-wRect.top; if(b>headBottomCss) headBottomCss=b; } });
+    var theadHeightCss=theadEl.getBoundingClientRect().height;
+    var rowHeights=dataRows.map(function(tr){return tr.getBoundingClientRect().height||24;});
+
+    var CONT_LABEL_H=34;
+    var BUDGET=pageHeightCss-50;
+
+    var pageRowIdx=[]; var cur=[]; var curH=headBottomCss+theadHeightCss;
+    for(var i=0;i<dataRows.length;i++){
+      var h=rowHeights[i];
+      if(cur.length && curH+h>BUDGET){ pageRowIdx.push(cur); cur=[]; curH=CONT_LABEL_H+theadHeightCss; }
+      cur.push(i); curH+=h;
+    }
+    pageRowIdx.push(cur);
+    var totalPages=pageRowIdx.length;
+
+    var pageIdx=0;
+    function renderPage(){
+      if(pageIdx>=totalPages){ document.body.removeChild(wrapper); cb(pdf.output('blob')); return; }
+      var idxs=pageRowIdx[pageIdx];
+      var pageWrap=document.createElement('div');
+      pageWrap.style.cssText='background:#fff;width:'+contentWidthCss+'px;box-sizing:border-box;font-family:"Microsoft JhengHei","Noto Sans TC",sans-serif;position:fixed;top:-9999px;left:-9999px;padding:'+(pageIdx===0?'22px 26px 16px':'14px 26px 16px')+';';
+      if(pageIdx===0){
+        headNodes.forEach(function(n){ pageWrap.appendChild(n.cloneNode(true)); });
+      }else{
+        var contLabel=document.createElement('div');
+        contLabel.style.cssText='font-size:11px;font-weight:800;color:#8a8a8a;margin-bottom:8px;';
+        contLabel.textContent='（續上頁）店家明細　第 '+(pageIdx+1)+'／'+totalPages+' 頁';
+        pageWrap.appendChild(contLabel);
+      }
+      var newScroll=document.createElement('div'); newScroll.className='detail-scroll'; newScroll.style.overflow='visible'; newScroll.style.height='auto';
+      var newTable=document.createElement('table'); newTable.className='detail-tbl';
+      var newThead=theadEl.cloneNode(true);
+      newThead.querySelectorAll('th').forEach(function(th){th.style.position='static';th.style.boxShadow='none';});
+      newTable.appendChild(newThead);
+      var newTbody=document.createElement('tbody');
+      idxs.forEach(function(i){ newTbody.appendChild(dataRows[i].cloneNode(true)); });
+      newTable.appendChild(newTbody);
+      newScroll.appendChild(newTable);
+      pageWrap.appendChild(newScroll);
+      if(pageIdx===totalPages-1){
+        footNodes.forEach(function(n){ pageWrap.appendChild(n.cloneNode(true)); });
+      }
+      document.body.appendChild(pageWrap);
+      html2canvas(pageWrap,{scale:2,backgroundColor:'#ffffff',useCORS:true,width:pageWrap.scrollWidth,height:pageWrap.scrollHeight}).then(function(canvas){
+        document.body.removeChild(pageWrap);
+        var imgData=canvas.toDataURL('image/jpeg',0.92);
+        var imgHmm=canvas.height/canvas.width*pageWidthMM;
+        if(pageIdx>0) pdf.addPage();
+        pdf.addImage(imgData,'JPEG',0,0,pageWidthMM,imgHmm);
+        pageIdx++;
+        renderPage();
+      }).catch(function(err){
+        document.body.removeChild(pageWrap);
+        try{document.body.removeChild(wrapper);}catch(e){}
+        alert(p.displayName+' 截圖失敗：'+err); cb(null);
+      });
+    }
+    renderPage();
+  }catch(err){
+    try{document.body.removeChild(wrapper);}catch(e){}
+    alert(p.displayName+' PDF產生失敗：'+err); cb(null);
+  }
+}
+/* 主流程：依序產生每位得獎者PDF → 打包成一個ZIP下載 */
+function exportAwardWinnersPDF(){
+  var btn=document.getElementById('btn-ptbl-award-pdf');
+  if(btn){btn.disabled=true;btn.dataset.orig=btn.textContent;btn.textContent='⏳ 準備中...';}
+  _withH2c(function(){
+    _loadJsPDF(function(){
+      _loadJSZip(function(){
+        var winners=_getAwardWinners();
+        if(!winners.length){
+          if(btn){btn.disabled=false;btn.textContent=btn.dataset.orig;}
+          alert('目前沒有符合得獎條件（有效月份≥2 且品評CTN為正數）的人員');
+          return;
+        }
+        var zip=new JSZip();
+        var idx=0;
+        function next(){
+          if(idx>=winners.length){
+            zip.generateAsync({type:'blob'}).then(function(content){
+              var url=URL.createObjectURL(content);
+              var a=document.createElement('a');
+              var scopeLabel=_ptOfficeFilter||_ptAreaFilter||fOffice||fArea||'全體';
+              a.href=url; a.download='全聯18天_得獎名單PDF_'+(curQ||'')+'_'+scopeLabel+'_'+_nowStr()+'.zip'; a.click();
+              setTimeout(function(){URL.revokeObjectURL(url);},1500);
+              if(btn){btn.disabled=false;btn.textContent=btn.dataset.orig;}
+            }).catch(function(err){
+              if(btn){btn.disabled=false;btn.textContent=btn.dataset.orig;}
+              alert('打包失敗：'+err);
+            });
+            return;
+          }
+          var p=winners[idx];
+          if(btn) btn.textContent='⏳ 產生中 '+(idx+1)+'/'+winners.length;
+          _buildOnePersonPDFBlob(p,function(blob){
+            if(blob){
+              var safe=function(s){return String(s||'').replace(/[\\\/:*?"<>|]/g,'_');};
+              var filename=String(idx+1).length<2?'0'+(idx+1):String(idx+1);
+              filename+='_'+safe(p.displayName)+(p.area?'_'+safe(p.area):'')+(p.office?'_'+safe(p.office):'')+'.pdf';
+              zip.file(filename,blob);
+            }
+            idx++;
+            setTimeout(next,30); /* 讓出主執行緒，避免大量得獎者時UI卡死 */
+          });
+        }
+        next();
+      });
+    });
+  });
 }
 
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
