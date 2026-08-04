@@ -472,9 +472,15 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 .ov-mini td.ov-mini-wk:hover, .ov-mini td.ov-mini-unmet:hover { background:var(--red-bg) !important; }
 .ov-mini td.ov-mini-unmet { color:var(--red); font-weight:700; }
 .ov-mini th { background:var(--bg); color:var(--sub); font-weight:700; }
-/* 1.9.4：週次格子裡的「這一週未達店數」小徽章，跟格子本身的達成率%
-   文字用換行分開，字級縮小＋紅色，不喧賓奪主但一眼能看到 */
-.ov-mini-wk-unmet { display:block; font-size:10.5px; color:var(--red); font-weight:700; line-height:1.3; }
+/* 1.9.5：每個 W 欄拆成「已達／未達」兩個子欄（取代原本擠在同一格的
+   %＋小紅字徽章）：週次表頭跨兩欄置頂（.ov-mini-wkhead），下面接一列
+   子表頭「已達／未達」（.ov-mini-sub，字級縮小跟主表頭區隔）；已達欄
+   純顯示數字不可點，未達欄維持原本可點下鑽，數字>0 時額外加淺紅底
+   （.ov-mini-wk-has-unmet）讓有問題的週次一眼掃到，不用逐格細看。 */
+.ov-mini th.ov-mini-wkhead { border-bottom:none; }
+.ov-mini th.ov-mini-sub { font-size:11px; font-weight:600; padding:4px 6px; }
+.ov-mini td.ov-mini-met { color:var(--sub); }
+.ov-mini td.ov-mini-wk-has-unmet { background:var(--red-bg); color:var(--red); font-weight:700; }
 .ov-empty { color:var(--sub); font-size:13.5px; text-align:center; padding:12px 0; }
 @media (max-width:640px) {
   .ov-grid { grid-template-columns:1fr; }
@@ -1908,10 +1914,20 @@ function renderOverview(){
       var gradeKeys = Object.keys(stat.byGrade).sort(function(a,b){
         return (GRADE_FREQ[b]||0) - (GRADE_FREQ[a]||0);
       });
+      /* 1.9.5：改成兩列表頭——每個 W 欄底下拆成「已達／未達」兩個子欄，
+         直接顯示店數而不是百分比＋徽章擠在同一格；畫面寬度夠，欄位
+         增加就讓表格自然變寬，不用把兩個數字硬塞進同一格。等級／店數／
+         達成率%／未達店數(整檔期) 這幾欄跨兩列（rowspan），只有 W 欄
+         需要子表頭。 */
       var body = gradeKeys.length ? (
-        '<table class="ov-mini"><tr><th>等級</th><th>店數</th>'
-        + weekNums.map(function(w){ return '<th>W'+w+'</th>'; }).join('')
-        + '<th>達成率%</th><th title="整個檔期範圍內，至少有一週沒達標的店數">未達店數<br>(整檔期)</th></tr>'
+        '<table class="ov-mini"><tr>'
+        + '<th rowspan="2">等級</th><th rowspan="2">店數</th>'
+        + weekNums.map(function(w){ return '<th colspan="2" class="ov-mini-wkhead">W'+w+'</th>'; }).join('')
+        + '<th rowspan="2">達成率%</th>'
+        + '<th rowspan="2" title="整個檔期範圍內，至少有一週沒達標的店數">未達店數<br>(整檔期)</th>'
+        + '</tr><tr>'
+        + weekNums.map(function(){ return '<th class="ov-mini-sub">已達</th><th class="ov-mini-sub">未達</th>'; }).join('')
+        + '</tr>'
         + gradeKeys.map(function(g){
             var gd = stat.byGrade[g];
             var r = gd.exp>0 ? (gd.stdDone/gd.exp*100).toFixed(1) : '0.0';
@@ -1920,14 +1936,16 @@ function renderOverview(){
                ＋🔴巡次未達標」四個條件一起進明細頁，跟「未達店數」欄位共用
                同一支 openDetailFromOverview，差別只在多帶一個 week 參數；
                stopPropagation 避免同時觸發外層整列（不分週次）的篩選 */
-            /* 1.9.4：每週儲存格除了達成率%，同時把「這一週未達店數」也
-               印在格子裡（達成率 100% 時不重複顯示「0未達」，減少視覺
-               雜訊）；點擊行為不變，仍是帶該週 onlyUnmet 進明細頁。 */
+            /* 1.9.5：「已達」＝這家等級底下這一週有達標的店數（gd.count－
+               這一週未達店數），只顯示不可點；「未達」維持原本點擊行為
+               （帶該週 onlyUnmet 進明細頁）。兩者一定加總等於 gd.count，
+               因為篩掉等級未知的店之後，這個分組裡每家店在每一週都必定
+               有 exp>0（GRADE_FREQ 標準都是正整數），不會有第三種狀態。 */
             var weekCells = weekNums.map(function(w){
               var wd = gd.weeks[w] || { exp:0, stdDone:0, unmet:0 };
-              var wr = wd.exp>0 ? (wd.stdDone/wd.exp*100).toFixed(0) : '0';
-              var unmetBadge = wd.unmet>0 ? '<span class="ov-mini-wk-unmet">'+wd.unmet+'未達</span>' : '';
-              return '<td class="ov-mini-wk" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,true,'+w+')" title="點擊查看這一週的未達標門市">'+wr+'%'+unmetBadge+'</td>';
+              var met = gd.count - wd.unmet;
+              return '<td class="ov-mini-met">'+met+'</td>'
+                + '<td class="ov-mini-wk'+(wd.unmet>0?' ov-mini-wk-has-unmet':'')+'" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,true,'+w+')" title="點擊查看這一週的未達標門市">'+wd.unmet+'</td>';
             }).join('');
             return '<tr class="ov-mini-row" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event)"><td>'+esc(label)+'</td><td>'+gd.count+'</td>'+weekCells
               + '<td style="color:var(--green);font-weight:700;">'+r+'%</td>'
