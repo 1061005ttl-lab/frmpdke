@@ -520,6 +520,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .chip { padding:4px 12px; background:#fff; border:1px solid var(--border); border-radius:16px; cursor:pointer; font-size:12px; font-weight:600; color:var(--sub); font-family:inherit; transition:all .15s; white-space:nowrap; }
 .chip:hover { background:var(--primary-bg); color:var(--primary); }
 .chip.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+.chip-hint { font-size:12px; color:var(--sub); font-style:italic; padding:4px 2px; }
 /* ── summary row ── */
 .summary-row { padding:10px clamp(12px,2.5vw,20px) 0; display:flex; gap:10px; flex-wrap:wrap; }
 /* 1.5.0：label／數字改成同一列平行排列（原本是上下兩層），節省卡片高度；
@@ -550,6 +551,8 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .sum-main { font-weight:800; font-size:15px; }
 .sum-rate { font-weight:700; font-size:12.5px; color:var(--green); }
 .sum-extra-badge { display:inline-block; padding:1px 8px; border-radius:10px; background:var(--bonus-bg); color:var(--bonus); font-size:11.5px; font-weight:700; white-space:nowrap; }
+.sum-unmet-badge { display:inline-block; padding:1px 8px; border-radius:10px; background:var(--red-bg); color:var(--red); font-size:11.5px; font-weight:700; white-space:nowrap; margin-top:2px; }
+.m-unmet-flag { margin-left:3px; }
 
 /* ── 訪員分組標題列（1.8.0：同一訪員的店家排序後連續排列，段落交界插入
    這一列，一眼看到「換人了」＋這個人轄區的小計，不用逐列比對訪員欄——
@@ -597,6 +600,9 @@ td.staff-group-cell { padding:8px 14px !important; text-align:left !important; b
 .pg-divider { border-left:3px solid var(--text) !important; }
 
 .box-container { display:flex; align-items:center; justify-content:flex-start; gap:4px; flex-wrap:wrap; min-height:22px; padding-left:6px; }
+/* 1.9.1：週次格子可點擊縮限單週明細，游標＋hover 提示跟整列點擊區隔開 */
+.wk-cell-click { cursor:pointer; }
+.wk-cell-click:hover { background:rgba(26,80,139,.16) !important; }
 .box-container input[type="checkbox"] { width:17px; height:17px; pointer-events:none; margin:0; }
 input.std-check { accent-color:#2F86EB; }
 input.std-check:not(:checked) { accent-color:#c8ccd2; }
@@ -1028,6 +1034,10 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
           <span class="chip-label" style="width:auto;">等級</span>
           <div class="chip-group" id="chip-grade"></div>
         </div>
+        <div class="chip-fgroup chip-fgroup-divider">
+          <span class="chip-label" style="width:auto;">特殊</span>
+          <div class="chip-group" id="chip-special"></div>
+        </div>
       </div>
       <div class="chip-row">
         <div class="chip-fgroup">
@@ -1176,7 +1186,7 @@ var _qSheetCache = {};
 var _qSheetLoading = {};
 var _qSheetWaiters = {};
 
-var FILTER = { period:'全部', channel:'全部', grade:'全部', area:'全部', office:'全部', staff:'全部', keyword:'' };
+var FILTER = { period:'全部', channel:'全部', grade:'全部', area:'全部', office:'全部', staff:'全部', keyword:'', onlyUnmet:false };
 /* 營業處執行狀況表：目前檢視的檔期／週次範圍。
      null                      ＝整體（不分檔期／週次，原本行為）
      {period,week:null}        ＝該檔期整個彙總（1.5.0 新增，例如「中元」＝
@@ -1499,6 +1509,13 @@ function buildFilterUI(){
     return '<div class="chip'+(i===0?' active':'')+'" data-v="'+v+'" onclick="setChip(this,\'grade\')">'+(v==='全部'?'全部等級':(GRADE_LABEL[v]||v))+'</div>';
   }).join('');
 
+  /* 1.9.1：「巡次未達標」是獨立開關 chip（非互斥單選群組），跟其他 chip-group
+     的 setChip() 邏輯（清掉同組其他 active、寫死一個值）不一樣，另外寫
+     toggleUnmetChip() 處理；chip 文字裡的數字在每次 render() 結尾更新，
+     顯示「目前篩選條件下（不含這顆未達標開關本身）有幾家店未達標」。 */
+  document.getElementById('chip-special').innerHTML =
+    '<div class="chip'+(FILTER.onlyUnmet?' active':'')+'" id="chip-unmet-toggle" onclick="toggleUnmetChip(this)">🔴 巡次未達標</div>';
+
   var areaOpts = ['全部'].concat(AREA_ORDER);
   document.getElementById('chip-area').innerHTML = areaOpts.map(function(v,i){
     return '<div class="chip'+(i===0?' active':'')+'" data-v="'+v+'" onclick="setChip(this,\'area\')">'+(v==='全部'?'全部處':v)+'</div>';
@@ -1532,16 +1549,26 @@ function updateOfficeChipRow(){
 function updateStaffChipRow(){
   var fgroupEl = document.getElementById('staff-fgroup');
   var grp = document.getElementById('chip-staff');
+  /* 1.9.1：訪員清單改成「營業所/課」階層連動——選了營業處但營業所還停在
+     「全部所」時，先不展開訪員清單（避免一次跑出整個營業處上百顆訪員 chip，
+     版面爆版、也不好找人），改顯示一行提示；直到使用者點了某個具體營業所，
+     才動態載入該所底下的訪員清單。選「全部處」時整組收起（跟原本行為一致）。 */
   if(FILTER.area==='全部'){
     FILTER.staff = '全部';
     fgroupEl.style.display = 'none';
     grp.innerHTML = '';
     return;
   }
+  if(FILTER.office==='全部'){
+    FILTER.staff = '全部';
+    grp.innerHTML = '<div class="chip-hint">請先選擇「營業所/課」才會展開訪員清單</div>';
+    fgroupEl.style.display = '';
+    return;
+  }
   var staffList = Array.from(new Set(
     STORE_ROWS.filter(function(r){
       if(r.area!==FILTER.area) return false;
-      if(FILTER.office!=='全部' && r.office!==FILTER.office) return false;
+      if(r.office!==FILTER.office) return false;
       return true;
     }).map(function(r){ return r.staff; })
   )).filter(Boolean).sort();
@@ -1559,6 +1586,14 @@ function setChip(el, key){
   FILTER[key] = el.getAttribute('data-v');
   if(key==='area'){ updateOfficeChipRow(); updateStaffChipRow(); }
   if(key==='office'){ updateStaffChipRow(); }
+  onFilterChange();
+}
+/* 「巡次未達標」開關：跟 setChip() 的單選群組邏輯不同，是獨立布林值，
+   點一下切換 on/off，不影響同一列其他 chip 群組（檔期／通路／等級）的
+   選取狀態 */
+function toggleUnmetChip(el){
+  FILTER.onlyUnmet = !FILTER.onlyUnmet;
+  el.classList.toggle('active', FILTER.onlyUnmet);
   onFilterChange();
 }
 function onFilterChange(){
@@ -1993,6 +2028,7 @@ function closeManpower(){
 function openDetailFromOffice(area, chanKey){
   FILTER.period = '全部'; FILTER.channel = chanKey||'全部'; FILTER.grade = '全部';
   FILTER.area = area; FILTER.office = '全部'; FILTER.staff = '全部'; FILTER.keyword = '';
+  FILTER.onlyUnmet = false;
   _enterDetail();
 }
 function renderOverview(){
@@ -2059,10 +2095,12 @@ function _enterDetail(){
 function openDetailFromOverview(periodKey, chanKey, grade, evt){
   if(evt){ evt.stopPropagation(); } /* 列點擊（帶等級）不應該再讓外層子區塊的整通路點擊重複觸發 */
   FILTER.period = periodKey; FILTER.channel = chanKey; FILTER.grade = grade||'全部'; FILTER.area = '全部'; FILTER.staff = '全部'; FILTER.keyword = '';
+  FILTER.onlyUnmet = false;
   _enterDetail();
 }
 function openDetailAll(){
   FILTER.period = '全部'; FILTER.channel = '全部'; FILTER.grade = '全部'; FILTER.area = '全部'; FILTER.staff = '全部'; FILTER.keyword = '';
+  FILTER.onlyUnmet = false;
   _enterDetail();
 }
 /* ── 離開本看板，回到入口首頁（1.5.0 新增，比照 coverage_board.html 的 goBack） ── */
@@ -2084,6 +2122,8 @@ function syncChipsToFilter(){
       c.classList.toggle('active', c.getAttribute('data-v')===FILTER[key]);
     });
   });
+  var unmetToggle = document.getElementById('chip-unmet-toggle');
+  if(unmetToggle) unmetToggle.classList.toggle('active', FILTER.onlyUnmet);
   _updateFilterToggleSummary();
 }
 /* 1.6.2：手機版篩選條件收合按鈕上的一行小字摘要——收合時仍能一眼看出
@@ -2099,6 +2139,7 @@ function _updateFilterToggleSummary(){
   if(FILTER.area!=='全部') parts.push(FILTER.area);
   if(FILTER.office!=='全部') parts.push(FILTER.office);
   if(FILTER.staff!=='全部') parts.push(FILTER.staff);
+  if(FILTER.onlyUnmet) parts.push('🔴未達標');
   el.textContent = parts.length ? parts.join('・') : '全部';
 }
 /* 手機版：篩選 chip 列預設收合，避免固定工具列＋篩選列一次佔掉大半螢幕，
@@ -2258,10 +2299,12 @@ function render(){
      用同一份 actual/std 數字），不必為兩種畫面各算一次 _actualCount。
      groupKey 是這家店在分組排序下所屬的「區域＋營業所＋訪員」段落，
      必須跟 getFilteredStores() 的排序鍵一致，這裡才切得出正確的連續段落
-     （排序鍵之後如果要調整，這裡要同步改）。 */
-  var rowsData = stores.map(function(s){
+     （排序鍵之後如果要調整，這裡要同步改）。
+     1.9.1：isUnmet＝目前這個時間窗口（cols）內，這家店「應達次數>0 且
+     達標次數還沒補滿應達次數」──跟「巡次未達標」篩選／欄位標示共用同一份
+     判斷，不另外算一套，確保 chip 數字／表格標籤／篩選結果三處保證一致。 */
+  var rowsDataAll = stores.map(function(s){
     var std = GRADE_FREQ[s.grade];
-    if(std===undefined){ unknownGradeCount++; }
     var gradeLabel = GRADE_LABEL[s.grade] || s.grade;
 
     var colStats = [];
@@ -2271,11 +2314,28 @@ function render(){
       var stdN = std===undefined ? 0 : std;
       var stdDone = Math.min(actual, stdN);
       var extra = Math.max(0, actual - stdN);
-      if(std!==undefined){ totalExp += stdN; totalStdDone += stdDone; totalExtra += extra; rowExp += stdN; rowStdDone += stdDone; rowExtra += extra; }
+      rowExp += stdN; rowStdDone += stdDone; rowExtra += extra;
       colStats.push({ col:c, actual:actual, std:stdN, extra:extra });
     });
-    return { s:s, std:std, gradeLabel:gradeLabel, colStats:colStats, rowExp:rowExp, rowStdDone:rowStdDone, rowExtra:rowExtra,
+    var isUnmet = rowExp>0 && rowStdDone<rowExp;
+    return { s:s, std:std, gradeLabel:gradeLabel, colStats:colStats, rowExp:rowExp, rowStdDone:rowStdDone, rowExtra:rowExtra, isUnmet:isUnmet,
       groupKey: s.area+'␟'+s.office+'␟'+s.staff };
+  });
+
+  var unmetCount = rowsDataAll.filter(function(rd){ return rd.isUnmet; }).length;
+  /* 「巡次未達標」開關 chip 上直接標數字，收合狀態下也能一眼看出目前
+     篩選條件（不含這顆開關本身）底下有幾家店未達標，不用先點開才知道 */
+  var unmetToggleEl = document.getElementById('chip-unmet-toggle');
+  if(unmetToggleEl) unmetToggleEl.textContent = '🔴 巡次未達標（'+unmetCount+'）';
+
+  var rowsData = FILTER.onlyUnmet ? rowsDataAll.filter(function(rd){ return rd.isUnmet; }) : rowsDataAll;
+
+  /* 統計卡（篩選店數／應達總次數／達成率／超額次數）一律依「畫面上實際
+     顯示的這份 rowsData」重新加總，而不是加總全部 stores——這樣「巡次
+     未達標」開關打開時，卡片數字才會跟著只算未達標那批店，不會誤導人 */
+  rowsData.forEach(function(rd){
+    if(rd.std===undefined){ unknownGradeCount++; return; }
+    totalExp += rd.rowExp; totalStdDone += rd.rowStdDone; totalExtra += rd.rowExtra;
   });
 
   /* 第二輪：依訪員分組鍵切段，段落交界插入分組標題（含小計），桌機／
@@ -2318,7 +2378,11 @@ function render(){
       var m = colMeta[idx];
       var dividerCls = m.isGroupDivider ? ' pg-divider' : (m.isWeekDivider ? ' wk-divider' : '');
       var boxesHtml = _buildBoxCells(cs.actual, cs.std, m.isPastWeek);
-      colsHtml += '<td class="'+m.periodCls+dividerCls+'"><div class="box-container">'+boxesHtml+'</div></td>';
+      /* 1.9.1：週次格子點擊 → 帶入該週次範圍縮限明細 Dialog（帶 period/week
+         參數＋stopPropagation，避免同時觸發整列的 openStoreDetail 顯示全檔期）；
+         其餘欄位（店名／區域…）點擊仍維持整列 <tr> 的 onclick，顯示目前篩選
+         檔期範圍的完整明細，兩種入口並存不衝突。 */
+      colsHtml += '<td class="'+m.periodCls+dividerCls+' wk-cell-click" onclick="openStoreDetail(\''+esc(rd.s.code)+'\',\''+cs.col.period+'\','+cs.col.week+',event)"><div class="box-container">'+boxesHtml+'</div></td>';
 
       if(cs.std>0){
         if(cs.col.period !== wkGroupPeriod){ _flushWkGroup(); wkGroupPeriod = cs.col.period; }
@@ -2333,6 +2397,7 @@ function render(){
     var sumHtml = '<div class="sum-cell"><div class="sum-main">'+rd.rowStdDone+'/'+rd.rowExp+'</div>'
       + '<div class="sum-rate">'+rowRate.toFixed(1)+'%</div>'
       + (rd.rowExtra>0 ? '<div class="sum-extra-badge">超額 +'+rd.rowExtra+'</div>' : '')
+      + (rd.isUnmet ? '<div class="sum-unmet-badge">🔴 未達標</div>' : '')
       + '</div>';
 
     group.rowsHtml += '<tr onclick="openStoreDetail(\''+esc(rd.s.code)+'\')">'
@@ -2354,7 +2419,7 @@ function render(){
       +     '<span class="m-line-sep">·</span><span class="m-line-type">'+esc(rd.s.storeType||'—')+'</span>'
       +     '<span class="m-line-sep">·</span><span class="m-line-grade">'+gradeLineHtml+'</span>'
       +   '</div>'
-      +   '<div class="m-store-badge '+rateClass+'">'+rd.rowStdDone+'/'+rd.rowExp+(rd.rowExtra>0?'<small>+'+rd.rowExtra+'</small>':'')+'</div>'
+      +   '<div class="m-store-badge '+rateClass+'">'+rd.rowStdDone+'/'+rd.rowExp+(rd.rowExtra>0?'<small>+'+rd.rowExtra+'</small>':'')+(rd.isUnmet?'<small class="m-unmet-flag">🔴</small>':'')+'</div>'
       + '</div>'
       + (weeksHtml ? '<div class="m-store-weeks">'+weeksHtml+'</div>' : '')
       + '</div>';
@@ -2363,10 +2428,10 @@ function render(){
 
   document.getElementById('tbl-body').innerHTML = rowsHtml;
   document.getElementById('main-mobile-cards').innerHTML = mcardsHtml;
-  document.getElementById('empty-msg').style.display = stores.length ? 'none' : 'block';
+  document.getElementById('empty-msg').style.display = rowsData.length ? 'none' : 'block';
   requestAnimationFrame(_autoFitStoreLines); /* 1.8.1：DOM 塞進去後量測寬度，超出卡寬的店名/店碼/通路/等級那一行才動態縮字級 */
 
-  document.getElementById('stat-store-count').textContent = stores.length;
+  document.getElementById('stat-store-count').textContent = rowsData.length;
   document.getElementById('stat-exp-visits').textContent = totalExp;
   var rate = totalExp>0 ? (totalStdDone/totalExp*100).toFixed(1) : '0.0';
   document.getElementById('stat-rate').textContent = rate+'%';
@@ -2515,14 +2580,27 @@ function _ensureAllQSheets(callback){
   });
 }
 
-function openStoreDetail(code){
+function openStoreDetail(code, scopePeriod, scopeWeek, evt){
+  if(evt){ evt.stopPropagation(); } /* 週次格子點擊時，不要再讓外層整列 <tr> 的 onclick 重複觸發一次 */
   _detailCode = code;
   var store = STORE_ROWS.filter(function(s){ return s.code===code; })[0];
   if(!store) return;
   document.getElementById('dlg-header-actions').innerHTML = '';
-  document.getElementById('dlg-title').textContent = store.storeName+'（'+store.code+'）';
 
-  var cols = activeColumns();
+  /* 1.9.1：若帶了 scopePeriod/scopeWeek（從表格「單一週次格子」點擊進來），
+     資料範圍縮限成只看那一週，不受目前檔期篩選（可能是「全部檔期」）影響；
+     沒帶的話（從店名／整列點擊進來）維持原本行為，範圍＝目前篩選出的
+     activeColumns()，兩種入口共用同一份下面的計算與畫面組裝邏輯。 */
+  var scoped = !!(scopePeriod && scopeWeek);
+  var cols = scoped ? [{ period:scopePeriod, week:Number(scopeWeek) }] : activeColumns();
+  if(scoped){
+    var pLabel = (PERIODS.filter(function(p){return p.key===scopePeriod;})[0]||{}).label || scopePeriod;
+    var dateRange = _weekDateRange(scopePeriod, Number(scopeWeek));
+    document.getElementById('dlg-title').textContent = store.storeName+'（'+store.code+'）　－　'+pLabel.replace('專案','')+' W'+scopeWeek+'（'+dateRange+'）';
+  } else {
+    document.getElementById('dlg-title').textContent = store.storeName+'（'+store.code+'）';
+  }
+
   var std = GRADE_FREQ[store.grade];
   var expTotal=0, stdDoneTotal=0, extraTotal=0;
   cols.forEach(function(c){
@@ -2547,7 +2625,7 @@ function openStoreDetail(code){
     + '<div class="vs-item">單位<br><b>'+esc(store.area)+' '+esc(store.office)+'</b></div>'
     + '<div class="vs-item">主要訪員<br><b>'+esc(store.staff)+'</b></div>'
     + '<div class="vs-item">等級<br><b>'+esc(store.grade ? (GRADE_LABEL[store.grade]||store.grade) : '未設定')+'</b></div>'
-    + '<div class="vs-item">目前篩選範圍達成率<br><b>'+stdDoneTotal+'/'+expTotal+'（'+rate+'%）</b></div>'
+    + '<div class="vs-item">'+(scoped?'該週次達成率':'目前篩選範圍達成率')+'<br><b>'+stdDoneTotal+'/'+expTotal+'（'+rate+'%）</b></div>'
     + '<div class="vs-item">超額次數<br><b style="color:var(--bonus)">'+extraTotal+'</b></div>'
     + '</div>';
 
