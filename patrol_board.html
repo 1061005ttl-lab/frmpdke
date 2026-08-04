@@ -472,6 +472,9 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 .ov-mini td.ov-mini-wk:hover, .ov-mini td.ov-mini-unmet:hover { background:var(--red-bg) !important; }
 .ov-mini td.ov-mini-unmet { color:var(--red); font-weight:700; }
 .ov-mini th { background:var(--bg); color:var(--sub); font-weight:700; }
+/* 1.9.4：週次格子裡的「這一週未達店數」小徽章，跟格子本身的達成率%
+   文字用換行分開，字級縮小＋紅色，不喧賓奪主但一眼能看到 */
+.ov-mini-wk-unmet { display:block; font-size:10.5px; color:var(--red); font-weight:700; line-height:1.3; }
 .ov-empty { color:var(--sub); font-size:13.5px; text-align:center; padding:12px 0; }
 @media (max-width:640px) {
   .ov-grid { grid-template-columns:1fr; }
@@ -1403,13 +1406,17 @@ function _periodColumns(periodKey){
   for(var w=1; w<=p.weeks; w++) cols.push({ period:p.key, week:w });
   return cols;
 }
-/* 1.9.2：byGrade[g] 多存一個 unmetCount——同一份「等級 × 檔期整體」彙總資料，
-   供「未達店數」欄位跟原本的 exp/stdDone/weeks 共用同一輪迴圈算出來，
-   不用另外再跑一次 storesSubset.forEach。判斷標準跟主表 render() 裡的
-   isUnmet 一致：這家店在目前 cols 範圍內「應達次數>0 且還沒補滿」。 */
+/* 1.9.4：g.weeks[w] 原本只存 {exp, stdDone}，只夠算「這一週的達成率%」，
+   算不出「這一週有幾家店沒達標」——使用者要看單週未達店數只能點進去
+   明細頁自己數，總覽頁面看不出來；而最後的 unmetCount 是整個 cols 範圍
+   （可能橫跨中元 W1~W3）合計的未達店數，把好幾週混在一起，光看這一欄
+   完全看不出是哪一週出問題。改成 weeks[w] 多存一個 unmet：這一週裡
+   「應達次數>0 且這一週沒達標」的店數，跟主表 isUnmet 判斷同一套邏輯
+   （只是把範圍從「整個 cols」縮小成「這一欄單一週」），在同一輪迴圈
+   就近算好，不用再多跑一次。 */
 function _statsFor(storesSubset, cols){
   var totalExp=0, totalStdDone=0;
-  var byGrade = {}; /* grade → {count, exp, stdDone, weeks:{week:{exp,stdDone}}, unmetCount} */
+  var byGrade = {}; /* grade → {count, exp, stdDone, weeks:{week:{exp,stdDone,unmet}}, unmetCount} */
   storesSubset.forEach(function(s){
     var std = GRADE_FREQ[s.grade];
     if(std===undefined) return; /* 等級未知不計入概況統計，跟主表邏輯一致 */
@@ -1421,8 +1428,9 @@ function _statsFor(storesSubset, cols){
       var actual = _actualCount(s.code, c.period, c.week);
       var exp = std, stdDone = Math.min(actual, std);
       g.exp += exp; g.stdDone += stdDone;
-      if(!g.weeks[c.week]) g.weeks[c.week] = { exp:0, stdDone:0 };
+      if(!g.weeks[c.week]) g.weeks[c.week] = { exp:0, stdDone:0, unmet:0 };
       g.weeks[c.week].exp += exp; g.weeks[c.week].stdDone += stdDone;
+      if(exp>0 && stdDone<exp) g.weeks[c.week].unmet++;
       totalExp += exp; totalStdDone += stdDone;
       rowExp += exp; rowStdDone += stdDone;
     });
@@ -1903,7 +1911,7 @@ function renderOverview(){
       var body = gradeKeys.length ? (
         '<table class="ov-mini"><tr><th>等級</th><th>店數</th>'
         + weekNums.map(function(w){ return '<th>W'+w+'</th>'; }).join('')
-        + '<th>達成率%</th><th>未達店數</th></tr>'
+        + '<th>達成率%</th><th title="整個檔期範圍內，至少有一週沒達標的店數">未達店數<br>(整檔期)</th></tr>'
         + gradeKeys.map(function(g){
             var gd = stat.byGrade[g];
             var r = gd.exp>0 ? (gd.stdDone/gd.exp*100).toFixed(1) : '0.0';
@@ -1912,14 +1920,18 @@ function renderOverview(){
                ＋🔴巡次未達標」四個條件一起進明細頁，跟「未達店數」欄位共用
                同一支 openDetailFromOverview，差別只在多帶一個 week 參數；
                stopPropagation 避免同時觸發外層整列（不分週次）的篩選 */
+            /* 1.9.4：每週儲存格除了達成率%，同時把「這一週未達店數」也
+               印在格子裡（達成率 100% 時不重複顯示「0未達」，減少視覺
+               雜訊）；點擊行為不變，仍是帶該週 onlyUnmet 進明細頁。 */
             var weekCells = weekNums.map(function(w){
-              var wd = gd.weeks[w] || { exp:0, stdDone:0 };
+              var wd = gd.weeks[w] || { exp:0, stdDone:0, unmet:0 };
               var wr = wd.exp>0 ? (wd.stdDone/wd.exp*100).toFixed(0) : '0';
-              return '<td class="ov-mini-wk" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,true,'+w+')" title="點擊查看這一週的未達標門市">'+wr+'%</td>';
+              var unmetBadge = wd.unmet>0 ? '<span class="ov-mini-wk-unmet">'+wd.unmet+'未達</span>' : '';
+              return '<td class="ov-mini-wk" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,true,'+w+')" title="點擊查看這一週的未達標門市">'+wr+'%'+unmetBadge+'</td>';
             }).join('');
             return '<tr class="ov-mini-row" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event)"><td>'+esc(label)+'</td><td>'+gd.count+'</td>'+weekCells
               + '<td style="color:var(--green);font-weight:700;">'+r+'%</td>'
-              + '<td class="ov-mini-unmet" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,true)" title="點擊查看整個檔期的未達標門市">'+(gd.unmetCount||0)+'</td></tr>';
+              + '<td class="ov-mini-unmet" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,true)" title="點擊查看整個檔期範圍內、至少有一週沒達標的門市">'+(gd.unmetCount||0)+'</td></tr>';
           }).join('')
         + '</table>'
       ) : '<div class="ov-empty">目前沒有符合資料</div>';
