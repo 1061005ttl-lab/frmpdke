@@ -1,441 +1,163 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.9.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-07-21
+  版本：Ver. 1.9.2 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-04
 
 【這個檔案是什麼】
-  單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 讀取同一份
-  試算表裡的兩個分頁，在瀏覽器端組成「2026 節慶專案（中元／中秋）通路
-  巡補頻次」儀表板：依店家等級判斷每週「應達巡補次數」，跟實際巡補
-  次數比對，超過標準的部分拆成「超額」另計，不列入達成率。
-
-  跟 audit_board / contract_board / coverage_board 是各自獨立的系統，
-  只共用 shared/*.js 技術骨架（gviz 抓表、CSV/複製/截圖/UI Chrome），
-  業務邏輯完全不共用——本檔特有的「依日期自動判斷檔期週次」「依等級
-  動態算應達次數」「標準/超額格子自動觸發＋資料隔離」都是全新邏輯，
-  三份舊看板都沒有，改動前不要假設跟舊看板共用計算函式。
-
-  【與舊看板的差異，方便之後銜接／擴充時查閱】
-  ‧ contract_board 的「處理層」是拿來比對「這個月這品項有沒有交」
-    （二元 ✅/❌）；本檔的「處理層」是拿來算「這一週去了幾次」
-    （數字，可能超過標準），計算邏輯完全不同、不可互換套用。
-  ‧ 本檔沒有 contract_board 式的「處→所→人員」四層鑽層卡片，
-    改用「檔期／通路／等級／區域」四組 chip 篩選（比照 alpha 版
-    設計），畫面更接近 coverage_board 的單層彙整表格風格。
-  ‧ 本檔沒有多專案切換（MGMT「專案管理」boardType 機制），
-    SHEET_ID 直接從網址 ?sheetId= 帶入，是本次中元/中秋專用的
-    單一看板（已與需求方確認，未來若要擴充尾牙/春節等其他檔期，
-    可考慮比照 contract_board 加回 MGMT 切換機制，屆時 PERIODS
-    常數需要改成從管理表動態載入，而不是寫死在本檔）。
+  ‧ 單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 讀取同一份
+    試算表裡的兩個分頁，組成「2026 節慶專案（中元／中秋）通路巡補頻次」
+    儀表板：依店家等級判斷每週「應達巡補次數」，跟實際巡補次數比對，
+    超過標準的部分拆成「超額」另計，不列入達成率。
+  ‧ 跟 audit_board／contract_board／coverage_board 是各自獨立的系統，
+    只共用 shared/*.js 技術骨架（gviz 抓表、CSV/複製/截圖/UI Chrome），
+    業務計算邏輯完全不共用，改動前不要假設可以套用舊看板的計算函式。
+  ‧ 跟 contract_board 的差異：contract_board 的「處理層」比對「有沒有交」
+    （二元 ✅/❌）；本檔比對「去了幾次」（數字，可能超過標準），計算
+    邏輯不可互換。
+  ‧ 沒有 contract_board 式的「處→所→人員」四層鑽層卡片，改用「檔期／
+    通路／等級／區域」四組 chip 篩選，風格更接近 coverage_board。
+  ‧ 沒有多專案切換（MGMT 機制）；SHEET_ID 直接從網址 ?sheetId= 帶入，
+    是中元/中秋專用單一看板（已與需求方確認）。未來若要擴充尾牙/春節，
+    PERIODS 常數需要改成從管理表動態載入。
 
 ────────────────────────────────────────────────────────────
-【讀取的兩份資料來源（同一份 SHEET_ID 試算表裡的兩個分頁）】
-
-  1.「店家名冊」── 母體，量販通路與全聯社（超市）通路合併一份名冊。
-     欄位（表頭列文字需完全一致，程式用欄名比對，不用欄位順序）：
-       營業處名稱／營業所/課／主要訪員／通路別／店家型態／店家代碼／店家名稱／店家等級
-     ‧ 通路／全聯的判斷改用真實欄位值分類（畫面上仍只顯示「量販」
-       「全聯」簡稱），不是直接比對整欄：
-         量販：通路別＝「量販通路」
-         全聯：店家型態＝「全聯社」（不看通路別欄）
-       比對邏輯集中在常數區的 _chanKey() 函式，日後真實值再變動，
-       改這支函式即可，不要在別處另外加比對條件。
-     ‧ 店家等級：決定「每週應達巡補次數」的依據，目前支援四種值，
-       對照表寫死在本檔常數 GRADE_FREQ（見下方【等級應達次數對照】），
-       日後若需要新增等級或調整標準次數，直接改這個常數即可，
-       不需要（也刻意不做）另外接管理表動態載入。
-     ‧ 這份名冊不分檔期、不分週次——「這家店這一週該去幾次」是
-       純粹由「等級」決定的固定標準，跟中元或中秋無關（兩個檔期
-       共用同一套等級標準）。
-
-  2.「處理層」── 比對資料，每一列＝一筆巡補紀錄，由 GAS（後端，
-     不在本檔案範圍內）從「問卷資料(量販)」「問卷資料(全聯)」兩份
-     問卷分頁整理產生，比照 contract_board 的
-     extractSurveyDataToMasterRegistry() 模式。
-     欄位：
-       來源分頁+行數／店家代碼／通路別／執行人員／巡補日期
-     ‧ 來源分頁+行數：跨分頁連結鍵（格式：分頁名稱_行數，例如
-       「問卷資料量販_57」），目前本檔只用來當作明細列表的參考欄位
-       顯示，沒有做到像 audit_board 那樣即時回查來源分頁抓問卷大題
-       內容——如果之後要加「點一次巡補紀錄看當次完整問卷內容」，
-       可以參考 audit_board.html 的 _fetchSourceSheet 機制另外接上，
-       本檔目前刻意不做（節慶巡補的問卷內容通常不需要逐筆回看）。
-     ‧ 巡補日期：本檔核心依據，看板依這個日期 + 下方【檔期定義】
-       的起訖日，自動換算屬於哪個檔期的第幾週，處理層本身「不」
-       另外存週次欄位（跟已確認的規劃一致：週次由看板端計算，
-       不要求 GAS 端額外產出）。
-
-  兩者都讀自同一個 SHEET_ID（網址參數 ?sheetId= 帶入）。
+【兩份資料來源（同一份 SHEET_ID 試算表裡的兩個分頁）】
+  ‧「店家名冊」（母體）欄位：營業處名稱／營業所/課／主要訪員／通路別／
+    店家型態／店家代碼／店家名稱／店家等級
+    - 通路判斷（見常數區 _chanKey()）：量販＝通路別＝「量販通路」；
+      全聯＝店家型態＝「全聯社」（不看通路別欄）。
+    - 店家等級決定每週應達次數，對照表寫死在 GRADE_FREQ（見下方）。
+    - 名冊不分檔期／週次，兩檔期共用同一套等級標準。
+  ‧「處理層」（比對資料，每列＝一筆巡補紀錄，由後端 GAS 從問卷分頁
+    整理產生，比照 contract_board 的 extractSurveyDataToMasterRegistry()）
+    欄位：來源分頁+行數／店家代碼／通路別／執行人員／巡補日期
+    - 來源分頁+行數：目前僅供明細列表參考顯示，未做即時回查問卷內容
+      （如需要可參考 audit_board 的 _fetchSourceSheet 機制另外接上）。
+    - 巡補日期：核心依據，週次由看板端依【檔期定義】自動換算，處理層
+      本身不存週次欄位。
+  ‧ 兩者都讀自同一個 SHEET_ID（網址參數 ?sheetId= 帶入）。
 
 ────────────────────────────────────────────────────────────
-【檔期定義（寫死在常數 PERIODS，之後年度數字要改就改這裡）】
-  中元專案：2026/08/08（六）– 08/28（五），共 3 週（W1、W2、W3）
-  中秋專案：2026/09/14（一）– 09/27（日），共 2 週（W1、W2）
-  整體視角：兩檔期合併顯示（W1–W5，中元3欄+中秋2欄）
+【檔期定義（常數 PERIODS）】
+  ‧ 中元專案：2026/08/08（六）– 08/28（五），共 3 週（W1–W3）
+  ‧ 中秋專案：2026/09/14（一）– 09/27（日），共 2 週（W1–W2）
+  ‧ 整體視角：兩檔期合併顯示（W1–W5）
+  ‧ 週次判斷：「巡補日期－檔期起始日」天數差每 7 天一週；超過該檔期
+    總週數視為不屬於任何檔期，不計入統計。
 
-  週次判斷邏輯：以「巡補日期－檔期起始日」的天數差，每 7 天一週，
-  換算出來的週次超過該檔期總週數就視為「不屬於任何檔期」（不計入
-  任何統計，例如中元檔期跑到 08/29 才去的巡補不算數）。
-
-【等級應達次數對照（寫死在常數 GRADE_FREQ）】
-  量販 A 級：每週 5 次　量販 B 級：每週 3 次　量販 C 級：每週 2 次
-  全聯 連鎖超市A：每週 1 次（畫面上簡稱顯示為「超市A」，對照表見
-  GRADE_LABEL，「店家名冊」裡「店家等級」欄的真實值須為「連鎖超市A」）
-  （對照表已與需求方確認先寫死在 HTML 常數，不做管理表可調整設定；
-   日後真的要調整，直接改 GRADE_FREQ／GRADE_LABEL 物件即可，
-   不需要改動其餘邏輯）
+【等級應達次數對照（常數 GRADE_FREQ／GRADE_LABEL）】
+  ‧ 量販 A：每週 5 次／量販 B：每週 3 次／量販 C：每週 2 次
+  ‧ 全聯「連鎖超市A」（畫面簡稱「超市A」）：每週 1 次
+  ‧ 已與需求方確認先寫死在 HTML 常數，不做管理表可調整設定；日後要
+    調整直接改 GRADE_FREQ／GRADE_LABEL 即可。
 
 ────────────────────────────────────────────────────────────
-【核心計算邏輯（自動化格子觸發＋資料隔離，比照 alpha 版規格書）】
+【核心計算邏輯】
   對每一家店、每一個顯示中的檔期週次欄位：
-    1. actual = 處理層裡「店家代碼相符 ＋ 巡補日期落在該檔期該週」
-       的紀錄筆數。
-    2. std   = 該店等級對應的每週應達次數（GRADE_FREQ）。
-    3. stdDone = min(actual, std)　→ 顯示為藍色格子，勾選 stdDone 格。
-    4. extra   = max(0, actual - std)　→ 顯示為橘色格子，自動觸發，
-       勾選 extra 格（最高不特別限制格數，巡補次數多就顯示多格）。
-  資料隔離原則（三份都要遵守，這是本檔最容易被改壞的地方）：
-    ‧ 橘色格（超額）只計入「超額次數」統計，絕對不計入
-      任何「達成率 %」的分子分母。
-    ‧ 超額次數不可外溢：A 店多跑的次數不能拿來墊 B 店的未達成，
-      統計時一律逐店、逐週獨立計算，最後才加總顯示範圍內的合計，
-      不存在任何「跨店挪用」的計算路徑。
-    ‧ 達成率 % = Σ全部顯示中欄位的 stdDone ／ Σ全部顯示中欄位的 std，
-      分母用「應達次數」而非「實際次數」，超標的店不會把分母墊高、
-      拖累其他店的達成率觀感。
+  ‧ actual = 處理層裡「店家代碼相符 ＋ 巡補日期落在該檔期該週」的
+    紀錄筆數（已依日期去重，見下方【巡補次數計算】）。
+  ‧ std = 該店等級對應的每週應達次數（GRADE_FREQ）。
+  ‧ stdDone = min(actual, std)　→ 藍色格；extra = max(0, actual-std)　
+    → 橘色格，自動觸發。
+  資料隔離原則（最容易被改壞的地方）：
+  ‧ 橘色格（超額）只計入「超額次數」，絕對不計入達成率分子分母。
+  ‧ 超額次數不可跨店外溢，一律逐店、逐週獨立計算後才加總。
+  ‧ 達成率% = Σ顯示範圍 stdDone ／ Σ顯示範圍 std（分母用應達次數，
+    不是實際次數）。
+
+【巡補次數計算：每日每店計 1 次】
+  ‧ 同一天同一店多筆問卷紀錄只算 1 次（依「年-月-日」去重，見
+    ACTUAL_INDEX / _buildActualIndex）；店家明細 Dialog 時間軸仍列出
+    全部原始紀錄，同一天多筆時加註橘色「同日N筆」徽章供人工核對。
 
 ────────────────────────────────────────────────────────────
 【畫面設計】
-  ‧ 進站先看「概況主畫面」（比照 alpha 版 mainDashboard 設計），畫面由上
-    到下：
-    1)「營業處執行狀況」總覽表（1.3.0 新增，1.5.0 改排最上面——現場人員
-       進站通常想先看自己營業處的整體表現，不分檔期／通路，點列可直接
-       帶著該營業處篩選進明細頁）。時間範圍 chip 除了「整體」跟逐週切換，
-       1.5.0 起也能直接選「中元」「中秋」看整個檔期(W1~Wn)彙總，不用
-       自己切每一週再心算加總。
-    2) 中元／中秋 × 量販／全聯，四張卡片各顯示整體達成率＋依等級拆分的
-       店數／各週(W1~Wn)達成率／總達成率 mini table，點卡片才帶著對應
-       檔期＋通路篩選條件進入明細頁（明細頁「← 返回總覽」可回到概況，
-       回去時會重新整理卡片數字）；「進入整體明細」按鈕則不帶篩選直接
-       進明細。
-    概況主畫面左上角（1.5.0 新增）另有「← 返回」按鈕，離開本看板回到
-    入口首頁 index.html（跟「← 返回總覽」不同層級，不要混淆：一個是
-    離開整個看板，一個只是回到看板內的概況頁）。
-  ‧ 概況頁與明細頁工具列都有「📖 使用說明」按鈕（1.3.0 新增），開啟
-    一個純文字說明的浮層，只講畫面數字/顏色代表的意思，不涉及後台
-    計算公式，給不熟悉系統的操作者快速上手用。
-  ‧ 上方摘要列：目前篩選範圍的 過濾店數／標準應達總次數／
-    目標達成率(%)／超額次數，四項比照 alpha 版數據摘要區（1.5.0：
-    「自動觸發超額次數」改名「超額次數」，用詞更中性；四張卡片同時
-    改成 label／數字同列平行排列以節省高度，見下方 1.5.0 版本紀錄）。
-  ‧ 篩選列（filterbar，關鍵字搜尋 + 動態列數的 chip，通路／等級因
-    彼此相關併同一列以節省版面）：
-      檔期：全部(W1-W5)／中元專案／中秋專案
-      通路＋等級（同一列）：全部／量販店／全聯社　　全部／量販A／
-        量販B／量販C／超市A
-      營業處：全部／北部／桃園／臺中／嘉義／臺南／高雄／花蓮
-            （順序固定＝AREA_ORDER 常數，嚴格遵循北桃中嘉南高花）
-      營業所/課：選定「營業處」（非全部）後才出現，選項依實際資料
-        動態產生（該營業處底下有哪些營業所就列哪些，選全部處時整列
-        隱藏並重置為全部所，避免殘留篩選誤導使用者）
-      關鍵字：比對店名／店代碼／主要訪員（沿用其他看板慣例，非必要
-              需求，加上方便使用而已）
-  ‧ 主表格：一列一家店，欄位依目前「檔期」篩選動態展開（全部＝
-    5欄「中元W1~W3＋中秋W1~W2」；只選中元＝3欄；只選中秋＝2欄），
-    每個週次欄位固定畫 7 格（1.5.0：一週最多 7 天，不再依 stdN/extra
-    動態決定格數）：前 stdN 格是 checkbox 呈現的 stdDone(藍，靠左排列)，
-    第 stdN+1～7 格預設用近似透明的「幽靈格」(.box-ghost) 佔位，只有
-    實際次數蓋過該格序位才換成 extra(橘，帶脈動發光特效)，比照 alpha
-    版 box-container 視覺設計；checkbox 不加 disabled 屬性（改用 CSS
-    pointer-events:none 擋互動），避免瀏覽器對 disabled 控制項套用
-    預設灰階，確保已勾選格子顏色維持明亮。
-  ‧ 點一列店家 → 開店家明細 Dialog，列出該店在目前篩選檔期範圍內
-    的逐筆巡補紀錄時間軸（日期＋週次＋來源分頁+行數參考；同一天有
-    多筆紀錄會加註「同日N筆」徽章）。時間軸下方（1.3.0 新增）再接一段
-    「問卷內容」，非同步從對應通路的問卷分頁抓該店的完整填答，逐筆
-    可展開／收合，見上方【店家明細 Dialog 的「問卷內容」怎麼接上原始
-    問卷】專門段落。
-  ‧ 工具列：📥CSV／💬LINE全文／✂️LINE精簡／📸截圖，皆針對「目前
-    篩選後的完整結果」（不受表格是否分頁載入影響——本檔資料量
-    預期不大，未做 contract_board 式的「顯示更多」分批載入）。
+  ‧ 進站先看「概況主畫面」，由上到下：
+    1) 「營業處執行狀況」總覽表：不分檔期／通路的整體表現，點列/儲存格
+       可直接帶篩選進明細頁；時間範圍 chip 可選「整體」／逐週／整個
+       檔期彙總。「未達店數」欄位點擊會額外帶入「🔴巡次未達標」篩選。
+    2) 中元／中秋 × 量販／全聯四張卡片：整體達成率＋依等級拆分的
+       店數／各週達成率／未達店數 mini table，點列或週次格可各自帶
+       對應篩選（含未達標）進明細頁。
+    ‧ 左上角「← 返回」離開本看板回入口首頁；跟明細頁「← 返回總覽」
+      是不同層級。
+  ‧ 「📖 使用說明」按鈕（概況／明細頁工具列都有）：純文字浮層，只講
+    畫面數字/顏色意義，不談計算公式。
+  ‧ 上方摘要列：過濾店數／應達總次數／達成率(%)／超額次數。
+  ‧ 篩選列：檔期／通路+等級（同列）／營業處（順序＝AREA_ORDER：北桃
+    中嘉南高花）／營業所/課（選定營業處後才出現）／關鍵字（比對店名／
+    店代碼／主要訪員）／🔴巡次未達標（獨立開關）。
+  ‧ 主表格：一列一家店，欄位依「檔期」篩選動態展開；每週固定 7 格
+    （前 stdN 格＝應達，其餘為超額或幽靈格佔位），checkbox 用
+    pointer-events:none 擋互動以維持顏色明亮。
+  ‧ 點一列店家 → 店家明細 Dialog：逐筆巡補時間軸＋「問卷內容」（見下）。
+  ‧ 工具列：📥CSV／💬LINE全文／✂️LINE精簡／📸截圖／🖼️照片牆／
+    🔍逐題彙整／🧩細項匯出，皆針對「目前篩選後的完整結果」。
+  ‧ 🧮 人次估算工具（獨立 MANPOWER_FILTER，不受主畫面篩選影響）：
+    純依「店家名冊＋GRADE_FREQ」試算排班需要的人次，不看實際巡補紀錄；
+    可收斂到檔期／通路／等級／營業處／營業所，並可匯出 CSV。
 
 ────────────────────────────────────────────────────────────
-【店家明細 Dialog 的「問卷內容」怎麼接上原始問卷（1.3.0 新增）】
-  比照 coverage_board.html 的 _fetchQuestionnaireSheet 設計（headers=0
-  抓資料、另發 headers=1 只拿欄名，避免日期型別欄位的表頭文字被 gviz
-  型別推斷吃掉；欄名含「_」視為「大題_選項」，其餘視為基本欄位），
-  差異是本檔問卷分成「問卷資料(量販)」「問卷資料(全聯)」兩個分頁
-  （常數 QUESTIONNAIRE_SHEETS），依店家的 chanKey 決定查哪一份，
-  用「店家代碼」欄位（沿用 R_CODE 常數）分組。
-  ‧ 前提假設：這兩份問卷分頁裡都要有一欄叫「店家代碼」，且值要跟
-    「店家名冊」的店家代碼完全一致，才能對得上——這點如果跟後端
-    GAS 產出的欄位命名對不上，問卷內容會顯示「找不到這家店的問卷
-    紀錄」（不是程式壞掉，是店家代碼欄名或值對不上）。
-  ‧ 渲染共用 shared/photo-viewer.js 的 _renderQuizSections（跟
-    coverage/audit 同一支，照片／文字答案的標準化顯示邏輯不重寫），
-    因此本檔新增掛載 shared/photo-viewer.js（原本刻意不掛載，
-    1.3.0 起為了問卷內容顯示需要而加回）。
-
-【巡補次數計算：每日每店計 1 次（1.3.0 修正，此前為未落實的文件承諾）】
-  舊版文件已經寫明「有效計算方式是每日每店計 1 次」，但 _actualCount()
-  實際上是直接數處理層筆數，沒有依日期去重——如果同一天同一店有兩筆
-  問卷紀錄（重填、誤送出兩次等狀況），會被誤算成 2 次巡補，可能墊高
-  達成率或多算超額次數。1.3.0 改成依「年-月-日」用 Set 去重再計數，
-  只影響「算幾次」；店家明細 Dialog 的時間軸仍會列出全部原始紀錄（供
-  人工核對是否真的重複填寫），同一天有多筆時會加註橘色「同日N筆」
-  徽章提醒。
+【店家明細 Dialog 的「問卷內容」怎麼接上原始問卷】
+  ‧ 比照 coverage_board.html 的 _fetchQuestionnaireSheet 設計；差異是
+    問卷分成「問卷資料(量販)」「問卷資料(全聯)」兩分頁
+    （常數 QUESTIONNAIRE_SHEETS），依 chanKey 決定查哪一份，用
+    「店家代碼」欄位（R_CODE）分組。
+  ‧ 前提：兩份問卷分頁都要有「店家代碼」欄，值須跟店家名冊一致，
+    否則會顯示「找不到這家店的問卷紀錄」（欄名/值對不上，非程式錯誤）。
+  ‧ 渲染共用 shared/photo-viewer.js 的 _renderQuizSections。
 
 ────────────────────────────────────────────────────────────
-【已知待確認/待部署事項（非本檔程式問題，交接時務必告知後端）】
-  ‧ GAS 端需要另外新增一支「處理層」產生函式（本檔案不含 GAS
-    程式碼），把「問卷資料(量販)」「問卷資料(全聯)」兩份問卷分頁
-    整理成上方【處理層】欄位格式，比照 contract_board 對應的
-    extractSurveyDataToMasterRegistry() 寫法即可，「巡補日期」
-    務必是 Google Sheet 的日期格式（gviz 才能正確解析 Date(y,m,d)），
-    不要存成純文字字串。
-  ‧ 「問卷資料(量販)」「問卷資料(全聯)」兩份問卷分頁務必各自有一欄
-    「店家代碼」，且值要跟「店家名冊」對得上，否則店家明細 Dialog 的
-    「問卷內容」區塊會顯示找不到資料（見上方【店家明細 Dialog 的
-    「問卷內容」怎麼接上原始問卷】說明）。
-  ‧ 「店家名冊」的「店家等級」欄位值務必跟 GRADE_FREQ 常數的 key
-    完全一致（量販A／量販B／量販C／連鎖超市A，含全形字），否則該店
-    會被判斷為「等級未知」，應達次數算 0，不會出現在達成率分母
-    （畫面上會照樣列出該店但四項摘要都不會把它算進去，屬於刻意
-    設計成「不要讓未知等級污染統計」，但仍要能被人工發現，故保留
-    顯示、不整列隱藏——見 render() 內 _unknownGradeCount 統計）。
-  ‧ 本檔預設會走跟 coverage_board.html 相同的 session 驗證
-    （localStorage 'ttl_auth_v1' !== '1' 就導回 index.html），
-    如果這份看板要獨立部署不經過現有登入頁，把 <head> 裡那段
-    <script> 拿掉即可。
+【已知待確認/待部署事項（交接時務必告知後端）】
+  ‧ GAS 端需另新增「處理層」產生函式（本檔不含 GAS 程式碼），把兩份
+    問卷分頁整理成【處理層】欄位格式；「巡補日期」務必是 Sheet 日期
+    格式（不要存純文字字串）。
+  ‧ 兩份問卷分頁務必各自有「店家代碼」欄，值須跟店家名冊對得上。
+  ‧ 「店家名冊」的「店家等級」欄位值須跟 GRADE_FREQ 的 key 完全一致
+    （量販A／量販B／量販C／連鎖超市A，含全形字），否則判定為「等級
+    未知」，應達次數算 0、不進達成率分母（仍會顯示該店，見 render()
+    內 _unknownGradeCount）。
+  ‧ 本檔預設走跟 coverage_board.html 相同的 session 驗證（localStorage
+    'ttl_auth_v1' !== '1' 就導回 index.html），獨立部署不經登入頁時
+    把 <head> 裡那段 <script> 拿掉即可。
 
-【版本紀錄】
-  1.9.0  2026-07-21  新增「🧮 人次估算工具」（PM 排班規劃用，概況主畫面
-                      與明細頁工具列都有入口）：
-                      1) 目的跟看板本體不同——本體是「開跑後」比對實際
-                      巡補 vs. 應達次數的達成率追蹤；這個工具是「開跑前」
-                      單純依「店家名冊」＋「等級應達次數標準」(GRADE_FREQ)
-                      往下加總，算出要完美覆蓋所選範圍整季需要安排多少
-                      「人次」，完全不看處理層的實際巡補紀錄。
-                      2) 篩選深度可以一路收斂到「檔期／通路／等級／
-                      營業處／營業所」，用獨立的 MANPOWER_FILTER 狀態，
-                      跟主畫面的 FILTER 互不影響，開工具不會弄亂主畫面
-                      正在看的篩選範圍。
-                      3) 表格最細列到「營業所×通路」一列，逐週列出應達
-                      人次，並自動加總各營業處小計、檔期小計（同時看
-                      中元＋中秋時）與全部合計；同一組每週數字理論上會
-                      相同（等級標準不逐週變動），這是真實排班需求，
-                      不是計算錯誤。
-                      4) 可 📥 匯出 CSV，跟畫面同一份已算好的資料，不
-                      重新計算。
-  1.8.1  2026-07-21  手機介面資訊密度／自動排版三處修正：
-                      1) 店卡「店名／店碼／通路(店家型態)／等級」原本
-                      拆成兩行（店碼掛在店名下、通路+等級另成一行
-                      meta），改成全部併進同一行 .m-store-line，固定
-                      font 12px；放不下時不用 ellipsis 裁字，改由新增
-                      的 _autoFitStoreLines() 在 render 後量測每張卡
-                      實際寬度，動態把字級一路縮小到 9px（STORE_LINE_
-                      MIN_FONT）為止，縮到底仍塞不下才允許自然換行；
-                      resize/轉向時debounce重跑一次。
-                      2) 週次徽章（m-wk）原本用單一 flex-wrap 容器逐格
-                      排列，窄螢幕換行時會把中元3週、中秋2週的徽章拆
-                      散、混在不同行；改成同檔期的徽章先包成一個
-                      nowrap 的 .m-wk-group，母層才允許換行，變成
-                      「整個檔期一起換行」（中元3週一行／中秋2週
-                      一行），保持資料群體性。
-                      3)「營業處執行狀況」手機卡片的 5 項統計
-                      （店數/應達/達標/達成率/超額）原本用 grid
-                      auto-fit + minmax(56px,1fr)，欄位塞不進最小寬度
-                      就會被擠成兩行（如3+2）；改成固定 repeat(5,1fr)，
-                      永遠 5 欄同一列、欄寬隨螢幕寬度等比縮小，極窄
-                      手機（≤380px）再加一輪字級收斂避免數字被裁到。
-  1.8.0  2026-07-21  【整體明細】依「主要訪員」分組排序＋資訊密度優化
-                      （原本店家清單只依區域／營業所／通路／店代碼排序，
-                      同一位訪員名下的店家會散落在清單各處，要看單一人員
-                      的轄區得整段捲動、逐列比對訪員欄）：
-                      1) 排序鍵加入「主要訪員」（區域→營業所→訪員→通路→
-                      店代碼），同一位訪員的店家在清單裡連續排列；段落
-                      交界插入一列訪員分組標題（桌機 .staff-group-row／
-                      手機 .m-group-head），標示「👤 姓名／營業處／這段
-                      小計（店數、達標/應達、達成率、超額）」，點姓名
-                      直接開訪員總覽 Dialog（沿用 1.6.0 的 openStaffDetail，
-                      只是觸發位置從「每列都重複的訪員欄」搬到「每段只
-                      出現一次的分組標題」）。桌機表格因此拿掉了逐列重複
-                      顯示的「主要訪員」欄，欄寬讓給週次格子。
-                      2) 手機版整個換掉 1.6.2 的「一店一卡、每個檔期週次
-                      各自展開完整 7 格勾選框」大卡片——這個版型雖然資訊
-                      完整，但一家店要佔掉大半個螢幕，捲動很久才看得到
-                      幾家店。改成比照「訪員總覽」Dialog 手機版的密度：
-                      一店一行，店名／代碼／等級／每週狀態全部濃縮進一張
-                      小卡，週次改用「W1 3/5」這種文字徽章＋顏色（達標綠／
-                      部分黃／超額紫／過去週未達紅／尚無資料灰）取代整排
-                      checkbox，橫向排列可換行，一眼掃過整季表現不用逐週
-                      展開捲動。桌機／手機共用同一份分組與逐店計算結果
-                      （render() 內先算好 rowsData 再依訪員分組鍵切段組
-                      HTML，不會兩邊各自計算而兜不攏）。
-                      3) 這兩處改動是接續前一版一支未併入主線的實驗分支
-                      （曾經另存的「半修護版」）而來——該分支已經做出同樣
-                      的分組排序與精簡卡片邏輯，但落後主線好幾個版本（缺
-                      1.5.0～1.7.0 的固定 7 格／訪員總覽 Dialog／平板過渡層
-                      等），這裡是把它「分組＋精簡卡片」這部分的構想在
-                      目前主線（1.7.0）上重新實作一次，該分支本身不再
-                      維護、也不會被部署。
-  1.7.0  2026-07-21  手機／平板版面「智能自動調節」大改版（原本只有單一
-                      640px 斷點，寬度一跨過就在「滿版桌機表格」跟「手機
-                      卡片」兩種狀態間硬切換，中間寬度的裝置——尤其平板
-                      直放——沒有對應調整）。1) 新增 641px～1024px 的
-                      「平板過渡層」：整體明細主表格維持表格型態（此寬度
-                      欄位還擠得下），但字級／間距／格子尺寸整體收斂一輪，
-                      不是保持桌機原尺寸硬撐。2) 手機卡片版新增 380px 以下
-                      的「極窄手機層」：卡片內距與格子間距再收一輪，格子
-                      本身固定 17px（維持可點擊面積）不再繼續縮小。
-                      3) toolbar／filterbar／summary-row／stage／ov-wrap
-                      的水平留白，從固定 px 改成 clamp(12px,2.5vw,20px)
-                      這類流體公式，隨視窗寬度連續縮放，不會在斷點前後
-                      留白量瞬間跳一階；toolbar-title／ov-header h1／手機
-                      卡片內的店名字級同樣改用 clamp()，讓不同尺寸手機
-                      （例如 iPhone SE 375px 跟一般手機 414px）字級也是
-                      連續漸變，不是只認 640px 這一個斷點。
-  1.6.2  2026-07-21  1)【整體明細】主表格 sum-cell（次數合計欄）新增單店
-                      達成率 %，原本只有「達標/應達次數」跟「超額」，但
-                      訪員總覽 Dialog 裡每家店都有列達成率 %，主表格卻沒有
-                      對應欄位可以直接看單店表現，這裡補齊、跟訪員總覽共用
-                      同一份 rowStdDone/rowExp 算出來的數字，不會兜不起來。
-                      2) 訪員總覽 Dialog 的「📥CSV／💬複製文字」兩顆匯出
-                      按鈕，從內容區塊搬到跟彙整看板一致的 Dialog header
-                      位置，並新增「📸截圖」按鈕（直接截 #dlg-body 整個
-                      畫面，摘要數字＋店家清單一起截）——原本長官點開訪員
-                      總覽只能匯出文字檔，沒有辦法直接把畫面截圖傳出去跟
-                      對方溝通。店家明細／訪員總覽共用同一個 Dialog 骨架，
-                      改用 #dlg-header-actions 插槽區分：openStoreDetail()
-                      開頭清空、openStaffDetail() 才塞入這三顆按鈕，兩種
-                      模式不會互相殘留上一次的按鈕。3) 修正總覽卡片標題
-                      （中元/中秋 emoji＋專案名）原本 h2 用
-                      justify-content:space-between，在只有 emoji＋文字兩個
-                      節點時會把專案名字推到最右邊、跟 emoji 分開，改成
-                      flex-start+gap 讓兩者緊貼在一起。4) 使用說明面板同步
-                      補上「訪員總覽 Dialog」跟「手機版畫面」兩段說明。
-  1.6.1  2026-07-21  1) 訪員 chip 數量多、常需要換到 2 排以上時，原本
-                      「訪員」label 本身會被當成太寬塞不下的整塊擠到下一行
-                      獨立佔一整行；新增 .chip-group-wrap 讓 chip-group 吃掉
-                      同一列剩下的寬度，label 才能穩定貼著第一排 chip。
-                      2) 拿掉主表格「🔍 只篩這位訪員」按鈕（原本點開訪員
-                      總覽會多一顆可以把主表格篩選成只顯示這位訪員名下店家
-                      的按鈕，使用者反應用不到，直接砍掉按鈕跟對應的
-                      _applyStaffFilterFromDialog，改把版面留給匯出功能）。
-  1.6.0  2026-07-21  1) 主表格「主要訪員」姓名改成可點擊，開啟該訪員的
-                      個人總覽 Dialog（沿用 #detail-dialog 骨架，不重開一個
-                      新 Dialog）：範圍＝這位訪員名下「全部」店家（不受
-                      目前通路／等級／區域篩選影響），但巡補次數／達成率
-                      仍依照目前「檔期」篩選對應的週次範圍計算，數字才會
-                      跟主表格對得起來。2) 欄頭中元/中秋 emoji 獨立成 span
-                      以便放大（原本跟字樣同一個字級，emoji 不夠顯眼），
-                      字樣本身字級不變。3) 中元/中秋卡片改成「量販在上、
-                      全聯在下」同框垂直排列，減少全聯單一等級表格獨立成框
-                      時的閒置空間；量販／全聯兩個子區塊各自可點擊帶篩選
-                      進明細，彼此互不影響。
-  1.5.0  2026-07-21  1)【整體明細】週次格子改成固定畫 7 格（一週最多
-                      7 天），不再依應達/超額動態決定格數：前 stdN 格是
-                      實線「應達」格，其餘用近似透明的「幽靈格」
-                      （.box-ghost）佔位，只有實際次數真的蓋過該格才會
-                      換成超額橘色，每欄版面寬度固定，橫向掃視更直覺。
-                      2)「自動觸發超額次數」改名「超額次數」，跟營業處
-                      執行狀況表的欄位用詞一致，同時修正一條原本寫錯
-                      selector、從未生效過的 .sum-card.warn-note 死規則。
-                      3) 摘要卡片（.sum-card）label／數字改成同一列平行
-                      排列（原本上下兩層），節省卡片高度。
-                      【主畫面】4) 新增「← 返回」按鈕（左上角，比照
-                      coverage_board.html 的 goBack()），離開本看板回到
-                      入口首頁 index.html；跟明細頁原有的「← 返回總覽」
-                      是不同層級，不要混淆。5) 對調區塊順序：「營業處
-                      執行狀況」搬到最上面，中元/中秋四張卡片移到下面
-                      ——現場人員進站通常想先看自己營業處的整體表現。
-                      6) 整體主畫面 padding／字級／間距全面壓縮一輪
-                      （header、卡片、mini table、營業處表格都調過），
-                      目標是常見資料量下不用捲動就能看完整頁；卡片
-                      hover 效果也從位移＋大陰影改成單純陰影變化，避免
-                      資訊密度提高後位移動畫顯得雜訊化。7)「營業處執行
-                      狀況」時間範圍 chip 新增「中元」「中秋」兩個整檔期
-                      彙總選項（OFFICE_WEEK_SEL 新增 {period,week:null}
-                      狀態，複用既有的 _periodColumns 取欄位，不用另外
-                      寫一份加總邏輯），不用再切每一週自己心算加總。
-                      8) 標題「依營業處執行狀況」拿掉「依」字，改成
-                      「營業處執行狀況」。9) 使用說明面板同步更新以上
-                      變動，並補上 1.4.0 當時完全沒寫進說明的「彙整
-                      看板」（照片牆／逐題彙整／細項匯出）三顆按鈕介紹。
-  1.4.0  2026-07-20  比照 coverage_board.html 補上「彙整看板」：明細頁
-                      工具列新增 🖼️照片牆／🔍逐題彙整／🧩細項匯出 三顆
-                      按鈕（原本只有 CSV／LINE／精簡／截圖），開啟同一個
-                      多分頁 Dialog（shared/pivot-dialog.js 提供切頁／
-                      開關框架），範圍固定是「目前整體篩選範圍」。新增
-                      掛載 shared/question-drilldown.js（逐題彙整分頁）；
-                      photo-viewer.js 沿用已掛載的照片渲染邏輯。工具列
-                      同時改成「彙整看板」「分享」兩組視覺分區（各自
-                      淡底色＋小標籤＋分隔線），不再把所有按鈕混一排看
-                      不出分組。新增共用 helper（_visitsInScope／
-                      _resolveQuestionnaireRecords／
-                      _questionnaireRecordsForStore／_ensureAllQSheets）
-                      讓店家明細 Dialog 跟彙整看板三個分頁共用同一份
-                      「店家→問卷紀錄」查找邏輯，不重寫三次。
-  1.3.2  2026-07-20  1)「依營業處執行狀況」表改成一個營業處一列，量販／
-                      全聯以「同一列內的兩組欄位」呈現（表頭兩層：上層
-                      量販／全聯分組，下層店數/應達/達標/達成率/超額），
-                      不再是量販、全聯各自獨立成一列；點對應通路的儲存格
-                      群組才會帶該通路篩選進明細頁。2) 修正店家明細 Dialog
-                      「問卷內容」仍讀不到資料的問題：1.3.1 的行數索引
-                      多加了 1（rowRecords[ri+1]），跟「處理層」的「行數」
-                      實際編號方式（扣掉表頭後的資料列 1-based 編號，等同
-                      迴圈本身的 ri）對不起來，造成查得到筆數、但每筆都
-                      取到下一列資料，內容自然全部空白／時間未知；改成
-                      直接用 rowRecords[ri] 即可對齊。
-  1.3.1  2026-07-20  1)「依營業處執行狀況」總覽表新增量販／全聯分開統計
-                      （不再合併計算），避免兩通路應達次數標準不同（見
-                      GRADE_FREQ）互相稀釋達成率（實際呈現方式見 1.3.2）。
-                      2) 店家明細 Dialog 的「問卷內容」
-                      改成優先用「處理層」每筆巡補紀錄自帶的來源列號（來源
-                      分頁+行數）直接定位問卷分頁的那一列，不再只靠問卷
-                      分頁自己的「店家代碼」欄位文字反查比對——原本若那欄
-                      有打字誤差、全半形不一致、或沒確實填寫，即使巡補紀錄
-                      明明知道在第幾列，也會找不到內容或讀到不相關的空列；
-                      找不到列號時仍保留舊的代碼比對當備援。
-  1.3.0  2026-07-20  1) 概況主畫面新增「依營業處執行狀況」總覽表
-                      （不分檔期／通路的整體表現，點列可直接進明細）。
-                      2) 新增「📖 使用說明」面板（概況頁與明細頁工具列都
-                      有入口），只講畫面數字/顏色代表的意思，不談後台
-                      計算公式。3) 店家明細 Dialog 新增「問卷內容」區塊
-                      （見上方專門段落），改用 shared/photo-viewer.js
-                      渲染，因此新增掛載此檔案。4) 修正 _actualCount 未
-                      落實「每日每店計1次」的問題，改依日期去重；時間軸
-                      同一天有多筆紀錄時加註「同日N筆」徽章提醒（見上方
-                      專門段落）。
-  1.2.0  2026-07-20  1) 概況主畫面卡片新增依「週」拆分的達成率欄位
-                      （W1~Wn），不再只看整體彙總。2) box-container
-                      改靠左排列；checkbox 拿掉 disabled 屬性改用
-                      pointer-events:none 擋互動，避免瀏覽器灰階化，
-                      已勾選格子顏色更明亮；extra(超額)格新增脈動
-                      發光動畫。3) 篩選列「通路」＋「等級」併同一列
-                      節省版面。4) 新增「營業所/課」chip，選定
-                      「營業處」後才出現，選項依實際資料動態產生。
-  1.1.0  2026-07-20  1) 通路／全聯判斷改用真實欄位值分類（量販：
-                      通路別＝「量販通路」；全聯：店家型態＝「全聯社」，
-                      不看通路別欄），畫面上仍只顯示「量販」「全聯」
-                      簡稱，比對邏輯集中在 _chanKey()。2) 店家等級
-                      GRADE_FREQ 的全聯等級 key 由「超市A」改為真實值
-                      「連鎖超市A」，新增 GRADE_LABEL 讓畫面維持「超市A」
-                      簡稱顯示。3) 新增「概況主畫面」（比照 alpha 版
-                      mainDashboard，見上方【畫面設計】），進站不再
-                      直接跳明細表格。
-  1.0.0  2026-07-20  首版。以 contract_board.html 的三表比對架構
-                      （母體＋處理層）為底，計算邏輯改為「週次巡補
-                      次數 vs 等級標準」的標準/超額拆分（比照
-                      coverage_board 加總型概念延伸），UI 篩選改採
-                      alpha 版的四組 chip 設計；共用 shared/core-utils.js
-                      ／copy-utils.js／csv-export.js／capture-clipboard.js
-                      ／ui-chrome.js／dashboard-common.css，不含
-                      question-drilldown.js／pivot-dialog.js（本檔無
-                      逐題彙整／多分頁彙整看板需求，刻意不掛載以減少
-                      相依）。photo-viewer.js 原本也不掛載，1.3.0 起
-                      為了店家明細 Dialog 顯示問卷內容而新增掛載，
-                      見下方 1.3.0 版本紀錄。
+【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.9.2  2026-07-21  總覽看板新增「未達店數/次數」欄位＋點擊下鑽，
+                      自動帶入「🔴巡次未達標」＋對應檔期/通路/等級/
+                      週次篩選；新增週次 chip 列（updateWeekChipRow）。
+  1.9.1  2026-07-21  「🔴巡次未達標」獨立開關 chip；週次格子可點擊
+                      縮限單週明細；訪員清單改依營業所/課階層連動。
+  1.9.0  2026-07-21  新增「🧮 人次估算工具」（PM 排班規劃用，獨立
+                      MANPOWER_FILTER，不看實際巡補紀錄，可匯出 CSV）。
+  1.8.1  2026-07-21  手機介面資訊密度優化：店卡資訊併同一行＋自動縮字級
+                      （_autoFitStoreLines）；週次徽章依檔期分組換行；
+                      營業處狀況卡片統計固定 5 欄不擠成兩行。
+  1.8.0  2026-07-21  整體明細改依「主要訪員」分組排序＋插入分組標題；
+                      手機版改成精簡一店一行卡片（取代原本大卡片）。
+  1.7.0  2026-07-21  手機／平板版面新增「平板過渡層」（641–1024px）與
+                      「極窄手機層」（≤380px）；留白/字級改用 clamp()
+                      連續縮放，不再只認單一斷點。
+  1.6.2  2026-07-21  主表格單店達成率%欄位；訪員總覽 Dialog 新增匯出
+                      按鈕（CSV/複製文字/截圖）；卡片標題排版修正。
+  1.6.1  2026-07-21  訪員 chip 排版修正；移除「只篩這位訪員」按鈕。
+  1.6.0  2026-07-21  主表格訪員姓名可點擊開個人總覽 Dialog；欄頭 emoji
+                      放大；中元/中秋卡片改量販/全聯同框垂直排列。
+  1.5.0  2026-07-21  週次格子固定 7 格＋幽靈格佔位；新增「← 返回」
+                      離站按鈕；營業處執行狀況搬到主畫面最上面；新增
+                      整檔期彙總 chip；整體版面壓縮。
+  1.4.0  2026-07-20  新增「彙整看板」（照片牆／逐題彙整／細項匯出），
+                      掛載 shared/question-drilldown.js／pivot-dialog.js。
+  1.3.2  2026-07-20  營業處執行狀況表改一列雙通路呈現；修正問卷內容
+                      行數索引錯位（rowRecords[ri+1] → [ri]）。
+  1.3.1  2026-07-20  營業處執行狀況表量販/全聯分開統計；問卷內容改用
+                      來源列號直接定位，代碼比對僅作備援。
+  1.3.0  2026-07-20  新增營業處執行狀況總覽表／使用說明面板／店家明細
+                      問卷內容區塊；修正 _actualCount 未依日期去重的問題。
+  1.2.0  2026-07-20  概況卡片新增依週拆分達成率；box-container 視覺
+                      調整；篩選列新增營業所/課 chip。
+  1.1.0  2026-07-20  通路判斷改用真實欄位值分類；新增概況主畫面。
+  1.0.0  2026-07-20  首版，以 contract_board 三表比對架構為底，計算
+                      邏輯改為週次巡補次數 vs 等級標準的標準/超額拆分。
 ════════════════════════════════════════════════════════════
 -->
 <!DOCTYPE html>
@@ -746,6 +468,9 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 .ov-mini th, .ov-mini td { border:1px solid var(--border); padding:6px 7px; text-align:center; }
 .ov-mini tr.ov-mini-row { cursor:pointer; }
 .ov-mini tr.ov-mini-row:hover td { background:var(--primary-bg); }
+.ov-mini td.ov-mini-wk, .ov-mini td.ov-mini-unmet { cursor:pointer; }
+.ov-mini td.ov-mini-wk:hover, .ov-mini td.ov-mini-unmet:hover { background:var(--red-bg) !important; }
+.ov-mini td.ov-mini-unmet { color:var(--red); font-weight:700; }
 .ov-mini th { background:var(--bg); color:var(--sub); font-weight:700; }
 .ov-empty { color:var(--sub); font-size:13.5px; text-align:center; padding:12px 0; }
 @media (max-width:640px) {
@@ -771,6 +496,7 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 .ov-office-tbl td.oo-clickable:hover { background:var(--primary-bg); }
 .ov-office-tbl th[colspan] { background:var(--primary-bg); color:var(--primary); }
 .ov-office-tbl td.oo-rate { font-weight:800; color:var(--green); }
+.ov-office-tbl td.oo-unmet { color:var(--red); font-weight:800; }
 .ov-office-tbl td.oo-extra { color:var(--bonus); font-weight:700; }
 .ov-office-tbl tr.oo-total td { background:#f6f4ef; font-weight:800; }
 
@@ -794,6 +520,9 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 .oo-mstat .v { font-size:13.5px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .oo-mstat .v.rate { color:var(--green); }
 .oo-mstat .v.extra { color:var(--bonus); }
+.oo-mstat .v.unmet { color:var(--red); }
+.oo-mstat-unmet { cursor:pointer; border-radius:6px; transition:background .12s; }
+.oo-mstat-unmet:active, .oo-mstat-unmet:hover { background:var(--red-bg); }
 .oo-mcard-total { background:#f6f4ef; }
 .oo-mcard-total .oo-mcard-head { background:#efece4; }
 @media (max-width:640px){
@@ -1026,6 +755,10 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
           <span class="chip-label">檔期</span>
           <div class="chip-group" id="chip-period"></div>
         </div>
+        <div class="chip-fgroup chip-fgroup-divider" id="week-fgroup" style="display:none;">
+          <span class="chip-label" style="width:auto;">週次</span>
+          <div class="chip-group" id="chip-week"></div>
+        </div>
         <div class="chip-fgroup chip-fgroup-divider">
           <span class="chip-label" style="width:auto;">通路</span>
           <div class="chip-group" id="chip-channel"></div>
@@ -1178,6 +911,15 @@ function _chanKey(channelVal, storeTypeVal){
 var STORE_ROWS  = [];   /* 店家名冊，含 __visits 索引 */
 var VISIT_ROWS  = [];   /* 處理層原始列（供明細 Dialog 用） */
 var VISIT_INDEX = {};   /* key: code → [{period,week,y,mo,d,ref}, ...]（新到舊） */
+/* 1.9.3：_actualCount(code, period, week) 在 render()／_statsFor()／
+   _officeStatsFor() 等處被大量呼叫（店數 × 欄位數，甚至同一批店在總覽頁
+   還會再被 _officeStatsFor 重複呼叫好幾次），舊實作每次呼叫都重新掃一遍
+   該店全部原始紀錄、現場用 Set 依日期去重——資料量一大，等於同一份
+   VISIT_INDEX[code] 被反覆重算很多次。改成在 fetchProcessLayer() 建好
+   VISIT_INDEX 的同時，順手一次性把「每店 × 每檔期週次」的去重後次數
+   算好存進 ACTUAL_INDEX，_actualCount() 之後只需要 O(1) 查表，不用每次
+   都重新掃描＋建 Set。 */
+var ACTUAL_INDEX = {};  /* key: code → { 'period|week': 去重後次數 } */
 
 /* 問卷內容快取，key 為 chanKey（'量販'／'全聯'），value 為
    { codeToRecords:{ code: [{base,sections,timeKey}, ...] } } 或 { error:'訊息' }。
@@ -1186,7 +928,7 @@ var _qSheetCache = {};
 var _qSheetLoading = {};
 var _qSheetWaiters = {};
 
-var FILTER = { period:'全部', channel:'全部', grade:'全部', area:'全部', office:'全部', staff:'全部', keyword:'', onlyUnmet:false };
+var FILTER = { period:'全部', channel:'全部', grade:'全部', area:'全部', office:'全部', staff:'全部', keyword:'', onlyUnmet:false, week:null };
 /* 營業處執行狀況表：目前檢視的檔期／週次範圍。
      null                      ＝整體（不分檔期／週次，原本行為）
      {period,week:null}        ＝該檔期整個彙總（1.5.0 新增，例如「中元」＝
@@ -1361,7 +1103,29 @@ function fetchProcessLayer(callback){
     });
     VISIT_ROWS = rows;
     VISIT_INDEX = index;
-  }).catch(function(){ VISIT_ROWS = []; VISIT_INDEX = {}; }).then(function(){ callback(); });
+    ACTUAL_INDEX = _buildActualIndex(index);
+  }).catch(function(){ VISIT_ROWS = []; VISIT_INDEX = {}; ACTUAL_INDEX = {}; }).then(function(){ callback(); });
+}
+/* 1.9.3：對每個 code，把它底下的原始紀錄依「period|week」分桶，桶內再用
+   Set 依「年-月-日」去重算次數——每個 code 的整份 list 只掃一次，取代
+   舊版「每個(period,week)組合各自重新掃一次整份 list」的做法，去重規則
+   跟原本 _actualCount 完全一致，只是搬到建索引階段一次算完。 */
+function _buildActualIndex(visitIndex){
+  var out = {};
+  Object.keys(visitIndex).forEach(function(code){
+    var list = visitIndex[code];
+    var daysByKey = {}; /* 'period|week' → { epochDay: true, ... } */
+    for(var i=0;i<list.length;i++){
+      var v = list[i];
+      var key = v.period+'|'+v.week;
+      if(!daysByKey[key]) daysByKey[key] = {};
+      daysByKey[key][_toEpochDay(v.parts.y,v.parts.mo,v.parts.d)] = true;
+    }
+    var counts = {};
+    Object.keys(daysByKey).forEach(function(key){ counts[key] = Object.keys(daysByKey[key]).length; });
+    out[code] = counts;
+  });
+  return out;
 }
 
 /* ════ 讀原始問卷分頁（店家明細 Dialog「問卷內容」用，比照 coverage_board
@@ -1579,11 +1343,42 @@ function updateStaffChipRow(){
   }).join('');
   fgroupEl.style.display = '';
 }
+/* ════ 週次 chip（1.9.2 新增）：選定「檔期」後才出現，選項是該檔期底下的
+   每一週＋「全部週」；跟營業所/訪員的階層連動邏輯一致（選了上一層才展開
+   下一層），主要用途是承接總覽頁「未達店數／週次進度」下鑽時帶入的單週
+   篩選，但也開放使用者手動點選，不是只能透過下鑽才能用 ════ */
+function updateWeekChipRow(){
+  var fgroupEl = document.getElementById('week-fgroup');
+  var grp = document.getElementById('chip-week');
+  if(FILTER.period==='全部'){
+    FILTER.week = null;
+    fgroupEl.style.display = 'none';
+    grp.innerHTML = '';
+    return;
+  }
+  var p = PERIODS.filter(function(pp){ return pp.key===FILTER.period; })[0];
+  if(!p){ fgroupEl.style.display = 'none'; grp.innerHTML = ''; return; }
+  var opts = [{ v:'', label:'全部週' }];
+  for(var w=1; w<=p.weeks; w++){ opts.push({ v:String(w), label:'W'+w }); }
+  grp.innerHTML = opts.map(function(o){
+    var active = o.v==='' ? !FILTER.week : (FILTER.week===Number(o.v));
+    return '<div class="chip'+(active?' active':'')+'" data-v="'+o.v+'" onclick="setWeekChip(this)">'+o.label+'</div>';
+  }).join('');
+  fgroupEl.style.display = '';
+}
+function setWeekChip(el){
+  Array.from(el.parentElement.children).forEach(function(c){ c.classList.remove('active'); });
+  el.classList.add('active');
+  var v = el.getAttribute('data-v');
+  FILTER.week = v ? Number(v) : null;
+  onFilterChange();
+}
 function setChip(el, key){
   var parent = el.parentElement;
   Array.from(parent.children).forEach(function(c){ c.classList.remove('active'); });
   el.classList.add('active');
   FILTER[key] = el.getAttribute('data-v');
+  if(key==='period'){ FILTER.week = null; updateWeekChipRow(); }
   if(key==='area'){ updateOfficeChipRow(); updateStaffChipRow(); }
   if(key==='office'){ updateStaffChipRow(); }
   onFilterChange();
@@ -1608,15 +1403,20 @@ function _periodColumns(periodKey){
   for(var w=1; w<=p.weeks; w++) cols.push({ period:p.key, week:w });
   return cols;
 }
+/* 1.9.2：byGrade[g] 多存一個 unmetCount——同一份「等級 × 檔期整體」彙總資料，
+   供「未達店數」欄位跟原本的 exp/stdDone/weeks 共用同一輪迴圈算出來，
+   不用另外再跑一次 storesSubset.forEach。判斷標準跟主表 render() 裡的
+   isUnmet 一致：這家店在目前 cols 範圍內「應達次數>0 且還沒補滿」。 */
 function _statsFor(storesSubset, cols){
   var totalExp=0, totalStdDone=0;
-  var byGrade = {}; /* grade → {count, exp, stdDone, weeks:{week:{exp,stdDone}}} */
+  var byGrade = {}; /* grade → {count, exp, stdDone, weeks:{week:{exp,stdDone}}, unmetCount} */
   storesSubset.forEach(function(s){
     var std = GRADE_FREQ[s.grade];
     if(std===undefined) return; /* 等級未知不計入概況統計，跟主表邏輯一致 */
-    if(!byGrade[s.grade]) byGrade[s.grade] = { count:0, exp:0, stdDone:0, weeks:{} };
+    if(!byGrade[s.grade]) byGrade[s.grade] = { count:0, exp:0, stdDone:0, weeks:{}, unmetCount:0 };
     var g = byGrade[s.grade];
     g.count++;
+    var rowExp=0, rowStdDone=0;
     cols.forEach(function(c){
       var actual = _actualCount(s.code, c.period, c.week);
       var exp = std, stdDone = Math.min(actual, std);
@@ -1624,7 +1424,9 @@ function _statsFor(storesSubset, cols){
       if(!g.weeks[c.week]) g.weeks[c.week] = { exp:0, stdDone:0 };
       g.weeks[c.week].exp += exp; g.weeks[c.week].stdDone += stdDone;
       totalExp += exp; totalStdDone += stdDone;
+      rowExp += exp; rowStdDone += stdDone;
     });
+    if(rowExp>0 && rowStdDone<rowExp) g.unmetCount++;
   });
   return { rate: totalExp>0 ? (totalStdDone/totalExp*100) : 0, totalExp:totalExp, byGrade:byGrade };
 }
@@ -1649,17 +1451,21 @@ function _officeStatsFor(area, chanKey){
      複製一份加總邏輯 */
   var cols = !OFFICE_WEEK_SEL ? _allPeriodColumns()
     : (OFFICE_WEEK_SEL.week ? [{ period:OFFICE_WEEK_SEL.period, week:OFFICE_WEEK_SEL.week }] : _periodColumns(OFFICE_WEEK_SEL.period));
-  var exp=0, stdDone=0, extra=0, unknownGrade=0;
+  var exp=0, stdDone=0, extra=0, unknownGrade=0, unmetCount=0;
   subset.forEach(function(s){
     var std = GRADE_FREQ[s.grade];
     if(std===undefined){ unknownGrade++; return; }
+    var rowExp=0, rowStdDone=0;
     cols.forEach(function(c){
       var actual = _actualCount(s.code, c.period, c.week);
-      exp += std; stdDone += Math.min(actual, std); extra += Math.max(0, actual-std);
+      var stdDoneC = Math.min(actual, std);
+      exp += std; stdDone += stdDoneC; extra += Math.max(0, actual-std);
+      rowExp += std; rowStdDone += stdDoneC;
     });
+    if(rowExp>0 && rowStdDone<rowExp) unmetCount++;
   });
   return { area:area, chanKey:chanKey||'', count:subset.length, exp:exp, stdDone:stdDone, extra:extra,
-    unknownGrade:unknownGrade, rate: exp>0 ? (stdDone/exp*100) : 0 };
+    unknownGrade:unknownGrade, unmetCount:unmetCount, rate: exp>0 ? (stdDone/exp*100) : 0 };
 }
 /* 營業處執行狀況表的「檔期／週次」選單：null(整體) + 每個檔期的整檔期彙總
    (1.5.0 新增，week:null) + 每個檔期底下的每一週，讓現場能切到「當週」
@@ -1707,27 +1513,48 @@ function renderOfficeOverview(){
   if(!areasPresent.length){ wrap.innerHTML = '<div class="ov-empty">目前沒有符合資料</div>'; return; }
   var CHANS = ['量販','全聯'];
   var chanIcon = { '量販':'📦', '全聯':'🛒' };
-  /* 每個通路各自的 5 個統計儲存格（店數／應達／達標／達成率／超額），
-     hasData=false 時（該處沒有這個通路的店）顯示「—」且不可點擊 */
+  /* 1.9.3：_officeStatsFor(area, ck) 本身要掃一次 STORE_ROWS 再逐店查
+     _actualCount，成本不算小；舊版桌機表格格子、chanTotals 加總、手機卡片
+     三處各自呼叫一次，等於同一組數字重算三遍。改成每個 (area, ck) 組合
+     只算一次，結果存進 statCache 給桌機／加總／手機共用，數字來源仍是
+     同一份 _officeStatsFor，不影響任何顯示結果，純粹省掉重複計算。
+     同時把「該通路在這個處是否有店家」的判斷也一併存進 cache，
+     避免桌機/手機各自再跑一次 STORE_ROWS.some() 全表掃描。 */
+  var statCache = {}; /* key: area+'␟'+ck → { hasData, r } */
+  areasPresent.forEach(function(area){
+    CHANS.forEach(function(ck){
+      var hasData = STORE_ROWS.some(function(s){ return s.area===area && s.chanKey===ck; });
+      statCache[area+'␟'+ck] = { hasData: hasData, r: hasData ? _officeStatsFor(area, ck) : null };
+    });
+  });
+  /* 每個通路各自的 6 個統計儲存格（店數／應達／達標／達成率／未達店數／超額），
+     hasData=false 時（該處沒有這個通路的店）顯示「—」且不可點擊。
+     1.9.2：「未達店數」欄位插在「達成率%」跟「超額次數」之間，點擊會額外
+     帶上 onlyUnmet=true（其餘四格維持原本「整批」點擊行為不變） */
   function _statCells(area, ck){
-    var hasData = STORE_ROWS.some(function(s){ return s.area===area && s.chanKey===ck; });
-    if(!hasData){
-      return '<td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>';
+    var c = statCache[area+'␟'+ck];
+    if(!c.hasData){
+      return '<td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>';
     }
-    var r = _officeStatsFor(area, ck);
+    var r = c.r;
     var click = ' class="oo-clickable" onclick="openDetailFromOffice(\''+area+'\',\''+ck+'\')"';
+    var unmetClick = ' class="oo-clickable oo-unmet" onclick="openDetailFromOffice(\''+area+'\',\''+ck+'\',true,event)"';
     return '<td'+click+'>'+r.count+'</td>'
       + '<td'+click+'>'+r.exp+'</td>'
       + '<td'+click+'>'+r.stdDone+'</td>'
       + '<td'+click+' class="oo-rate">'+r.rate.toFixed(1)+'%</td>'
+      + '<td'+unmetClick+' title="點擊查看未達標門市">'+r.unmetCount+'</td>'
       + '<td'+click+' class="oo-extra">'+(r.extra>0?'+'+r.extra:'0')+'</td>';
   }
-  var chanTotals = { '量販':{exp:0,stdDone:0,extra:0,count:0}, '全聯':{exp:0,stdDone:0,extra:0,count:0} };
+  var chanTotals = { '量販':{exp:0,stdDone:0,extra:0,count:0,unmet:0}, '全聯':{exp:0,stdDone:0,extra:0,count:0,unmet:0} };
   var bodyRows = areasPresent.map(function(area){
     var row = '<tr><td class="oo-name">'+esc(area)+'</td>';
     CHANS.forEach(function(ck){
-      var r = _officeStatsFor(area, ck);
-      chanTotals[ck].exp += r.exp; chanTotals[ck].stdDone += r.stdDone; chanTotals[ck].extra += r.extra; chanTotals[ck].count += r.count;
+      var c = statCache[area+'␟'+ck];
+      if(c.hasData){
+        var r = c.r;
+        chanTotals[ck].exp += r.exp; chanTotals[ck].stdDone += r.stdDone; chanTotals[ck].extra += r.extra; chanTotals[ck].count += r.count; chanTotals[ck].unmet += r.unmetCount;
+      }
       row += _statCells(area, ck);
     });
     row += '</tr>';
@@ -1738,11 +1565,12 @@ function renderOfficeOverview(){
     var rate = t.exp>0 ? (t.stdDone/t.exp*100) : 0;
     return '<td>'+t.count+'</td><td>'+t.exp+'</td><td>'+t.stdDone+'</td>'
       + '<td class="oo-rate">'+rate.toFixed(1)+'%</td>'
+      + '<td class="oo-unmet">'+t.unmet+'</td>'
       + '<td class="oo-extra">'+(t.extra>0?'+'+t.extra:'0')+'</td>';
   }).join('') + '</tr>';
   var tableHtml = '<div class="oo-tbl-scroll"><table class="ov-office-tbl">'
-    + '<tr><th rowspan="2">營業處</th><th colspan="5">📦 量販</th><th colspan="5">🛒 全聯</th></tr>'
-    + '<tr>' + CHANS.map(function(){ return '<th>店數</th><th>應達次數</th><th>達標次數</th><th>達成率%</th><th>超額次數</th>'; }).join('') + '</tr>'
+    + '<tr><th rowspan="2">營業處</th><th colspan="6">📦 量販</th><th colspan="6">🛒 全聯</th></tr>'
+    + '<tr>' + CHANS.map(function(){ return '<th>店數</th><th>應達次數</th><th>達標次數</th><th>達成率%</th><th>未達店數</th><th>超額次數</th>'; }).join('') + '</tr>'
     + bodyRows
     + totalRow
     + '</table></div>';
@@ -1751,10 +1579,10 @@ function renderOfficeOverview(){
      欄位在窄螢幕被裁到看不到，同一份統計數字（_officeStatsFor／
      chanTotals）只是換一種排版，不重算 */
   function _mcardChan(area, ck){
-    var hasData = STORE_ROWS.some(function(s){ return s.area===area && s.chanKey===ck; });
+    var c = statCache[area+'␟'+ck];
     var title = '<div class="oo-mcard-chan-title">'+chanIcon[ck]+' '+ck+'</div>';
-    if(!hasData){ return '<div class="oo-mcard-chan">'+title+'<div class="oo-mcard-empty">—</div></div>'; }
-    var r = _officeStatsFor(area, ck);
+    if(!c.hasData){ return '<div class="oo-mcard-chan">'+title+'<div class="oo-mcard-empty">—</div></div>'; }
+    var r = c.r;
     return '<div class="oo-mcard-chan oo-clickable" onclick="openDetailFromOffice(\''+area+'\',\''+ck+'\')">'
       + title
       + '<div class="oo-mcard-grid">'
@@ -1762,6 +1590,7 @@ function renderOfficeOverview(){
       + '<div class="oo-mstat"><span class="k">應達</span><span class="v">'+r.exp+'</span></div>'
       + '<div class="oo-mstat"><span class="k">達標</span><span class="v">'+r.stdDone+'</span></div>'
       + '<div class="oo-mstat"><span class="k">達成率</span><span class="v rate">'+r.rate.toFixed(1)+'%</span></div>'
+      + '<div class="oo-mstat oo-mstat-unmet" onclick="openDetailFromOffice(\''+area+'\',\''+ck+'\',true,event)"><span class="k">未達</span><span class="v unmet">'+r.unmetCount+'</span></div>'
       + '<div class="oo-mstat"><span class="k">超額</span><span class="v extra">'+(r.extra>0?'+'+r.extra:'0')+'</span></div>'
       + '</div></div>';
   }
@@ -1780,6 +1609,7 @@ function renderOfficeOverview(){
       + '<div class="oo-mstat"><span class="k">應達</span><span class="v">'+t.exp+'</span></div>'
       + '<div class="oo-mstat"><span class="k">達標</span><span class="v">'+t.stdDone+'</span></div>'
       + '<div class="oo-mstat"><span class="k">達成率</span><span class="v rate">'+rate.toFixed(1)+'%</span></div>'
+      + '<div class="oo-mstat"><span class="k">未達</span><span class="v unmet">'+t.unmet+'</span></div>'
       + '<div class="oo-mstat"><span class="k">超額</span><span class="v extra">'+(t.extra>0?'+'+t.extra:'0')+'</span></div>'
       + '</div></div>';
   }).join('');
@@ -2024,11 +1854,23 @@ function closeManpower(){
   document.getElementById('manpower-overlay').classList.remove('open');
 }
 
-/* 點營業處列 → 帶著該處＋該通路篩選進明細頁（檔期／等級回到全部，鎖營業處＋通路） */
-function openDetailFromOffice(area, chanKey){
-  FILTER.period = '全部'; FILTER.channel = chanKey||'全部'; FILTER.grade = '全部';
+/* 點營業處列 → 帶著該處＋該通路篩選進明細頁（等級回到全部，鎖營業處＋通路）。
+   1.9.2：檔期／週次改成跟隨「營業處執行狀況」表目前選的頁籤（OFFICE_WEEK_SEL），
+   而不是寫死回「全部」——這樣不管現場人員切到哪個頁籤（整體／中元／中元
+   W1…）點進去，都跟表格上看到的數字對得起來；onlyUnmet 給 true 時（從
+   「未達」欄位點進來）額外套上「🔴 巡次未達標」篩選。 */
+function openDetailFromOffice(area, chanKey, onlyUnmet, evt){
+  if(evt){ evt.stopPropagation(); } /* 手機版「未達」小格嵌在整張可點卡片裡，避免同時觸發外層卡片的 onclick */
+  if(OFFICE_WEEK_SEL && OFFICE_WEEK_SEL.period){
+    FILTER.period = OFFICE_WEEK_SEL.period;
+    FILTER.week = OFFICE_WEEK_SEL.week || null;
+  } else {
+    FILTER.period = '全部';
+    FILTER.week = null;
+  }
+  FILTER.channel = chanKey||'全部'; FILTER.grade = '全部';
   FILTER.area = area; FILTER.office = '全部'; FILTER.staff = '全部'; FILTER.keyword = '';
-  FILTER.onlyUnmet = false;
+  FILTER.onlyUnmet = !!onlyUnmet;
   _enterDetail();
 }
 function renderOverview(){
@@ -2041,12 +1883,19 @@ function renderOverview(){
      以表格裡唯一一列的達成率%為準；量販維持子區塊標題旁的整體達成率，
      因為量販有多個等級，這個數字是好幾列的加總，跟表格內任一列都不同，
      仍有參考價值。 */
+  /* 1.9.3：兩個檔期（中元／中秋）共用同一份 STORE_ROWS，量販／全聯的
+     店家子集合跟檔期無關——舊版在 PERIODS.map 迴圈「裡面」每個檔期各自
+     重新 filter 一次 STORE_ROWS，等於同一份「量販店家清單」「全聯店家
+     清單」被篩了兩遍。搬到迴圈外先各算一次、快取起來，兩個檔期一起用，
+     省掉一半的 STORE_ROWS 全表掃描。 */
+  var chanSubsets = { '量販': STORE_ROWS.filter(function(s){ return s.chanKey==='量販'; }),
+                       '全聯': STORE_ROWS.filter(function(s){ return s.chanKey==='全聯'; }) };
   var cardsHtml = PERIODS.map(function(p){
     var icon = p.key==='zhong' ? '🏮' : '🎑';
     var cols = _periodColumns(p.key);
     var weekNums = cols.map(function(c){ return c.week; });
     var subsecsHtml = ['量販','全聯'].map(function(chanKey){
-      var subset = STORE_ROWS.filter(function(s){ return s.chanKey===chanKey; });
+      var subset = chanSubsets[chanKey];
       var stat = _statsFor(subset, cols);
       var gradeKeys = Object.keys(stat.byGrade).sort(function(a,b){
         return (GRADE_FREQ[b]||0) - (GRADE_FREQ[a]||0);
@@ -2054,21 +1903,23 @@ function renderOverview(){
       var body = gradeKeys.length ? (
         '<table class="ov-mini"><tr><th>等級</th><th>店數</th>'
         + weekNums.map(function(w){ return '<th>W'+w+'</th>'; }).join('')
-        + '<th>達成率%</th></tr>'
+        + '<th>達成率%</th><th>未達店數</th></tr>'
         + gradeKeys.map(function(g){
             var gd = stat.byGrade[g];
             var r = gd.exp>0 ? (gd.stdDone/gd.exp*100).toFixed(1) : '0.0';
             var label = (GRADE_LABEL[g]||g) + '（' + GRADE_FREQ[g] + '）';
+            /* 1.9.2：週次格子改成各自可點，帶入「該檔期＋通路＋等級＋這一週
+               ＋🔴巡次未達標」四個條件一起進明細頁，跟「未達店數」欄位共用
+               同一支 openDetailFromOverview，差別只在多帶一個 week 參數；
+               stopPropagation 避免同時觸發外層整列（不分週次）的篩選 */
             var weekCells = weekNums.map(function(w){
               var wd = gd.weeks[w] || { exp:0, stdDone:0 };
               var wr = wd.exp>0 ? (wd.stdDone/wd.exp*100).toFixed(0) : '0';
-              return '<td>'+wr+'%</td>';
+              return '<td class="ov-mini-wk" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,true,'+w+')" title="點擊查看這一週的未達標門市">'+wr+'%</td>';
             }).join('');
-            /* 1.6.0：每一列（等級）都能點擊帶著「檔期＋通路＋等級」篩選進明細，
-               不只整個子區塊標題可點——stopPropagation 避免同時觸發外層
-               .ov-subsec 的整通路（不分等級）篩選 */
             return '<tr class="ov-mini-row" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event)"><td>'+esc(label)+'</td><td>'+gd.count+'</td>'+weekCells
-              + '<td style="color:var(--green);font-weight:700;">'+r+'%</td></tr>';
+              + '<td style="color:var(--green);font-weight:700;">'+r+'%</td>'
+              + '<td class="ov-mini-unmet" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,true)" title="點擊查看整個檔期的未達標門市">'+(gd.unmetCount||0)+'</td></tr>';
           }).join('')
         + '</table>'
       ) : '<div class="ov-empty">目前沒有符合資料</div>';
@@ -2092,15 +1943,21 @@ function _enterDetail(){
   syncChipsToFilter();
   render();
 }
-function openDetailFromOverview(periodKey, chanKey, grade, evt){
+/* 1.9.2：新增 onlyUnmet／week 兩個可選參數——分別對應「未達店數」欄位
+   （onlyUnmet=true，不鎖週次，看整個檔期）跟「單週進度」欄位（onlyUnmet=true
+   ＋鎖那一週）兩種下鑽入口；原本「整列」「整個子區塊」的點擊維持不帶這兩個
+   參數，行為不變。 */
+function openDetailFromOverview(periodKey, chanKey, grade, evt, onlyUnmet, week){
   if(evt){ evt.stopPropagation(); } /* 列點擊（帶等級）不應該再讓外層子區塊的整通路點擊重複觸發 */
   FILTER.period = periodKey; FILTER.channel = chanKey; FILTER.grade = grade||'全部'; FILTER.area = '全部'; FILTER.staff = '全部'; FILTER.keyword = '';
-  FILTER.onlyUnmet = false;
+  FILTER.onlyUnmet = !!onlyUnmet;
+  FILTER.week = week || null;
   _enterDetail();
 }
 function openDetailAll(){
   FILTER.period = '全部'; FILTER.channel = '全部'; FILTER.grade = '全部'; FILTER.area = '全部'; FILTER.staff = '全部'; FILTER.keyword = '';
   FILTER.onlyUnmet = false;
+  FILTER.week = null;
   _enterDetail();
 }
 /* ── 離開本看板，回到入口首頁（1.5.0 新增，比照 coverage_board.html 的 goBack） ── */
@@ -2113,6 +1970,7 @@ function backToOverview(){
   renderOverview(); /* 回總覽時重新整理數字，避免跟明細篩選後的畫面對不上 */
 }
 function syncChipsToFilter(){
+  updateWeekChipRow();
   updateOfficeChipRow();
   updateStaffChipRow();
   ['period','channel','grade','area','office','staff'].forEach(function(key){
@@ -2133,7 +1991,11 @@ function _updateFilterToggleSummary(){
   var el = document.getElementById('filter-toggle-summary');
   if(!el) return;
   var parts = [];
-  if(FILTER.period!=='全部') parts.push(FILTER.period);
+  if(FILTER.period!=='全部'){
+    var pInfo = PERIODS.filter(function(p){ return p.key===FILTER.period; })[0];
+    parts.push(pInfo ? pInfo.label.replace('專案','') : FILTER.period);
+  }
+  if(FILTER.period!=='全部' && FILTER.week) parts.push('W'+FILTER.week);
   if(FILTER.channel!=='全部') parts.push(FILTER.channel);
   if(FILTER.grade!=='全部') parts.push(GRADE_LABEL[FILTER.grade]||FILTER.grade);
   if(FILTER.area!=='全部') parts.push(FILTER.area);
@@ -2157,6 +2019,12 @@ function activeColumns(){
   PERIODS.forEach(function(p){
     if(FILTER.period!=='全部' && FILTER.period!==p.key) return;
     for(var w=1; w<=p.weeks; w++){
+      /* 1.9.2：FILTER.week 是「選定單一檔期」之後才會出現的第二層縮限
+         （只能在 FILTER.period 已經是特定檔期時才有意義，跟總覽頁「未達
+         店數／週次進度」下鑽用的是同一個機制）；FILTER.period 還是「全部
+         檔期」時忽略 FILTER.week，避免中元 W1 跟中秋 W1 因為同樣是週次1
+         被誤判成同一組。 */
+      if(FILTER.period!=='全部' && FILTER.week && FILTER.week!==w) continue;
       cols.push({ period:p.key, week:w, label:(FILTER.period==='全部'?p.label.replace('專案',''):'') + ' W'+w });
     }
   });
@@ -2171,16 +2039,13 @@ function activeColumns(){
    Set 依「年-月-日」去重後再計數。店家明細 Dialog 的時間軸仍會列出全部
    原始紀錄（供人工核對是否真的重複填寫），兩者不衝突：這裡負責「算幾次」，
    Dialog 負責「給你看每一筆長怎樣」。 */
+/* 1.9.3：改查 ACTUAL_INDEX（見 _buildActualIndex），O(1) 而不是每次重新
+   掃該店全部紀錄；ACTUAL_INDEX 缺這個 code（理論上不會，因為跟 VISIT_INDEX
+   同時建）時退回 0，行為跟舊版「list 不存在回傳 0」一致。 */
 function _actualCount(code, period, week){
-  var list = VISIT_INDEX[code];
-  if(!list) return 0;
-  var days = {};
-  for(var i=0;i<list.length;i++){
-    var v = list[i];
-    if(v.period!==period || v.week!==week) continue;
-    days[_toEpochDay(v.parts.y,v.parts.mo,v.parts.d)] = true;
-  }
-  return Object.keys(days).length;
+  var counts = ACTUAL_INDEX[code];
+  if(!counts) return 0;
+  return counts[period+'|'+week] || 0;
 }
 /* 同一天是否有多筆原始紀錄（供店家明細 Dialog 標示「同日多筆，僅計1次」用，
    不影響 _actualCount 的計算結果，純粹是給人看的提示） */
