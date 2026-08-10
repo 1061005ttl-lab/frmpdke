@@ -403,11 +403,11 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 @media (max-width:380px) {
   .m-store-card { padding:8px 10px; }
   .m-store-weeks { gap:4px; }
-  /* 極窄手機：5 欄式的營業處執行狀況卡片欄寬已經很緊，字級跟著再收一輪，
+  /* 極窄手機：6 欄式的營業處執行狀況卡片欄寬已經很緊，字級跟著再收一輪，
      避免數字被 ellipsis 裁掉 */
   .oo-mcard-grid { gap:6px 2px; }
-  .oo-mstat .k { font-size:9px; }
-  .oo-mstat .v { font-size:12px; }
+  .oo-mstat .k { font-size:8.5px; }
+  .oo-mstat .v { font-size:11px; }
 }
 
 .footnote { margin-top:14px; font-size:11.5px; color:#8a6d1f; background:#fbf3d9; padding:10px 14px; border-radius:8px; line-height:1.7; }
@@ -572,8 +572,14 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 /* 1.8.1：原本 auto-fit + minmax(56px,1fr) 在窄螢幕下欄位塞不進最小寬度
    就會被擠到下一行（5欄變成3+2兩行），破壞「同一列」的資料群體性；
    改成固定 5 欄（店數/應達/達標/達成率/超額本來就是固定 5 項），
-   欄寬永遠用 1fr 均分可用空間自動變窄，不會再被強制換行 */
-.oo-mcard-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:6px 3px; text-align:center; }
+   欄寬永遠用 1fr 均分可用空間自動變窄，不會再被強制換行
+   1.10.2：上面這句註解數錯了，render() 實際塞進 .oo-mcard-grid 的是
+   6 個 .oo-mstat（店數/應達/達標/達成率/未達/超額），但欄位只定義了 5
+   欄——第 6 個「超額」沒有欄位可佔，被 CSS Grid 自動換到下一列、又只
+   佔第一欄寬度，看起來像「超額」自己特別待遇被硬換行，其實是少算了
+   一欄。改成 6 欄，讓 6 個統計格真的擠在同一列，欄寬跟著自動變窄
+   （.oo-mstat 本來就有 overflow:hidden+ellipsis 防止數字被裁切）。 */
+.oo-mcard-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:6px 2px; text-align:center; }
 .oo-mstat { display:flex; flex-direction:column; gap:2px; min-width:0; }
 .oo-mstat .k { font-size:10px; color:var(--sub); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .oo-mstat .v { font-size:13.5px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
