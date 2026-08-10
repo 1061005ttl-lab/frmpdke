@@ -447,9 +447,40 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
    （原本的位移動畫在資訊密度拉高後反而顯得晃動干擾，改成單純陰影變化）。 */
 .ov-wrap { max-width:1600px; margin:0 auto; padding:14px clamp(12px,4vw,18px); }
 .ov-header { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:10px; flex-wrap:wrap; }
-.ov-header h1 { font-size:clamp(16px,4.5vw,19px); font-weight:800; }
+.ov-header-left { display:flex; gap:12px; align-items:center; min-width:0; }
+.ov-header h1 { font-size:clamp(16px,4.5vw,19px); font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
+.ov-header-actions { display:flex; gap:10px; align-items:center; position:relative; flex-shrink:0; }
 .ov-all-btn { padding:7px 18px; border-radius:8px; border:1px solid var(--primary); background:var(--primary); color:#fff; font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; white-space:nowrap; }
 .ov-all-btn:hover { opacity:.9; }
+/* 1.10.0：手機版總覽頁 header 收納——「人次估算／使用說明」屬次要工具，
+   桌機沿用平鋪按鈕，手機收進漢堡選單，只留「返回／標題／進入整體明細／☰」
+   一列，避免原本 4～5 顆按鈕在窄螢幕上換行成兩三列、把上方版面吃掉一大塊。
+   跟 detailPage 的 .toolbar-controls／.hamburger-btn（見 shared/ui-chrome.js）
+   是同一種視覺語彙但各自獨立的 id／函式（toggleOvMenu／closeOvMenu），
+   避免兩個 hamburger 共用同一組 id 在 DOM 裡重複、互相打架。 */
+.ov-hamburger-btn {
+  display:none; align-items:center; justify-content:center;
+  width:32px; height:32px; flex-shrink:0;
+  border:1px solid var(--border); border-radius:8px;
+  background:#fff; font-size:16px; cursor:pointer; color:var(--text); font-family:inherit;
+}
+.ov-hamburger-btn.active { background:var(--primary); color:#fff; border-color:var(--primary); }
+.ov-toolbar-controls { display:flex; align-items:center; gap:10px; }
+@media (max-width:640px) {
+  .ov-hamburger-btn { display:flex; }
+  .ov-toolbar-controls {
+    display:none; position:absolute; top:calc(100% + 8px); right:0; z-index:60;
+    background:#fff; border:1px solid var(--border); border-radius:10px;
+    padding:8px; flex-direction:column; align-items:stretch; gap:6px;
+    box-shadow:0 8px 20px rgba(0,0,0,.10); min-width:150px;
+  }
+  .ov-toolbar-controls.open { display:flex; }
+  .ov-toolbar-controls .manual-btn { width:100%; text-align:left; }
+  .ov-all-btn { padding:6px 14px; font-size:13px; }
+}
+@media (max-width:380px) {
+  .ov-all-btn { padding:6px 10px; font-size:12.5px; }
+}
 .ov-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 .ov-card { background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:14px 18px 16px; transition:box-shadow .2s; box-shadow:0 1px 4px rgba(0,0,0,.03); }
 .ov-card:hover { box-shadow:0 4px 12px rgba(0,0,0,.08); }
@@ -647,14 +678,17 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 <!-- ════ 概況主畫面（戰情室）：進站先看總覽卡片，不直接跳明細 ════ -->
 <div id="mainDashboard" class="ov-wrap">
   <div class="ov-header">
-    <div style="display:flex;gap:12px;align-items:center;">
+    <div class="ov-header-left">
       <button class="back-btn" onclick="goBack()">← 返回</button>
       <h1 id="ov-title">節慶巡補看板</h1>
     </div>
-    <div style="display:flex;gap:10px;align-items:center;">
-      <button class="manual-btn" onclick="openManpower()">🧮 人次估算</button>
-      <button class="manual-btn" onclick="openManual()">📖 使用說明</button>
+    <div class="ov-header-actions">
       <button class="ov-all-btn" onclick="openDetailAll()">進入整體明細 →</button>
+      <button class="ov-hamburger-btn" id="ov-hamburger-btn" onclick="toggleOvMenu(event)">☰</button>
+      <div class="ov-toolbar-controls" id="ov-toolbar-controls">
+        <button class="manual-btn" onclick="openManpower();closeOvMenu();">🧮 人次估算</button>
+        <button class="manual-btn" onclick="openManual();closeOvMenu();">📖 使用說明</button>
+      </div>
     </div>
   </div>
   <!-- 1.5.0：營業處執行狀況搬到中元/中秋卡片上方——現場人員進站第一眼通常
@@ -872,6 +906,32 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 <script src="shared/pivot-dialog.js"></script>
 <script>
 window._STICKY_IDS = ['filterbar'];
+
+/* ── 1.10.0：總覽頁（mainDashboard）手機版 header 收納選單，跟
+   shared/ui-chrome.js 的 toggleMobileMenu／closeMobileMenu 是同一種寫法，
+   但改用獨立 id（ov-toolbar-controls／ov-hamburger-btn），避免跟
+   detailPage 既有的 #toolbar-controls／#hamburger-btn 在 DOM 裡重複 id。 ── */
+function toggleOvMenu(e){
+  if(e) e.stopPropagation();
+  var controls = document.getElementById('ov-toolbar-controls');
+  var btn = document.getElementById('ov-hamburger-btn');
+  if(!controls || !btn) return;
+  var open = controls.classList.toggle('open');
+  btn.classList.toggle('active', open);
+}
+function closeOvMenu(){
+  var controls = document.getElementById('ov-toolbar-controls');
+  var btn = document.getElementById('ov-hamburger-btn');
+  if(controls) controls.classList.remove('open');
+  if(btn) btn.classList.remove('active');
+}
+document.addEventListener('click', function(e){
+  var controls = document.getElementById('ov-toolbar-controls');
+  var btn = document.getElementById('ov-hamburger-btn');
+  if(!controls || !controls.classList.contains('open')) return;
+  if(controls.contains(e.target) || (btn && btn.contains(e.target))) return;
+  closeOvMenu();
+});
 
 /* ════ 常數 ════ */
 var params    = new URLSearchParams(location.search);
