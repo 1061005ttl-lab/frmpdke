@@ -477,12 +477,23 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
   .ov-toolbar-controls.open { display:flex; }
   .ov-toolbar-controls .manual-btn { width:100%; text-align:left; }
   .ov-all-btn { padding:6px 14px; font-size:13px; }
+  /* 1.10.1：上一輪只顧到「次要按鈕收進漢堡選單」，沒注意到 .ov-header
+     本身仍是 flex-wrap:wrap——.ov-header-left（返回＋標題）跟
+     .ov-header-actions（CTA＋漢堡）兩個群組合計寬度在手機上還是會超過
+     容器，整組被硬換行成兩列，跟沒收納前一樣佔兩行。改成 nowrap 強制
+     同一列，靠標題 ellipsis 縮寫＋返回鍵縮成純圖示來讓兩個群組的合計
+     寬度真正塞進同一行，而不是「看起來分兩組」但版面高度沒省到。 */
+  .ov-header { flex-wrap:nowrap; gap:8px; }
+  .ov-header-left { flex:1 1 auto; min-width:0; gap:6px; }
+  .ov-header .back-btn { padding:5px 9px; font-size:0; }
+  .ov-header .back-btn::before { content:'←'; font-size:15px; }
 }
 @media (max-width:380px) {
-  .ov-all-btn { padding:6px 10px; font-size:12.5px; }
+  .ov-all-btn { padding:6px 8px; font-size:12px; }
+  .ov-header-actions { gap:6px; }
 }
 .ov-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-.ov-card { background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:14px 18px 16px; transition:box-shadow .2s; box-shadow:0 1px 4px rgba(0,0,0,.03); }
+.ov-card { background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:14px 18px 16px; transition:box-shadow .2s; box-shadow:0 1px 4px rgba(0,0,0,.03); min-width:0; }
 .ov-card:hover { box-shadow:0 4px 12px rgba(0,0,0,.08); }
 .ov-card h2 { font-size:15px; font-weight:700; border-left:4px solid var(--primary); padding-left:9px; margin-bottom:8px; display:flex; justify-content:flex-start; align-items:center; gap:4px; }
 .ov-card-emoji { font-size:2em; line-height:1; vertical-align:middle; margin-right:2px; display:inline-block; }
@@ -495,6 +506,14 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 .ov-subsec-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
 .ov-subsec-title { font-size:13.5px; font-weight:700; color:var(--sub); }
 .ov-subsec-rate { color:var(--green); font-size:16px; font-weight:800; }
+/* 1.10.1：中元/中秋卡片的迷你表格欄位數隨週數變動（W1~W3 各兩欄），在
+   窄螢幕上表格 min-content 寬度會超過卡片可用寬度——CSS Grid 的欄位
+   （.ov-grid 底下的 .ov-card）預設 min-width:auto，會被子元素的
+   min-content 撐開，導致整個 .ov-card、甚至整頁被撐出橫向捲軸（跟本次
+   手機工具列收納無關，是既有問題，這裡一併修掉）。用 .ov-mini-scroll
+   包一層 overflow-x:auto，資料多時可以在表格內局部橫向滑，不會撐開外層；
+   下面 .ov-card { min-width:0 } 是保險，避免其他非表格內容日後撐開同一種 grid blowout。 */
+.ov-mini-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
 .ov-mini { width:100%; border-collapse:collapse; font-size:13.5px; }
 .ov-mini th, .ov-mini td { border:1px solid var(--border); padding:6px 7px; text-align:center; }
 .ov-mini tr.ov-mini-row { cursor:pointer; }
@@ -1980,7 +1999,7 @@ function renderOverview(){
          達成率%／未達店數(整檔期) 這幾欄跨兩列（rowspan），只有 W 欄
          需要子表頭。 */
       var body = gradeKeys.length ? (
-        '<table class="ov-mini"><tr>'
+        '<div class="ov-mini-scroll"><table class="ov-mini"><tr>'
         + '<th rowspan="2">等級</th><th rowspan="2">店數</th>'
         + weekNums.map(function(w){ return '<th colspan="2" class="ov-mini-wkhead">W'+w+'</th>'; }).join('')
         + '<th rowspan="2">達成率%</th>'
@@ -2011,7 +2030,7 @@ function renderOverview(){
               + '<td style="color:var(--green);font-weight:700;">'+r+'%</td>'
               + '<td class="ov-mini-unmet" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,true)" title="點擊查看整個檔期範圍內、至少有一週沒達標的門市">'+(gd.unmetCount||0)+'</td></tr>';
           }).join('')
-        + '</table>'
+        + '</table></div>'
       ) : '<div class="ov-empty">目前沒有符合資料</div>';
       var chanIcon = chanKey==='量販' ? '🛒' : '🏪';
       var chanLabel = chanKey==='量販' ? '量販通路' : '全聯通路';
