@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.17.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-11
+  版本：Ver. 1.18.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-11
 
 【這個檔案是什麼】
   ‧ 單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 讀取同一份
@@ -140,6 +140,21 @@
     把 <head> 裡那段 <script> 拿掉即可。
 
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.18.0 2026-08-11  總覽頁「營業處執行狀況」時間範圍 chip 列，手機小螢幕
+                      「直式」時改成跟明細頁一致的 ◄／► 單一週次切換器
+                      （新增 .ov-week-pager／ovMobilePageWeek()／
+                      _ovResolveMobileWeek()，沿用明細頁已有的
+                      _allPeriodWeekCols() 一維順序——中元 W1~W3、中秋
+                      W1~W2 依序排列，◄／► 直接跨專案前後移動，不用先選
+                      「中元」或「中秋」，也不提供「整體」／「整檔期彙總」
+                      這兩種不分週次的選項，直式窄螢幕只保留最單純的單一
+                      週次切換）；跟桌機版 chip 列共用同一個 OFFICE_WEEK_SEL
+                      狀態，不是另外開一組平行變數，切換器切一週，桌機／
+                      橫屏 chip 的 active 狀態也會同步指到那一格。用
+                      (max-width:640px) and (orientation:portrait) 雙重
+                      媒體查詢條件判斷，橫屏或桌機寬螢幕（含手機橫向但螢幕
+                      仍偏窄的機型）完全不受影響，維持原本 chip 列（含
+                      「整體」「中元」「中秋」整檔期彙總選項）與既有互動。
   1.17.0 2026-08-11  總覽頁兩項使用者反饋優化：①時間維度統一——1.16.0
                       的中元/中秋迷你表格原本自己有一份獨立的週次切換
                       狀態（OV_MINI_WEEK／ovMiniPageWeek），跟「營業處
@@ -824,6 +839,28 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
 #ov-office-week-chips .chip { text-align:center; line-height:1.2; padding:3px 10px; }
 .chip-sub { display:block; font-size:9.5px; font-weight:500; color:var(--sub); margin-top:0; }
 #ov-office-week-chips .chip.active .chip-sub { color:rgba(255,255,255,.8); }
+/* 1.18.0：總覽頁時間範圍 chip 列（整體／中元／中元W1~W3／中秋／中秋W1~W2
+   共 8 顆），在手機小螢幕「直式」時改成跟明細頁一致的 ◄／► 單一週次切換器
+   （.ov-week-pager，比照 .m-week-pager／.m-week-nav／.m-week-pager-label
+   同一套視覺與互動語言）——直式窄螢幕橫向塞 8 顆 chip 容易擠成兩三行、
+   反而比逐格點還難用，且「整體」「中元／中秋整檔期彙總」這兩種不分週次
+   的概念，在只能一次看一小塊畫面的直式手機上意義不大，故直式版只保留
+   「單一區間（某檔期某一週）之間前後移動」這一種操作，不分中元／中秋
+   專案（見 JS 端 ovMobilePageWeek()／_ovResolveMobileWeek()，直接沿用
+   明細頁 _allPeriodWeekCols() 的中元 W1~W3、中秋 W1~W2 依序展開的一維
+   順序，◄／► 在這份順序上前後移動，橫跨兩個專案）。橫屏或桌機寬螢幕
+   （含手機橫向但螢幕仍偏窄的機型）維持原本 chip 列不受影響，因此用
+   (max-width:640px) and (orientation:portrait) 雙重條件，避免只判斷寬度
+   時，少數手機橫向寬度仍小於 640px 而被誤判成直式版型。 */
+.ov-week-pager { display:none; }
+@media (max-width:640px) and (orientation:portrait) {
+  .ov-week-pager {
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    background:var(--card); border:1px solid var(--border); border-radius:var(--r);
+    padding:8px 10px; margin-bottom:8px;
+  }
+  #ov-office-week-chips { display:none; }
+}
 .oo-tbl-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
 .ov-office-tbl { width:100%; border-collapse:collapse; font-size:13.5px; }
 .ov-office-tbl th, .ov-office-tbl td { border:1px solid var(--border); padding:7px 10px; text-align:center; }
@@ -1118,6 +1155,15 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
     <!-- 1.17.0：這排 chip 是整個總覽頁唯一的時間範圍選擇——下方中元/中秋
          卡片的手機版顯示週次也會跟著同步，不是只管這張表自己 -->
     <div class="ov-timescope-hint">🕐 時間範圍（套用整頁，含下方中元/中秋卡片）</div>
+    <!-- 1.18.0：手機小螢幕直式版，跟明細頁一樣的 ◄／► 單一週次切換器，取代
+         下面這排 chip（含「整體／中元／中秋」不分週次的彙總選項，直式窄
+         螢幕不適合塞這麼多顆）；橫屏或桌機寬螢幕看不到這顆，維持原本 chip
+         列，兩者共用同一個 OFFICE_WEEK_SEL 狀態，不是各切各的。 -->
+    <div class="ov-week-pager" id="ov-week-pager">
+      <button class="m-week-nav" id="ov-week-prev" onclick="ovMobilePageWeek(-1)" aria-label="上一週">◄</button>
+      <div class="m-week-pager-label" id="ov-week-pager-label">—</div>
+      <button class="m-week-nav" id="ov-week-next" onclick="ovMobilePageWeek(1)" aria-label="下一週">►</button>
+    </div>
     <div class="chip-group" id="ov-office-week-chips"></div>
     <div id="ov-office-wrap"></div>
   </div>
@@ -2418,10 +2464,83 @@ function setOfficeWeek(el, period, week){
   OFFICE_WEEK_SEL = period ? { period:period, week:week } : null;
   renderOverview();
 }
+/* 1.18.0：手機直式版「時間切換器」（.ov-week-pager）──跟明細頁 MOBILE_SEL／
+   .m-week-pager 同一套做法，只在「單一週次」之間 ◄／► 移動，不使用
+   OFFICE_WEEK_SEL 原本「整體／某檔期整檔期彙總」這兩種狀態。刻意不新增
+   平行變數，直接讀寫同一個 OFFICE_WEEK_SEL，維持 1.17.0「全頁時間維度
+   單一來源」的原則──直式手機切一週，回到橫屏／桌機時 chip 列也會顯示
+   對應那一週被選取，不會兩邊對不上。
+   _allPeriodWeekCols()／_todayEpochDay()／_toEpochDay() 為明細頁已定義的
+   共用函式，兩頁共用同一份 PERIODS 設定，這裡直接沿用不重寫一份。 */
+function _ovMobileIsPortrait(){
+  return !!(window.matchMedia && window.matchMedia('(max-width:640px) and (orientation:portrait)').matches);
+}
+/* 若 OFFICE_WEEK_SEL 目前不是「單一週次」（null＝整體、或某檔期 week:null＝
+   整檔期彙總），就地解析出跟明細頁 MOBILE_SEL 一致的預設週次（今天落在
+   第幾週；不在任何檔期範圍內就找最接近的未來週；整季都過了停在最後一週）
+   並寫回 OFFICE_WEEK_SEL。已經是單一週次時原樣傳回，不覆蓋使用者的選擇。 */
+function _ovResolveMobileWeek(){
+  if(OFFICE_WEEK_SEL && OFFICE_WEEK_SEL.period && OFFICE_WEEK_SEL.week) return OFFICE_WEEK_SEL;
+  var all = _allPeriodWeekCols();
+  if(!all.length) return null;
+  var today = _todayEpochDay();
+  var current = null, nextFuture = null;
+  for(var i=0;i<all.length;i++){
+    var c = all[i];
+    var p = PERIODS.filter(function(pp){ return pp.key===c.period; })[0];
+    var startDay = _toEpochDay(p.y,p.mo,p.d) + (c.week-1)*7;
+    var endDay = startDay+6;
+    if(today>=startDay && today<=endDay){ current=c; break; }
+    if(!nextFuture && startDay>today) nextFuture = c;
+  }
+  OFFICE_WEEK_SEL = current || nextFuture || all[all.length-1];
+  return OFFICE_WEEK_SEL;
+}
+/* ◄／► 按鈕：dir=-1 上一週、dir=1 下一週，中元 W1~W3、中秋 W1~W2 視為
+   同一份順序清單前後移動，跨專案時不需要使用者自己切「中元」／「中秋」；
+   到邊界（第一週／最後一週）直接停住，對應按鈕在 _updateOvWeekPager()
+   裡會被停用。跟 setOfficeWeek() 一樣改呼叫 renderOverview()，讓中元/
+   中秋卡片跟營業處表在同一次重繪內一起更新。 */
+function ovMobilePageWeek(dir){
+  var all = _allPeriodWeekCols();
+  var cur = _ovResolveMobileWeek();
+  if(!cur) return;
+  var idx = all.findIndex(function(c){ return c.period===cur.period && c.week===cur.week; });
+  if(idx===-1) idx = 0;
+  idx = Math.max(0, Math.min(all.length-1, idx+dir));
+  OFFICE_WEEK_SEL = all[idx];
+  renderOverview();
+}
+/* 更新切換器文字＋◄／► 按鈕可用狀態；只在直式小螢幕才會解析／覆蓋
+   OFFICE_WEEK_SEL，橫屏或桌機直接跳過，避免弄髒桌機版原本可以停在
+   「整體」的狀態。 */
+function _updateOvWeekPager(){
+  var labelEl = document.getElementById('ov-week-pager-label');
+  var prevBtn = document.getElementById('ov-week-prev');
+  var nextBtn = document.getElementById('ov-week-next');
+  if(!labelEl || !_ovMobileIsPortrait()) return;
+  var cur = _ovResolveMobileWeek();
+  if(!cur){ labelEl.textContent = '—'; return; }
+  var all = _allPeriodWeekCols();
+  var idx = all.findIndex(function(c){ return c.period===cur.period && c.week===cur.week; });
+  var p = PERIODS.filter(function(pp){ return pp.key===cur.period; })[0];
+  var pLabel = (p ? p.label.replace('專案','') : cur.period);
+  var icon = cur.period==='zhong' ? '🏮' : '🎑';
+  var dateRange = _weekDateRange(cur.period, cur.week);
+  labelEl.innerHTML = icon+' '+esc(pLabel)+' W'+cur.week+'<small>'+esc(dateRange)+'</small>';
+  if(prevBtn) prevBtn.disabled = (idx<=0);
+  if(nextBtn) nextBtn.disabled = (idx===-1 || idx>=all.length-1);
+}
 function renderOfficeOverview(){
   var wrap = document.getElementById('ov-office-wrap');
   if(!wrap) return;
+  /* 1.18.0：直式小螢幕先把 OFFICE_WEEK_SEL 解析成單一週次，再渲染 chip 列，
+     讓 chip 的 active 狀態跟切換器顯示的週次一致（即使 chip 列本身在直式
+     螢幕被 CSS 隱藏，狀態還是要同步，這樣轉回橫屏／桌機時 active 才會
+     指到正確的那一格，不會停留在切換前的「整體」）。 */
+  if(_ovMobileIsPortrait()) _ovResolveMobileWeek();
   renderOfficeWeekChips();
+  _updateOvWeekPager();
   var areasPresent = AREA_ORDER.filter(function(a){
     return STORE_ROWS.some(function(s){ return s.area===a; });
   });
