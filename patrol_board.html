@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.14.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-11
+  版本：Ver. 1.16.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-11
 
 【這個檔案是什麼】
   ‧ 單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 讀取同一份
@@ -140,6 +140,29 @@
     把 <head> 裡那段 <script> 拿掉即可。
 
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.16.0 2026-08-11  中元／中秋卡片迷你表格手機版「一次只看一週」：新增
+                      .ov-mini-mobile／.ov-mini-pager（◄ W1 08/08-14 ►），
+                      比照 1.15.0 營業處 ◄／► 同一套視覺與互動語言，取代
+                      原本 W1~W3（或 W1~W2）橫向擠在同一張表格、要左右滑
+                      很多欄位才找得到某一週的問題；桌機（.ov-mini-scroll）
+                      完全不受影響，仍是一次看全部週次的完整表格，兩者共用
+                      同一份 allGrades／statCache 統計結果，只是換一種呈現
+                      方式，不重算任何數字。狀態沿用 1.15.0 已埋好但尚未
+                      接上渲染的 OV_MINI_WEEK／ovMiniPageWeek／
+                      _defaultWeekForPeriod，預設定位邏輯跟主表格
+                      MOBILE_SEL 一致：今天落在該檔期第幾週就先開那一週，
+                      不在範圍內就找最接近的未來週，整檔期都過了停在最後
+                      一週。
+  1.15.0 2026-08-11  手機版總覽表瘦身兩項（方向一＋中元/中秋週次切換，
+                      本次先完成「營業處執行狀況」表的部分）：把原本 7 個
+                      營業處＋全部合計共 8 張直向堆疊卡片，改成 ◄／► 一次
+                      只看一個處（比照週期切換手感），新增 OV_AREA_IDX／
+                      ovPageArea／.oo-area-pager；桌機表格（.ov-office-tbl）
+                      完全不受影響，仍是一次看全部處的完整表格。中元/中秋
+                      迷你表格週次切換的狀態與函式（OV_MINI_WEEK／
+                      ovMiniPageWeek／_defaultWeekForPeriod）當時已一併
+                      建好，但渲染尚未接上，實際切一週的效果延到 1.16.0
+                      才完成。
   1.14.0 2026-08-11  行動裝置介面佈局與層級篩選優化兩項：①「營業處執行
                       狀況」手機卡片的 .oo-mcard-chan（含可點擊的
                       .oo-clickable 版本、跟不可點的「全部合計」版本）
@@ -535,6 +558,27 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
   .m-week-pager-label { flex:1; text-align:center; font-size:14px; font-weight:800; color:var(--text); min-width:0; }
   .m-week-pager-label small { display:block; font-size:11px; font-weight:600; color:var(--sub); margin-top:1px; }
 }
+/* 1.15.0：「營業處執行狀況」手機版一次只看一個處的 ◄／► 切換列，樣式
+   比照 .m-week-pager／.m-week-nav（同一套視覺語言，使用者不用學新手勢），
+   差別只在放的位置是 .oo-mobile-cards 卡片清單最上方，桌機（.oo-tbl-scroll
+   走完整表格）完全不會出現這排。 */
+.oo-area-pager { display:none; }
+@media (max-width:640px) {
+  .oo-area-pager {
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    background:var(--card); border:1px solid var(--border); border-radius:var(--r);
+    padding:8px 10px; margin-bottom:2px;
+  }
+  .oo-area-nav {
+    flex-shrink:0; width:34px; height:34px; border-radius:50%; border:1px solid var(--border);
+    background:#fff; color:var(--primary); font-size:15px; font-weight:800; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; transition:background .15s;
+  }
+  .oo-area-nav:active { background:var(--primary-bg); }
+  .oo-area-nav:disabled { color:#c8ccd2; border-color:#eee; cursor:default; background:#fff; }
+  .oo-area-pager-label { flex:1; text-align:center; font-size:14px; font-weight:800; color:var(--text); min-width:0; }
+  .oo-area-pager-label small { display:block; font-size:11px; font-weight:600; color:var(--sub); margin-top:1px; }
+}
 /* 1.9.6：稽核用「必訪日」高亮樣式（量販A店五/六必訪未達）。刻意跟現有
    .miss-mark（週應達次數的過去週未達）做視覺區隔，用發光紅框＋實心徽章，
    讓稽核人員一眼認出「不是次數不足，是規定的那天完全沒去」 */
@@ -710,6 +754,25 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
    包一層 overflow-x:auto，資料多時可以在表格內局部橫向滑，不會撐開外層；
    下面 .ov-card { min-width:0 } 是保險，避免其他非表格內容日後撐開同一種 grid blowout。 */
 .ov-mini-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+/* 1.16.0：中元/中秋迷你表格手機版「一次只看一週」——比照 .oo-area-pager／
+   .m-week-pager 同一套視覺與互動語言（◄／週次＋日期範圍／►），取代原本
+   W1~W3（或 W1~W2）橫向擠在同一張表格、要左右滑很多欄位才看得到某一週
+   的問題。桌機（.ov-mini-scroll）完全不受影響，仍是一次看全部週次的
+   完整表格；.ov-mini-mobile 預設隱藏，只在 640px 以下斷點顯示，跟
+   .ov-mini-scroll 互斥切換，兩者用同一份 allGrades／statCache 資料，
+   純粹換一種呈現方式，不重算任何數字。 */
+.ov-mini-mobile { display:none; }
+.ov-mini-pager { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+.ov-mini-nav { flex-shrink:0; width:34px; height:34px; border-radius:8px; border:1px solid var(--border); background:#fff; font-size:15px; font-weight:800; color:var(--primary); cursor:pointer; }
+.ov-mini-nav:active { background:var(--primary-bg); }
+.ov-mini-nav:disabled { color:#c8ccd2; border-color:#eee; cursor:default; background:#fff; }
+.ov-mini-pager-label { flex:1; text-align:center; font-size:13.5px; font-weight:800; color:var(--text); min-width:0; }
+.ov-mini-pager-label small { display:block; font-size:11px; font-weight:600; color:var(--sub); margin-top:1px; }
+.ov-mini-mobile table.ov-mini th, .ov-mini-mobile table.ov-mini td { padding:6px 8px; }
+@media (max-width:640px) {
+  .ov-mini-scroll { display:none; }
+  .ov-mini-mobile { display:block; }
+}
 .ov-mini { width:100%; border-collapse:collapse; font-size:13.5px; }
 .ov-mini th, .ov-mini td { border:1px solid var(--border); padding:6px 7px; text-align:center; }
 /* 1.10.4：改成逐格各自可點（跟上方「營業處執行狀況總覽表」一致），拿掉
@@ -1449,6 +1512,50 @@ function _updateMobileWeekPager(){
                                   被整段檔期的合計數字蓋掉
    跟主表 FILTER 是各自獨立的狀態，互不影響。 */
 var OFFICE_WEEK_SEL = null;
+
+/* ════ 1.15.0：手機版總覽表瘦身兩項共用狀態 ════════════════════════════
+   ‧ OV_AREA_IDX：「營業處執行狀況」手機卡片改成一次只看一個營業處
+     （比照 MOBILE_SEL 週期切換的手感），頁面順序＝['全部合計'].concat(
+     areasPresent)，索引 0＝全部合計；桌機表格不受影響，仍是完整表格。
+   ‧ OV_MINI_WEEK：中元/中秋卡片的迷你表格，手機版改成一次只看一週
+     （桌機維持原本橫向全部週次的表格），key＝檔期 key、value＝週次數字，
+     兩者都是「畫面瀏覽位置」的暫存狀態，不影響任何篩選或計算邏輯，
+     切換只是換一種呈現方式，數字來源仍是同一份 statCache／_statsFor。 */
+var OV_AREA_IDX = 0;
+var OV_MINI_WEEK = {};
+/* 找出「今天」落在指定檔期的第幾週，當作手機版迷你表格預設顯示的週次；
+   邏輯跟 _initMobileSel() 一致但只掃單一檔期：今天不在檔期範圍內就找
+   最接近的未來週，整個檔期都過了就停在最後一週 */
+function _defaultWeekForPeriod(periodKey){
+  var p = PERIODS.filter(function(pp){ return pp.key===periodKey; })[0];
+  if(!p) return 1;
+  var today = _todayEpochDay();
+  var nextFuture = null;
+  for(var w=1; w<=p.weeks; w++){
+    var startDay = _toEpochDay(p.y,p.mo,p.d) + (w-1)*7;
+    var endDay = startDay+6;
+    if(today>=startDay && today<=endDay) return w;
+    if(!nextFuture && startDay>today) nextFuture = w;
+  }
+  return nextFuture || p.weeks;
+}
+/* ◄／► 切換「營業處執行狀況」手機版目前顯示的頁面（全部合計／單一處） */
+function ovPageArea(dir){
+  var areasPresent = AREA_ORDER.filter(function(a){
+    return STORE_ROWS.some(function(s){ return s.area===a; });
+  });
+  var maxIdx = areasPresent.length; /* 頁面總數 = 1(全部合計) + areasPresent.length */
+  OV_AREA_IDX = Math.max(0, Math.min(maxIdx, OV_AREA_IDX + dir));
+  renderOfficeOverview();
+}
+/* ◄／► 切換中元/中秋迷你表格手機版目前顯示的週次 */
+function ovMiniPageWeek(periodKey, dir){
+  var p = PERIODS.filter(function(pp){ return pp.key===periodKey; })[0];
+  if(!p) return;
+  var cur = OV_MINI_WEEK[periodKey] || _defaultWeekForPeriod(periodKey);
+  OV_MINI_WEEK[periodKey] = Math.max(1, Math.min(p.weeks, cur+dir));
+  renderOverview();
+}
 
 function showLoading(){ document.getElementById('loading').classList.add('show'); }
 function hideLoading(){ document.getElementById('loading').classList.remove('show'); }
@@ -2433,11 +2540,10 @@ function renderOfficeOverview(){
       + mvStat
       + '</div></div>';
   }
-  var mobileCards = areasPresent.map(function(area){
-    return '<div class="oo-mcard"><div class="oo-mcard-head">'+esc(area)+'</div>'
-      + CHANS.map(function(ck){ return _mcardChan(area, ck); }).join('')
-      + '</div>';
-  }).join('');
+  /* 1.15.0：手機版改成一次只看一個營業處（或「全部合計」），比照主表格
+     週期切換的 ◄／► 手感——不再一次把 7 個處＋全部合計共 8 張卡片全部
+     堆疊在同一頁，捲動距離跟版面高度砍到原本的 1/8；桌機表格（tableHtml）
+     完全不受影響，維持一次看全部處的完整表格。 */
   var totalChanBlocks = CHANS.map(function(ck){
     var t = chanTotals[ck];
     var rate = t.exp>0 ? (t.stdDone/t.exp*100) : 0;
@@ -2458,10 +2564,21 @@ function renderOfficeOverview(){
       + mvStat
       + '</div></div>';
   }).join('');
-  var mobileHtml = '<div class="oo-mobile-cards">'
-    + mobileCards
-    + '<div class="oo-mcard oo-mcard-total"><div class="oo-mcard-head">全部合計</div>' + totalChanBlocks + '</div>'
+  var ovPages = ['全部合計'].concat(areasPresent);
+  if(OV_AREA_IDX >= ovPages.length) OV_AREA_IDX = 0;
+  if(OV_AREA_IDX < 0) OV_AREA_IDX = 0;
+  var curPageName = ovPages[OV_AREA_IDX];
+  var curCardHtml = curPageName==='全部合計'
+    ? ('<div class="oo-mcard oo-mcard-total"><div class="oo-mcard-head">全部合計</div>' + totalChanBlocks + '</div>')
+    : ('<div class="oo-mcard"><div class="oo-mcard-head">'+esc(curPageName)+'</div>'
+        + CHANS.map(function(ck){ return _mcardChan(curPageName, ck); }).join('')
+        + '</div>');
+  var pagerHtml = '<div class="oo-area-pager" id="oo-area-pager">'
+    + '<button class="oo-area-nav" id="oo-area-prev" onclick="ovPageArea(-1)" aria-label="上一處"'+(OV_AREA_IDX<=0?' disabled':'')+'>◄</button>'
+    + '<div class="oo-area-pager-label">'+esc(curPageName)+'<small>'+(OV_AREA_IDX+1)+' / '+ovPages.length+'</small></div>'
+    + '<button class="oo-area-nav" id="oo-area-next" onclick="ovPageArea(1)" aria-label="下一處"'+(OV_AREA_IDX>=ovPages.length-1?' disabled':'')+'>►</button>'
     + '</div>';
+  var mobileHtml = '<div class="oo-mobile-cards">' + pagerHtml + curCardHtml + '</div>';
 
   wrap.innerHTML = mvSummaryHtml + tableHtml + mobileHtml;
 }
@@ -2794,6 +2911,42 @@ function renderOverview(){
       gradeKeys.forEach(function(g){ acc.push({ chanKey:chanKey, grade:g, gd:stat.byGrade[g] }); });
       return acc;
     }, []);
+    /* 1.16.0：手機版目前顯示的週次——沒切換過就用「今天落在第幾週」當預設
+       （_defaultWeekForPeriod），跟主表格 MOBILE_SEL 的預設邏輯一致，切過之後
+       記在 OV_MINI_WEEK[periodKey] 維持頁面瀏覽位置。 */
+    var curWeek = OV_MINI_WEEK[p.key] || _defaultWeekForPeriod(p.key);
+    if(curWeek > p.weeks) curWeek = p.weeks;
+    if(curWeek < 1) curWeek = 1;
+    var mobileBody = allGrades.length ? (
+      '<table class="ov-mini"><tr>'
+      + '<th>等級</th><th>店數</th><th>已達</th><th>未達</th>'
+      + '<th>達成率%</th>'
+      + '<th title="整個檔期範圍內，至少有一週沒達標的店數">未達店數<br>(整檔期)</th>'
+      + '</tr>'
+      + allGrades.map(function(item){
+          var chanKey = item.chanKey, g = item.grade, gd = item.gd;
+          var r = gd.exp>0 ? (gd.stdDone/gd.exp*100).toFixed(1) : '0.0';
+          var label = (GRADE_LABEL[g]||g) + '（' + GRADE_FREQ[g] + '）';
+          var clickAttrs = ' onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event)" title="點擊查看這個等級整個檔期的門市明細"';
+          var wd = gd.weeks[curWeek] || { exp:0, stdDone:0, unmet:0 };
+          var met = gd.count - wd.unmet;
+          return '<tr>'
+            + '<td class="ov-mini-clickable"'+clickAttrs+'>'+esc(label)+'</td>'
+            + '<td class="ov-mini-clickable"'+clickAttrs+'>'+gd.count+'</td>'
+            + '<td class="ov-mini-met ov-mini-clickable"'+clickAttrs+'>'+met+'</td>'
+            + '<td class="ov-mini-wk ov-mini-clickable'+(wd.unmet>0?' ov-mini-wk-has-unmet':'')+'" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,true,'+curWeek+')" title="點擊查看這一週的未達標門市">'+wd.unmet+'</td>'
+            + '<td class="ov-mini-clickable" style="color:var(--green);font-weight:700;"'+clickAttrs+'>'+r+'%</td>'
+            + '<td class="ov-mini-unmet ov-mini-clickable" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,true)" title="點擊查看整個檔期範圍內、至少有一週沒達標的門市">'+(gd.unmetCount||0)+'</td>'
+            + '</tr>';
+        }).join('')
+      + '</table>'
+    ) : '';
+    var mobilePagerHtml = '<div class="ov-mini-pager">'
+      + '<button class="ov-mini-nav" onclick="ovMiniPageWeek(\''+p.key+'\',-1)" aria-label="上一週"'+(curWeek<=1?' disabled':'')+'>◄</button>'
+      + '<div class="ov-mini-pager-label">W'+curWeek+'<small>'+esc(_weekDateRange(p.key,curWeek))+'</small></div>'
+      + '<button class="ov-mini-nav" onclick="ovMiniPageWeek(\''+p.key+'\',1)" aria-label="下一週"'+(curWeek>=p.weeks?' disabled':'')+'>►</button>'
+      + '</div>';
+    var mobileHtml = '<div class="ov-mini-mobile">' + mobilePagerHtml + mobileBody + '</div>';
     var body = allGrades.length ? (
       '<div class="ov-mini-scroll"><table class="ov-mini"><tr>'
       + '<th rowspan="2">等級</th><th rowspan="2">店數</th>'
@@ -2823,10 +2976,10 @@ function renderOverview(){
             + '</tr>';
         }).join('')
       + '</table></div>'
-    ) : '<div class="ov-empty">目前沒有符合資料</div>';
+    ) : '';
     return '<div class="ov-card">'
       + '<h2><span class="ov-card-emoji">'+icon+'</span> '+esc(p.label)+'</h2>'
-      + body + '</div>';
+      + (allGrades.length ? (body + mobileHtml) : '<div class="ov-empty">目前沒有符合資料</div>') + '</div>';
   }).join('');
   wrap.innerHTML = cardsHtml;
   renderOfficeOverview();
