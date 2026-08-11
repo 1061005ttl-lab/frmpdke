@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.12.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-11
+  版本：Ver. 1.12.1 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-11
 
 【這個檔案是什麼】
   ‧ 單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 讀取同一份
@@ -140,6 +140,16 @@
     把 <head> 裡那段 <script> 拿掉即可。
 
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.12.1 2026-08-11  接續 1.12.0「依日期」視角四項再優化：①量販A店五、
+                      六必訪格改成從「這週還缺幾次」的白格總額裡先佔位，
+                      不再額外加碼——白格總數維持等於應達次數（例如整週
+                      應達 5 次＝2 個必訪格＋3 個動態格，不是 5+2=7 格）；
+                      ②「依日期」視角不再疊加 mv-badge（mv-ok／mv-pending）
+                      徽章列，必訪格的狀態直接反映在 box-container 格子
+                      本身的顏色，只有「依次數」視角（格子看不出實際日期）
+                      才保留徽章；③「格子視角」切換列從表格上方獨立區塊
+                      移進篩選列（filterbar）最下面一排；④切換順序改成
+                      「📅 依日期」在前、「🔢 依次數」在後。
   1.12.0 2026-08-11  「依日期」格子視角四項優化：①星期六、日的星期幾標籤
                       固定紅字（.dow-weekend）；②改掉「已過期整週才用紅✖」
                       的舊判斷，改成逐天判斷──已經過去卻沒有紀錄的天直接
@@ -420,7 +430,10 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 .day-box-lbl { font-size:9px; line-height:1; color:var(--sub); font-weight:700; }
 /* 1.12.0：週六／週日的星期幾標籤固定紅字，方便一眼認出假日欄位 */
 .day-box-lbl.dow-weekend { color:var(--red); }
-.chip-fgroup.cellview-row { padding:0 clamp(12px,2.5vw,20px) 10px; }
+/* 1.12.1：格子視角切換移進 filterbar-body，變成篩選列最後一排 chip-row，
+   不用再自己補外側 padding（跟其他 chip-row 共用 .filterbar-body 的邊距）；
+   手機版仍隱藏——因為這個切換只影響桌機表格（.box-container），手機卡片
+   本來就用「本週 x/y」文字徽章，切了也沒視覺差異。 */
 @media (max-width:640px) { .cellview-row { display:none; } }
 /* 1.9.6：稽核用「必訪日」高亮樣式（量販A店五/六必訪未達）。刻意跟現有
    .miss-mark（週應達次數的過去週未達）做視覺區隔，用發光紅框＋實心徽章，
@@ -976,6 +989,15 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
           <div class="chip-group chip-group-wrap" id="chip-staff"></div>
         </div>
       </div>
+      <div class="chip-row cellview-row" id="cellview-row">
+        <div class="chip-fgroup">
+          <span class="chip-label" style="width:auto;">格子視角</span>
+          <div class="chip-group" id="chip-cellview">
+            <div class="chip active" data-v="day" onclick="setCellView(this,'day')">📅 依日期</div>
+            <div class="chip" data-v="count" onclick="setCellView(this,'count')">🔢 依次數</div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -985,14 +1007,6 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
     <div class="sum-card rate"><div class="sc-label">目標達成率</div><div class="sc-val" id="stat-rate">0.0%</div></div>
     <div class="sum-card extra"><div class="sc-label">超額次數</div><div class="sc-val" id="stat-extra">0</div>
       <div class="sc-val sc-val-note" style="display:none"></div>
-    </div>
-  </div>
-
-  <div class="chip-fgroup cellview-row" id="cellview-row">
-    <span class="chip-label" style="width:auto;">格子視角</span>
-    <div class="chip-group" id="chip-cellview">
-      <div class="chip" data-v="count" onclick="setCellView(this,'count')">🔢 依次數</div>
-      <div class="chip active" data-v="day" onclick="setCellView(this,'day')">📅 依日期</div>
     </div>
   </div>
 
@@ -2668,10 +2682,14 @@ function _buildBoxCells(actual, stdN, isPastWeek){
      依序標記成白格（開放中的應達格），超出這個缺額的其餘未來天顯示成
      灰色幽靈格（非必要格，維持版面 7 格寬度一致）。
    ‧ 量販A店的星期五、六（MUST_VISIT_RULE）例外：只要那天還沒過去、
-     也還沒去，一律「預先畫成白格」，不管當週的次數缺額有沒有已經被
-     其他天佔滿——必訪日跟「週應達次數」是兩套互相獨立的規則（跟現有
-     .mv-alert-cell／mv-badge 稽核徽章互相搭配，不衝突：格子底色管
-     「次數規則」，mv 徽章另外管「必訪規則」）。
+     也還沒去，一律「預先畫成白格」，但這兩格是從「這週還缺幾次」
+     （neededWhite＝std-actual）的白格總額裡面「先佔位」，不是額外
+     加碼——白格總數維持等於 neededWhite 不變，只是動態格數變成
+     neededWhite 扣掉必訪格已佔的名額（1.12.1 修正：舊版必訪格不佔
+     名額，會讓白格總數多出必訪格數，跟「這週固定 N 格白」的規則兜
+     不起來）。必訪日的辨識也直接體現在這格本身的顏色狀態，不再另外
+     疊加 mv-alert-cell／mv-badge 徽章（見 render() 對 CELL_VIEW
+     的判斷）。
    ‧ 週六／週日的星期幾標籤固定用紅色字體顯示（.dow-weekend），方便
      督導一眼辨識假日。 */
 var DOW_LABELS = ['日','一','二','三','四','五','六'];
@@ -2684,9 +2702,19 @@ function _buildDayBoxCells(s, period, week, stdN, actual){
   var days = [];
   for(var i=0;i<7;i++){
     var day = startDay+i;
-    days.push({ day:day, dow:new Date(day*86400000).getUTCDay(), visited:_hasVisitOnDay(s.code, day) });
+    var dow = new Date(day*86400000).getUTCDay();
+    var visited = _hasVisitOnDay(s.code, day);
+    var isPastDay = day < today;
+    var isForceWhite = mustVisit && !isPastDay && !visited && MUST_VISIT_RULE.weekdays.indexOf(dow)!==-1;
+    days.push({ day:day, dow:dow, visited:visited, isPastDay:isPastDay, isForceWhite:isForceWhite });
   }
   var neededWhite = Math.max(0, stdN-actual);
+  /* 必訪格（週五、六）先從 neededWhite 裡佔位，剩下的名額才輪到其他
+     天動態遞補，確保「白格總數＝neededWhite」永遠成立，不會因為必訪格
+     而多畫出格子（例如 std=5、actual=0 時，2 個必訪格＋3 個動態格＝
+     剛好 5 格白，不是 5+2=7 格）。 */
+  var forcedCount = days.filter(function(d){ return d.isForceWhite; }).length;
+  var dynamicBudget = Math.max(0, neededWhite - forcedCount);
   var visitedRank=0, openAssigned=0;
   var html = '';
   days.forEach(function(d){
@@ -2694,20 +2722,18 @@ function _buildDayBoxCells(s, period, week, stdN, actual){
     var dateLbl = dp.mo+'/'+dp.d;
     var dowLbl = DOW_LABELS[d.dow];
     var isWeekendLbl = (d.dow===0 || d.dow===6);
-    var isPastDay = d.day < today;
-    var isForceWhite = mustVisit && !isPastDay && !d.visited && MUST_VISIT_RULE.weekdays.indexOf(d.dow)!==-1;
     var inner, title;
     if(d.visited){
       visitedRank++;
       if(visitedRank<=stdN){ inner = '<input type="checkbox" class="std-check" checked>'; title = dateLbl+'（週'+dowLbl+'）：已完成，算入應達次數'; }
       else { inner = '<input type="checkbox" class="extra-check" checked>'; title = dateLbl+'（週'+dowLbl+'）：已完成，超額次數'; }
-    } else if(isPastDay){
+    } else if(d.isPastDay){
       inner = '<span class="box-ghost" aria-hidden="true"></span>';
       title = dateLbl+'（週'+dowLbl+'）：已過期未到店';
-    } else if(isForceWhite){
+    } else if(d.isForceWhite){
       inner = '<input type="checkbox" class="std-check">';
       title = dateLbl+'（週'+dowLbl+'）：量販A必訪日，尚未到店';
-    } else if(openAssigned<neededWhite){
+    } else if(openAssigned<dynamicBudget){
       inner = '<input type="checkbox" class="std-check">'; openAssigned++;
       title = dateLbl+'（週'+dowLbl+'）：本週尚未結束，還沒完成';
     } else {
@@ -2873,9 +2899,13 @@ function render(){
       /* 1.9.6：量販A店才有 cs.mv，組出五、六兩個必訪日小徽章（✓已到店／
          ✖已過期未到店／·尚未到期）；只要有任一天「已過期仍未到店」，
          整格加上 mv-alert-cell 高亮（發光紅底），跟次數是否達標無關，
-         純粹反映「規定的那天有沒有去」。 */
+         純粹反映「規定的那天有沒有去」。
+         1.12.1：CELL_VIEW==='day' 時不再疊這排徽章——_buildDayBoxCells()
+         已經把週五、六必訪格直接畫進 box-container 本身（白格＝尚未到店、
+         藍格＝已完成），徽章會是重複資訊；只有「依次數」視角（格子看不出
+         實際日期）才需要靠這排徽章額外標示必訪日狀態。 */
       var mvHtml = '', mvCellCls = '';
-      if(cs.mv){
+      if(cs.mv && CELL_VIEW!=='day'){
         mvHtml = '<div class="mv-row">' + cs.mv.map(function(d){
           var lbl = d.dow===5 ? '五' : '六';
           var cls = d.visited ? 'mv-ok' : (d.isPast ? 'mv-miss' : 'mv-pending');
@@ -3778,24 +3808,32 @@ function _buildManualContent(){
     + '<span style="display:inline-block;width:13px;height:13px;background:#FF7A00;border-radius:3px;vertical-align:middle;"></span>'
     + ' <b>橘色發光格（超額）</b>：實際去的次數超過標準，多出來的部分自動顯示；'
     + '超額次數不會拉高達成率，也不會拿去補其他店家的不足，純粹是額外的努力紀錄</p>'
-    + '<p><b>【格子視角】</b>表格上方「🔢 依次數／📅 依日期」可以切換格子的'
-    + '排列方式，預設是「依日期」：<br>'
+    + '<p><b>【格子視角】</b>篩選列（🔍 篩選條件）最下面一排「格子視角」可以'
+    + '切換格子的排列方式，「📅 依日期」在前、「🔢 依次數」在後，預設是'
+    + '「依日期」：<br>'
     + '<b>依日期</b>（預設）：7 格對應這個檔期週次實際的星期日～六，每格'
     + '上方印出星期幾（週六、週日固定紅字），直接看出督導轄下的店家實際'
     + '習慣在星期幾去巡補。藍＝已完成且算應達、橘＝已完成的超額；白格＝'
     + '還沒去但日期還沒過（今天或未來，或量販A的必訪日五、六）；灰格＝'
     + '日期已經過去卻沒有紀錄——這個名額不會憑空消失，會自動遞延到後面'
-    + '還沒過去的日子，繼續維持「還要去幾次」的白格數量。<br>'
+    + '還沒過去的日子，繼續維持「還要去幾次」的白格數量不變（量販A店的'
+    + '五、六必訪格會優先從這個白格總額裡佔位，例如整週應達 5 次，必訪'
+    + '格先佔 2 格，剩下 3 格才動態遞補給其他天，白格總數仍然是 5 格，'
+    + '不會因為必訪格另外加碼變成 7 格）。<br>'
     + '<b>依次數</b>：原本的視角，7 格代表第幾次巡補、跟哪一天去的無關。<br>'
-    + '這個視角切換目前僅支援桌機表格，手機版仍是原本的「本週 x/y」文字徽章。</p>'
+    + '這個視角切換目前僅支援桌機表格，手機版仍是原本的「本週 x/y」文字徽章'
+    + '（篩選列在手機版收合展開後也看不到這排切換）。</p>'
     + '<hr>'
     + '<p><b>【🚨 五/六必訪日是什麼？】</b>量販通路＋量販A店，每週的星期五、'
     + '星期六是規定一定要到店的日子，跟「這週去了幾次」是兩件事分開看──'
     + '就算這週次數已經衝到達標，週五或週六只要有一天完全沒紀錄，仍然算'
-    + '「必訪未符合標準」。格子上會多顯示「五✓／五✖／五·」兩個小徽章'
-    + '（✓已到店、✖必訪日已過仍未到店、·還沒到那天不算未符合標準），只要出現'
-    + '✖，整格會亮起紅色高光提醒；次數合計欄與手機店卡也會多一顆'
-    + '「🚨 必訪缺」提示。篩選列的「🚨 量販A五六必訪未達」開關可以直接'
+    + '「必訪未符合標準」。「依日期」格子視角下，這兩天有沒有到店直接'
+    + '看格子本身的顏色就好（白＝還沒去、藍＝已完成、灰＝已過期未到店），'
+    + '不會再另外疊一排徽章；「依次數」視角因為格子看不出實際日期，才會'
+    + '額外顯示「五✓／五✖／五·」兩個小徽章（✓已到店、✖必訪日已過仍未'
+    + '到店、·還沒到那天不算未符合標準），只要出現✖，整格會亮起紅色高光'
+    + '提醒。次數合計欄與手機店卡不分視角都會多一顆「🚨 必訪缺」提示。'
+    + '篩選列的「🚨 量販A五六必訪未達」開關可以直接'
     + '篩出所有未符合標準店家，用法跟「🔴 巡次未達標」一樣，兩顆開關也能同時開。'
     + '不用點進明細也看得到：「營業處執行狀況總覽表」的📦量販欄位群組'
     + '多了「🚨必訪缺」一欄（可點擊直接下鑽），旁邊「⚠️今日待完成」是'
