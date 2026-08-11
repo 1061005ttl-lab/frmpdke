@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.16.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-11
+  版本：Ver. 1.17.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-11
 
 【這個檔案是什麼】
   ‧ 單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 讀取同一份
@@ -140,6 +140,24 @@
     把 <head> 裡那段 <script> 拿掉即可。
 
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.17.0 2026-08-11  總覽頁兩項使用者反饋優化：①時間維度統一——1.16.0
+                      的中元/中秋迷你表格原本自己有一份獨立的週次切換
+                      狀態（OV_MINI_WEEK／ovMiniPageWeek），跟「營業處
+                      執行狀況」表頂端 chip 列（OFFICE_WEEK_SEL）各自
+                      獨立，同一頁有兩套「現在在看哪個時間」的機制，會
+                      各切各的、彼此顯示對不上。整段移除該獨立狀態與
+                      按鈕，迷你表格手機版改直接讀 OFFICE_WEEK_SEL 決定
+                      顯示哪一週（選到這個檔期的特定週就鎖定顯示、否則
+                      退回「今天落在第幾週」當預設），全頁時間維度統一
+                      只剩 OFFICE_WEEK_SEL 這一個來源，setOfficeWeek()
+                      切一次兩處一起更新；迷你表格內原本的 ◄／► 按鈕拿
+                      掉，改成一行唯讀的「目前顯示：Wx」標示。②量販A
+                      五六必訪稽核摘要列（ov-mv-summary）不再常態佔版面
+                      逼使用者每次都看一排「都是 0」的資訊——完全無異常
+                      （未達／今日待完成／連續未達皆為 0）時預設收合成
+                      弱化視覺的一行「✅ 目前無異常」，點擊可展開確認
+                      細節；只要有任一異常，強制完整展開、不能收合，
+                      避免真的有問題卻被誤收起來忽略掉。
   1.16.0 2026-08-11  中元／中秋卡片迷你表格手機版「一次只看一週」：新增
                       .ov-mini-mobile／.ov-mini-pager（◄ W1 08/08-14 ►），
                       比照 1.15.0 營業處 ◄／► 同一套視覺與互動語言，取代
@@ -754,20 +772,18 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
    包一層 overflow-x:auto，資料多時可以在表格內局部橫向滑，不會撐開外層；
    下面 .ov-card { min-width:0 } 是保險，避免其他非表格內容日後撐開同一種 grid blowout。 */
 .ov-mini-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
-/* 1.16.0：中元/中秋迷你表格手機版「一次只看一週」——比照 .oo-area-pager／
-   .m-week-pager 同一套視覺與互動語言（◄／週次＋日期範圍／►），取代原本
-   W1~W3（或 W1~W2）橫向擠在同一張表格、要左右滑很多欄位才看得到某一週
-   的問題。桌機（.ov-mini-scroll）完全不受影響，仍是一次看全部週次的
-   完整表格；.ov-mini-mobile 預設隱藏，只在 640px 以下斷點顯示，跟
-   .ov-mini-scroll 互斥切換，兩者用同一份 allGrades／statCache 資料，
-   純粹換一種呈現方式，不重算任何數字。 */
+/* 1.17.0：中元/中秋迷你表格手機版「一次只看一週」，改成純讀取顯示——
+   拿掉原本（1.16.0）自己獨立的 ◄／► 按鈕，週次改成直接跟隨最上方
+   「營業處執行狀況」chip 列選的 OFFICE_WEEK_SEL（見 renderOverview()／
+   setOfficeWeek()），全頁只有一個地方可以切時間範圍，不會有「這裡切
+   一次、那裡又切一次」彼此對不上的情況；.ov-mini-weeklabel 只是唯讀
+   標示目前對應哪一週，不是按鈕。桌機（.ov-mini-scroll）完全不受影響，
+   仍是一次看全部週次的完整表格；.ov-mini-mobile 預設隱藏，只在 640px
+   以下斷點顯示，跟 .ov-mini-scroll 互斥切換，兩者用同一份
+   allGrades／statCache 資料，純粹換一種呈現方式，不重算任何數字。 */
 .ov-mini-mobile { display:none; }
-.ov-mini-pager { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
-.ov-mini-nav { flex-shrink:0; width:34px; height:34px; border-radius:8px; border:1px solid var(--border); background:#fff; font-size:15px; font-weight:800; color:var(--primary); cursor:pointer; }
-.ov-mini-nav:active { background:var(--primary-bg); }
-.ov-mini-nav:disabled { color:#c8ccd2; border-color:#eee; cursor:default; background:#fff; }
-.ov-mini-pager-label { flex:1; text-align:center; font-size:13.5px; font-weight:800; color:var(--text); min-width:0; }
-.ov-mini-pager-label small { display:block; font-size:11px; font-weight:600; color:var(--sub); margin-top:1px; }
+.ov-mini-weeklabel { font-size:12.5px; font-weight:700; color:var(--sub); margin-bottom:6px; }
+.ov-mini-weeklabel small { font-weight:600; color:var(--sub); margin-left:4px; }
 .ov-mini-mobile table.ov-mini th, .ov-mini-mobile table.ov-mini td { padding:6px 8px; }
 @media (max-width:640px) {
   .ov-mini-scroll { display:none; }
@@ -803,6 +819,7 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
    同一輪也把表格／chip 間距壓縮，這是資料列數最多的區塊，對「整頁不滾動」
    影響最大） ── */
 .ov-office-card { margin-bottom:12px; }
+.ov-timescope-hint { font-size:11.5px; font-weight:600; color:var(--sub); margin-bottom:5px; }
 #ov-office-week-chips { margin-bottom:8px; }
 #ov-office-week-chips .chip { text-align:center; line-height:1.2; padding:3px 10px; }
 .chip-sub { display:block; font-size:9.5px; font-weight:500; color:var(--sub); margin-top:0; }
@@ -934,10 +951,20 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
 .ov-mv-pill.warn { background:var(--bonus-bg); color:var(--bonus); }
 .ov-mv-copy-btn { padding:5px 12px; border:1px solid var(--border); border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; color:var(--text); background:#fff; font-family:inherit; white-space:nowrap; flex-shrink:0; transition:background .12s; }
 .ov-mv-copy-btn:hover { background:var(--primary-bg); }
+.ov-mv-collapse-btn { padding:5px 12px; border:1px solid var(--border); border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; color:var(--sub); background:#fff; font-family:inherit; white-space:nowrap; flex-shrink:0; transition:background .12s; }
+.ov-mv-collapse-btn:hover { background:var(--bg); }
 @media (max-width:640px){
   .ov-mv-summary { padding:9px 11px; }
   .ov-mv-summary-title { width:100%; }
 }
+/* 1.17.0：無異常時收合成一行，弱化視覺（灰階、無邊框強調色），跟下面
+   永遠強制展開的「有異常」版本刻意做出明顯的視覺差異，掃過去就知道
+   現在是不是乾淨的，不用逐字讀 */
+.ov-mv-summary-clean { padding:8px 14px; cursor:pointer; color:var(--sub); }
+.ov-mv-summary-clean:hover { background:var(--bg); }
+.ov-mv-clean-icon { flex-shrink:0; }
+.ov-mv-clean-text { flex:1; font-size:13px; font-weight:600; }
+.ov-mv-clean-expand { flex-shrink:0; font-size:11.5px; color:var(--sub); }
 
 /* ── 使用說明面板（比照 coverage_board 的 manual-bar / manual-inner） ── */
 .manual-btn { padding:5px 12px; border:1px solid var(--border); border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; color:var(--text); background:#fff; font-family:inherit; white-space:nowrap; }
@@ -1088,6 +1115,9 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
        想先看「自己營業處」的整體表現，卡片式的檔期×通路彙總放後面當補充視角 -->
   <div class="ov-card ov-office-card">
     <h2><span>🏢 營業處執行狀況</span></h2>
+    <!-- 1.17.0：這排 chip 是整個總覽頁唯一的時間範圍選擇——下方中元/中秋
+         卡片的手機版顯示週次也會跟著同步，不是只管這張表自己 -->
+    <div class="ov-timescope-hint">🕐 時間範圍（套用整頁，含下方中元/中秋卡片）</div>
     <div class="chip-group" id="ov-office-week-chips"></div>
     <div id="ov-office-wrap"></div>
   </div>
@@ -1513,19 +1543,33 @@ function _updateMobileWeekPager(){
    跟主表 FILTER 是各自獨立的狀態，互不影響。 */
 var OFFICE_WEEK_SEL = null;
 
-/* ════ 1.15.0：手機版總覽表瘦身兩項共用狀態 ════════════════════════════
-   ‧ OV_AREA_IDX：「營業處執行狀況」手機卡片改成一次只看一個營業處
-     （比照 MOBILE_SEL 週期切換的手感），頁面順序＝['全部合計'].concat(
-     areasPresent)，索引 0＝全部合計；桌機表格不受影響，仍是完整表格。
-   ‧ OV_MINI_WEEK：中元/中秋卡片的迷你表格，手機版改成一次只看一週
-     （桌機維持原本橫向全部週次的表格），key＝檔期 key、value＝週次數字，
-     兩者都是「畫面瀏覽位置」的暫存狀態，不影響任何篩選或計算邏輯，
-     切換只是換一種呈現方式，數字來源仍是同一份 statCache／_statsFor。 */
+/* ════ 1.15.0：手機版「營業處執行狀況」瘦身共用狀態 ══════════════════════
+   OV_AREA_IDX：手機卡片改成一次只看一個營業處（比照 MOBILE_SEL 週期切換
+   的手感），頁面順序＝['全部合計'].concat(areasPresent)，索引 0＝全部
+   合計；桌機表格不受影響，仍是完整表格。
+   1.17.0：中元/中秋迷你表格原本另外有自己一份獨立狀態（OV_MINI_WEEK／
+   ovMiniPageWeek），跟這裡的 OV_AREA_IDX、跟上面「營業處執行狀況」表的
+   OFFICE_WEEK_SEL 是三份互不相干的「目前在看哪個時間範圍」狀態，同一個
+   總覽頁上使用者要切三次、彼此還可能顯示對不上（例如頂端 chip 選了
+   「中元 W2」，中元卡片的迷你表格卻還停在自己上次切到的 W1）。已整段
+   移除，迷你表格改直接吃 OFFICE_WEEK_SEL 決定顯示哪一週（見
+   renderOverview()），全頁時間維度統一只有 OFFICE_WEEK_SEL 這一個
+   來源。 */
 var OV_AREA_IDX = 0;
-var OV_MINI_WEEK = {};
-/* 找出「今天」落在指定檔期的第幾週，當作手機版迷你表格預設顯示的週次；
-   邏輯跟 _initMobileSel() 一致但只掃單一檔期：今天不在檔期範圍內就找
-   最接近的未來週，整個檔期都過了就停在最後一週 */
+/* 1.17.0：量販A五六必訪稽核摘要列，目前完全沒有異常（未達／今日待完成／
+   連續未達皆為 0）時預設收合成一行，不用被迫看一排「都是 0」的必要資訊
+   卡片；有異常時永遠強制展開、不能收合，避免真的有問題卻被使用者手動
+   收起來忽略掉。MV_SUMMARY_EXPANDED 只在「目前無異常」狀態下才有意義，
+   記錄使用者是否手動點開想確認一下細節。 */
+var MV_SUMMARY_EXPANDED = false;
+function toggleMvSummary(){
+  MV_SUMMARY_EXPANDED = !MV_SUMMARY_EXPANDED;
+  renderOfficeOverview();
+}
+/* 找出「今天」落在指定檔期的第幾週，當作手機版迷你表格預設顯示的週次
+   （OFFICE_WEEK_SEL 沒有指定這個檔期的特定週時使用）；邏輯跟
+   _initMobileSel() 一致但只掃單一檔期：今天不在檔期範圍內就找最接近的
+   未來週，整個檔期都過了就停在最後一週 */
 function _defaultWeekForPeriod(periodKey){
   var p = PERIODS.filter(function(pp){ return pp.key===periodKey; })[0];
   if(!p) return 1;
@@ -1547,14 +1591,6 @@ function ovPageArea(dir){
   var maxIdx = areasPresent.length; /* 頁面總數 = 1(全部合計) + areasPresent.length */
   OV_AREA_IDX = Math.max(0, Math.min(maxIdx, OV_AREA_IDX + dir));
   renderOfficeOverview();
-}
-/* ◄／► 切換中元/中秋迷你表格手機版目前顯示的週次 */
-function ovMiniPageWeek(periodKey, dir){
-  var p = PERIODS.filter(function(pp){ return pp.key===periodKey; })[0];
-  if(!p) return;
-  var cur = OV_MINI_WEEK[periodKey] || _defaultWeekForPeriod(periodKey);
-  OV_MINI_WEEK[periodKey] = Math.max(1, Math.min(p.weeks, cur+dir));
-  renderOverview();
 }
 
 function showLoading(){ document.getElementById('loading').classList.add('show'); }
@@ -2370,11 +2406,17 @@ function renderOfficeWeekChips(){
       + '</div>';
   }).join('');
 }
+/* 1.17.0：OFFICE_WEEK_SEL 從「只管營業處執行狀況表」升級成「整個總覽頁
+   唯一的時間維度來源」，切一次全體跟著切，不再有「營業處表」跟「中元/
+   中秋迷你表格」各自獨立的時間選擇（見 renderOverview() 內迷你表格改吃
+   OFFICE_WEEK_SEL 決定手機版顯示哪一週）。改呼叫 renderOverview() 取代
+   原本只呼叫 renderOfficeOverview()，讓兩處在同一次重繪內一起更新，
+   不會有畫面暫時不同步的空檔。 */
 function setOfficeWeek(el, period, week){
   document.querySelectorAll('#ov-office-week-chips .chip').forEach(function(c){ c.classList.remove('active'); });
   el.classList.add('active');
   OFFICE_WEEK_SEL = period ? { period:period, week:week } : null;
-  renderOfficeOverview();
+  renderOverview();
 }
 function renderOfficeOverview(){
   var wrap = document.getElementById('ov-office-wrap');
@@ -2495,18 +2537,33 @@ function renderOfficeOverview(){
      就先看到有沒有燒到眉毛的必訪缺，不用先找是哪個處才看得到數字；旁邊
      附一顆「📋複製稽核清單」，直接把目前未達＋今日待完成的量販A店家清單
      複製成文字，方便貼到 LINE 群組催辦，不用像之前一定要先點進明細頁
-     才有複製功能。整列在完全沒有量販A店家資料時（mvTotals.total===0 且
-     pendingToday===0 且 repeat===0）仍保留顯示（顯示「目前無必訪缺」），
-     讓使用者確定這不是「忘了做」，而是「現在真的沒有」。 */
-  var mvSummaryHtml = '<div class="ov-mv-summary">'
-    + '<div class="ov-mv-summary-title">🚨 量販A五六必訪稽核</div>'
-    + '<div class="ov-mv-summary-pills">'
-    + '<span class="ov-mv-pill'+(mvTotals.total>0?' alert':'')+'">必訪未達 '+mvTotals.total+' 店</span>'
-    + '<span class="ov-mv-pill'+(mvTotals.pendingToday>0?' warn':'')+'">⚠️ 今日待完成 '+mvTotals.pendingToday+' 店</span>'
-    + '<span class="ov-mv-pill'+(mvTotals.repeat>0?' alert':'')+'">🔁 連續未達 '+mvTotals.repeat+' 店</span>'
-    + '</div>'
-    + '<button class="ov-mv-copy-btn" id="ov-mv-copy-btn" onclick="copyMvAuditList()">📋 複製稽核清單</button>'
-    + '</div>';
+     才有複製功能。
+     1.17.0：完全沒有異常（未達／今日待完成／連續未達皆為 0）時，改成
+     收合成一行「✅ 目前無異常」，不再常態佔用一整條版面逼使用者每次都
+     要看一排「都是 0」的資訊——沒問題本身就是不需要特別閱讀的狀態；
+     想確認細節可以點開，MV_SUMMARY_EXPANDED 記住展開狀態。只要三個數字
+     任一個 >0（真的有問題），一律強制完整展開，不能收合，避免有異常
+     卻被誤收起來忽略掉。 */
+  var mvClean = mvTotals.total===0 && mvTotals.pendingToday===0 && mvTotals.repeat===0;
+  var mvSummaryHtml;
+  if(mvClean && !MV_SUMMARY_EXPANDED){
+    mvSummaryHtml = '<div class="ov-mv-summary ov-mv-summary-clean" onclick="toggleMvSummary()" role="button" tabindex="0">'
+      + '<span class="ov-mv-clean-icon">✅</span>'
+      + '<span class="ov-mv-clean-text">量販A五六必訪稽核：目前無異常</span>'
+      + '<span class="ov-mv-clean-expand">展開 ▾</span>'
+      + '</div>';
+  } else {
+    mvSummaryHtml = '<div class="ov-mv-summary">'
+      + '<div class="ov-mv-summary-title">🚨 量販A五六必訪稽核</div>'
+      + '<div class="ov-mv-summary-pills">'
+      + '<span class="ov-mv-pill'+(mvTotals.total>0?' alert':'')+'">必訪未達 '+mvTotals.total+' 店</span>'
+      + '<span class="ov-mv-pill'+(mvTotals.pendingToday>0?' warn':'')+'">⚠️ 今日待完成 '+mvTotals.pendingToday+' 店</span>'
+      + '<span class="ov-mv-pill'+(mvTotals.repeat>0?' alert':'')+'">🔁 連續未達 '+mvTotals.repeat+' 店</span>'
+      + '</div>'
+      + '<button class="ov-mv-copy-btn" id="ov-mv-copy-btn" onclick="copyMvAuditList()">📋 複製稽核清單</button>'
+      + (mvClean ? '<button class="ov-mv-collapse-btn" onclick="toggleMvSummary()">收合 ▴</button>' : '')
+      + '</div>';
+  }
 
   /* 手機版：改成一處一張直式卡片（量販／全聯各一區塊），避免表格橫向
      欄位在窄螢幕被裁到看不到，同一份統計數字（_officeStatsFor／
@@ -2911,10 +2968,16 @@ function renderOverview(){
       gradeKeys.forEach(function(g){ acc.push({ chanKey:chanKey, grade:g, gd:stat.byGrade[g] }); });
       return acc;
     }, []);
-    /* 1.16.0：手機版目前顯示的週次——沒切換過就用「今天落在第幾週」當預設
-       （_defaultWeekForPeriod），跟主表格 MOBILE_SEL 的預設邏輯一致，切過之後
-       記在 OV_MINI_WEEK[periodKey] 維持頁面瀏覽位置。 */
-    var curWeek = OV_MINI_WEEK[p.key] || _defaultWeekForPeriod(p.key);
+    /* 1.17.0：手機版目前顯示哪一週，改成直接跟隨 OFFICE_WEEK_SEL（整個總覽頁
+       唯一的時間維度來源，見 setOfficeWeek()）——選到「這個檔期＋某一週」
+       （例如上方 chip 選「中元 W2」）就鎖定顯示那一週；選「整體」或另一個
+       檔期、或這個檔期的「整檔期彙總」（週次是 null）時，這張卡沒有被指定
+       特定週，退回「今天落在第幾週」當預設（_defaultWeekForPeriod），維持
+       進站時就自動看到當週進度。不再有自己獨立的 ◄／► 週次切換，統一由最
+       上方「營業處執行狀況」的 chip 列一個地方控制，全頁時間維度單一來源、
+       不會有兩個地方各切各的、彼此顯示對不上的情況。 */
+    var curWeek = (OFFICE_WEEK_SEL && OFFICE_WEEK_SEL.period===p.key && OFFICE_WEEK_SEL.week)
+      ? OFFICE_WEEK_SEL.week : _defaultWeekForPeriod(p.key);
     if(curWeek > p.weeks) curWeek = p.weeks;
     if(curWeek < 1) curWeek = 1;
     var mobileBody = allGrades.length ? (
@@ -2941,12 +3004,11 @@ function renderOverview(){
         }).join('')
       + '</table>'
     ) : '';
-    var mobilePagerHtml = '<div class="ov-mini-pager">'
-      + '<button class="ov-mini-nav" onclick="ovMiniPageWeek(\''+p.key+'\',-1)" aria-label="上一週"'+(curWeek<=1?' disabled':'')+'>◄</button>'
-      + '<div class="ov-mini-pager-label">W'+curWeek+'<small>'+esc(_weekDateRange(p.key,curWeek))+'</small></div>'
-      + '<button class="ov-mini-nav" onclick="ovMiniPageWeek(\''+p.key+'\',1)" aria-label="下一週"'+(curWeek>=p.weeks?' disabled':'')+'>►</button>'
-      + '</div>';
-    var mobileHtml = '<div class="ov-mini-mobile">' + mobilePagerHtml + mobileBody + '</div>';
+    /* 1.17.0：拿掉獨立的 ◄／► 按鈕（改由最上方 chip 列統一控制，見上方
+       說明），這裡只保留一行「目前顯示週次」的唯讀標示，讓使用者知道
+       這張卡現在對應哪一週、要換週去最上方切 chip 即可。 */
+    var mobileLabelHtml = '<div class="ov-mini-weeklabel">目前顯示：W'+curWeek+' <small>'+esc(_weekDateRange(p.key,curWeek))+'</small></div>';
+    var mobileHtml = '<div class="ov-mini-mobile">' + mobileLabelHtml + mobileBody + '</div>';
     var body = allGrades.length ? (
       '<div class="ov-mini-scroll"><table class="ov-mini"><tr>'
       + '<th rowspan="2">等級</th><th rowspan="2">店數</th>'
