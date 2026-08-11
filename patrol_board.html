@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.13.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-11
+  版本：Ver. 1.14.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-11
 
 【這個檔案是什麼】
   ‧ 單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 讀取同一份
@@ -140,6 +140,29 @@
     把 <head> 裡那段 <script> 拿掉即可。
 
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.14.0 2026-08-11  行動裝置介面佈局與層級篩選優化兩項：①「營業處執行
+                      狀況」手機卡片的 .oo-mcard-chan（含可點擊的
+                      .oo-clickable 版本、跟不可點的「全部合計」版本）
+                      強制單行顯示——原本標題另起一行＋底下統計格用 grid
+                      排，量販 7 項統計在固定 4 欄 grid 會擠成 2 行、拉高
+                      卡片高度，改成整塊用 flex 橫排在同一行，每個
+                      .oo-mstat 也從「上下堆疊 k/v」改成「左右並排 k:v」
+                      的緊湊寫法，放不下的部分改用橫向捲動
+                      （overflow-x:auto）處理，不再自己折成第二行；
+                      ②新增手機版「單位導引」進站篩選：資料載入完成、
+                      renderOverview() 之前，≤640px 斷面先跳出「營業處→
+                      營業所/課→業務員」三層連動下拉選單（MOBILE_GATE，
+                      跟篩選列 chip-office／chip-staff 各自獨立，選項邏輯
+                      沿用既有「選了上一層才展開下一層」規則），選「整體」
+                      或按「略過」＝維持原本進站看全部總覽的行為；選到
+                      具體營業處（可再收斂營業所/業務員）則直接寫回
+                      FILTER.area/office/staff、跳過總覽頁直接進明細頁
+                      （比照 openDetailFromOffice 的做法，因為總覽頁的
+                      營業處執行狀況表本質是全公司彙總表，鎖定單一範圍後
+                      留在總覽頁沒有意義），確保單次僅針對選定範圍渲染與
+                      處理；桌機斷面完全不出現、不影響原本流程。店家名冊
+                      載入失敗（STORE_ROWS 為空）時略過導引，直接顯示既有
+                      的錯誤訊息，避免導引選單空空如也。
   1.13.0 2026-08-11  收尾四項優化（接續 1.12.1）：①「格子視角」chip-fgroup
                       確認固定緊接在篩選列「特殊」後面，同一排 chip-row，
                       不用另外處理；②量販A店五、六必訪格（尚未到店、仍在
@@ -769,6 +792,62 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
   .oo-tbl-scroll { display:none; }
   .oo-mobile-cards { display:flex; }
 }
+/* 1.14.0：.oo-mcard-chan（含可點擊的 .oo-clickable 版本）強制單行顯示——
+   原本「標題另起一行＋底下 6～7 個 .oo-mstat 用 grid 排」，量販的 7 項
+   統計在窄螢幕的固定 4 欄 grid（.oo-mcard-grid-7）會擠成 2 行，拉高每張
+   卡片高度、也打斷閱讀時的視線移動。改成整塊（標題＋統計）都用 flex
+   橫排在同一行：標題縮到不換行、.oo-mcard-grid 從 grid 改 flex nowrap，
+   每個 .oo-mstat 也從「上下堆疊 k/v」改成「左右並排 k:v」的緊湊寫法，
+   放不下的部分用橫向捲動（overflow-x:auto）處理，不再讓資料自己折成
+   第二行。同時套用在 .oo-clickable（各營業處×通路）跟不可點的「全部
+   合計」版本，維持兩者視覺一致。 */
+.oo-mcard-chan {
+  display:flex; align-items:center; gap:10px; overflow-x:auto; -webkit-overflow-scrolling:touch;
+  white-space:nowrap; scrollbar-width:thin;
+}
+.oo-mcard-chan-title { margin-bottom:0; flex-shrink:0; }
+.oo-mcard-chan .oo-mcard-grid, .oo-mcard-chan .oo-mcard-grid-7 {
+  display:flex; flex-wrap:nowrap; grid-template-columns:none; gap:0 12px; flex:1; min-width:0;
+}
+.oo-mcard-chan .oo-mstat {
+  flex-direction:row; align-items:baseline; gap:4px; flex-shrink:0; white-space:nowrap;
+}
+.oo-mcard-chan .oo-mstat .k::after { content:':'; }
+.oo-mcard-chan .oo-mstat .k, .oo-mcard-chan .oo-mstat .v { overflow:visible; text-overflow:clip; }
+.oo-mcard-chan .oo-mv-mob-subs { white-space:nowrap; }
+
+/* ════ 1.14.0：手機版「單位導引」進站篩選 ════════════════════════════
+   手機螢幕小，進站直接看「營業處執行狀況總覽表」（全公司所有處＋通路
+   彙總）資訊量偏大，往往使用者只在意自己負責的那個範圍。改成進站（資料
+   載入完成、renderOverview() 之前）先強制詢問一次「這次要看哪個範圍」：
+   營業處 → 營業所/課 → 業務員 三層下拉連動選單（跟篩選列 chip-office／
+   chip-staff 同一套「選了上一層才展開下一層」邏輯，只是這裡用原生
+   <select> 呈現，更貼近「導引精靈」的操作手感），選「整體」＝略過，
+   維持原本「進站看全部總覽」的行為；選到具體營業處（可再往下收斂）則
+   直接把值寫進 FILTER.area/office/staff、跳過總覽頁直接進明細頁（原因：
+   總覽頁的「營業處執行狀況表」本質是全公司彙總表，鎖定單一營業處/
+   營業所/業務員後留在總覽頁沒有意義，比照 openDetailFromOffice 的做法
+   直接進明細更符合「僅載入並顯示該層級對應資料範圍」的訴求）。只在手機
+   斷面（≤640px）出現，桌機完全不受影響、也不會擋到桌機的載入流程。 */
+#mobile-gate-overlay { display:none; }
+@media (max-width:640px){
+  #mobile-gate-overlay.open {
+    display:flex; position:fixed; inset:0; z-index:300; background:var(--bg);
+    align-items:center; justify-content:center; padding:20px; overflow:auto;
+  }
+}
+#mobile-gate-box { background:#fff; border:1px solid var(--border); border-radius:14px; width:100%; max-width:420px; padding:22px 20px; box-shadow:0 12px 30px rgba(0,0,0,.14); }
+#mobile-gate-box h3 { font-size:16px; font-weight:800; margin:0 0 4px; color:var(--text); }
+.mg-sub { font-size:12.5px; color:var(--sub); margin:0 0 18px; line-height:1.6; }
+.mg-field { margin-bottom:14px; }
+.mg-field label { display:block; font-size:12.5px; font-weight:700; color:var(--sub); margin-bottom:5px; }
+.mg-field select { width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:8px; font-size:14px; font-family:inherit; background:#fff; color:var(--text); -webkit-appearance:none; appearance:none; }
+.mg-field select:disabled { background:var(--bg); color:#bbb; }
+.mg-actions { display:flex; flex-direction:column; gap:8px; margin-top:18px; }
+.mg-enter-btn { padding:12px; border:none; border-radius:9px; background:var(--primary); color:#fff; font-size:14.5px; font-weight:800; cursor:pointer; font-family:inherit; }
+.mg-enter-btn:active { opacity:.85; }
+.mg-skip-btn { padding:10px; border:1px solid var(--border); border-radius:9px; background:#fff; color:var(--sub); font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; }
+.mg-skip-btn:active { background:var(--bg); }
 
 /* ── 1.9.7：量販A必訪稽核（總覽表新增欄位＋摘要列）── */
 .ov-office-tbl td.oo-mv { font-weight:700; white-space:nowrap; }
@@ -901,6 +980,30 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
 <body>
 
 <div class="loading" id="loading">載入中…</div>
+
+<!-- ════ 1.14.0：手機版單位導引篩選（進站前先收斂範圍，只在 ≤640px 顯示） ════ -->
+<div id="mobile-gate-overlay">
+  <div id="mobile-gate-box">
+    <h3>📍 選擇要查看的範圍</h3>
+    <p class="mg-sub">手機螢幕較小，建議先選定要看的營業處，畫面會更聚焦；也可以略過、直接看整體總覽。</p>
+    <div class="mg-field">
+      <label>營業處</label>
+      <select id="mg-area" onchange="mgAreaChange(this)"></select>
+    </div>
+    <div class="mg-field">
+      <label>營業所/課</label>
+      <select id="mg-office" onchange="mgOfficeChange(this)" disabled></select>
+    </div>
+    <div class="mg-field">
+      <label>業務員</label>
+      <select id="mg-staff" onchange="mgStaffChange(this)" disabled></select>
+    </div>
+    <div class="mg-actions">
+      <button class="mg-enter-btn" onclick="mobileGateEnter()">進入看板 →</button>
+      <button class="mg-skip-btn" onclick="mobileGateSkip()">略過，直接看整體總覽</button>
+    </div>
+  </div>
+</div>
 
 <!-- ════ 概況主畫面（戰情室）：進站先看總覽卡片，不直接跳明細 ════ -->
 <div id="mainDashboard" class="ov-wrap">
@@ -1366,7 +1469,15 @@ function init(){
   fetchPopulation(function(){
     fetchProcessLayer(function(){
       hideLoading();
-      renderOverview(); /* 先進概況主畫面，不直接跳明細 */
+      /* 1.14.0：手機斷面且店家名冊有資料時，先跳單位導引篩選，使用者
+         選完（或按略過）才會實際呼叫 renderOverview()／_enterDetail()；
+         桌機、或名冊載入失敗（STORE_ROWS 是空的，錯誤訊息已經另外處理）
+         都不顯示導引，維持原本「進站直接看整體總覽」的行為。 */
+      if(_isMobileViewport() && STORE_ROWS.length){
+        openMobileGate();
+      } else {
+        renderOverview(); /* 先進概況主畫面，不直接跳明細 */
+      }
       /* 背景預先載入兩份問卷分頁，點店家明細時就不用現點現等 */
       Object.keys(QUESTIONNAIRE_SHEETS).forEach(function(chanKey){
         _fetchQuestionnaireSheet(chanKey, function(){});
@@ -1374,6 +1485,98 @@ function init(){
     });
   });
   fetchSyncTime();
+}
+
+/* ════ 1.14.0：手機版單位導引篩選——營業處→營業所/課→業務員三層連動
+   下拉，跟篩選列 chip-office／chip-staff 是各自獨立的狀態（MOBILE_GATE
+   只在進站當下用一次，選完就寫回 FILTER 並交給既有的 _enterDetail()／
+   syncChipsToFilter() 接手，之後跟篩選列 chip 完全共用同一套狀態，不會
+   額外多維護一份） ════ */
+var MOBILE_GATE = { area:'全部', office:'全部', staff:'全部' };
+function _isMobileViewport(){ return window.innerWidth <= 640; }
+function openMobileGate(){
+  MOBILE_GATE = { area:'全部', office:'全部', staff:'全部' };
+  _buildMgAreaOptions();
+  _buildMgOfficeOptions();
+  _buildMgStaffOptions();
+  document.getElementById('mobile-gate-overlay').classList.add('open');
+}
+function _closeMobileGate(){
+  document.getElementById('mobile-gate-overlay').classList.remove('open');
+}
+function _buildMgAreaOptions(){
+  var sel = document.getElementById('mg-area');
+  var areas = AREA_ORDER.filter(function(a){
+    return STORE_ROWS.some(function(r){ return r.area===a; });
+  });
+  sel.innerHTML = '<option value="全部">整體（全部營業處）</option>' + areas.map(function(a){
+    return '<option value="'+esc(a)+'">'+esc(a)+'</option>';
+  }).join('');
+  sel.value = MOBILE_GATE.area;
+}
+function _buildMgOfficeOptions(){
+  var sel = document.getElementById('mg-office');
+  if(MOBILE_GATE.area==='全部'){
+    sel.innerHTML = '<option value="全部">請先選擇營業處</option>';
+    sel.disabled = true;
+    return;
+  }
+  var offices = Array.from(new Set(
+    STORE_ROWS.filter(function(r){ return r.area===MOBILE_GATE.area; }).map(function(r){ return r.office; })
+  )).filter(Boolean).sort();
+  sel.innerHTML = '<option value="全部">全部營業所/課</option>' + offices.map(function(o){
+    return '<option value="'+esc(o)+'">'+esc(o)+'</option>';
+  }).join('');
+  sel.disabled = false;
+  sel.value = MOBILE_GATE.office;
+}
+function _buildMgStaffOptions(){
+  var sel = document.getElementById('mg-staff');
+  if(MOBILE_GATE.area==='全部' || MOBILE_GATE.office==='全部'){
+    sel.innerHTML = '<option value="全部">請先選擇營業所/課</option>';
+    sel.disabled = true;
+    return;
+  }
+  var staffList = Array.from(new Set(
+    STORE_ROWS.filter(function(r){ return r.area===MOBILE_GATE.area && r.office===MOBILE_GATE.office; })
+      .map(function(r){ return r.staff; })
+  )).filter(Boolean).sort();
+  sel.innerHTML = '<option value="全部">全部業務員</option>' + staffList.map(function(s){
+    return '<option value="'+esc(s)+'">'+esc(s)+'</option>';
+  }).join('');
+  sel.disabled = false;
+  sel.value = MOBILE_GATE.staff;
+}
+function mgAreaChange(sel){
+  MOBILE_GATE.area = sel.value; MOBILE_GATE.office = '全部'; MOBILE_GATE.staff = '全部';
+  _buildMgOfficeOptions();
+  _buildMgStaffOptions();
+}
+function mgOfficeChange(sel){
+  MOBILE_GATE.office = sel.value; MOBILE_GATE.staff = '全部';
+  _buildMgStaffOptions();
+}
+function mgStaffChange(sel){
+  MOBILE_GATE.staff = sel.value;
+}
+/* 「略過」＝維持 FILTER 預設值（全部），跟原本進站行為完全一致 */
+function mobileGateSkip(){
+  MOBILE_GATE = { area:'全部', office:'全部', staff:'全部' };
+  _closeMobileGate();
+  renderOverview();
+}
+/* 選「整體」按進入等同略過；選到具體營業處（可能還帶營業所／業務員）則
+   直接寫回 FILTER 並跳過總覽頁，比照 openDetailFromOffice 直接進明細頁 */
+function mobileGateEnter(){
+  _closeMobileGate();
+  if(MOBILE_GATE.area==='全部'){
+    renderOverview();
+    return;
+  }
+  FILTER.period = '全部'; FILTER.channel = '全部'; FILTER.grade = '全部';
+  FILTER.area = MOBILE_GATE.area; FILTER.office = MOBILE_GATE.office; FILTER.staff = MOBILE_GATE.staff;
+  FILTER.keyword = ''; FILTER.onlyUnmet = false; FILTER.onlyMvMiss = false; FILTER.week = null;
+  _enterDetail();
 }
 
 /* ════ 讀「店家名冊」════ */
