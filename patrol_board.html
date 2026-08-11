@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.10.4 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-11
+  版本：Ver. 1.11.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-11
 
 【這個檔案是什麼】
   ‧ 單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 讀取同一份
@@ -140,6 +140,18 @@
     把 <head> 裡那段 <script> 拿掉即可。
 
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.11.0 2026-08-11  整體明細兩項優化：①篩選列的「等級」chip 改成依「通路」
+                      動態收斂，選「量販」只列量販A/B/C、選「全聯」只列
+                      超市A，切通路時若原本選的等級不屬於新通路自動退回
+                      「全部等級」（新增 CHANNEL_GRADES 常數＋
+                      renderGradeChipRow()）；②主表格新增「格子視角」切換
+                      （🔢依次數／📅依日期），「依日期」視角把每欄 7 格改成
+                      對應該檔期週次實際的星期日～六，用 _hasVisitOnDay 逐天
+                      查詢，讓督導直接看出店家實際習慣在星期幾去巡補，色彩
+                      規則（藍應達／橘超額／紅✖過去未達／灰非必要格）跟原本
+                      「依次數」視角完全共用同一套 class，只是判斷依據換成
+                      「這天有沒有去」而不是「第幾次」；目前僅支援桌機表格，
+                      手機版仍用原本的週次文字徽章、視角切換列在窄螢幕隱藏。
   1.10.4 2026-08-11  中元／中秋卡片內的迷你表格：量販／全聯合併成同一張
                       表格，表頭（等級/店數/W.../達成率%/未達店數）只印
                       一次，不再兩張各自獨立表格重複表頭、欄寬還可能對不
@@ -388,6 +400,15 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 /* 1.5.0：非應達格的「幽靈格」佔位，近似透明，若有似無——只佔版面、不搶視覺焦點，
    一旦實際次數蓋過這格才會被換成 .extra-check（見 render() 的 7 格迴圈） */
 .box-ghost { display:inline-block; width:17px; height:17px; border-radius:3px; border:1px solid rgba(0,0,0,.045); background:#E6E6F2; }
+/* 1.11.0：「依日期」格子視角——每一小格上方多疊一個星期幾小標籤，格子本身
+   顏色規則跟原本「依次數」視角完全共用同一套 class（std-check／extra-check／
+   miss-mark／box-ghost），只是現在的判斷依據換成「這天實際上有沒有去」，
+   而不是「第幾次抽象順位」，讓督導能一眼看出巡補集中在星期幾 */
+.day-box-cell { display:flex; flex-direction:column; align-items:center; gap:1px; }
+.day-box-lbl { font-size:9px; line-height:1; color:var(--sub); font-weight:700; }
+.chip-fgroup.cellview-row { padding:0 clamp(12px,2.5vw,20px) 10px; }
+.cellview-hint { font-size:11px; color:var(--sub); }
+@media (max-width:640px) { .cellview-row { display:none; } }
 /* 1.9.6：稽核用「必訪日」高亮樣式（量販A店五/六必訪未達）。刻意跟現有
    .miss-mark（週應達次數的過去週未達）做視覺區隔，用發光紅框＋實心徽章，
    讓稽核人員一眼認出「不是次數不足，是規定的那天完全沒去」 */
@@ -954,6 +975,15 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
     </div>
   </div>
 
+  <div class="chip-fgroup cellview-row" id="cellview-row">
+    <span class="chip-label" style="width:auto;">格子視角</span>
+    <div class="chip-group" id="chip-cellview">
+      <div class="chip active" data-v="count" onclick="setCellView(this,'count')">🔢 依次數</div>
+      <div class="chip" data-v="day" onclick="setCellView(this,'day')">📅 依日期（星期幾）</div>
+    </div>
+    <span class="cellview-hint" id="cellview-hint"></span>
+  </div>
+
   <div class="stage">
     <div class="tbl-wrap">
       <table class="main-tbl">
@@ -1078,6 +1108,16 @@ var GRADE_FREQ = { '量販A':5, '量販B':2, '量販C':1, '連鎖超市A':1 };
 /* 等級的畫面簡稱（真實值較長時，畫面上仍顯示簡稱，不影響比對邏輯） */
 var GRADE_LABEL = { '量販A':'量販A', '量販B':'量販B', '量販C':'量販C', '連鎖超市A':'超市A' };
 var AREA_ORDER = ['北部','桃園','臺中','嘉義','臺南','高雄','花蓮'];
+/* 1.11.0：通路 → 該通路底下才有的店家等級清單，用來讓「等級」chip 只列出
+   跟目前選定「通路」相關的選項（例如選了「全聯」，等級 chip 不該還列出
+   「量販A/B/C」）。直接用 GRADE_FREQ 的 key 字首「量販」判斷是否屬於量販
+   通路，非「量販」開頭者一律歸給全聯（目前只有「連鎖超市A」一種，日後
+   全聯若新增其他等級，只要 key 不是「量販」開頭就會自動歸進來，不用
+   額外改這裡）。 */
+var CHANNEL_GRADES = {
+  '量販': Object.keys(GRADE_FREQ).filter(function(g){ return g.indexOf('量販')===0; }),
+  '全聯': Object.keys(GRADE_FREQ).filter(function(g){ return g.indexOf('量販')!==0; })
+};
 
 /* 通路判斷（依真實欄位值分類為「量販」／「全聯」兩種內部簡稱 key，
    畫面上的 chip／badge 一律顯示簡稱，篩選比對則一律用這個 key）：
@@ -1111,6 +1151,23 @@ var _qSheetLoading = {};
 var _qSheetWaiters = {};
 
 var FILTER = { period:'全部', channel:'全部', grade:'全部', area:'全部', office:'全部', staff:'全部', keyword:'', onlyUnmet:false, onlyMvMiss:false, week:null };
+/* 1.11.0：主表格週次格子的顯示視角，只影響桌機表格（.box-container），
+   不影響手機卡片（手機本來就是用「本週 x/y」文字徽章濃縮顯示，不是格子，
+   沒有「依日期」的版面空間，維持原樣）。
+     'count' ＝原本視角，格子代表「第幾次」抽象順位（跟哪一天去的無關）。
+     'day'   ＝新增視角，7 格對應這個檔期週次實際的星期日～六，讓督導能
+               直接看出量販/全聯店家實際是週幾去的，色彩規則不變（藍＝
+               算進應達、橘＝超額、紅✖＝過去週未達成、灰＝非必要格），
+               只是判斷依據從「第幾次」換成「這天有沒有去」。 */
+var CELL_VIEW = 'count';
+function setCellView(el, val){
+  Array.from(el.parentElement.children).forEach(function(c){ c.classList.remove('active'); });
+  el.classList.add('active');
+  CELL_VIEW = val;
+  var hint = document.getElementById('cellview-hint');
+  if(hint) hint.textContent = val==='day' ? '每格上方星期幾標籤＝實際巡補的日子' : '';
+  render();
+}
 /* 營業處執行狀況表：目前檢視的檔期／週次範圍。
      null                      ＝整體（不分檔期／週次，原本行為）
      {period,week:null}        ＝該檔期整個彙總（1.5.0 新增，例如「中元」＝
@@ -1576,10 +1633,7 @@ function buildFilterUI(){
     return '<div class="chip'+(i===0?' active':'')+'" data-v="'+v+'" onclick="setChip(this,\'channel\')">'+(v==='全部'?'全部通路':(v==='量販'?'量販店':'全聯社'))+'</div>';
   }).join('');
 
-  var gradeOpts = ['全部'].concat(Object.keys(GRADE_FREQ));
-  document.getElementById('chip-grade').innerHTML = gradeOpts.map(function(v,i){
-    return '<div class="chip'+(i===0?' active':'')+'" data-v="'+v+'" onclick="setChip(this,\'grade\')">'+(v==='全部'?'全部等級':(GRADE_LABEL[v]||v))+'</div>';
-  }).join('');
+  renderGradeChipRow();
 
   /* 1.9.1：「巡次未達標」是獨立開關 chip（非互斥單選群組），跟其他 chip-group
      的 setChip() 邏輯（清掉同組其他 active、寫死一個值）不一樣，另外寫
@@ -1596,6 +1650,19 @@ function buildFilterUI(){
   var areaOpts = ['全部'].concat(AREA_ORDER);
   document.getElementById('chip-area').innerHTML = areaOpts.map(function(v,i){
     return '<div class="chip'+(i===0?' active':'')+'" data-v="'+v+'" onclick="setChip(this,\'area\')">'+(v==='全部'?'全部處':v)+'</div>';
+  }).join('');
+}
+/* ════ 等級 chip（1.11.0 起改成依「通路」動態收斂）：選了「量販」通路，
+   只列量販A/B/C；選了「全聯」，只列連鎖超市A（畫面簡稱超市A）；「全部
+   通路」時維持列出全部等級。切通路時若目前選定的等級在新通路底下已經
+   不存在（例如原本選「量販A」又切去「全聯」），自動退回「全部等級」，
+   避免殘留一個畫面上已經看不到、卻仍套用在篩選條件裡的等級值。 ════ */
+function renderGradeChipRow(){
+  var avail = CHANNEL_GRADES[FILTER.channel] || Object.keys(GRADE_FREQ);
+  if(FILTER.grade!=='全部' && avail.indexOf(FILTER.grade)===-1) FILTER.grade = '全部';
+  var gradeOpts = ['全部'].concat(avail);
+  document.getElementById('chip-grade').innerHTML = gradeOpts.map(function(v){
+    return '<div class="chip'+(v===FILTER.grade?' active':'')+'" data-v="'+v+'" onclick="setChip(this,\'grade\')">'+(v==='全部'?'全部等級':(GRADE_LABEL[v]||v))+'</div>';
   }).join('');
 }
 /* ════ 營業所/課 chip：選定「營業處」後才出現，選項依實際資料動態產生 ════ */
@@ -1692,6 +1759,7 @@ function setChip(el, key){
   el.classList.add('active');
   FILTER[key] = el.getAttribute('data-v');
   if(key==='period'){ FILTER.week = null; updateWeekChipRow(); }
+  if(key==='channel'){ renderGradeChipRow(); } /* 1.11.0：通路改變後，等級 chip 要重新收斂選項 */
   if(key==='area'){ updateOfficeChipRow(); updateStaffChipRow(); }
   if(key==='office'){ updateStaffChipRow(); }
   onFilterChange();
@@ -2567,6 +2635,54 @@ function _buildBoxCells(actual, stdN, isPastWeek){
   }
   return html;
 }
+/* 1.11.0：「依日期」格子視角——跟 _buildBoxCells 畫出同樣 4 種顏色狀態
+   （藍/橘/紅✖/灰幽靈），差別只在「哪一格對應哪一天」：這裡固定 7 格＝
+   這個檔期週次實際的 7 個日曆日（週日～週六，依 PERIODS 起始日往後推
+   week-1 個 7 天區間），每一格用 _hasVisitOnDay 直接查「這天有沒有紀錄」，
+   不是照抽象的第 i 次。
+   為了讓「已完成幾格算應達、幾格算超額、幾格算未達」跟原本以「次數」
+   為準的統計數字（exp／stdDone／extra，見 render() 第一輪）完全兜得起來，
+   這裡依「有去的那幾天，依時間先後排序」決定第幾順位算應達（<=std）、
+   第幾順位算超額（>std）；沒去的天則依「這週已經結束＋還缺幾次」決定
+   要標記幾格「✖ 過去週未達成」（數量＝std-actual，跟原本一致），其餘
+   沒去的天顯示成灰色幽靈格（非必要格）。 */
+var DOW_LABELS = ['日','一','二','三','四','五','六'];
+function _buildDayBoxCells(code, period, week, stdN, actual, isPastWeek){
+  var p = PERIODS.filter(function(pp){ return pp.key===period; })[0];
+  if(!p) return '';
+  var startDay = _toEpochDay(p.y,p.mo,p.d) + (week-1)*7;
+  var days = [];
+  for(var i=0;i<7;i++){
+    var day = startDay+i;
+    days.push({ day:day, dow:new Date(day*86400000).getUTCDay(), visited:_hasVisitOnDay(code, day) });
+  }
+  var missNeeded = isPastWeek ? Math.max(0, stdN-actual) : 0;
+  var openNeeded = !isPastWeek ? Math.max(0, stdN-actual) : 0;
+  var visitedRank=0, missAssigned=0, openAssigned=0;
+  var html = '';
+  days.forEach(function(d){
+    var dp = _epochDayToParts(d.day);
+    var dateLbl = dp.mo+'/'+dp.d;
+    var dowLbl = DOW_LABELS[d.dow];
+    var inner, title;
+    if(d.visited){
+      visitedRank++;
+      if(visitedRank<=stdN){ inner = '<input type="checkbox" class="std-check" checked>'; title = dateLbl+'（週'+dowLbl+'）：已完成，算入應達次數'; }
+      else { inner = '<input type="checkbox" class="extra-check" checked>'; title = dateLbl+'（週'+dowLbl+'）：已完成，超額次數'; }
+    } else if(missAssigned<missNeeded){
+      inner = '<span class="miss-mark">✖</span>'; missAssigned++;
+      title = dateLbl+'（週'+dowLbl+'）：過去週未達成';
+    } else if(openAssigned<openNeeded){
+      inner = '<input type="checkbox" class="std-check">'; openAssigned++;
+      title = dateLbl+'（週'+dowLbl+'）：本週尚未結束，還沒完成';
+    } else {
+      inner = '<span class="box-ghost" aria-hidden="true"></span>';
+      title = dateLbl+'（週'+dowLbl+'）：非必要格';
+    }
+    html += '<div class="day-box-cell" title="'+esc(title)+'"><span class="day-box-lbl">'+dowLbl+'</span>'+inner+'</div>';
+  });
+  return html;
+}
 function render(){
   var stores = getFilteredStores();
   var cols = activeColumns();
@@ -2716,7 +2832,9 @@ function render(){
     rd.colStats.forEach(function(cs, idx){
       var m = colMeta[idx];
       var dividerCls = m.isGroupDivider ? ' pg-divider' : (m.isWeekDivider ? ' wk-divider' : '');
-      var boxesHtml = _buildBoxCells(cs.actual, cs.std, m.isPastWeek);
+      var boxesHtml = CELL_VIEW==='day'
+        ? _buildDayBoxCells(rd.s.code, cs.col.period, cs.col.week, cs.std, cs.actual, m.isPastWeek)
+        : _buildBoxCells(cs.actual, cs.std, m.isPastWeek);
       /* 1.9.6：量販A店才有 cs.mv，組出五、六兩個必訪日小徽章（✓已到店／
          ✖已過期未到店／·尚未到期）；只要有任一天「已過期仍未到店」，
          整格加上 mv-alert-cell 高亮（發光紅底），跟次數是否達標無關，
@@ -3605,7 +3723,10 @@ function _buildManualContent(){
     + '<p><b>【篩選列】</b></p>'
     + '<p><b>檔期</b>：只看中元或只看中秋，或全部一起看（欄位會跟著變成 W1~W5）<br>'
     + '<b>通路／等級</b>：量販店與全聯社的應達次數標準不同（等級旁邊的數字'
-    + '就是每週該去幾次），可個別篩選<br>'
+    + '就是每週該去幾次），可個別篩選；選定通路後，等級選項只會列出這個'
+    + '通路底下有的等級（例如選「全聯」，等級只會出現「超市A」，不會混'
+    + '進量販A/B/C），切換通路若原本選的等級不屬於新通路，會自動退回'
+    + '「全部等級」<br>'
     + '<b>營業處／營業所</b>：依組織層級篩選，選定營業處後才會出現底下的'
     + '營業所選項</p>'
     + '<hr>'
@@ -3622,6 +3743,13 @@ function _buildManualContent(){
     + '<span style="display:inline-block;width:13px;height:13px;background:#FF7A00;border-radius:3px;vertical-align:middle;"></span>'
     + ' <b>橘色發光格（超額）</b>：實際去的次數超過標準，多出來的部分自動顯示；'
     + '超額次數不會拉高達成率，也不會拿去補其他店家的不足，純粹是額外的努力紀錄</p>'
+    + '<p><b>【格子視角】</b>表格上方「🔢 依次數／📅 依日期（星期幾）」可以切換'
+    + '格子的排列方式：「依次數」是原本的視角，7 格代表第幾次巡補、跟哪一天'
+    + '去的無關；「依日期」是新增的視角，7 格改成對應這個檔期週次實際的'
+    + '星期日～六，每格上方會多印小小的星期幾標籤，顏色規則完全一樣（藍＝'
+    + '算入應達、橘＝超額、紅✖＝過去週未達成、灰＝非必要格），只是現在可以'
+    + '直接看出督導轄下的店家實際習慣在星期幾去巡補。這個視角目前僅支援'
+    + '桌機表格，手機版仍是原本的「本週 x/y」文字徽章。</p>'
     + '<hr>'
     + '<p><b>【🚨 五/六必訪日是什麼？】</b>量販通路＋量販A店，每週的星期五、'
     + '星期六是規定一定要到店的日子，跟「這週去了幾次」是兩件事分開看──'
