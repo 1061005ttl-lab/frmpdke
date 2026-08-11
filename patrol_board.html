@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.10.3 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-11
+  版本：Ver. 1.10.4 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-11
 
 【這個檔案是什麼】
   ‧ 單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 讀取同一份
@@ -140,6 +140,11 @@
     把 <head> 裡那段 <script> 拿掉即可。
 
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.10.4 2026-08-11  中元／中秋卡片內的迷你表格：量販／全聯合併成同一張
+                      表格，表頭（等級/店數/W.../達成率%/未達店數）只印
+                      一次，不再兩張各自獨立表格重複表頭、欄寬還可能對不
+                      齊；點擊行為改成跟營業處總覽表一致，每個儲存格各自
+                      綁定，不再是「整列共用一個 onclick」。
   1.10.3 2026-08-11  用語中性化：「違規」相關字樣全面改為「未符合標準」
                       （含摘要列、複製稽核清單、使用說明文字）；移除中元／
                       中秋四張卡片內重複的子區塊標題列（通路名稱＋達成率），
@@ -558,15 +563,8 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
 .ov-card:hover { box-shadow:0 4px 12px rgba(0,0,0,.08); }
 .ov-card h2 { font-size:15px; font-weight:700; border-left:4px solid var(--primary); padding-left:9px; margin-bottom:8px; display:flex; justify-content:flex-start; align-items:center; gap:4px; }
 .ov-card-emoji { font-size:2em; line-height:1; vertical-align:middle; margin-right:2px; display:inline-block; }
-/* 1.6.0：中元/中秋卡片改成「量販在上、全聯在下」同框垂直排列，減少全聯
-   單一等級表格獨立成框時的閒置空間；量販／全聯兩個子區塊各自可點擊
-   帶篩選進明細，彼此互不影響 */
-.ov-subsec { cursor:pointer; border-radius:8px; transition:background .15s; padding:4px 2px; margin:0 -2px; }
-.ov-subsec:hover { background:var(--primary-bg); }
-.ov-subsec + .ov-subsec { margin-top:10px; padding-top:10px; border-top:1px dashed var(--border); }
-.ov-subsec-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
-.ov-subsec-title { font-size:13.5px; font-weight:700; color:var(--sub); }
-.ov-subsec-rate { color:var(--green); font-size:16px; font-weight:800; }
+/* 1.10.4：量販/全聯迷你表格合併成同一張表格後，不再需要 .ov-subsec 這層
+   包裝與分隔線樣式，整段移除。 */
 /* 1.10.1：中元/中秋卡片的迷你表格欄位數隨週數變動（W1~W3 各兩欄），在
    窄螢幕上表格 min-content 寬度會超過卡片可用寬度——CSS Grid 的欄位
    （.ov-grid 底下的 .ov-card）預設 min-width:auto，會被子元素的
@@ -577,9 +575,11 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
 .ov-mini-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
 .ov-mini { width:100%; border-collapse:collapse; font-size:13.5px; }
 .ov-mini th, .ov-mini td { border:1px solid var(--border); padding:6px 7px; text-align:center; }
-.ov-mini tr.ov-mini-row { cursor:pointer; }
-.ov-mini tr.ov-mini-row:hover td { background:var(--primary-bg); }
-.ov-mini td.ov-mini-wk, .ov-mini td.ov-mini-unmet { cursor:pointer; }
+/* 1.10.4：改成逐格各自可點（跟上方「營業處執行狀況總覽表」一致），拿掉
+   整列共用的 cursor/hover，改成每個 .ov-mini-clickable 儲存格各自處理；
+   未達／未達店數欄額外用紅色系 hover 區隔「有問題」的欄位。 */
+.ov-mini td.ov-mini-clickable { cursor:pointer; transition:background .12s; }
+.ov-mini td.ov-mini-clickable:hover { background:var(--primary-bg); }
 .ov-mini td.ov-mini-wk:hover, .ov-mini td.ov-mini-unmet:hover { background:var(--red-bg) !important; }
 .ov-mini td.ov-mini-unmet { color:var(--red); font-weight:700; }
 .ov-mini th { background:var(--bg); color:var(--sub); font-weight:700; }
@@ -2335,60 +2335,57 @@ function renderOverview(){
     var icon = p.key==='zhong' ? '🏮' : '🎑';
     var cols = _periodColumns(p.key);
     var weekNums = cols.map(function(c){ return c.week; });
-    var subsecsHtml = ['量販','全聯'].map(function(chanKey){
+    /* 1.10.4：量販／全聯過去各自一張迷你表格，表頭（等級/店數/W.../
+       達成率%/未達店數）在同一張卡片裡重複印兩次，而且兩張各自獨立的
+       <table> 欄寬各自計算，容易對不齊。改成同一張卡片共用一張表格，
+       量販／全聯的列直接合併進同一個 tbody、表頭只出現一次；「等級」
+       欄本身就寫「量販A/B/C」「超市A」不同字樣，不用額外的通路標題列
+       也分得出哪些列屬於哪個通路。
+       同時把整列共用一顆 onclick 改成每個儲存格各自綁定（跟上方「營業
+       處執行狀況總覽表」一致），不再有「點哪裡都觸發整列篩選、只有
+       未達欄例外」的不一致行為。 */
+    var allGrades = ['量販','全聯'].reduce(function(acc, chanKey){
       var subset = chanSubsets[chanKey];
       var stat = _statsFor(subset, cols);
       var gradeKeys = Object.keys(stat.byGrade).sort(function(a,b){
         return (GRADE_FREQ[b]||0) - (GRADE_FREQ[a]||0);
       });
-      /* 1.9.5：改成兩列表頭——每個 W 欄底下拆成「已達／未達」兩個子欄，
-         直接顯示店數而不是百分比＋徽章擠在同一格；畫面寬度夠，欄位
-         增加就讓表格自然變寬，不用把兩個數字硬塞進同一格。等級／店數／
-         達成率%／未達店數(整檔期) 這幾欄跨兩列（rowspan），只有 W 欄
-         需要子表頭。 */
-      var body = gradeKeys.length ? (
-        '<div class="ov-mini-scroll"><table class="ov-mini"><tr>'
-        + '<th rowspan="2">等級</th><th rowspan="2">店數</th>'
-        + weekNums.map(function(w){ return '<th colspan="2" class="ov-mini-wkhead">W'+w+'</th>'; }).join('')
-        + '<th rowspan="2">達成率%</th>'
-        + '<th rowspan="2" title="整個檔期範圍內，至少有一週沒達標的店數">未達店數<br>(整檔期)</th>'
-        + '</tr><tr>'
-        + weekNums.map(function(){ return '<th class="ov-mini-sub">已達</th><th class="ov-mini-sub">未達</th>'; }).join('')
-        + '</tr>'
-        + gradeKeys.map(function(g){
-            var gd = stat.byGrade[g];
-            var r = gd.exp>0 ? (gd.stdDone/gd.exp*100).toFixed(1) : '0.0';
-            var label = (GRADE_LABEL[g]||g) + '（' + GRADE_FREQ[g] + '）';
-            /* 1.9.2：週次格子改成各自可點，帶入「該檔期＋通路＋等級＋這一週
-               ＋🔴巡次未達標」四個條件一起進明細頁，跟「未達店數」欄位共用
-               同一支 openDetailFromOverview，差別只在多帶一個 week 參數；
-               stopPropagation 避免同時觸發外層整列（不分週次）的篩選 */
-            /* 1.9.5：「已達」＝這家等級底下這一週有達標的店數（gd.count－
-               這一週未達店數），只顯示不可點；「未達」維持原本點擊行為
-               （帶該週 onlyUnmet 進明細頁）。兩者一定加總等於 gd.count，
-               因為篩掉等級未知的店之後，這個分組裡每家店在每一週都必定
-               有 exp>0（GRADE_FREQ 標準都是正整數），不會有第三種狀態。 */
-            var weekCells = weekNums.map(function(w){
-              var wd = gd.weeks[w] || { exp:0, stdDone:0, unmet:0 };
-              var met = gd.count - wd.unmet;
-              return '<td class="ov-mini-met">'+met+'</td>'
-                + '<td class="ov-mini-wk'+(wd.unmet>0?' ov-mini-wk-has-unmet':'')+'" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,true,'+w+')" title="點擊查看這一週的未達標門市">'+wd.unmet+'</td>';
-            }).join('');
-            return '<tr class="ov-mini-row" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event)"><td>'+esc(label)+'</td><td>'+gd.count+'</td>'+weekCells
-              + '<td style="color:var(--green);font-weight:700;">'+r+'%</td>'
-              + '<td class="ov-mini-unmet" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,true)" title="點擊查看整個檔期範圍內、至少有一週沒達標的門市">'+(gd.unmetCount||0)+'</td></tr>';
-          }).join('')
-        + '</table></div>'
-      ) : '<div class="ov-empty">目前沒有符合資料</div>';
-      /* 1.10.3：移除子區塊標題列（含通路名稱與達成率）——表格第一列表頭
-         已足以識別店家類別，原標題屬重複資訊，拿掉以節省版面空間。中元／
-         中秋兩個檔期共用這段渲染邏輯，改一次即同步套用。 */
-      return '<div class="ov-subsec" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\')">'
-        + body + '</div>';
-    }).join('');
+      gradeKeys.forEach(function(g){ acc.push({ chanKey:chanKey, grade:g, gd:stat.byGrade[g] }); });
+      return acc;
+    }, []);
+    var body = allGrades.length ? (
+      '<div class="ov-mini-scroll"><table class="ov-mini"><tr>'
+      + '<th rowspan="2">等級</th><th rowspan="2">店數</th>'
+      + weekNums.map(function(w){ return '<th colspan="2" class="ov-mini-wkhead">W'+w+'</th>'; }).join('')
+      + '<th rowspan="2">達成率%</th>'
+      + '<th rowspan="2" title="整個檔期範圍內，至少有一週沒達標的店數">未達店數<br>(整檔期)</th>'
+      + '</tr><tr>'
+      + weekNums.map(function(){ return '<th class="ov-mini-sub">已達</th><th class="ov-mini-sub">未達</th>'; }).join('')
+      + '</tr>'
+      + allGrades.map(function(item){
+          var chanKey = item.chanKey, g = item.grade, gd = item.gd;
+          var r = gd.exp>0 ? (gd.stdDone/gd.exp*100).toFixed(1) : '0.0';
+          var label = (GRADE_LABEL[g]||g) + '（' + GRADE_FREQ[g] + '）';
+          var clickAttrs = ' onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event)" title="點擊查看這個等級整個檔期的門市明細"';
+          var weekCells = weekNums.map(function(w){
+            var wd = gd.weeks[w] || { exp:0, stdDone:0, unmet:0 };
+            var met = gd.count - wd.unmet;
+            return '<td class="ov-mini-met ov-mini-clickable"'+clickAttrs+'>'+met+'</td>'
+              + '<td class="ov-mini-wk ov-mini-clickable'+(wd.unmet>0?' ov-mini-wk-has-unmet':'')+'" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,true,'+w+')" title="點擊查看這一週的未達標門市">'+wd.unmet+'</td>';
+          }).join('');
+          return '<tr>'
+            + '<td class="ov-mini-clickable"'+clickAttrs+'>'+esc(label)+'</td>'
+            + '<td class="ov-mini-clickable"'+clickAttrs+'>'+gd.count+'</td>'
+            + weekCells
+            + '<td class="ov-mini-clickable" style="color:var(--green);font-weight:700;"'+clickAttrs+'>'+r+'%</td>'
+            + '<td class="ov-mini-unmet ov-mini-clickable" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,true)" title="點擊查看整個檔期範圍內、至少有一週沒達標的門市">'+(gd.unmetCount||0)+'</td>'
+            + '</tr>';
+        }).join('')
+      + '</table></div>'
+    ) : '<div class="ov-empty">目前沒有符合資料</div>';
     return '<div class="ov-card">'
       + '<h2><span class="ov-card-emoji">'+icon+'</span> '+esc(p.label)+'</h2>'
-      + subsecsHtml + '</div>';
+      + body + '</div>';
   }).join('');
   wrap.innerHTML = cardsHtml;
   renderOfficeOverview();
