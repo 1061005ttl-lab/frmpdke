@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.9.2 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-04
+  版本：Ver. 1.9.6 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-11
 
 【這個檔案是什麼】
   ‧ 單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 讀取同一份
@@ -44,6 +44,24 @@
   ‧ 整體視角：兩檔期合併顯示（W1–W5）
   ‧ 週次判斷：「巡補日期－檔期起始日」天數差每 7 天一週；超過該檔期
     總週數視為不屬於任何檔期，不計入統計。
+
+【稽核用必訪日規則（1.9.6 新增，常數 MUST_VISIT_RULE）】
+  ‧ 通路別＝量販通路 ＋ 店家等級＝量販A 的店，該檔期每一週的「星期五、
+    星期六」視為必定必訪日：不管這一週的巡補「次數」有沒有達到 GRADE_FREQ
+    標準，只要處理層裡這兩天當中有任一天完全查無紀錄，就視為違反必訪
+    規則。這跟「週應達次數」是兩套互相獨立的判斷，其中一項符合不代表
+    另一項也符合（例如週一到週四衝滿 5 次、週五週六都沒去，次數達標但
+    仍算必訪違規）。
+  ‧ 只在「規定的那天已經過去」才判定為違規（比照 _isWeekPast 的精神，
+    當天／未來的必訪日只顯示「尚未到期」，不會被誤判成沒做到）。
+  ‧ 畫面呈現：桌機週次格子／手機週次徽章都會在對應格子上加註五、六兩個
+    小徽章（✓已到店／✖已過期未到店／·尚未到期），只要當週有任一天判定
+    違規，儲存格會加上高亮底色＋發光紅框（.mv-alert-cell／.mv-miss），
+    次數合計欄與手機店卡也會多一顆「🚨 必訪缺」提示；另外篩選列新增
+    「🚨 量販A五六必訪未達」獨立開關 chip，可直接篩出所有違規店家清單，
+    做法跟既有「🔴 巡次未達標」開關（toggleUnmetChip）完全對稱。
+  ‧ 這條規則寫死只認「量販通路＋量販A」，日後若要擴大到其他等級／改成
+    可設定的星期，改 MUST_VISIT_RULE 常數即可，不用動判斷邏輯本身。
 
 【等級應達次數對照（常數 GRADE_FREQ／GRADE_LABEL）】
   ‧ 量販 A：每週 5 次／量販 B：每週 3 次／量販 C：每週 2 次
@@ -122,6 +140,11 @@
     把 <head> 裡那段 <script> 拿掉即可。
 
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.9.6  2026-08-11  新增稽核用「必訪日」條件式（MUST_VISIT_RULE）：量販
+                      通路＋量販A店，每週五／六視為必定必訪日，缺紀錄時
+                      主表格高亮顯示（.mv-alert-cell 發光紅框＋徽章），
+                      次數合計欄/手機店卡加註「🚨必訪缺」，新增「🚨量販A
+                      五六必訪未達」獨立篩選開關（與「🔴巡次未達標」對稱）。
   1.9.2  2026-07-21  總覽看板新增「未達店數/次數」欄位＋點擊下鑽，
                       自動帶入「🔴巡次未達標」＋對應檔期/通路/等級/
                       週次篩選；新增週次 chip 列（updateWeekChipRow）。
@@ -338,6 +361,22 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 /* 1.5.0：非應達格的「幽靈格」佔位，近似透明，若有似無——只佔版面、不搶視覺焦點，
    一旦實際次數蓋過這格才會被換成 .extra-check（見 render() 的 7 格迴圈） */
 .box-ghost { display:inline-block; width:17px; height:17px; border-radius:3px; border:1px solid rgba(0,0,0,.045); background:#E6E6F2; }
+/* 1.9.6：稽核用「必訪日」高亮樣式（量販A店五/六必訪未達）。刻意跟現有
+   .miss-mark（週應達次數的過去週未達）做視覺區隔，用發光紅框＋實心徽章，
+   讓稽核人員一眼認出「不是次數不足，是規定的那天完全沒去」 */
+.mv-row { display:flex; gap:4px; margin-top:3px; padding-left:6px; }
+.mv-badge { display:inline-flex; align-items:center; justify-content:center; min-width:26px; height:17px; padding:0 4px; border-radius:4px; font-size:10px; font-weight:800; line-height:1; white-space:nowrap; }
+.mv-ok { background:var(--green-bg); color:var(--green); }
+.mv-pending { background:var(--bg); color:var(--sub); border:1px dashed rgba(0,0,0,.15); }
+.mv-miss { background:var(--red); color:#fff; animation:mvAlert 1.1s ease-in-out infinite; }
+@keyframes mvAlert {
+  0%,100% { box-shadow:0 0 0 0 rgba(163,32,32,.6); }
+  50% { box-shadow:0 0 8px 4px rgba(163,32,32,.6); }
+}
+td.mv-alert-cell { background:var(--red-bg) !important; }
+.sum-mv-badge { display:inline-block; padding:1px 8px; border-radius:10px; background:var(--red); color:#fff; font-size:11.5px; font-weight:800; white-space:nowrap; margin-top:2px; animation:mvAlert 1.1s ease-in-out infinite; }
+.m-wk-mvmiss { outline:2px solid var(--red); outline-offset:1px; }
+.m-mv-flag { margin-left:3px; }
 /* 1.6.2：店家明細／訪員總覽共用的 Dialog header 新增「匯出/分享」按鈕插槽——
    訪員總覽開啟時才會塞入 CSV／複製文字／截圖三顆按鈕，店家明細維持空白，
    兩種 Dialog 共用同一個 header，靠 openStoreDetail() / openStaffDetail() 開頭
@@ -1022,7 +1061,7 @@ var _qSheetCache = {};
 var _qSheetLoading = {};
 var _qSheetWaiters = {};
 
-var FILTER = { period:'全部', channel:'全部', grade:'全部', area:'全部', office:'全部', staff:'全部', keyword:'', onlyUnmet:false, week:null };
+var FILTER = { period:'全部', channel:'全部', grade:'全部', area:'全部', office:'全部', staff:'全部', keyword:'', onlyUnmet:false, onlyMvMiss:false, week:null };
 /* 營業處執行狀況表：目前檢視的檔期／週次範圍。
      null                      ＝整體（不分檔期／週次，原本行為）
      {period,week:null}        ＝該檔期整個彙總（1.5.0 新增，例如「中元」＝
@@ -1162,6 +1201,48 @@ function _isWeekPast(periodKey, week){
   if(!p) return false;
   var weekEndDay = _toEpochDay(p.y,p.mo,p.d) + week*7 - 1;
   return _todayEpochDay() > weekEndDay;
+}
+
+/* ════ 稽核用「必訪日」規則（1.9.6 新增，見檔頭【稽核用必訪日規則】說明）════
+   量販通路＋量販A店，每個檔期週次裡的星期五、星期六視為必定必訪日；跟
+   GRADE_FREQ 的「週應達次數」比對邏輯完全獨立，互不影響、互不覆蓋——
+   一個管「去了幾次」，一個管「規定的那天有沒有去」。 */
+var MUST_VISIT_RULE = { chanKey:'量販', grade:'量販A', weekdays:[5,6] }; /* getUTCDay()：0=日...5=五,6=六 */
+function _isMustVisitStore(s){
+  return s.chanKey===MUST_VISIT_RULE.chanKey && s.grade===MUST_VISIT_RULE.grade;
+}
+/* 換算某個檔期週次裡，落在 MUST_VISIT_RULE.weekdays 的實際日期
+   （epoch day 陣列，固定 7 天一週，一定會剛好命中 2 天：五、六）。 */
+function _mustVisitDaysForCol(period, week){
+  var p = PERIODS.filter(function(pp){ return pp.key===period; })[0];
+  if(!p) return [];
+  var startDay = _toEpochDay(p.y,p.mo,p.d) + (week-1)*7;
+  var out = [];
+  for(var i=0;i<7;i++){
+    var day = startDay+i;
+    var dow = new Date(day*86400000).getUTCDay();
+    if(MUST_VISIT_RULE.weekdays.indexOf(dow)!==-1) out.push(day);
+  }
+  return out;
+}
+/* 該店在指定 epoch day 當天，處理層裡是否至少有一筆紀錄（不管幾筆，
+   只需要「有沒有」，故用短路迴圈即可，不用像 _actualCount 特地去重計數）。 */
+function _hasVisitOnDay(code, epochDay){
+  var list = VISIT_INDEX[code];
+  if(!list) return false;
+  for(var i=0;i<list.length;i++){
+    if(_toEpochDay(list[i].parts.y, list[i].parts.mo, list[i].parts.d) === epochDay) return true;
+  }
+  return false;
+}
+/* 組出某店某檔期週次的必訪日狀態陣列（給 render() 桌機/手機共用），
+   非「量販A」店回傳 null，避免其他等級的格子被誤加標記。 */
+function _mustVisitStatusForCol(s, period, week){
+  if(!_isMustVisitStore(s)) return null;
+  var today = _todayEpochDay();
+  return _mustVisitDaysForCol(period, week).map(function(day){
+    return { day:day, dow:new Date(day*86400000).getUTCDay(), visited:_hasVisitOnDay(s.code, day), isPast: today>day };
+  });
 }
 
 /* ════ 讀「處理層」════ */
@@ -1371,8 +1452,13 @@ function buildFilterUI(){
      的 setChip() 邏輯（清掉同組其他 active、寫死一個值）不一樣，另外寫
      toggleUnmetChip() 處理；chip 文字裡的數字在每次 render() 結尾更新，
      顯示「目前篩選條件下（不含這顆未達標開關本身）有幾家店未達標」。 */
+  /* 1.9.6：「量販A五六必訪未達」比照「巡次未達標」，也是獨立開關 chip，
+     跟 toggleUnmetChip 對稱寫一支 toggleMvMissChip；文字裡的數字同樣在
+     每次 render() 結尾更新，顯示目前篩選條件下（不含這顆開關本身）有
+     幾家店違反必訪規則。 */
   document.getElementById('chip-special').innerHTML =
-    '<div class="chip'+(FILTER.onlyUnmet?' active':'')+'" id="chip-unmet-toggle" onclick="toggleUnmetChip(this)">🔴 巡次未達標</div>';
+    '<div class="chip'+(FILTER.onlyUnmet?' active':'')+'" id="chip-unmet-toggle" onclick="toggleUnmetChip(this)">🔴 巡次未達標</div>'
+    + '<div class="chip'+(FILTER.onlyMvMiss?' active':'')+'" id="chip-mv-toggle" onclick="toggleMvMissChip(this)">🚨 量販A五六必訪未達</div>';
 
   var areaOpts = ['全部'].concat(AREA_ORDER);
   document.getElementById('chip-area').innerHTML = areaOpts.map(function(v,i){
@@ -1483,6 +1569,13 @@ function setChip(el, key){
 function toggleUnmetChip(el){
   FILTER.onlyUnmet = !FILTER.onlyUnmet;
   el.classList.toggle('active', FILTER.onlyUnmet);
+  onFilterChange();
+}
+/* 1.9.6：「量販A五六必訪未達」開關，邏輯跟 toggleUnmetChip 對稱、各自獨立，
+   兩個開關可以同時開（同時只看「未達標」且「必訪違規」的店）。 */
+function toggleMvMissChip(el){
+  FILTER.onlyMvMiss = !FILTER.onlyMvMiss;
+  el.classList.toggle('active', FILTER.onlyMvMiss);
   onFilterChange();
 }
 function onFilterChange(){
@@ -1970,6 +2063,7 @@ function openDetailFromOffice(area, chanKey, onlyUnmet, evt){
   FILTER.channel = chanKey||'全部'; FILTER.grade = '全部';
   FILTER.area = area; FILTER.office = '全部'; FILTER.staff = '全部'; FILTER.keyword = '';
   FILTER.onlyUnmet = !!onlyUnmet;
+  FILTER.onlyMvMiss = false;
   _enterDetail();
 }
 function renderOverview(){
@@ -2066,12 +2160,14 @@ function openDetailFromOverview(periodKey, chanKey, grade, evt, onlyUnmet, week)
   if(evt){ evt.stopPropagation(); } /* 列點擊（帶等級）不應該再讓外層子區塊的整通路點擊重複觸發 */
   FILTER.period = periodKey; FILTER.channel = chanKey; FILTER.grade = grade||'全部'; FILTER.area = '全部'; FILTER.staff = '全部'; FILTER.keyword = '';
   FILTER.onlyUnmet = !!onlyUnmet;
+  FILTER.onlyMvMiss = false;
   FILTER.week = week || null;
   _enterDetail();
 }
 function openDetailAll(){
   FILTER.period = '全部'; FILTER.channel = '全部'; FILTER.grade = '全部'; FILTER.area = '全部'; FILTER.staff = '全部'; FILTER.keyword = '';
   FILTER.onlyUnmet = false;
+  FILTER.onlyMvMiss = false;
   FILTER.week = null;
   _enterDetail();
 }
@@ -2097,6 +2193,8 @@ function syncChipsToFilter(){
   });
   var unmetToggle = document.getElementById('chip-unmet-toggle');
   if(unmetToggle) unmetToggle.classList.toggle('active', FILTER.onlyUnmet);
+  var mvToggle = document.getElementById('chip-mv-toggle');
+  if(mvToggle) mvToggle.classList.toggle('active', FILTER.onlyMvMiss);
   _updateFilterToggleSummary();
 }
 /* 1.6.2：手機版篩選條件收合按鈕上的一行小字摘要——收合時仍能一眼看出
@@ -2117,6 +2215,7 @@ function _updateFilterToggleSummary(){
   if(FILTER.office!=='全部') parts.push(FILTER.office);
   if(FILTER.staff!=='全部') parts.push(FILTER.staff);
   if(FILTER.onlyUnmet) parts.push('🔴未達標');
+  if(FILTER.onlyMvMiss) parts.push('🚨必訪未達');
   el.textContent = parts.length ? parts.join('・') : '全部';
 }
 /* 手機版：篩選 chip 列預設收合，避免固定工具列＋篩選列一次佔掉大半螢幕，
@@ -2288,17 +2387,23 @@ function render(){
     var gradeLabel = GRADE_LABEL[s.grade] || s.grade;
 
     var colStats = [];
-    var rowExp=0, rowStdDone=0, rowExtra=0;
+    var rowExp=0, rowStdDone=0, rowExtra=0, mvMissTotal=0;
     cols.forEach(function(c){
       var actual = _actualCount(s.code, c.period, c.week);
       var stdN = std===undefined ? 0 : std;
       var stdDone = Math.min(actual, stdN);
       var extra = Math.max(0, actual - stdN);
       rowExp += stdN; rowStdDone += stdDone; rowExtra += extra;
-      colStats.push({ col:c, actual:actual, std:stdN, extra:extra });
+      /* 1.9.6：必訪日狀態跟「次數達標與否」是分開算的兩套判斷（見檔頭
+         【稽核用必訪日規則】），非量販A店 mv 為 null，格子照舊不受影響 */
+      var mv = _mustVisitStatusForCol(s, c.period, c.week);
+      if(mv) mvMissTotal += mv.filter(function(d){ return !d.visited && d.isPast; }).length;
+      colStats.push({ col:c, actual:actual, std:stdN, extra:extra, mv:mv });
     });
     var isUnmet = rowExp>0 && rowStdDone<rowExp;
+    var isMvMiss = mvMissTotal>0;
     return { s:s, std:std, gradeLabel:gradeLabel, colStats:colStats, rowExp:rowExp, rowStdDone:rowStdDone, rowExtra:rowExtra, isUnmet:isUnmet,
+      mvMissTotal:mvMissTotal, isMvMiss:isMvMiss,
       groupKey: s.area+'␟'+s.office+'␟'+s.staff };
   });
 
@@ -2308,7 +2413,17 @@ function render(){
   var unmetToggleEl = document.getElementById('chip-unmet-toggle');
   if(unmetToggleEl) unmetToggleEl.textContent = '🔴 巡次未達標（'+unmetCount+'）';
 
-  var rowsData = FILTER.onlyUnmet ? rowsDataAll.filter(function(rd){ return rd.isUnmet; }) : rowsDataAll;
+  /* 1.9.6：「量販A五六必訪未達」開關數字同理，兩顆開關各自獨立算，
+     可以同時開（同時只看「未達標」且「必訪違規」的店） */
+  var mvMissCount = rowsDataAll.filter(function(rd){ return rd.isMvMiss; }).length;
+  var mvToggleEl = document.getElementById('chip-mv-toggle');
+  if(mvToggleEl) mvToggleEl.textContent = '🚨 量販A五六必訪未達（'+mvMissCount+'）';
+
+  var rowsData = rowsDataAll.filter(function(rd){
+    if(FILTER.onlyUnmet && !rd.isUnmet) return false;
+    if(FILTER.onlyMvMiss && !rd.isMvMiss) return false;
+    return true;
+  });
 
   /* 統計卡（篩選店數／應達總次數／達成率／超額次數）一律依「畫面上實際
      顯示的這份 rowsData」重新加總，而不是加總全部 stores——這樣「巡次
@@ -2358,17 +2473,35 @@ function render(){
       var m = colMeta[idx];
       var dividerCls = m.isGroupDivider ? ' pg-divider' : (m.isWeekDivider ? ' wk-divider' : '');
       var boxesHtml = _buildBoxCells(cs.actual, cs.std, m.isPastWeek);
+      /* 1.9.6：量販A店才有 cs.mv，組出五、六兩個必訪日小徽章（✓已到店／
+         ✖已過期未到店／·尚未到期）；只要有任一天「已過期仍未到店」，
+         整格加上 mv-alert-cell 高亮（發光紅底），跟次數是否達標無關，
+         純粹反映「規定的那天有沒有去」。 */
+      var mvHtml = '', mvCellCls = '';
+      if(cs.mv){
+        mvHtml = '<div class="mv-row">' + cs.mv.map(function(d){
+          var lbl = d.dow===5 ? '五' : '六';
+          var cls = d.visited ? 'mv-ok' : (d.isPast ? 'mv-miss' : 'mv-pending');
+          var icon = d.visited ? '✓' : (d.isPast ? '✖' : '·');
+          var title = lbl+'必訪：'+(d.visited ? '已到店' : (d.isPast ? '⚠️未到店（必訪日已過）' : '尚未到期'));
+          return '<span class="mv-badge '+cls+'" title="'+esc(title)+'">'+lbl+icon+'</span>';
+        }).join('') + '</div>';
+        if(cs.mv.some(function(d){ return !d.visited && d.isPast; })) mvCellCls = ' mv-alert-cell';
+      }
       /* 1.9.1：週次格子點擊 → 帶入該週次範圍縮限明細 Dialog（帶 period/week
          參數＋stopPropagation，避免同時觸發整列的 openStoreDetail 顯示全檔期）；
          其餘欄位（店名／區域…）點擊仍維持整列 <tr> 的 onclick，顯示目前篩選
          檔期範圍的完整明細，兩種入口並存不衝突。 */
-      colsHtml += '<td class="'+m.periodCls+dividerCls+' wk-cell-click" onclick="openStoreDetail(\''+esc(rd.s.code)+'\',\''+cs.col.period+'\','+cs.col.week+',event)"><div class="box-container">'+boxesHtml+'</div></td>';
+      colsHtml += '<td class="'+m.periodCls+dividerCls+mvCellCls+' wk-cell-click" onclick="openStoreDetail(\''+esc(rd.s.code)+'\',\''+cs.col.period+'\','+cs.col.week+',event)"><div class="box-container">'+boxesHtml+'</div>'+mvHtml+'</td>';
 
       if(cs.std>0){
         if(cs.col.period !== wkGroupPeriod){ _flushWkGroup(); wkGroupPeriod = cs.col.period; }
+        var mvMissHere = cs.mv && cs.mv.some(function(d){ return !d.visited && d.isPast; });
         var wkCls = cs.extra>0 ? 'm-wk-extra' : (cs.actual>=cs.std ? 'm-wk-full' : (cs.actual>0 ? 'm-wk-part' : (m.isPastWeek ? 'm-wk-miss' : 'm-wk-empty')));
+        if(mvMissHere) wkCls += ' m-wk-mvmiss';
         var wkLabel = periodLabelMap[cs.col.period]+'W'+cs.col.week;
-        wkGroupBuf += '<span class="m-wk '+wkCls+'" title="'+esc(wkLabel+'：'+cs.actual+'/'+cs.std+'次')+'">'+esc(wkLabel)+' '+cs.actual+'/'+cs.std+(cs.extra>0?'<b>+'+cs.extra+'</b>':'')+'</span>';
+        var wkTitle = wkLabel+'：'+cs.actual+'/'+cs.std+'次'+(mvMissHere?'；⚠️五/六必訪未達':'');
+        wkGroupBuf += '<span class="m-wk '+wkCls+'" title="'+esc(wkTitle)+'">'+(mvMissHere?'🚨':'')+esc(wkLabel)+' '+cs.actual+'/'+cs.std+(cs.extra>0?'<b>+'+cs.extra+'</b>':'')+'</span>';
       }
     });
     _flushWkGroup();
@@ -2378,6 +2511,7 @@ function render(){
       + '<div class="sum-rate">'+rowRate.toFixed(1)+'%</div>'
       + (rd.rowExtra>0 ? '<div class="sum-extra-badge">超額 +'+rd.rowExtra+'</div>' : '')
       + (rd.isUnmet ? '<div class="sum-unmet-badge">🔴 未達標</div>' : '')
+      + (rd.isMvMiss ? '<div class="sum-mv-badge">🚨 必訪缺 '+rd.mvMissTotal+'</div>' : '')
       + '</div>';
 
     group.rowsHtml += '<tr onclick="openStoreDetail(\''+esc(rd.s.code)+'\')">'
@@ -2399,7 +2533,7 @@ function render(){
       +     '<span class="m-line-sep">·</span><span class="m-line-type">'+esc(rd.s.storeType||'—')+'</span>'
       +     '<span class="m-line-sep">·</span><span class="m-line-grade">'+gradeLineHtml+'</span>'
       +   '</div>'
-      +   '<div class="m-store-badge '+rateClass+'">'+rd.rowStdDone+'/'+rd.rowExp+(rd.rowExtra>0?'<small>+'+rd.rowExtra+'</small>':'')+(rd.isUnmet?'<small class="m-unmet-flag">🔴</small>':'')+'</div>'
+      +   '<div class="m-store-badge '+rateClass+'">'+rd.rowStdDone+'/'+rd.rowExp+(rd.rowExtra>0?'<small>+'+rd.rowExtra+'</small>':'')+(rd.isUnmet?'<small class="m-unmet-flag">🔴</small>':'')+(rd.isMvMiss?'<small class="m-mv-flag">🚨</small>':'')+'</div>'
       + '</div>'
       + (weeksHtml ? '<div class="m-store-weeks">'+weeksHtml+'</div>' : '')
       + '</div>';
@@ -2684,14 +2818,16 @@ function _staffStatsData(staffName){
   var rows = stores.map(function(s){
     var std = GRADE_FREQ[s.grade];
     var stdN = std===undefined?0:std;
-    var exp=0, stdDone=0, extra=0;
+    var exp=0, stdDone=0, extra=0, mvMissTotal=0;
     cols.forEach(function(c){
       var actual = _actualCount(s.code, c.period, c.week);
       exp += stdN; stdDone += Math.min(actual,stdN); extra += Math.max(0,actual-stdN);
+      var mv = _mustVisitStatusForCol(s, c.period, c.week);
+      if(mv) mvMissTotal += mv.filter(function(d){ return !d.visited && d.isPast; }).length;
     });
     if(std!==undefined){ totalExp+=exp; totalStdDone+=stdDone; totalExtra+=extra; }
     var rate = exp>0 ? (stdDone/exp*100) : 0;
-    return { store:s, exp:exp, stdDone:stdDone, extra:extra, rate:rate };
+    return { store:s, exp:exp, stdDone:stdDone, extra:extra, mvMissTotal:mvMissTotal, rate:rate };
   });
   var overallRate = totalExp>0 ? (totalStdDone/totalExp*100) : 0;
   return { staffName:staffName, stores:stores, rows:rows, totalExp:totalExp, totalStdDone:totalStdDone, totalExtra:totalExtra, overallRate:overallRate };
@@ -2712,6 +2848,7 @@ function openStaffDetail(staffName, evt){
       + '<td>'+it.stdDone+'/'+it.exp+'</td>'
       + '<td style="color:var(--green);font-weight:700;">'+it.rate.toFixed(1)+'%</td>'
       + '<td style="color:var(--bonus);font-weight:700;">'+(it.extra>0?'+'+it.extra:'0')+'</td>'
+      + '<td style="color:var(--red);font-weight:700;">'+(it.mvMissTotal>0?'🚨 '+it.mvMissTotal:'—')+'</td>'
       + '</tr>';
   }).join('');
 
@@ -2731,7 +2868,7 @@ function openStaffDetail(staffName, evt){
     + '<div class="vs-item">超額次數<br><b style="color:var(--bonus)">'+data.totalExtra+'</b></div>'
     + '</div>'
     + (data.stores.length
-        ? '<table class="ov-mini" style="width:100%;"><tr><th>店家</th><th>通路</th><th>等級</th><th>達標/應達</th><th>達成率%</th><th>超額</th></tr>'+rowsHtml+'</table>'
+        ? '<table class="ov-mini" style="width:100%;"><tr><th>店家</th><th>通路</th><th>等級</th><th>達標/應達</th><th>達成率%</th><th>超額</th><th>必訪缺</th></tr>'+rowsHtml+'</table>'
         : '<div class="empty">目前沒有這位訪員名下的店家資料</div>')
     + '</div>';
 
@@ -2752,13 +2889,15 @@ function _staffDownloadCsv(staffName, evt){
   var btn = evt ? evt.currentTarget : document.getElementById('staff-csv-btn');
   var data = _staffStatsData(staffName);
   if(!data.stores.length){ _flashBtn(btn,'⚠️ 無資料'); return; }
-  var headers = ['店家名稱','店家代碼','通路','等級','達標次數','應達次數','達成率%','超額次數'];
+  var headers = ['店家名稱','店家代碼','通路','等級','達標次數','應達次數','達成率%','超額次數','五六必訪缺次數'];
   var rows = [headers];
+  var totalMvMiss = 0;
   data.rows.forEach(function(it){
     var s = it.store;
-    rows.push([s.storeName, s.code, s.chanKey||'', GRADE_LABEL[s.grade]||s.grade||'未設定', it.stdDone, it.exp, it.rate.toFixed(1), it.extra]);
+    totalMvMiss += it.mvMissTotal;
+    rows.push([s.storeName, s.code, s.chanKey||'', GRADE_LABEL[s.grade]||s.grade||'未設定', it.stdDone, it.exp, it.rate.toFixed(1), it.extra, it.mvMissTotal]);
   });
-  rows.push(['合計','','','', data.totalStdDone, data.totalExp, data.overallRate.toFixed(1), data.totalExtra]);
+  rows.push(['合計','','','', data.totalStdDone, data.totalExp, data.overallRate.toFixed(1), data.totalExtra, totalMvMiss]);
   var csv = '\uFEFF'+rows.map(function(r){
     return r.map(function(c){ var s=String(c==null?'':c); return /[,"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join(',');
   }).join('\n');
@@ -2775,6 +2914,14 @@ function _staffCopyLine(staffName, evt){
   data.rows.filter(function(it){ return it.rate<100; }).forEach(function(it){
     lines.push('❌ '+it.store.storeName+'('+it.store.code+')　'+it.stdDone+'/'+it.exp+'（'+it.rate.toFixed(1)+'%）');
   });
+  var mvRows = data.rows.filter(function(it){ return it.mvMissTotal>0; });
+  if(mvRows.length){
+    lines.push('');
+    lines.push('🚨 五六必訪未達：');
+    mvRows.forEach(function(it){
+      lines.push('🚨 '+it.store.storeName+'('+it.store.code+')　必訪缺 '+it.mvMissTotal+' 次');
+    });
+  }
   lines.push('');
   lines.push('📅 '+new Date().toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}));
   _doCopy(lines.join('\n'), btn);
@@ -3110,21 +3257,24 @@ function _summaryForShare(){
   var perStore = stores.map(function(s){
     var std = GRADE_FREQ[s.grade];
     var stdN = std===undefined?0:std;
-    var exp=0, stdDone=0, extra=0;
+    var exp=0, stdDone=0, extra=0, mvMissTotal=0;
     cols.forEach(function(c){
       var actual = _actualCount(s.code, c.period, c.week);
       exp += stdN; stdDone += Math.min(actual,stdN); extra += Math.max(0,actual-stdN);
+      var mv = _mustVisitStatusForCol(s, c.period, c.week);
+      if(mv) mvMissTotal += mv.filter(function(d){ return !d.visited && d.isPast; }).length;
     });
     if(std!==undefined){ totalExp+=exp; totalStdDone+=stdDone; totalExtra+=extra; }
-    return { store:s, exp:exp, stdDone:stdDone, extra:extra, rate: exp>0?(stdDone/exp*100):0 };
+    return { store:s, exp:exp, stdDone:stdDone, extra:extra, mvMissTotal:mvMissTotal, rate: exp>0?(stdDone/exp*100):0 };
   });
   return { stores:perStore, totalExp:totalExp, totalStdDone:totalStdDone, totalExtra:totalExtra,
+    totalMvMiss: perStore.reduce(function(sum,it){ return sum+it.mvMissTotal; }, 0),
     rate: totalExp>0 ? (totalStdDone/totalExp*100).toFixed(1) : '0.0' };
 }
 function buildCsvContent(){
   var data = _summaryForShare();
   var cols = activeColumns();
-  var headers = ['營業處名稱','營業所/課','主要訪員','通路別','店家型態','店家代碼','店家名稱','店家等級'].concat(cols.map(function(c){return c.label.trim();})).concat(['應達合計','標準完成合計','超額合計','達成率%']);
+  var headers = ['營業處名稱','營業所/課','主要訪員','通路別','店家型態','店家代碼','店家名稱','店家等級'].concat(cols.map(function(c){return c.label.trim();})).concat(['應達合計','標準完成合計','超額合計','達成率%','五六必訪缺次數']);
   var rows = [headers];
   data.stores.forEach(function(item){
     var s = item.store;
@@ -3132,7 +3282,7 @@ function buildCsvContent(){
     var std = GRADE_FREQ[s.grade];
     var stdN = std===undefined?0:std;
     cols.forEach(function(c){ row.push(_actualCount(s.code, c.period, c.week)); });
-    row.push(item.exp, item.stdDone, item.extra, item.rate.toFixed(1));
+    row.push(item.exp, item.stdDone, item.extra, item.rate.toFixed(1), item.mvMissTotal);
     rows.push(row);
   });
   return '\uFEFF'+rows.map(function(r){
@@ -3150,11 +3300,19 @@ function toolbarCopyLine(){
   var data = _summaryForShare();
   if(!data.stores.length){ _flashBtn(btn,'⚠️ 無資料'); return; }
   var lines = ['【'+PROJ_NAME+'】', '篩選：檔期'+FILTER.period+'／通路'+FILTER.channel+'／等級'+FILTER.grade+'／區域'+FILTER.area, ''];
-  lines.push('過濾店數 '+data.stores.length+'　應達總次數 '+data.totalExp+'　達成率 '+data.rate+'%　超額 '+data.totalExtra);
+  lines.push('過濾店數 '+data.stores.length+'　應達總次數 '+data.totalExp+'　達成率 '+data.rate+'%　超額 '+data.totalExtra+(data.totalMvMiss>0?'　🚨必訪缺 '+data.totalMvMiss:''));
   lines.push('');
   data.stores.filter(function(it){ return it.rate<100; }).slice(0,50).forEach(function(it){
     lines.push('❌ '+it.store.storeName+'('+it.store.code+') '+it.store.staff+'　'+it.stdDone+'/'+it.exp);
   });
+  var mvStores = data.stores.filter(function(it){ return it.mvMissTotal>0; }).slice(0,50);
+  if(mvStores.length){
+    lines.push('');
+    lines.push('🚨 量販A五六必訪未達：');
+    mvStores.forEach(function(it){
+      lines.push('🚨 '+it.store.storeName+'('+it.store.code+') '+it.store.staff+'　必訪缺 '+it.mvMissTotal+' 次');
+    });
+  }
   lines.push('');
   lines.push('📅 '+new Date().toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}));
   _doCopy(lines.join('\n'), btn);
@@ -3163,7 +3321,7 @@ function toolbarCopyLineBrief(){
   var btn = document.getElementById('tb-btn-line-brief');
   var data = _summaryForShare();
   if(!data.stores.length){ _flashBtn(btn,'⚠️ 無資料'); return; }
-  var text = '【'+PROJ_NAME+'】過濾店數 '+data.stores.length+'／應達 '+data.totalExp+'／達成率 '+data.rate+'%／超額 '+data.totalExtra;
+  var text = '【'+PROJ_NAME+'】過濾店數 '+data.stores.length+'／應達 '+data.totalExp+'／達成率 '+data.rate+'%／超額 '+data.totalExtra+(data.totalMvMiss>0?'／🚨必訪缺 '+data.totalMvMiss:'');
   _doCopy(text, btn);
 }
 function toolbarScreenshot(){
@@ -3220,6 +3378,15 @@ function _buildManualContent(){
     + '<span style="display:inline-block;width:13px;height:13px;background:#FF7A00;border-radius:3px;vertical-align:middle;"></span>'
     + ' <b>橘色發光格（超額）</b>：實際去的次數超過標準，多出來的部分自動顯示；'
     + '超額次數不會拉高達成率，也不會拿去補其他店家的不足，純粹是額外的努力紀錄</p>'
+    + '<hr>'
+    + '<p><b>【🚨 五/六必訪日是什麼？】</b>量販通路＋量販A店，每週的星期五、'
+    + '星期六是規定一定要到店的日子，跟「這週去了幾次」是兩件事分開看──'
+    + '就算這週次數已經衝到達標，週五或週六只要有一天完全沒紀錄，仍然算'
+    + '「必訪違規」。格子上會多顯示「五✓／五✖／五·」兩個小徽章'
+    + '（✓已到店、✖必訪日已過仍未到店、·還沒到那天不算違規），只要出現'
+    + '✖，整格會亮起紅色高光提醒；次數合計欄與手機店卡也會多一顆'
+    + '「🚨 必訪缺」提示。篩選列的「🚨 量販A五六必訪未達」開關可以直接'
+    + '篩出所有違規店家，用法跟「🔴 巡次未達標」一樣，兩顆開關也能同時開。</p>'
     + '<hr>'
     + '<p><b>【達成率 % 是怎麼定義的？】</b>達成率 ＝ 目前篩選範圍內「已完成'
     + '的標準次數」除以「應達到的標準次數」。重點是分母只看「應達次數」，'
