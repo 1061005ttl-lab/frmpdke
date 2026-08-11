@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.12.1 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-11
+  版本：Ver. 1.13.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-11
 
 【這個檔案是什麼】
   ‧ 單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 讀取同一份
@@ -140,6 +140,29 @@
     把 <head> 裡那段 <script> 拿掉即可。
 
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.13.0 2026-08-11  收尾四項優化（接續 1.12.1）：①「格子視角」chip-fgroup
+                      確認固定緊接在篩選列「特殊」後面，同一排 chip-row，
+                      不用另外處理；②量販A店五、六必訪格（尚未到店、仍在
+                      效期內）加上視覺強化：邊框流光脈動（.mv-force，跟
+                      超額橘的 pulse 同手法但改用藍色系避免混淆）＋高光
+                      掠過（::after 疊一層斜向漸層週期性掃過），只在
+                      isForceWhite 期間播放，一到店或過期就拿掉 class 停止
+                      閃動；③手機版新增「週期切換」列（◄ 上一週｜週期文字｜
+                      下一週 ►，.m-week-pager／MOBILE_SEL），取代舊版垂直
+                      捲動找週次的方式，一次只切一週；預設自動定位到當期
+                      當週（今天不在任何檔期內時退而找最接近的未來週，整季
+                      都過了就停在最後一週）；渲染與資料運算嚴格限定在
+                      MOBILE_SEL 這一週（見 render() 內 mCol／mStd／mActual
+                      區塊），不會一次載入整季檔期資料，跟桌機篩選的
+                      FILTER.period／week 各自獨立、互不覆蓋；④手機版店卡
+                      改成跟桌機同一套「格子狀」呈現（.main-mobile-cards／
+                      .m-box-container，共用 _buildDayBoxCells／_buildBoxCells
+                      與 CELL_VIEW，依日期／依次數視角手機一樣切得動），用
+                      flex-wrap＋固定格寬取代原本的週次文字徽章密集清單，
+                      並針對 640px／380px 兩層斷點收斂間距避免跑版；同步
+                      更新「📖 使用說明」裡格子視角與手機版畫面兩段文字，
+                      移除已過時的「手機僅支援文字徽章」「僅支援桌機表格」
+                      描述。
   1.12.1 2026-08-11  接續 1.12.0「依日期」視角四項再優化：①量販A店五、
                       六必訪格改成從「這週還缺幾次」的白格總額裡先佔位，
                       不再額外加碼——白格總數維持等於應達次數（例如整週
@@ -426,15 +449,69 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
    顏色規則跟原本「依次數」視角完全共用同一套 class（std-check／extra-check／
    miss-mark／box-ghost），只是現在的判斷依據換成「這天實際上有沒有去」，
    而不是「第幾次抽象順位」，讓督導能一眼看出巡補集中在星期幾 */
-.day-box-cell { display:flex; flex-direction:column; align-items:center; gap:1px; }
+.day-box-cell { display:flex; flex-direction:column; align-items:center; gap:1px; position:relative; }
 .day-box-lbl { font-size:9px; line-height:1; color:var(--sub); font-weight:700; }
 /* 1.12.0：週六／週日的星期幾標籤固定紅字，方便一眼認出假日欄位 */
 .day-box-lbl.dow-weekend { color:var(--red); }
-/* 1.12.1：格子視角切換移進 filterbar-body，變成篩選列最後一排 chip-row，
-   不用再自己補外側 padding（跟其他 chip-row 共用 .filterbar-body 的邊距）；
-   手機版仍隱藏——因為這個切換只影響桌機表格（.box-container），手機卡片
-   本來就用「本週 x/y」文字徽章，切了也沒視覺差異。 */
-@media (max-width:640px) { .cellview-row { display:none; } }
+/* 1.13.0：量販A五、六必訪格（尚未到店、仍在有效期限內）視覺強化——
+   邊框流光迴圈（藍色發光脈動，跟「超額橘」.extra-check 的 pulse 同一手法
+   但顏色改用必訪／應達的藍色系，避免跟超額混淆）＋高光掠過（::after 疊一層
+   斜向漸層，週期性從左下掃到右上，模擬玻璃反光滑過的質感），兩個動畫各自
+   獨立的 keyframes 疊加播放，讓這兩格在整排格子裡自然被視線抓住，
+   提醒督導「這是規定一定要去的日子」。只在 isForceWhite 期間套用（見
+   _buildDayBoxCells）——一旦已到店（變成勾選的藍格）或已過期（變成灰格）
+   就會拿掉這個 class，動畫跟著停止，不會一直閃到失去警示意義。 */
+.day-box-cell.mv-force input.std-check {
+  animation: mvForceGlow 1.7s ease-in-out infinite;
+}
+@keyframes mvForceGlow {
+  0%,100% { box-shadow:0 0 0 0 rgba(47,134,235,.5); }
+  50% { box-shadow:0 0 6px 3px rgba(47,134,235,.6); }
+}
+.day-box-cell.mv-force::after {
+  content:'';
+  position:absolute; left:0; bottom:0; width:17px; height:17px;
+  border-radius:3px; pointer-events:none;
+  background:linear-gradient(115deg, transparent 30%, rgba(255,255,255,.9) 48%, transparent 66%);
+  background-size:250% 100%;
+  animation: mvForceSweep 2.6s ease-in-out infinite;
+}
+@keyframes mvForceSweep {
+  0%   { background-position:180% 0; opacity:0; }
+  8%   { opacity:1; }
+  38%  { background-position:-80% 0; opacity:1; }
+  46%  { opacity:0; }
+  100% { background-position:-80% 0; opacity:0; }
+}
+/* 1.12.1：格子視角切換移進 filterbar-body，變成第一排 chip-row 的最後一個
+   chip-fgroup（緊接在「特殊」後面），不用再自己補外側 padding；1.13.0
+   起手機版也改用格子呈現（見 .main-mobile-cards 新版說明），這顆切換對
+   手機版一樣有效，不再強制隱藏。 */
+/* 1.13.0：手機版「週期切換」列——◄ 上一週／週期文字／下一週 ►，取代舊版
+   垂直捲動找週次的方式，一次只切一週，配合 MOBILE_SEL 只針對這一週算資料
+   （見 render() 內手機專用區塊），避免手機一次載入整季全部檔期。桌機版
+   完全不需要這排（桌機表格本來就橫向展開所有週次），用媒體查詢隱藏。
+   刻意不用 position:sticky——上面已經有 .toolbar（sticky top:0）跟
+   .filterbar（sticky top:52px）兩層，手機版篩選列展開時高度會變動，
+   再疊一層 sticky offset 很容易對不齊、蓋住卡片，改成跟著內容捲動的
+   一般區塊，放在卡片清單最上方，一樣達到「介面頂端」的位置訴求。 */
+.m-week-pager { display:none; }
+@media (max-width:640px) {
+  .m-week-pager {
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    background:var(--card); border:1px solid var(--border); border-radius:var(--r);
+    padding:8px 10px; margin-bottom:8px;
+  }
+  .m-week-nav {
+    flex-shrink:0; width:34px; height:34px; border-radius:50%; border:1px solid var(--border);
+    background:#fff; color:var(--primary); font-size:15px; font-weight:800; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; transition:background .15s;
+  }
+  .m-week-nav:active { background:var(--primary-bg); }
+  .m-week-nav:disabled { color:#c8ccd2; border-color:#eee; cursor:default; background:#fff; }
+  .m-week-pager-label { flex:1; text-align:center; font-size:14px; font-weight:800; color:var(--text); min-width:0; }
+  .m-week-pager-label small { display:block; font-size:11px; font-weight:600; color:var(--sub); margin-top:1px; }
+}
 /* 1.9.6：稽核用「必訪日」高亮樣式（量販A店五/六必訪未達）。刻意跟現有
    .miss-mark（週應達次數的過去週未達）做視覺區隔，用發光紅框＋實心徽章，
    讓稽核人員一眼認出「不是次數不足，是規定的那天完全沒去」 */
@@ -449,7 +526,6 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 }
 td.mv-alert-cell { background:var(--red-bg) !important; }
 .sum-mv-badge { display:inline-block; padding:1px 8px; border-radius:10px; background:var(--red); color:#fff; font-size:11.5px; font-weight:800; white-space:nowrap; margin-top:2px; animation:mvAlert 1.1s ease-in-out infinite; }
-.m-wk-mvmiss { outline:2px solid var(--red); outline-offset:1px; }
 .m-mv-flag { margin-left:3px; }
 /* 1.6.2：店家明細／訪員總覽共用的 Dialog header 新增「匯出/分享」按鈕插槽——
    訪員總覽開啟時才會塞入 CSV／複製文字／截圖三顆按鈕，店家明細維持空白，
@@ -458,19 +534,18 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
 .dlg-header-actions { display:flex; align-items:center; gap:6px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end; }
 @media (max-width:640px) { .dlg-header-actions .btn-txt { display:none; } }
 
-/* ── 整體明細：手機版清單（取代橫向表格，1.8.0 改成資訊密度優先的
-   緊湊列表）─────────────────────────────────────────────────────
+/* ── 整體明細：手機版清單 ─────────────────────────────────────────
    手機上原本的橫向表格因為欄位太多，overflow-x 只能一次看一小條；
-   中間曾經改成「一店一卡、每個週次各自展開完整 7 格勾選框」的直向大卡片
-   （1.6.2），但每家店要佔掉一整個螢幕的高度，捲動半天才看得到幾家店，
-   多店比較／找店反而更累。1.8.0 改成比照「訪員總覽」Dialog 手機版的
-   密度：一店一行，店名／代碼／等級／每週狀態全部濃縮進一張小卡，
-   週次用「W1 3/5」這種文字徽章＋顏色（達標綠／部分黃／超額紫／
-   過去週未達紅／尚無資料灰）取代整排 checkbox，橫向排列可換行，
-   一眼掃過一家店的整季表現，不用再逐週展開捲動。同一訪員的店家會
-   連續排列並在最前面插入 .m-group-head 分組標題（跟桌機 .staff-group-row
-   對應同一份 group 資料，見 render()），彼此互相呼應，同一個人的轄區
-   不用再跳著找。卡片本身可點擊進店家明細，跟桌機表格列點擊行為一致。 */
+   1.8.0 曾改成「一店一行、週次濃縮成 W1 3/5 文字徽章」的密集清單，一次
+   塞進整季所有檔期週次。1.13.0 起改成跟桌機表格同一套「格子狀」呈現：
+   搭配上方新增的 .m-week-pager（◄／►）一次只看一個檔期週次，每家店
+   底下直接畫出跟桌機 .box-container 同一套 7 格（依日期／依次數視角
+   共用同一個 CELL_VIEW、同一支 _buildDayBoxCells／_buildBoxCells），
+   資訊層級跟桌機一致，不用另外維護一套「文字徽章」的對照規則。
+   同一訪員的店家仍會連續排列、最前面插入 .m-group-head 分組標題（跟
+   桌機 .staff-group-row 對應同一份 group 資料，見 render()）。卡片
+   本身可點擊進店家明細（帶目前選定的週次縮限範圍），跟桌機表格「單一
+   週次格子」點擊行為一致。 */
 .main-mobile-cards { display:none; flex-direction:column; gap:8px; }
 .m-group-head { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; padding:6px 4px 2px; }
 .mg-staff { font-weight:800; font-size:14.5px; color:var(--text); cursor:pointer; }
@@ -495,19 +570,12 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
 .m-rate-part { background:var(--bonus-bg); color:var(--bonus); }
 .m-rate-zero { background:var(--red-bg); color:var(--red); }
 .m-rate-none { background:var(--bg); color:var(--sub); }
-/* 1.8.1：中元(3週)／中秋(2週) 各自的週次徽章包成一個不可拆的群組
-   （.m-wk-group 內 nowrap），母層 .m-store-weeks 允許換行——這樣窄螢幕
-   放不下兩檔期時，是「整個檔期群組」一起換到下一行（中元3週一行、
-   中秋2週一行），不會把同一檔期的週次拆散到兩行 */
-.m-store-weeks { display:flex; flex-wrap:wrap; gap:8px 10px; margin-top:7px; }
-.m-wk-group { display:inline-flex; flex-wrap:nowrap; gap:5px; }
-.m-wk { font-size:11px; font-weight:700; padding:3px 7px; border-radius:6px; white-space:nowrap; }
-.m-wk b { font-weight:800; }
-.m-wk-full { background:var(--green-bg); color:var(--green); }
-.m-wk-part { background:#fff6e0; color:#a3730a; }
-.m-wk-extra { background:var(--bonus-bg); color:var(--bonus); }
-.m-wk-miss { background:var(--red-bg); color:var(--red); }
-.m-wk-empty { background:var(--bg); color:var(--sub); }
+/* 1.13.0：手機版格子容器——共用桌機 .box-container 的排列邏輯（flex-wrap），
+   這裡再加一點手機專屬的間距／自動換行寬度，讓 7 格＋星期標籤在小螢幕
+   (320px～) 也不會擠出卡片邊界；用 flex-wrap＋每格固定寬度取代 grid，
+   格數（7）固定不變，不需要 grid-template 動態欄數的複雜度 */
+.m-box-container { margin-top:8px; padding-left:0; gap:6px 7px; min-height:0; }
+@media (max-width:380px) { .m-box-container { gap:5px 5px; } }
 @media (max-width:640px) {
   .tbl-wrap { display:none; }
   .main-mobile-cards { display:flex; }
@@ -515,7 +583,6 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
 /* 極窄手機（例如 iPhone SE 直放 ~375px 或更窄）再收斂一輪內距／間距 */
 @media (max-width:380px) {
   .m-store-card { padding:8px 10px; }
-  .m-store-weeks { gap:4px; }
   /* 極窄手機：6 欄式的營業處執行狀況卡片欄寬已經很緊，字級跟著再收一輪，
      避免數字被 ellipsis 裁掉 */
   .oo-mcard-grid { gap:6px 2px; }
@@ -974,6 +1041,13 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
           <span class="chip-label" style="width:auto;">特殊</span>
           <div class="chip-group" id="chip-special"></div>
         </div>
+        <div class="chip-fgroup chip-fgroup-divider cellview-row" id="cellview-row">
+          <span class="chip-label" style="width:auto;">格子視角</span>
+          <div class="chip-group" id="chip-cellview">
+            <div class="chip active" data-v="day" onclick="setCellView(this,'day')">📅 依日期</div>
+            <div class="chip" data-v="count" onclick="setCellView(this,'count')">🔢 依次數</div>
+          </div>
+        </div>
       </div>
       <div class="chip-row">
         <div class="chip-fgroup">
@@ -987,15 +1061,6 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
         <div class="chip-fgroup chip-fgroup-divider" id="staff-fgroup" style="display:none;align-items:flex-start;">
           <span class="chip-label" style="width:auto;">訪員</span>
           <div class="chip-group chip-group-wrap" id="chip-staff"></div>
-        </div>
-      </div>
-      <div class="chip-row cellview-row" id="cellview-row">
-        <div class="chip-fgroup">
-          <span class="chip-label" style="width:auto;">格子視角</span>
-          <div class="chip-group" id="chip-cellview">
-            <div class="chip active" data-v="day" onclick="setCellView(this,'day')">📅 依日期</div>
-            <div class="chip" data-v="count" onclick="setCellView(this,'count')">🔢 依次數</div>
-          </div>
         </div>
       </div>
     </div>
@@ -1016,6 +1081,11 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
         <thead id="tbl-head"></thead>
         <tbody id="tbl-body"></tbody>
       </table>
+    </div>
+    <div class="m-week-pager" id="m-week-pager">
+      <button class="m-week-nav" id="m-week-prev" onclick="mobilePageWeek(-1)" aria-label="上一週">◄</button>
+      <div class="m-week-pager-label" id="m-week-pager-label">—</div>
+      <button class="m-week-nav" id="m-week-next" onclick="mobilePageWeek(1)" aria-label="下一週">►</button>
     </div>
     <div class="main-mobile-cards" id="main-mobile-cards"></div>
     <div class="empty" id="empty-msg" style="display:none">目前篩選條件下沒有符合的店家</div>
@@ -1177,9 +1247,9 @@ var _qSheetLoading = {};
 var _qSheetWaiters = {};
 
 var FILTER = { period:'全部', channel:'全部', grade:'全部', area:'全部', office:'全部', staff:'全部', keyword:'', onlyUnmet:false, onlyMvMiss:false, week:null };
-/* 1.11.0：主表格週次格子的顯示視角，只影響桌機表格（.box-container），
-   不影響手機卡片（手機本來就是用「本週 x/y」文字徽章濃縮顯示，不是格子，
-   沒有「依日期」的版面空間，維持原樣）。
+/* 1.11.0：主表格週次格子的顯示視角。1.13.0 起手機版也改用同一套格子
+   （見 .main-mobile-cards／MOBILE_SEL），所以這個切換同時影響桌機表格
+   （.box-container）跟手機卡片，不再是「只影響桌機」。
      'count' ＝原始視角，格子代表「第幾次」抽象順位（跟哪一天去的無關）。
      'day'   ＝依日期視角（1.12.0 起改為預設），7 格對應這個檔期週次實際
                的星期日～六；色彩規則：藍＝已完成且算入應達、橘＝已完成
@@ -1194,6 +1264,79 @@ function setCellView(el, val){
   el.classList.add('active');
   CELL_VIEW = val;
   render();
+}
+
+/* ════ 1.13.0：手機版「週期切換」════════════════════════════════════
+   手機版原本用「本週 x/y」文字徽章把整季所有檔期週次濃縮進一張卡，
+   資訊密度雖然高，但一次要處理／畫出全部週次（中元3週＋中秋2週＝5欄）
+   的資料，螢幕窄、可視範圍小，反而看不清楚單週的細節，格子視角在手機上
+   也完全沒有版面畫格子。1.13.0 改成比照桌機表格的「一欄＝一個檔期週次」
+   概念，但手機一次只顯示「目前選定的這一週」，用 ◄／► 切換，並且只針對
+   這一週算資料（不像桌機 activeColumns() 可能一次涵蓋整季）——嚴格限制
+   單次運算範圍，避免手機端一次處理全部檔期週次。
+   MOBILE_SEL 跟主表 FILTER.period／FILTER.week 是各自獨立的狀態（原因：
+   FILTER.period／week 是「桌機表格＋分享的篩選條件」，切換它會連動桌機
+   表頭跟「週次」chip；手機的週期切換單純只是「這次要看哪一週」，兩者
+   語意不同，硬共用會讓桌機表格跟著手機翻頁跳動，或反過來手機被桌機篩選
+   卡住出不去，所以拆開兩份狀態，彼此不互相覆蓋）。 */
+var MOBILE_SEL = null; /* {period, week}，null＝尚未初始化 */
+/* 依 PERIODS 定義順序展開成一維陣列（中元 W1,W2,W3, 中秋 W1,W2），
+   ◄／► 就是在這份順序清單裡前後移動一格 */
+function _allPeriodWeekCols(){
+  var out = [];
+  PERIODS.forEach(function(p){
+    for(var w=1; w<=p.weeks; w++) out.push({ period:p.key, week:w });
+  });
+  return out;
+}
+/* 找出「今天」落在哪個檔期週次區間內，當作手機版預設顯示的週期；今天
+   不在任何檔期範圍內（例如檔期還沒開始、或整季都已結束）時，退而求其次
+   找「還沒開始、時間上最接近的未來週」，兩者都找不到（今天已經超過整季
+   最後一天）就停在最後一週，讓使用者一進來看到的是「最後有意義的一週」
+   而不是空白或報錯。 */
+function _initMobileSel(){
+  if(MOBILE_SEL) return;
+  var all = _allPeriodWeekCols();
+  if(!all.length) return;
+  var today = _todayEpochDay();
+  var current = null, nextFuture = null;
+  for(var i=0;i<all.length;i++){
+    var c = all[i];
+    var p = PERIODS.filter(function(pp){ return pp.key===c.period; })[0];
+    var startDay = _toEpochDay(p.y,p.mo,p.d) + (c.week-1)*7;
+    var endDay = startDay+6;
+    if(today>=startDay && today<=endDay){ current=c; break; }
+    if(!nextFuture && startDay>today) nextFuture = c;
+  }
+  MOBILE_SEL = current || nextFuture || all[all.length-1];
+}
+/* ◄／► 按鈕：dir=-1 上一週、dir=1 下一週，到邊界（第一週／最後一週）
+   直接停住不繞回去，對應的按鈕會在 render() 裡被停用（disabled） */
+function mobilePageWeek(dir){
+  var all = _allPeriodWeekCols();
+  _initMobileSel();
+  var idx = all.findIndex(function(c){ return c.period===MOBILE_SEL.period && c.week===MOBILE_SEL.week; });
+  if(idx===-1) idx = 0;
+  idx = Math.max(0, Math.min(all.length-1, idx+dir));
+  MOBILE_SEL = all[idx];
+  render();
+}
+/* 更新手機版週期切換列的文字＋◄／► 按鈕可用狀態，render() 每次重繪都會
+   呼叫一次，確保跟 MOBILE_SEL 目前指到哪一週保持同步 */
+function _updateMobileWeekPager(){
+  var labelEl = document.getElementById('m-week-pager-label');
+  var prevBtn = document.getElementById('m-week-prev');
+  var nextBtn = document.getElementById('m-week-next');
+  if(!labelEl || !MOBILE_SEL) return;
+  var all = _allPeriodWeekCols();
+  var idx = all.findIndex(function(c){ return c.period===MOBILE_SEL.period && c.week===MOBILE_SEL.week; });
+  var p = PERIODS.filter(function(pp){ return pp.key===MOBILE_SEL.period; })[0];
+  var pLabel = (p ? p.label.replace('專案','') : MOBILE_SEL.period);
+  var icon = MOBILE_SEL.period==='zhong' ? '🏮' : '🎑';
+  var dateRange = _weekDateRange(MOBILE_SEL.period, MOBILE_SEL.week);
+  labelEl.innerHTML = icon+' '+esc(pLabel)+' W'+MOBILE_SEL.week+'<small>'+esc(dateRange)+'</small>';
+  if(prevBtn) prevBtn.disabled = (idx<=0);
+  if(nextBtn) nextBtn.disabled = (idx===-1 || idx>=all.length-1);
 }
 /* 營業處執行狀況表：目前檢視的檔期／週次範圍。
      null                      ＝整體（不分檔期／週次，原本行為）
@@ -2740,13 +2883,14 @@ function _buildDayBoxCells(s, period, week, stdN, actual){
       inner = '<span class="box-ghost" aria-hidden="true"></span>';
       title = dateLbl+'（週'+dowLbl+'）：非必要格';
     }
-    html += '<div class="day-box-cell" title="'+esc(title)+'"><span class="day-box-lbl'+(isWeekendLbl?' dow-weekend':'')+'">'+dowLbl+'</span>'+inner+'</div>';
+    html += '<div class="day-box-cell'+(d.isForceWhite?' mv-force':'')+'" title="'+esc(title)+'"><span class="day-box-lbl'+(isWeekendLbl?' dow-weekend':'')+'">'+dowLbl+'</span>'+inner+'</div>';
   });
   return html;
 }
 function render(){
   var stores = getFilteredStores();
   var cols = activeColumns();
+  _initMobileSel(); /* 手機版週期切換的目前選定週次（跟桌機 cols 是各自獨立的狀態） */
 
   /* 依「期」把連續欄位分組（中元 W1~W3 一組／中秋 W1~W2 一組），
      用來畫出跨欄的檔期分組表頭 + 組間強分隔線；同檔期內週與週之間也加上
@@ -2881,15 +3025,6 @@ function render(){
     group.count++; group.exp+=rd.rowExp; group.done+=rd.rowStdDone; group.extra+=rd.rowExtra;
 
     var colsHtml = '';
-    var weeksHtml = ''; /* 手機：每個週次濃縮成一個文字徽章（顏色代表達成狀態），
-                            取代整排 checkbox，讓一張卡塞得下整季所有週次；1.8.1
-                            起同一檔期（中元3週／中秋2週）的徽章包成一個不可拆
-                            的 .m-wk-group，換行時整組一起換，避免中元／中秋
-                            被拆散到不同行、破壞資料群體性 */
-    var wkGroupBuf = ''; var wkGroupPeriod = null;
-    function _flushWkGroup(){
-      if(wkGroupBuf){ weeksHtml += '<span class="m-wk-group">'+wkGroupBuf+'</span>'; wkGroupBuf = ''; }
-    }
     rd.colStats.forEach(function(cs, idx){
       var m = colMeta[idx];
       var dividerCls = m.isGroupDivider ? ' pg-divider' : (m.isWeekDivider ? ' wk-divider' : '');
@@ -2920,18 +3055,7 @@ function render(){
          其餘欄位（店名／區域…）點擊仍維持整列 <tr> 的 onclick，顯示目前篩選
          檔期範圍的完整明細，兩種入口並存不衝突。 */
       colsHtml += '<td class="'+m.periodCls+dividerCls+mvCellCls+' wk-cell-click" onclick="openStoreDetail(\''+esc(rd.s.code)+'\',\''+cs.col.period+'\','+cs.col.week+',event)"><div class="box-container">'+boxesHtml+'</div>'+mvHtml+'</td>';
-
-      if(cs.std>0){
-        if(cs.col.period !== wkGroupPeriod){ _flushWkGroup(); wkGroupPeriod = cs.col.period; }
-        var mvMissHere = cs.mv && cs.mv.some(function(d){ return !d.visited && d.isPast; });
-        var wkCls = cs.extra>0 ? 'm-wk-extra' : (cs.actual>=cs.std ? 'm-wk-full' : (cs.actual>0 ? 'm-wk-part' : (m.isPastWeek ? 'm-wk-miss' : 'm-wk-empty')));
-        if(mvMissHere) wkCls += ' m-wk-mvmiss';
-        var wkLabel = periodLabelMap[cs.col.period]+'W'+cs.col.week;
-        var wkTitle = wkLabel+'：'+cs.actual+'/'+cs.std+'次'+(mvMissHere?'；⚠️五/六必訪未達':'');
-        wkGroupBuf += '<span class="m-wk '+wkCls+'" title="'+esc(wkTitle)+'">'+(mvMissHere?'🚨':'')+esc(wkLabel)+' '+cs.actual+'/'+cs.std+(cs.extra>0?'<b>+'+cs.extra+'</b>':'')+'</span>';
-      }
     });
-    _flushWkGroup();
 
     var rowRate = rd.rowExp>0 ? (rd.rowStdDone/rd.rowExp*100) : 0;
     var sumHtml = '<div class="sum-cell"><div class="sum-main">'+rd.rowStdDone+'/'+rd.rowExp+'</div>'
@@ -2950,9 +3074,35 @@ function render(){
       + colsHtml
       + '</tr>';
 
-    var rateClass = rd.rowExp===0 ? 'm-rate-none' : (rd.rowStdDone>=rd.rowExp ? 'm-rate-full' : (rd.rowStdDone>0 ? 'm-rate-part' : 'm-rate-zero'));
+    /* 1.13.0：手機卡片改成只算「MOBILE_SEL 這一週」的資料（不是整季 rd.rowXxx
+       的合計），跟畫面上「一次只看一週」的週期切換一致，也符合「嚴格限制
+       單次僅針對現行資料進行渲染與處理」的要求——不會因為切了 desktop 篩選
+       的檔期／週次範圍，手機這邊就跟著多算一堆看不到的欄位。 */
+    var mCol = MOBILE_SEL;
+    var mStd = rd.std===undefined ? 0 : rd.std;
+    var mActual = mCol ? _actualCount(rd.s.code, mCol.period, mCol.week) : 0;
+    var mDone = Math.min(mActual, mStd);
+    var mExtra = Math.max(0, mActual-mStd);
+    var mIsPastWeek = mCol ? _isWeekPast(mCol.period, mCol.week) : false;
+    var mUnmet = mStd>0 && mDone<mStd && mIsPastWeek;
+    var mMv = mCol ? _mustVisitStatusForCol(rd.s, mCol.period, mCol.week) : null;
+    var mMvMiss = !!(mMv && mMv.some(function(d){ return !d.visited && d.isPast; }));
+    var mBoxesHtml = !mCol ? '' : (CELL_VIEW==='day'
+      ? _buildDayBoxCells(rd.s, mCol.period, mCol.week, mStd, mActual)
+      : _buildBoxCells(mActual, mStd, mIsPastWeek));
+    var mMvHtml = '';
+    if(mMv && CELL_VIEW!=='day'){
+      mMvHtml = '<div class="mv-row">' + mMv.map(function(d){
+        var lbl = d.dow===5 ? '五' : '六';
+        var cls = d.visited ? 'mv-ok' : (d.isPast ? 'mv-miss' : 'mv-pending');
+        var icon = d.visited ? '✓' : (d.isPast ? '✖' : '·');
+        var title = lbl+'必訪：'+(d.visited ? '已到店' : (d.isPast ? '⚠️未到店（必訪日已過）' : '尚未到期'));
+        return '<span class="mv-badge '+cls+'" title="'+esc(title)+'">'+lbl+icon+'</span>';
+      }).join('') + '</div>';
+    }
+    var mRateClass = mStd===0 ? 'm-rate-none' : (mDone>=mStd ? 'm-rate-full' : (mDone>0 ? 'm-rate-part' : 'm-rate-zero'));
     var gradeLineHtml = rd.std===undefined ? '<span class="unknown-grade">'+esc(rd.s.grade||'未設定')+' ⚠️</span>' : esc(rd.gradeLabel);
-    group.cardsHtml += '<div class="m-store-card'+(rd.std===undefined?' unknown-grade-card':'')+'" onclick="openStoreDetail(\''+esc(rd.s.code)+'\')">'
+    group.cardsHtml += '<div class="m-store-card'+(rd.std===undefined?' unknown-grade-card':'')+'" onclick="openStoreDetail(\''+esc(rd.s.code)+'\''+(mCol?',\''+mCol.period+'\','+mCol.week:'')+')">'
       + '<div class="m-store-top">'
       +   '<div class="m-store-line">'
       +     '<span class="m-line-name">'+esc(rd.s.storeName)+'</span>'
@@ -2960,15 +3110,17 @@ function render(){
       +     '<span class="m-line-sep">·</span><span class="m-line-type">'+esc(rd.s.storeType||'—')+'</span>'
       +     '<span class="m-line-sep">·</span><span class="m-line-grade">'+gradeLineHtml+'</span>'
       +   '</div>'
-      +   '<div class="m-store-badge '+rateClass+'">'+rd.rowStdDone+'/'+rd.rowExp+(rd.rowExtra>0?'<small>+'+rd.rowExtra+'</small>':'')+(rd.isUnmet?'<small class="m-unmet-flag">🔴</small>':'')+(rd.isMvMiss?'<small class="m-mv-flag">🚨</small>':'')+'</div>'
+      +   '<div class="m-store-badge '+mRateClass+'">'+mDone+'/'+mStd+(mExtra>0?'<small>+'+mExtra+'</small>':'')+(mUnmet?'<small class="m-unmet-flag">🔴</small>':'')+(mMvMiss?'<small class="m-mv-flag">🚨</small>':'')+'</div>'
       + '</div>'
-      + (weeksHtml ? '<div class="m-store-weeks">'+weeksHtml+'</div>' : '')
+      + '<div class="box-container m-box-container">'+mBoxesHtml+'</div>'
+      + mMvHtml
       + '</div>';
   });
   flushGroup();
 
   document.getElementById('tbl-body').innerHTML = rowsHtml;
   document.getElementById('main-mobile-cards').innerHTML = mcardsHtml;
+  _updateMobileWeekPager();
   document.getElementById('empty-msg').style.display = rowsData.length ? 'none' : 'block';
   requestAnimationFrame(_autoFitStoreLines); /* 1.8.1：DOM 塞進去後量測寬度，超出卡寬的店名/店碼/通路/等級那一行才動態縮字級 */
 
@@ -3821,8 +3973,8 @@ function _buildManualContent(){
     + '格先佔 2 格，剩下 3 格才動態遞補給其他天，白格總數仍然是 5 格，'
     + '不會因為必訪格另外加碼變成 7 格）。<br>'
     + '<b>依次數</b>：原本的視角，7 格代表第幾次巡補、跟哪一天去的無關。<br>'
-    + '這個視角切換目前僅支援桌機表格，手機版仍是原本的「本週 x/y」文字徽章'
-    + '（篩選列在手機版收合展開後也看不到這排切換）。</p>'
+    + '手機版店卡也是同一套格子（跟桌機共用同一套判斷與顏色），篩選列展開後'
+    + '一樣看得到、切得動這排「格子視角」。</p>'
     + '<hr>'
     + '<p><b>【🚨 五/六必訪日是什麼？】</b>量販通路＋量販A店，每週的星期五、'
     + '星期六是規定一定要到店的日子，跟「這週去了幾次」是兩件事分開看──'
@@ -3891,8 +4043,14 @@ function _buildManualContent(){
     + '<hr>'
     + '<p><b>【手機版畫面】</b>螢幕較窄時，篩選 chip 列預設收合成一行'
     + '「🔍 篩選條件」按鈕（會顯示目前套用的篩選摘要），點一下展開/收合；'
-    + '主表格也會自動改成一店一卡的直式卡片，每個檔期週次獨立一小節，'
-    + '不用再左右滑動查看。</p>';
+    + '主表格自動改成一店一卡的直式卡片，卡片下方直接畫出跟桌機同一套'
+    + '「格子」（依日期／依次數視角皆可切換），資訊層級跟桌機一致。'
+    + '卡片清單上方有一排「週期切換」（◄ 上一週｜目前檔期週次｜► 下一週），'
+    + '一次只顯示、只計算「目前選定的這一週」資料，一進頁面會自動定位到'
+    + '當期當週（找不到當週就停在最接近的下一週，整季都過了就停在最後一週）；'
+    + '點 ◄／► 只換這一週的內容，不會一次載入整個檔期，維持手機端的流暢度。'
+    + '這個「目前選定的這一週」是手機版自己獨立的狀態，跟篩選列的「檔期／'
+    + '週次」chip（影響桌機表格）互不干擾，兩邊各切各的。</p>';
 }
 function openManual(){
   if(!_manualBuilt){
