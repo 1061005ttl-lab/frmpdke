@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.18.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-11
+  版本：Ver. 1.19.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-11
 
 【這個檔案是什麼】
   ‧ 單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 讀取同一份
@@ -140,6 +140,25 @@
     把 <head> 裡那段 <script> 拿掉即可。
 
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.19.0 2026-08-11  接續 1.18.0，直屏手機再瘦身三項：①中元／中秋卡片
+                      （#ov-cards）直接不顯示——這兩張卡片的迷你表格跟上方
+                      「營業處執行狀況」＋時間切換器要傳達的資訊高度重疊，
+                      直屏一次只看得到一小塊畫面，優先精簡成單一重點區塊，
+                      要看檔期細節改點進整體明細；②「量販A五六必訪稽核」
+                      摘要列（.ov-mv-summary）搬出常態版面，改收進☰選單的
+                      「🚨 必訪稽核」按鈕（新增 #mv-overlay／
+                      openMvSummaryDialog()），異常時按鈕文字直接帶上未達／
+                      待辦店數提醒，不用點開就知道有沒有問題，也不用完全
+                      展開才看得到；複製稽核清單按鈕原本靠 id 找自己（跟
+                      浮層版共用同一份內容字串時會 id 重複），改成
+                      copyMvAuditList(this) 直接傳元素進去；③「時間」
+                      （.ov-week-pager）跟「營業處」（.oo-area-pager）兩顆
+                      ◄／► 切換器改包進同一個 .ov-mobile-pager-row 橫向並排
+                      ──.oo-area-pager 不再跟著卡片清單字串重新產生，改成
+                      靜態佔位、renderOfficeOverview() 用 outerHTML 就地
+                      更新。以上三項都只在 (max-width:640px) and
+                      (orientation:portrait) 生效，橫屏或桌機寬螢幕完全
+                      不受影響，維持 1.18.0 之前的完整版面。
   1.18.0 2026-08-11  總覽頁「營業處執行狀況」時間範圍 chip 列，手機小螢幕
                       「直式」時改成跟明細頁一致的 ◄／► 單一週次切換器
                       （新增 .ov-week-pager／ovMobilePageWeek()／
@@ -592,15 +611,20 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
   .m-week-pager-label small { display:block; font-size:11px; font-weight:600; color:var(--sub); margin-top:1px; }
 }
 /* 1.15.0：「營業處執行狀況」手機版一次只看一個處的 ◄／► 切換列，樣式
-   比照 .m-week-pager／.m-week-nav（同一套視覺語言，使用者不用學新手勢），
-   差別只在放的位置是 .oo-mobile-cards 卡片清單最上方，桌機（.oo-tbl-scroll
-   走完整表格）完全不會出現這排。 */
+   比照 .m-week-pager／.m-week-nav（同一套視覺語言，使用者不用學新手勢）。
+   1.19.0：改成跟上方「時間」切換器（.ov-week-pager）同一個
+   .ov-mobile-pager-row 橫向並排（見 HTML，兩顆切換器現在是同一層的手足
+   元素，且都改成 renderOfficeOverview() 直接用 outerHTML 就地更新，不再
+   跟著 .oo-mobile-cards 整組字串重新產生），不再單獨放在卡片清單最上方
+   ──直屏兩顆一起看，橫向省下的高度讓下面的店家卡片提早進入可視範圍；
+   橫屏（時間切換器本身隱藏，這排只剩這顆單獨佔滿整排）跟桌機
+   （.oo-tbl-scroll 走完整表格，這排完全不出現）維持原本行為不受影響。 */
 .oo-area-pager { display:none; }
 @media (max-width:640px) {
   .oo-area-pager {
     display:flex; align-items:center; justify-content:space-between; gap:8px;
     background:var(--card); border:1px solid var(--border); border-radius:var(--r);
-    padding:8px 10px; margin-bottom:2px;
+    padding:8px 10px;
   }
   .oo-area-nav {
     flex-shrink:0; width:34px; height:34px; border-radius:50%; border:1px solid var(--border);
@@ -611,6 +635,12 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
   .oo-area-nav:disabled { color:#c8ccd2; border-color:#eee; cursor:default; background:#fff; }
   .oo-area-pager-label { flex:1; text-align:center; font-size:14px; font-weight:800; color:var(--text); min-width:0; }
   .oo-area-pager-label small { display:block; font-size:11px; font-weight:600; color:var(--sub); margin-top:1px; }
+  /* 1.19.0：「時間」「營業處」兩顆 ◄／► 切換器同一水平排列的容器──直屏
+     時兩顆並排各佔一半寬度；橫屏這排只剩「營業處」一顆（時間切換器本身
+     隱藏），自然佔滿整排，不用另外處理。 */
+  .ov-mobile-pager-row { display:flex; align-items:stretch; gap:8px; margin-bottom:8px; }
+  .ov-mobile-pager-row > .ov-week-pager,
+  .ov-mobile-pager-row > .oo-area-pager { flex:1 1 0; min-width:0; margin-bottom:0; }
 }
 /* 1.9.6：稽核用「必訪日」高亮樣式（量販A店五/六必訪未達）。刻意跟現有
    .miss-mark（週應達次數的過去週未達）做視覺區隔，用發光紅框＋實心徽章，
@@ -860,6 +890,19 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
     padding:8px 10px; margin-bottom:8px;
   }
   #ov-office-week-chips { display:none; }
+  /* 1.19.0：小尺吋手機直屏三項再優化，見下方 1.19.0 版本紀錄：
+     ①中元／中秋卡片（#ov-cards）直接不顯示——直屏一次只看得到一小塊
+     畫面，這兩張卡片本身已經有迷你表格＋週次標示，跟上方「營業處執行
+     狀況」＋這排時間切換器要傳達的資訊高度重疊，直屏優先精簡成「營業處
+     執行狀況」單一重點區塊，要看檔期細節改點進整體明細；橫屏或桌機完全
+     不受影響，仍會顯示。 */
+  #ov-cards { display:none; }
+  /* ②量販A五六必訪稽核摘要列（.ov-mv-summary／.ov-mv-summary-clean）
+     直屏時搬出常態版面，改收進☰選單裡的「🚨 必訪稽核」按鈕（見
+     openMvSummaryDialog()／#mv-overlay），異常時按鈕文字會帶上未達店數
+     提醒，不用完全展開才知道有沒有異常；橫屏或桌機依舊維持原本常態顯示
+     在營業處表格最上方，不受影響。 */
+  .ov-mv-summary { display:none; }
 }
 .oo-tbl-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
 .ov-office-tbl { width:100%; border-collapse:collapse; font-size:13.5px; }
@@ -1002,6 +1045,24 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
 .ov-mv-clean-icon { flex-shrink:0; }
 .ov-mv-clean-text { flex:1; font-size:13px; font-weight:600; }
 .ov-mv-clean-expand { flex-shrink:0; font-size:11.5px; color:var(--sub); }
+/* 1.19.0：量販A五六必訪稽核摘要列在直屏手機被搬出常態版面（見上方
+   .ov-mv-summary 的 portrait 隱藏規則），改收進☰選單的「🚨 必訪稽核」
+   按鈕──平常不佔版面，有異常時按鈕文字會帶上未達店數提醒（見
+   renderOfficeOverview() 內 _ovMvHasAlert／_ovMvSummaryHtml），點開才用
+   跟「使用說明」同一套 overlay 浮層樣式顯示完整內容。橫屏或桌機看得到
+   常態版本，這顆按鈕就不需要，預設隱藏，只在直屏顯示。 */
+#ov-mv-menu-btn { display:none; }
+@media (max-width:640px) and (orientation:portrait) {
+  #ov-mv-menu-btn { display:block; }
+  #ov-mv-menu-btn.has-alert { color:var(--red); border-color:var(--red); font-weight:800; }
+}
+#mv-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:200; align-items:flex-start; justify-content:center; padding:40px 16px; overflow:auto; }
+#mv-overlay.open { display:flex; }
+#mv-box { background:#fff; border:1px solid var(--border); border-radius:12px; max-width:520px; width:100%; padding:0; box-shadow:0 12px 30px rgba(0,0,0,.18); }
+#mv-box .manual-head { background:var(--red-bg); }
+#mv-inner { padding:14px 16px 18px; max-height:74vh; overflow:auto; }
+#mv-inner .ov-mv-summary,
+#mv-inner .ov-mv-summary-clean { margin-bottom:0; }
 
 /* ── 使用說明面板（比照 coverage_board 的 manual-bar / manual-inner） ── */
 .manual-btn { padding:5px 12px; border:1px solid var(--border); border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; color:var(--text); background:#fff; font-family:inherit; white-space:nowrap; }
@@ -1143,6 +1204,7 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
       <button class="ov-all-btn" onclick="openDetailAll()">進入整體明細 →</button>
       <button class="ov-hamburger-btn" id="ov-hamburger-btn" onclick="toggleOvMenu(event)">☰</button>
       <div class="ov-toolbar-controls" id="ov-toolbar-controls">
+        <button class="manual-btn" id="ov-mv-menu-btn" onclick="openMvSummaryDialog();closeOvMenu();">🚨 必訪稽核</button>
         <button class="manual-btn" onclick="openManpower();closeOvMenu();">🧮 人次估算</button>
         <button class="manual-btn" onclick="openManual();closeOvMenu();">📖 使用說明</button>
       </div>
@@ -1158,16 +1220,37 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
     <!-- 1.18.0：手機小螢幕直式版，跟明細頁一樣的 ◄／► 單一週次切換器，取代
          下面這排 chip（含「整體／中元／中秋」不分週次的彙總選項，直式窄
          螢幕不適合塞這麼多顆）；橫屏或桌機寬螢幕看不到這顆，維持原本 chip
-         列，兩者共用同一個 OFFICE_WEEK_SEL 狀態，不是各切各的。 -->
-    <div class="ov-week-pager" id="ov-week-pager">
-      <button class="m-week-nav" id="ov-week-prev" onclick="ovMobilePageWeek(-1)" aria-label="上一週">◄</button>
-      <div class="m-week-pager-label" id="ov-week-pager-label">—</div>
-      <button class="m-week-nav" id="ov-week-next" onclick="ovMobilePageWeek(1)" aria-label="下一週">►</button>
+         列，兩者共用同一個 OFFICE_WEEK_SEL 狀態，不是各切各的。
+         1.19.0：跟「營業處」◄／► 切換器（.oo-area-pager，內容由
+         renderOfficeOverview() 就地填入，不再放在下方卡片清單最上方）包在
+         同一個 .ov-mobile-pager-row 裡橫向並排，直屏一次看兩顆，省下的
+         高度讓店家卡片提早進入可視範圍。 -->
+    <div class="ov-mobile-pager-row" id="ov-mobile-pager-row">
+      <div class="ov-week-pager" id="ov-week-pager">
+        <button class="m-week-nav" id="ov-week-prev" onclick="ovMobilePageWeek(-1)" aria-label="上一週">◄</button>
+        <div class="m-week-pager-label" id="ov-week-pager-label">—</div>
+        <button class="m-week-nav" id="ov-week-next" onclick="ovMobilePageWeek(1)" aria-label="下一週">►</button>
+      </div>
+      <div class="oo-area-pager" id="oo-area-pager"></div>
     </div>
     <div class="chip-group" id="ov-office-week-chips"></div>
     <div id="ov-office-wrap"></div>
   </div>
   <div class="ov-grid" id="ov-cards"></div>
+
+</div>
+
+<!-- ════ 量販A五六必訪稽核 Dialog（1.19.0 新增：直屏手機把常態版面的
+     .ov-mv-summary 收進這顆浮層，見 openMvSummaryDialog()／CSS
+     #ov-mv-menu-btn。橫屏或桌機看不到這個入口，直接看常態版面即可） ════ -->
+<div id="mv-overlay" onclick="if(event.target===this)closeMvSummaryDialog()">
+  <div id="mv-box">
+    <div class="manual-head">
+      <h3>🚨 量販A五六必訪稽核</h3>
+      <button class="manual-close" onclick="closeMvSummaryDialog()">✕</button>
+    </div>
+    <div id="mv-inner"></div>
+  </div>
 </div>
 
 <!-- ════ 使用說明 Dialog（給操作者看數據意義，不談後台計算公式） ════ -->
@@ -1611,6 +1694,27 @@ var MV_SUMMARY_EXPANDED = false;
 function toggleMvSummary(){
   MV_SUMMARY_EXPANDED = !MV_SUMMARY_EXPANDED;
   renderOfficeOverview();
+}
+/* 1.19.0：直屏手機把 .ov-mv-summary 常態版面收進☰選單的浮層 Dialog，
+   _ovMvSummaryHtml 存最近一次 renderOfficeOverview() 算出來的內容，讓
+   openMvSummaryDialog() 開啟時不用重算一次；_updateMvMenuBtn() 同步更新
+   選單按鈕文字＋樣式，異常時直接把未達/今日待完成/連續未達店數帶在
+   按鈕文字上，不用點開浮層也能看到有沒有問題。 */
+var _ovMvSummaryHtml = '';
+function _updateMvMenuBtn(hasAlert, mvTotals){
+  var btn = document.getElementById('ov-mv-menu-btn');
+  if(!btn) return;
+  btn.classList.toggle('has-alert', !!hasAlert);
+  btn.textContent = hasAlert
+    ? ('🚨 必訪稽核・未達'+mvTotals.total+'／待辦'+mvTotals.pendingToday)
+    : '🚨 必訪稽核';
+}
+function openMvSummaryDialog(){
+  document.getElementById('mv-inner').innerHTML = _ovMvSummaryHtml;
+  document.getElementById('mv-overlay').classList.add('open');
+}
+function closeMvSummaryDialog(){
+  document.getElementById('mv-overlay').classList.remove('open');
 }
 /* 找出「今天」落在指定檔期的第幾週，當作手機版迷你表格預設顯示的週次
    （OFFICE_WEEK_SEL 沒有指定這個檔期的特定週時使用）；邏輯跟
@@ -2679,9 +2783,18 @@ function renderOfficeOverview(){
       + '<span class="ov-mv-pill'+(mvTotals.pendingToday>0?' warn':'')+'">⚠️ 今日待完成 '+mvTotals.pendingToday+' 店</span>'
       + '<span class="ov-mv-pill'+(mvTotals.repeat>0?' alert':'')+'">🔁 連續未達 '+mvTotals.repeat+' 店</span>'
       + '</div>'
-      + '<button class="ov-mv-copy-btn" id="ov-mv-copy-btn" onclick="copyMvAuditList()">📋 複製稽核清單</button>'
+      + '<button class="ov-mv-copy-btn" onclick="copyMvAuditList(this)">📋 複製稽核清單</button>'
       + (mvClean ? '<button class="ov-mv-collapse-btn" onclick="toggleMvSummary()">收合 ▴</button>' : '')
       + '</div>';
+  }
+  /* 1.19.0：直屏手機把這段搬進☰選單的「🚨 必訪稽核」按鈕（見
+     openMvSummaryDialog()）——存一份給浮層用，並更新按鈕文字／樣式讓
+     使用者不用點開就知道有沒有異常，不用完全展開才知道有沒有異常。 */
+  _ovMvSummaryHtml = mvSummaryHtml;
+  _updateMvMenuBtn(!mvClean, mvTotals);
+  var mvOverlayEl = document.getElementById('mv-overlay');
+  if(mvOverlayEl && mvOverlayEl.classList.contains('open')){
+    document.getElementById('mv-inner').innerHTML = mvSummaryHtml;
   }
 
   /* 手機版：改成一處一張直式卡片（量販／全聯各一區塊），避免表格橫向
@@ -2754,15 +2867,20 @@ function renderOfficeOverview(){
     + '<div class="oo-area-pager-label">'+esc(curPageName)+'<small>'+(OV_AREA_IDX+1)+' / '+ovPages.length+'</small></div>'
     + '<button class="oo-area-nav" id="oo-area-next" onclick="ovPageArea(1)" aria-label="下一處"'+(OV_AREA_IDX>=ovPages.length-1?' disabled':'')+'>►</button>'
     + '</div>';
-  var mobileHtml = '<div class="oo-mobile-cards">' + pagerHtml + curCardHtml + '</div>';
+  /* 1.19.0：這顆切換器改成跟上方「時間」切換器同一排並排（.ov-mobile-pager-row，
+     見 HTML），不再跟著卡片清單字串一起產生——直接就地替換靜態佔位的
+     #oo-area-pager 節點（outerHTML 帶著同樣的 id，下次渲染還是找得到）。 */
+  var pagerSlot = document.getElementById('oo-area-pager');
+  if(pagerSlot) pagerSlot.outerHTML = pagerHtml;
+  var mobileHtml = '<div class="oo-mobile-cards">' + curCardHtml + '</div>';
 
   wrap.innerHTML = mvSummaryHtml + tableHtml + mobileHtml;
 }
 /* 1.9.7：頂端摘要列「📋複製稽核清單」——把目前未符合標準／今日待完成的量販A
    店家明細（含營業處、訪員、連續未符合標準週數）整理成文字複製到剪貼簿，方便
    主管直接貼到 LINE 群組催辦，不用先點進明細頁才有複製功能。 */
-function copyMvAuditList(){
-  var btn = document.getElementById('ov-mv-copy-btn');
+function copyMvAuditList(btnEl){
+  var btn = btnEl || document.getElementById('ov-mv-copy-btn');
   var list = _mvAuditStoreList();
   if(!list.length){ _flashBtn(btn, '✅ 目前無必訪缺'); return; }
   var lines = ['🚨 量販A五六必訪稽核清單', ''];
