@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.9.6 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-11
+  版本：Ver. 1.10.3 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-11
 
 【這個檔案是什麼】
   ‧ 單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 讀取同一份
@@ -48,17 +48,17 @@
 【稽核用必訪日規則（1.9.6 新增，常數 MUST_VISIT_RULE）】
   ‧ 通路別＝量販通路 ＋ 店家等級＝量販A 的店，該檔期每一週的「星期五、
     星期六」視為必定必訪日：不管這一週的巡補「次數」有沒有達到 GRADE_FREQ
-    標準，只要處理層裡這兩天當中有任一天完全查無紀錄，就視為違反必訪
+    標準，只要處理層裡這兩天當中有任一天完全查無紀錄，就視為未達必訪
     規則。這跟「週應達次數」是兩套互相獨立的判斷，其中一項符合不代表
     另一項也符合（例如週一到週四衝滿 5 次、週五週六都沒去，次數達標但
-    仍算必訪違規）。
-  ‧ 只在「規定的那天已經過去」才判定為違規（比照 _isWeekPast 的精神，
+    仍算必訪未達）。
+  ‧ 只在「規定的那天已經過去」才判定為未達（比照 _isWeekPast 的精神，
     當天／未來的必訪日只顯示「尚未到期」，不會被誤判成沒做到）。
   ‧ 畫面呈現：桌機週次格子／手機週次徽章都會在對應格子上加註五、六兩個
     小徽章（✓已到店／✖已過期未到店／·尚未到期），只要當週有任一天判定
-    違規，儲存格會加上高亮底色＋發光紅框（.mv-alert-cell／.mv-miss），
+    未達，儲存格會加上高亮底色＋發光紅框（.mv-alert-cell／.mv-miss），
     次數合計欄與手機店卡也會多一顆「🚨 必訪缺」提示；另外篩選列新增
-    「🚨 量販A五六必訪未達」獨立開關 chip，可直接篩出所有違規店家清單，
+    「🚨 量販A五六必訪未達」獨立開關 chip，可直接篩出所有必訪未達店家清單，
     做法跟既有「🔴 巡次未達標」開關（toggleUnmetChip）完全對稱。
   ‧ 這條規則寫死只認「量販通路＋量販A」，日後若要擴大到其他等級／改成
     可設定的星期，改 MUST_VISIT_RULE 常數即可，不用動判斷邏輯本身。
@@ -140,14 +140,28 @@
     把 <head> 裡那段 <script> 拿掉即可。
 
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.10.3 2026-08-11  用語中性化：「違規」相關字樣全面改為「未符合標準」
+                      （含摘要列、複製稽核清單、使用說明文字）；移除中元／
+                      中秋四張卡片內重複的子區塊標題列（通路名稱＋達成率），
+                      表格自身表頭已能識別類別，拿掉以節省版面空間。
+  1.10.2 2026-08-11  修正手機版統計格 Grid 欄數算錯（原本定義 5 欄，實際
+                      塞進 6 個 .oo-mstat），改成 6 欄，避免「超額」格被
+                      擠到下一列造成版面跑掉。
+  1.10.1 2026-08-11  手機版總覽頁 header 收納選單修正：.ov-header 改成
+                      nowrap 強制不換行，讓標題列跟收納後的按鈕群組真正
+                      擠進同一行；中元/中秋卡片迷你表格加 .ov-mini-scroll
+                      避免窄螢幕被子元素 min-content 撐出橫向捲軸。
+  1.10.0 2026-08-11  手機版總覽頁 header 收納：「人次估算／使用說明」等
+                      次要按鈕收進漢堡選單，只留返回／標題／進入整體明細／
+                      ☰ 一列，避免窄螢幕被擠成兩三列版面。
   1.9.7  2026-08-11  「營業處執行狀況總覽表」串接必訪日規則：量販欄位群組
                       新增「🚨必訪缺」欄（可點擊下鑽，鎖定量販A＋必訪
                       篩選），並附「⚠️今日待完成」（今天就是必訪日、還
-                      沒到店的預警）、「🔁連續違規」（累犯，連續2週以上
+                      沒到店的預警）、「🔁連續未達」（連續2週以上
                       必訪未達，不受目前頁籤週次影響）兩個小徽章；頂端
-                      新增「🚨量販A五六必訪稽核」摘要列＋「📋複製稽核
+                      新增「🚨 量販A五六必訪稽核」摘要列＋「📋複製稽核
                       清單」，總覽頁不用點進明細就能看到、也能直接複製
-                      違規清單。手機版卡片同步補上對應區塊。
+                      未達清單。手機版卡片同步補上對應區塊。
   1.9.6  2026-08-11  新增稽核用「必訪日」條件式（MUST_VISIT_RULE）：量販
                       通路＋量販A店，每週五／六視為必定必訪日，缺紀錄時
                       主表格高亮顯示（.mv-alert-cell 發光紅框＋徽章），
@@ -1293,7 +1307,7 @@ function _mustVisitStatusForCol(s, period, week){
    - anyPast：這週的必訪日裡，至少有一天已經發生（用來判斷這週「已經
      有結果」還是整週都還沒到，不該被拿來評斷達標與否）
    - pendingToday：今天剛好是這週的必訪日之一、而且還沒到店——這時候
-     還不算違規（畫面上仍是灰色「尚未到期」），但已經是可以主動去催的
+     還不算未達（畫面上仍是灰色「尚未到期」），但已經是可以主動去催的
      時機，不用等明天變成紅字才知道要出包 */
 function _mvWeekStatus(s, period, week){
   var days = _mustVisitStatusForCol(s, period, week);
@@ -1305,11 +1319,11 @@ function _mvWeekStatus(s, period, week){
     pendingToday: days.some(function(d){ return !d.isPast && d.day===today && !d.visited; })
   };
 }
-/* 單店的「連續違規週數」（累犯指標）：把全部檔期的週次依時間順序排好
+/* 單店的「連續未達週數」：把全部檔期的週次依時間順序排好
    （_allPeriodColumns 本身就是檔期先後→週次由小到大），只挑「已經有
-   結果」的週（anyPast），從最近的一週開始往回數，只要連續違規就一直
+   結果」的週（anyPast），從最近的一週開始往回數，只要連續未達就一直
    累加，遇到第一個「這週有達標」就停止不看更早的——用意是抓「最近持續
-   出包」的店，不要把很久以前偶爾一次的違規也混進來（例如中元只違規過
+   未達」的店，不要把很久以前偶爾一次的未達也混進來（例如中元只未達過
    1 次、但中秋已經連續 4 週沒達標，這家店的 streak 該是 4，不是 5）。
    還沒開始／沒有結果的未來週次直接跳過，不會打斷 streak 也不會被誤算。*/
 function _mvStoreStreak(s){
@@ -1327,7 +1341,7 @@ function _mvStoreStreak(s){
 /* 依營業處彙總「量販A必訪」稽核數字。範圍跟著 _officeStatsFor 一樣吃
    OFFICE_WEEK_SEL（整體／單一檔期／單一週），這樣總覽頁切頁籤時，
    必訪缺欄位的數字才會跟旁邊「未達店數」等欄位對得起來，不會一個算
-   全期間、一個算單週互相矛盾。連續違規（repeat）例外：那是店家本身的
+   全期間、一個算單週互相矛盾。連續未達（repeat）例外：那是店家本身的
    「近況體質」，不該隨使用者正在看哪個週次頁籤而改變，固定看「到目前
    為止」的最新狀態，不受 OFFICE_WEEK_SEL 影響。 */
 function _mvOfficeStatsFor(area){
@@ -1344,8 +1358,8 @@ function _mvOfficeStatsFor(area){
   });
   return { count:subset.length, total:total, pendingToday:pendingToday, repeat:repeat };
 }
-/* 給「📋複製今日稽核清單」按鈕用：列出全部（不分營業處）目前違規或
-   今日待完成的量販A店家明細，依「違規優先、其次今日待辦」排序，
+/* 給「📋複製今日稽核清單」按鈕用：列出全部（不分營業處）目前未達或
+   今日待完成的量販A店家明細，依「未達優先、其次今日待辦」排序，
    同樣吃 OFFICE_WEEK_SEL 範圍，跟總覽表上看到的數字一致。 */
 function _mvAuditStoreList(){
   var cols = !OFFICE_WEEK_SEL ? _allPeriodColumns()
@@ -1691,7 +1705,7 @@ function toggleUnmetChip(el){
   onFilterChange();
 }
 /* 1.9.6：「量販A五六必訪未達」開關，邏輯跟 toggleUnmetChip 對稱、各自獨立，
-   兩個開關可以同時開（同時只看「未達標」且「必訪違規」的店）。 */
+   兩個開關可以同時開（同時只看「未達標」且「必訪未達」的店）。 */
 function toggleMvMissChip(el){
   FILTER.onlyMvMiss = !FILTER.onlyMvMiss;
   el.classList.toggle('active', FILTER.onlyMvMiss);
@@ -1868,18 +1882,19 @@ function renderOfficeOverview(){
     if(ck!=='量販') return base;
     return base + _mvCellHtml(area);
   }
-  /* 桌機版「🚨必訪缺」儲存格：主數字是目前選定範圍內違規的量販A店數
+  /* 桌機版「🚨必訪缺」儲存格：主數字是目前選定範圍內未達的量販A店數
      （點擊直接下鑽到明細頁、鎖定必訪稽核篩選）；旁邊兩個小徽章分別是
-     「⚠️今日待完成」（還沒違規但今天就是必訪日、還沒到店，提早預警）
-     跟「🔁連續違規」（累犯店數，不受目前頁籤週次影響，見 _mvOfficeStatsFor
-     註解），兩個小徽章數字是 0 就不顯示，避免畫面塞滿一堆「0」。 */
+     「⚠️今日待完成」（還沒被列入未達，但今天就是必訪日、還沒到店，提早
+     預警）跟「🔁連續未達」（連續未達店數，不受目前頁籤週次影響，見
+     _mvOfficeStatsFor 註解），兩個小徽章數字是 0 就不顯示，避免畫面
+     塞滿一堆「0」。 */
   function _mvCellHtml(area){
     var c = mvCache[area];
     if(!c.hasData) return '<td class="oo-mv">—</td>';
     var r = c.r;
     var subs = ''
       + (r.pendingToday>0 ? '<span class="oo-mv-sub oo-mv-pending" title="今天就是必訪日、還沒到店">⚠️'+r.pendingToday+'</span>' : '')
-      + (r.repeat>0 ? '<span class="oo-mv-sub oo-mv-repeat" title="連續2週以上必訪未達（累犯）">🔁'+r.repeat+'</span>' : '');
+      + (r.repeat>0 ? '<span class="oo-mv-sub oo-mv-repeat" title="連續2週以上必訪未達">🔁'+r.repeat+'</span>' : '');
     return '<td class="oo-mv oo-clickable" onclick="openMvAuditFromOffice(\''+area+'\',event)" title="點擊查看必訪未達門市">'
       + '<span class="oo-mv-num'+(r.total>0?' has':'')+'">'+(r.total>0?'🚨 '+r.total:'—')+'</span>'
       + subs + '</td>';
@@ -1930,7 +1945,7 @@ function renderOfficeOverview(){
 
   /* 頂端「量販A必訪稽核」摘要列：不分營業處的全域總計，讓使用者一進總覽頁
      就先看到有沒有燒到眉毛的必訪缺，不用先找是哪個處才看得到數字；旁邊
-     附一顆「📋複製稽核清單」，直接把目前違規＋今日待完成的量販A店家清單
+     附一顆「📋複製稽核清單」，直接把目前未達＋今日待完成的量販A店家清單
      複製成文字，方便貼到 LINE 群組催辦，不用像之前一定要先點進明細頁
      才有複製功能。整列在完全沒有量販A店家資料時（mvTotals.total===0 且
      pendingToday===0 且 repeat===0）仍保留顯示（顯示「目前無必訪缺」），
@@ -1938,9 +1953,9 @@ function renderOfficeOverview(){
   var mvSummaryHtml = '<div class="ov-mv-summary">'
     + '<div class="ov-mv-summary-title">🚨 量販A五六必訪稽核</div>'
     + '<div class="ov-mv-summary-pills">'
-    + '<span class="ov-mv-pill'+(mvTotals.total>0?' alert':'')+'">違規 '+mvTotals.total+' 店</span>'
+    + '<span class="ov-mv-pill'+(mvTotals.total>0?' alert':'')+'">必訪未達 '+mvTotals.total+' 店</span>'
     + '<span class="ov-mv-pill'+(mvTotals.pendingToday>0?' warn':'')+'">⚠️ 今日待完成 '+mvTotals.pendingToday+' 店</span>'
-    + '<span class="ov-mv-pill'+(mvTotals.repeat>0?' alert':'')+'">🔁 連續違規 '+mvTotals.repeat+' 店</span>'
+    + '<span class="ov-mv-pill'+(mvTotals.repeat>0?' alert':'')+'">🔁 連續未達 '+mvTotals.repeat+' 店</span>'
     + '</div>'
     + '<button class="ov-mv-copy-btn" id="ov-mv-copy-btn" onclick="copyMvAuditList()">📋 複製稽核清單</button>'
     + '</div>';
@@ -2009,8 +2024,8 @@ function renderOfficeOverview(){
 
   wrap.innerHTML = mvSummaryHtml + tableHtml + mobileHtml;
 }
-/* 1.9.7：頂端摘要列「📋複製稽核清單」——把目前違規／今日待完成的量販A
-   店家明細（含營業處、訪員、連續違規週數）整理成文字複製到剪貼簿，方便
+/* 1.9.7：頂端摘要列「📋複製稽核清單」——把目前未符合標準／今日待完成的量販A
+   店家明細（含營業處、訪員、連續未符合標準週數）整理成文字複製到剪貼簿，方便
    主管直接貼到 LINE 群組催辦，不用先點進明細頁才有複製功能。 */
 function copyMvAuditList(){
   var btn = document.getElementById('ov-mv-copy-btn');
@@ -2018,7 +2033,7 @@ function copyMvAuditList(){
   if(!list.length){ _flashBtn(btn, '✅ 目前無必訪缺'); return; }
   var lines = ['🚨 量販A五六必訪稽核清單', ''];
   list.forEach(function(it){
-    var tag = it.violated ? '🚨 違規' : '⚠️ 今日待完成';
+    var tag = it.violated ? '🚨 未符合標準' : '⚠️ 今日待完成';
     var streakNote = it.streak>=2 ? '　🔁連續'+it.streak+'週' : '';
     lines.push(tag+'　'+it.store.storeName+'('+it.store.code+')　'+it.store.area+'／'+it.store.staff+streakNote);
   });
@@ -2365,11 +2380,10 @@ function renderOverview(){
           }).join('')
         + '</table></div>'
       ) : '<div class="ov-empty">目前沒有符合資料</div>';
-      var chanIcon = chanKey==='量販' ? '🛒' : '🏪';
-      var chanLabel = chanKey==='量販' ? '量販通路' : '全聯通路';
-      var rateHtml = chanKey==='量販' ? '<span class="ov-subsec-rate">'+stat.rate.toFixed(1)+'%</span>' : '';
+      /* 1.10.3：移除子區塊標題列（含通路名稱與達成率）——表格第一列表頭
+         已足以識別店家類別，原標題屬重複資訊，拿掉以節省版面空間。中元／
+         中秋兩個檔期共用這段渲染邏輯，改一次即同步套用。 */
       return '<div class="ov-subsec" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\')">'
-        + '<div class="ov-subsec-head"><span class="ov-subsec-title">'+chanIcon+' '+chanLabel+'</span>'+rateHtml+'</div>'
         + body + '</div>';
     }).join('');
     return '<div class="ov-card">'
@@ -2647,7 +2661,7 @@ function render(){
   if(unmetToggleEl) unmetToggleEl.textContent = '🔴 巡次未達標（'+unmetCount+'）';
 
   /* 1.9.6：「量販A五六必訪未達」開關數字同理，兩顆開關各自獨立算，
-     可以同時開（同時只看「未達標」且「必訪違規」的店） */
+     可以同時開（同時只看「未達標」且「必訪未達」的店） */
   var mvMissCount = rowsDataAll.filter(function(rd){ return rd.isMvMiss; }).length;
   var mvToggleEl = document.getElementById('chip-mv-toggle');
   if(mvToggleEl) mvToggleEl.textContent = '🚨 量販A五六必訪未達（'+mvMissCount+'）';
@@ -3615,17 +3629,17 @@ function _buildManualContent(){
     + '<p><b>【🚨 五/六必訪日是什麼？】</b>量販通路＋量販A店，每週的星期五、'
     + '星期六是規定一定要到店的日子，跟「這週去了幾次」是兩件事分開看──'
     + '就算這週次數已經衝到達標，週五或週六只要有一天完全沒紀錄，仍然算'
-    + '「必訪違規」。格子上會多顯示「五✓／五✖／五·」兩個小徽章'
-    + '（✓已到店、✖必訪日已過仍未到店、·還沒到那天不算違規），只要出現'
+    + '「必訪未符合標準」。格子上會多顯示「五✓／五✖／五·」兩個小徽章'
+    + '（✓已到店、✖必訪日已過仍未到店、·還沒到那天不算未符合標準），只要出現'
     + '✖，整格會亮起紅色高光提醒；次數合計欄與手機店卡也會多一顆'
     + '「🚨 必訪缺」提示。篩選列的「🚨 量販A五六必訪未達」開關可以直接'
-    + '篩出所有違規店家，用法跟「🔴 巡次未達標」一樣，兩顆開關也能同時開。'
+    + '篩出所有未符合標準店家，用法跟「🔴 巡次未達標」一樣，兩顆開關也能同時開。'
     + '不用點進明細也看得到：「營業處執行狀況總覽表」的📦量販欄位群組'
     + '多了「🚨必訪缺」一欄（可點擊直接下鑽），旁邊「⚠️今日待完成」是'
-    + '今天剛好是必訪日、還沒到店的預警（還不算違規，先catch住不用等'
-    + '明天變紅字），「🔁連續違規」是連續 2 週以上必訪未達的累犯店數；'
+    + '今天剛好是必訪日、還沒到店的預警（還不算未符合標準，先catch住不用等'
+    + '明天變紅字），「🔁連續未符合標準」是連續 2 週以上必訪未達的累犯店數；'
     + '總覽頁最上面也有一條「🚨 量販A五六必訪稽核」摘要列，一進頁面'
-    + '就看得到全公司總數，旁邊「📋 複製稽核清單」可以直接把違規／'
+    + '就看得到全公司總數，旁邊「📋 複製稽核清單」可以直接把未符合標準／'
     + '待完成的店家清單複製成文字貼到 LINE。</p>'
     + '<hr>'
     + '<p><b>【達成率 % 是怎麼定義的？】</b>達成率 ＝ 目前篩選範圍內「已完成'
