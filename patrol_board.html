@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.21.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-12
+  版本：Ver. 1.22.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-12
 
 【這個檔案是什麼】
   ‧ 單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 讀取同一份
@@ -56,13 +56,32 @@
     不能亂動（順序錯了程式不會報錯，只會把值塞進錯的欄位，屬於最容易
     改壞又最難發現的地方，改動前務必對照下面欄序）。目前支援的區塊：
     - 【基本設定】設定項／值：目前只認「專案名稱」這一列。
-    - 【檔期】key／label／起始日／週數：對應 PERIODS，可以有多列（不限
-      中元/中秋兩個），對應下方【檔期定義】的計算邏輯。key／起始日／
-      週數必填，label 留空退回用 key 當標籤。起始日 1.21.0 起改成單一
-      欄位（不再拆年/月/日三欄），接受 "2026/08/08" 或 "2026-08-08"
-      這類純文字，也接受把該欄格式化成 Google Sheets 原生日期型別
-      （見 _parseCfgDate()）；解析不出來的列會被直接跳過、不會讓其他
-      檔期跟著壞掉，但也代表那個檔期不會出現在畫面上，要留意。
+    - 【檔期】key／label／圖示／起始日／週數／終止日（1.22.0 起新增
+      「圖示」「終止日」兩欄，對應 PERIODS）：可以有多列（不限中元/
+      中秋兩個），對應下方【檔期定義】的計算邏輯。key／起始日必填，
+      label 留空退回用 key 當標籤，圖示留空退回 DEFAULT_PERIOD_ICON
+      （目前是 📅，一個中性、不綁定任何節慶的圖示——這一欄就是拿來讓
+      業務自己指定每個檔期要顯示的 emoji，不用再等改版才能換掉舊版
+      寫死在程式碼裡的 🏮／🎑，換成尾牙／春節專案時直接在這欄填
+      🥢／🧧 之類應景圖示即可，不用動 HTML）。起始日接受 "2026/08/08"
+      或 "2026-08-08" 這類純文字，也接受把該欄格式化成 Google Sheets
+      原生日期型別（見 _parseCfgDate()）；解析不出來的列會被直接跳過、
+      不會讓其他檔期跟著壞掉，但也代表那個檔期不會出現在畫面上，要
+      留意。週數／終止日兩欄擇一即可（見下）：
+      ‧ 只填週數（原本的整週計算法）：跟 1.21.0 以前行為完全相同，
+        每週固定 7 天，每個等級每週應達次數＝【等級對照】設定值，
+        不會被折算。
+      ‧ 有填終止日（1.22.0 新增，給不採整週計算法的專案用）：週數欄
+        可以留空，改由起始日／終止日兩個日期直接算出總天數、往上無條件
+        進位換算成週數（Math.ceil(總天數/7)），最後一週如果不滿 7 天，
+        該週每個等級的「應達次數」會依「這週實際天數/7×整週應達次數」
+        無條件捨去小數點折算（見下方【檔期定義】），折算結果最小仍保留
+        1，不會讓最後一週變成「這週不用去」；同時最後一週的必訪日
+        判斷、日期區間顯示、必訪未達判斷等，全部都會裁切到終止日當天
+        為止，不會判到終止日之後的日子。若週數／終止日兩欄都有填，
+        以終止日換算出的結果為準，週數欄的值會被忽略（純粹只是這種
+        情況下週數欄不會報錯，不代表兩者衝突時週數欄還有作用）；兩欄
+        都空白則視為該筆檔期設定不完整，直接跳過。
     - 【等級對照】通路／等級／簡稱／每週應達次數（1.21.0 起改成通路
       開頭，跟【必訪規則】欄序一致，方便對照）：對應 GRADE_FREQ／
       GRADE_LABEL／CHANNEL_GRADES。通路、等級都必填：「等級」須跟
@@ -93,7 +112,16 @@
     中秋專案 2026/09/14（一）起 3 週（W1–W3）。
   ‧ 整體視角：全部檔期合併顯示。
   ‧ 週次判斷：「巡補日期－檔期起始日」天數差每 7 天一週；超過該檔期
-    總週數視為不屬於任何檔期，不計入統計。
+    總週數視為不屬於任何檔期，不計入統計；有設終止日的檔期，巡補日期
+    晚於終止日同樣視為不屬於任何檔期（見 _classifyParts）。
+  ‧ 1.22.0 新增「非整週」檔期（用終止日定義、天數不是 7 的倍數）：
+    最後一週天數 < 7 時，該週每個等級的應達次數＝
+    Math.max(1, Math.floor(該週實際天數/7 × 整週應達次數))（見
+    _stdForCol()）；「整週應達次數」本身還是 0 或等級未知時不受這條
+    最小值 1 影響，仍然是 0。其餘畫面凡是跟「這一週的日期範圍」有關的
+    地方（日期區間顯示 _weekDateRange、過去週判斷 _isWeekPast、必訪日
+    清單 _mustVisitDaysForCol、依日期格子視角 _buildDayBoxCells）都會
+    同步裁切到終止日當天為止，不會顯示或判斷到終止日之後的日子。
 
 【稽核用必訪日規則（1.9.6 新增；1.20.0 改成可多條規則，常數
   MUST_VISIT_RULES，值來自「看版設定」【必訪規則】區塊）】
@@ -197,6 +225,35 @@
     把 <head> 裡那段 <script> 拿掉即可。
 
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.22.0 2026-08-12  三項優化：①【檔期】區塊新增「圖示」欄（PERIODS
+                      多一個 icon 欄位），中元/中秋原本寫死在程式碼裡的
+                      🏮／🎑（periodIconMap、MOBILE_SEL 週次列等 4 處）
+                      全部改成讀 p.icon，留空退回 DEFAULT_PERIOD_ICON
+                      （📅，中性圖示，不綁定特定節慶）；換季／換專案
+                      （尾牙、春節…）不用再改 HTML 才能換應景 emoji，
+                      直接改試算表那一欄即可。②【檔期】新增「終止日」
+                      欄（可留空，跟「週數」擇一），給不是整週結束的
+                      專案用：填了終止日，週數欄可留空，改由起始日／
+                      終止日換算總週數（無條件進位）＋最後一週實際
+                      天數（PERIODS 新增 endDayEpoch／lastWeekDays）。
+                      ③承②，非整週的最後一週，每個等級的應達次數改依
+                      「這週實際天數/7×整週應達次數」折算（新增
+                      _stdForCol()，無條件捨去小數點，最小值強制拉回
+                      1，避免折算成 0 次變成「這週不用去」）；連動修改
+                      _classifyParts／_weekDateRange／_isWeekPast／
+                      _mustVisitDaysForCol／_buildDayBoxCells／
+                      _defaultWeekForPeriod／_initMobileSel 共用新增的
+                      _weekEndDay() 取代原本寫死的「startDay+6」，讓日期
+                      區間顯示、過去週判斷、必訪日清單、依日期格子視角
+                      全部正確裁切到終止日為止；_statsFor／
+                      _officeStatsFor／mpBuildData／render()／
+                      openStoreDetail／_staffStatsData／_summaryForShare
+                      等所有「逐週加總應達次數」的地方，統一改成呼叫
+                      _stdForCol(period,week,GRADE_FREQ[grade]) 取代原本
+                      直接使用 GRADE_FREQ[grade]，確保畫面／CSV／LINE
+                      文字／截圖／人次估算工具的數字全部一致；只用週數
+                      定義的舊檔期（未填終止日）行為完全不變，仍是整週
+                      固定 7 天、不會被折算。
   1.21.0 2026-08-12  調整「看版設定」分頁欄位排列（不改變分頁本身
                       「多區塊堆疊」的排版風格，只調整區塊內部欄序）：
                       ①【檔期】年/月/日三欄合併成單一「起始日」欄，
@@ -1604,9 +1661,19 @@ var P_AREA='營業處名稱', P_OFFICE='營業所/課', P_STAFF='主要訪員', 
 /* 處理層欄名 */
 var R_CODE='店家代碼', R_DATE='巡補日期', R_SOURCEREF='來源分頁+行數', R_STAFF='執行人員';
 
-/* 檔期定義：起始日 + 週數。1.20.0 起改由「看版設定」分頁【檔期】區塊載入，
-   這裡先給空陣列，fetchBoardConfig() 載入完成前不應該有任何畫面邏輯讀到它。 */
+/* 檔期定義：起始日 + 週數（或起始日 + 終止日，見 _applyBoardConfig）。
+   1.20.0 起改由「看版設定」分頁【檔期】區塊載入，這裡先給空陣列，
+   fetchBoardConfig() 載入完成前不應該有任何畫面邏輯讀到它。每個 PERIODS
+   元素：{ key, label, icon, y, mo, d, weeks, lastWeekDays, endDayEpoch }
+   ── icon／lastWeekDays／endDayEpoch 是 1.22.0 新增欄位：icon 留空時
+   套用 DEFAULT_PERIOD_ICON；lastWeekDays／endDayEpoch 只有「用終止日
+   定義檔期」時才有值，否則是 null（代表整週固定 7 天，不折算）。 */
 var PERIODS = [];
+/* 檔期圖示留空時的預設值：刻意選一個中性、不綁定任何節慶的圖示，避免
+   換季（例如聖誕節／尾牙／春節）時畫面還顯示著上一個節慶的 emoji；
+   要換應景圖示直接在「看版設定」【檔期】區塊的「圖示」欄填就好，不用
+   改這裡。 */
+var DEFAULT_PERIOD_ICON = '📅';
 /* 等級 → 每週應達次數。1.20.0 起改由「看版設定」分頁【等級對照】區塊載入，
    key 必須跟「店家名冊」的「店家等級」欄位真實值完全一致（含全形字） */
 var GRADE_FREQ = {};
@@ -1709,7 +1776,7 @@ function _initMobileSel(){
     var c = all[i];
     var p = PERIODS.filter(function(pp){ return pp.key===c.period; })[0];
     var startDay = _toEpochDay(p.y,p.mo,p.d) + (c.week-1)*7;
-    var endDay = startDay+6;
+    var endDay = _weekEndDay(p, c.week); /* 1.22.0：非整週檔期的最後一週裁切到終止日 */
     if(today>=startDay && today<=endDay){ current=c; break; }
     if(!nextFuture && startDay>today) nextFuture = c;
   }
@@ -1737,7 +1804,7 @@ function _updateMobileWeekPager(){
   var idx = all.findIndex(function(c){ return c.period===MOBILE_SEL.period && c.week===MOBILE_SEL.week; });
   var p = PERIODS.filter(function(pp){ return pp.key===MOBILE_SEL.period; })[0];
   var pLabel = (p ? p.label.replace('專案','') : MOBILE_SEL.period);
-  var icon = MOBILE_SEL.period==='zhong' ? '🏮' : '🎑';
+  var icon = _periodIcon(MOBILE_SEL.period); /* 1.22.0：改讀 PERIODS 設定的圖示，不再寫死中元/中秋 */
   var dateRange = _weekDateRange(MOBILE_SEL.period, MOBILE_SEL.week);
   labelEl.innerHTML = icon+' '+esc(pLabel)+' W'+MOBILE_SEL.week+'<small>'+esc(dateRange)+'</small>';
   if(prevBtn) prevBtn.disabled = (idx<=0);
@@ -1807,7 +1874,7 @@ function _defaultWeekForPeriod(periodKey){
   var nextFuture = null;
   for(var w=1; w<=p.weeks; w++){
     var startDay = _toEpochDay(p.y,p.mo,p.d) + (w-1)*7;
-    var endDay = startDay+6;
+    var endDay = _weekEndDay(p, w); /* 1.22.0：非整週檔期的最後一週裁切到終止日 */
     if(today>=startDay && today<=endDay) return w;
     if(!nextFuture && startDay>today) nextFuture = w;
   }
@@ -2017,8 +2084,9 @@ function _cfgRowVals(row, width){
   return out;
 }
 function _scanConfigSections(rows){
-  var W = 4; /* 1.21.0：檔期改成單一日期欄後，目前最寬的區塊（檔期／
-    等級對照）都是 4 欄，其餘區塊用不到的欄位留空即可 */
+  var W = 6; /* 1.22.0：檔期新增「圖示」「終止日」兩欄後變成最寬的區塊
+    （key／label／圖示／起始日／週數／終止日＝6 欄），其餘區塊（等級
+    對照 4 欄、必訪規則 3 欄、問卷分頁 2 欄）用不到的欄位留空即可 */
   var grid = rows.map(function(row){ return _cfgRowVals(row, W); });
   var sections = {};
   var i = 0;
@@ -2045,18 +2113,42 @@ function _applyBoardConfig(sections){
   (sections['基本設定']||[]).forEach(function(r){ if(r[0]) base[r[0]] = r[1]; });
   if(base['專案名稱']) PROJ_NAME = base['專案名稱'];
 
-  /* 【檔期】欄序：key／label／起始日／週數。key、起始日、週數都必填，
-     起始日解析失敗的列直接跳過（不會讓整個 PERIODS 掛掉，只是那個檔期
-     不會出現在畫面上——比讓 _toEpochDay 吃到 NaN 之後整段週次計算跑歪
-     安全）。label 留空退回用 key 當標籤。 */
+  /* 【檔期】欄序（1.22.0 起）：key／label／圖示／起始日／週數／終止日。
+     key、起始日必填，起始日解析失敗的列直接跳過（不會讓整個 PERIODS
+     掛掉，只是那個檔期不會出現在畫面上——比讓 _toEpochDay 吃到 NaN
+     之後整段週次計算跑歪安全）。label 留空退回用 key 當標籤；圖示留空
+     退回 DEFAULT_PERIOD_ICON。週數／終止日兩欄擇一即可：
+     ‧ 終止日有值：忽略週數欄，改由起始日／終止日直接算出總天數
+       （totalDays=endDay-startDay+1），無條件進位換算成週數，順便算出
+       最後一週實際天數（lastWeekDays，不足 7 天時 _stdForCol() 會拿去
+       折算應達次數，其餘日期相關函式也會拿 endDayEpoch 裁切顯示範圍）；
+       終止日早於起始日（totalDays<1）視為設定錯誤，跳過這筆。
+     ‧ 終止日空白：退回原本行為，週數必填、每週固定 7 天，不折算。
+     兩欄都空白（沒有終止日、週數也解析不出來）同樣跳過這筆。 */
   var periodRows = (sections['檔期']||[]).filter(function(r){ return r[0]; });
   if(periodRows.length){
     var newPeriods = [];
     periodRows.forEach(function(r){
-      var dp = _parseCfgDate(r[2]);
-      var weeks = +r[3];
-      if(!dp || !weeks) return; /* 起始日解析不出來，或週數空白/非數字，跳過這筆 */
-      newPeriods.push({ key:r[0], label:r[1]||r[0], y:dp.y, mo:dp.mo, d:dp.d, weeks:weeks });
+      var dp = _parseCfgDate(r[3]);
+      if(!dp) return; /* 起始日解析不出來，跳過這筆 */
+      var icon = r[2] || DEFAULT_PERIOD_ICON;
+      var ep = r[5] ? _parseCfgDate(r[5]) : null;
+      var weeks, lastWeekDays = null, endDayEpoch = null;
+      if(ep){
+        var startDay = _toEpochDay(dp.y,dp.mo,dp.d);
+        var endDay = _toEpochDay(ep.y,ep.mo,ep.d);
+        var totalDays = endDay - startDay + 1;
+        if(totalDays < 1) return; /* 終止日早於起始日，設定不合法，跳過這筆 */
+        weeks = Math.ceil(totalDays/7);
+        var rem = totalDays % 7;
+        lastWeekDays = rem===0 ? 7 : rem; /* 剛好整除代表最後一週仍是整週 7 天 */
+        endDayEpoch = endDay;
+      } else {
+        weeks = +r[4];
+        if(!weeks) return; /* 沒終止日、週數也空白/非數字，跳過這筆 */
+      }
+      newPeriods.push({ key:r[0], label:r[1]||r[0], icon:icon, y:dp.y, mo:dp.mo, d:dp.d,
+        weeks:weeks, lastWeekDays:lastWeekDays, endDayEpoch:endDayEpoch });
     });
     if(newPeriods.length) PERIODS = newPeriods;
   }
@@ -2168,6 +2260,48 @@ function _cellDateParts(cell){
   return null;
 }
 function _toEpochDay(y,mo,d){ return Math.floor(Date.UTC(y, mo-1, d) / 86400000); }
+/* 1.22.0 新增：該檔期第 week 週「實際」的最後一天（epoch day）。一般
+   整週固定 startDay+6；只有用終止日定義、且 week 剛好是最後一週、天數
+   不足 7 天的檔期，才會裁切成 p.endDayEpoch——所有跟「這一週的日期範圍」
+   有關的判斷／顯示都要透過這支函式取得結束日，不要自己重算
+   「startDay+6」，否則非整週檔期的最後一週會算到終止日之後去。 */
+function _weekEndDay(p, week){
+  var startDay = _toEpochDay(p.y,p.mo,p.d) + (week-1)*7;
+  var normalEnd = startDay + 6;
+  if(p.endDayEpoch!=null && week===p.weeks) return Math.min(normalEnd, p.endDayEpoch);
+  return normalEnd;
+}
+/* 該檔期第 week 週實際擁有的天數：一般整週固定 7 天，只有非整週檔期的
+   最後一週會 < 7（來自 _applyBoardConfig 解析終止日時算好的
+   p.lastWeekDays）。給 _stdForCol() 折算應達次數用。 */
+function _weekDayCount(p, week){
+  return (p.lastWeekDays!=null && week===p.weeks) ? p.lastWeekDays : 7;
+}
+/* 找出某個檔期設定的圖示，留空一律退回 DEFAULT_PERIOD_ICON（見該常數
+   註解）；找不到這個 key（PERIODS 還沒載入完成、或 key 打錯）同樣退回
+   預設圖示，不會讓畫面顯示 undefined。 */
+function _periodIcon(periodKey){
+  var p = PERIODS.filter(function(pp){ return pp.key===periodKey; })[0];
+  return (p && p.icon) || DEFAULT_PERIOD_ICON;
+}
+/* 1.22.0 新增：把等級的「整週應達次數」(baseStd) 折算成某個檔期週次
+   實際應達次數。一般整週（或 baseStd 本身是 0／等級未知）直接回傳
+   baseStd 原值；只有該檔期用終止日定義、且 week 剛好是天數不足 7 天的
+   最後一週，才依「這週實際天數/7 × baseStd」折算，無條件捨去小數點
+   （Math.floor）。折算結果強制最小值拉回 1——只要 baseStd>0，這一週
+   就至少要去 1 次，不會因為折算算出 0 次、變成「這週不用去」的怪異
+   結果；baseStd 本身就是 0 或 undefined（等級未知）則原樣回傳，不會被
+   這條最小值規則蓋過去。呼叫端統一用這支函式取代直接讀
+   GRADE_FREQ[grade]，確保「應達次數」在所有畫面／匯出（主表格、總覽、
+   人次估算、CSV、LINE 文字、店家/訪員明細）都套用同一套折算邏輯，
+   數字才會兜得起來。 */
+function _stdForCol(periodKey, week, baseStd){
+  if(!baseStd) return baseStd;
+  var p = PERIODS.filter(function(pp){ return pp.key===periodKey; })[0];
+  if(!p || p.lastWeekDays==null || week!==p.weeks) return baseStd;
+  var prorated = Math.floor(_weekDayCount(p, week)/7*baseStd);
+  return Math.max(1, prorated);
+}
 function _classifyParts(parts){
   if(!parts) return null;
   var day = _toEpochDay(parts.y, parts.mo, parts.d);
@@ -2176,6 +2310,10 @@ function _classifyParts(parts){
     var start = _toEpochDay(p.y,p.mo,p.d);
     var diff = day - start;
     if(diff < 0) continue;
+    /* 1.22.0：非整週檔期（有 endDayEpoch）超過終止日的巡補日期不算進
+       這個檔期——沒有這條判斷的話，落在「終止日之後、但還在理論上第
+       weeks 週那 7 天區間內」的日期會被誤判成屬於最後一週 */
+    if(p.endDayEpoch!=null && day>p.endDayEpoch) continue;
     var week = Math.floor(diff/7) + 1;
     if(week <= p.weeks) return { period:p.key, week:week };
   }
@@ -2197,7 +2335,7 @@ function _weekDateRange(periodKey, week){
   var pad = function(n){ return String(n).padStart(2,'0'); };
   var startDay = _toEpochDay(p.y,p.mo,p.d) + (week-1)*7;
   var sp = _epochDayToParts(startDay);
-  var ep = _epochDayToParts(startDay+6);
+  var ep = _epochDayToParts(_weekEndDay(p, week)); /* 1.22.0：非整週檔期的最後一週裁切到終止日 */
   return sp.mo===ep.mo
     ? pad(sp.mo)+'/'+pad(sp.d)+'-'+pad(ep.d)
     : pad(sp.mo)+'/'+pad(sp.d)+'-'+pad(ep.mo)+'/'+pad(ep.d);
@@ -2212,8 +2350,7 @@ function _todayEpochDay(){
 function _isWeekPast(periodKey, week){
   var p = PERIODS.filter(function(pp){ return pp.key===periodKey; })[0];
   if(!p) return false;
-  var weekEndDay = _toEpochDay(p.y,p.mo,p.d) + week*7 - 1;
-  return _todayEpochDay() > weekEndDay;
+  return _todayEpochDay() > _weekEndDay(p, week); /* 1.22.0：非整週檔期的最後一週裁切到終止日 */
 }
 
 /* ════ 稽核用「必訪日」規則（1.9.6 新增，見檔頭【稽核用必訪日規則】說明；
@@ -2240,9 +2377,9 @@ function _mustVisitDaysForCol(period, week, weekdays){
   var p = PERIODS.filter(function(pp){ return pp.key===period; })[0];
   if(!p) return [];
   var startDay = _toEpochDay(p.y,p.mo,p.d) + (week-1)*7;
+  var endDay = _weekEndDay(p, week); /* 1.22.0：非整週檔期的最後一週不會產生終止日之後的必訪日 */
   var out = [];
-  for(var i=0;i<7;i++){
-    var day = startDay+i;
+  for(var day=startDay; day<=endDay; day++){
     var dow = new Date(day*86400000).getUTCDay();
     if(weekdays.indexOf(dow)!==-1) out.push(day);
   }
@@ -2729,7 +2866,8 @@ function _statsFor(storesSubset, cols){
     var rowExp=0, rowStdDone=0;
     cols.forEach(function(c){
       var actual = _actualCount(s.code, c.period, c.week);
-      var exp = std, stdDone = Math.min(actual, std);
+      var colStd = _stdForCol(c.period, c.week, std); /* 1.22.0：非整週檔期最後一週折算應達次數 */
+      var exp = colStd, stdDone = Math.min(actual, colStd);
       g.exp += exp; g.stdDone += stdDone;
       if(!g.weeks[c.week]) g.weeks[c.week] = { exp:0, stdDone:0, unmet:0 };
       g.weeks[c.week].exp += exp; g.weeks[c.week].stdDone += stdDone;
@@ -2769,9 +2907,10 @@ function _officeStatsFor(area, chanKey){
     var rowExp=0, rowStdDone=0;
     cols.forEach(function(c){
       var actual = _actualCount(s.code, c.period, c.week);
-      var stdDoneC = Math.min(actual, std);
-      exp += std; stdDone += stdDoneC; extra += Math.max(0, actual-std);
-      rowExp += std; rowStdDone += stdDoneC;
+      var colStd = _stdForCol(c.period, c.week, std); /* 1.22.0：非整週檔期最後一週折算應達次數 */
+      var stdDoneC = Math.min(actual, colStd);
+      exp += colStd; stdDone += stdDoneC; extra += Math.max(0, actual-colStd);
+      rowExp += colStd; rowStdDone += stdDoneC;
     });
     if(rowExp>0 && rowStdDone<rowExp) unmetCount++;
   });
@@ -2845,7 +2984,7 @@ function _ovResolveMobileWeek(){
     var c = all[i];
     var p = PERIODS.filter(function(pp){ return pp.key===c.period; })[0];
     var startDay = _toEpochDay(p.y,p.mo,p.d) + (c.week-1)*7;
-    var endDay = startDay+6;
+    var endDay = _weekEndDay(p, c.week); /* 1.22.0：非整週檔期的最後一週裁切到終止日 */
     if(today>=startDay && today<=endDay){ current=c; break; }
     if(!nextFuture && startDay>today) nextFuture = c;
   }
@@ -2881,7 +3020,7 @@ function _updateOvWeekPager(){
   var idx = all.findIndex(function(c){ return c.period===cur.period && c.week===cur.week; });
   var p = PERIODS.filter(function(pp){ return pp.key===cur.period; })[0];
   var pLabel = (p ? p.label.replace('專案','') : cur.period);
-  var icon = cur.period==='zhong' ? '🏮' : '🎑';
+  var icon = _periodIcon(cur.period); /* 1.22.0：改讀 PERIODS 設定的圖示，不再寫死中元/中秋 */
   var dateRange = _weekDateRange(cur.period, cur.week);
   labelEl.innerHTML = icon+' '+esc(pLabel)+' W'+cur.week+'<small>'+esc(dateRange)+'</small>';
   if(prevBtn) prevBtn.disabled = (idx<=0);
@@ -3233,7 +3372,9 @@ function mpFilteredStores(){
    每個欄位（週）／每個檔期小計／總計；等級未對照到標準的店（跟主表邏輯
    一致）不計入。同一家店每週的應達次數固定＝該店等級標準，不會逐週變動，
    所以同一組的每個週次欄位數字理論上會相同——這是真實的排班需求（每週
-   都要排這麼多次），不是計算錯誤。 */
+   都要排這麼多次），不是計算錯誤。1.22.0 例外：非整週檔期的最後一週會
+   依 _stdForCol() 折算，那一欄的數字會比其他整週欄位小，是預期行為，
+   反映「那一週實際只有幾天，排班需求跟著等比例縮小」。 */
 function mpBuildData(){
   var stores = mpFilteredStores();
   var cols = mpActiveColumns();
@@ -3251,9 +3392,10 @@ function mpBuildData(){
     var g = groups[key];
     g.count++;
     cols.forEach(function(c){
-      g.colExp[c.period+'_'+c.week] += std;
-      g.periodExp[c.period] += std;
-      g.total += std;
+      var colStd = _stdForCol(c.period, c.week, std); /* 1.22.0：非整週檔期最後一週折算應達次數 */
+      g.colExp[c.period+'_'+c.week] += colStd;
+      g.periodExp[c.period] += colStd;
+      g.total += colStd;
     });
   });
   return { groups:groups, cols:cols };
@@ -3436,7 +3578,7 @@ function renderOverview(){
   var chanSubsets = { '量販': STORE_ROWS.filter(function(s){ return s.chanKey==='量販'; }),
                        '全聯': STORE_ROWS.filter(function(s){ return s.chanKey==='全聯'; }) };
   var cardsHtml = PERIODS.map(function(p){
-    var icon = p.key==='zhong' ? '🏮' : '🎑';
+    var icon = p.icon || DEFAULT_PERIOD_ICON; /* 1.22.0：改讀 PERIODS 設定的圖示，不再寫死中元/中秋 */
     var cols = _periodColumns(p.key);
     var weekNums = cols.map(function(c){ return c.week; });
     /* 1.10.4：量販／全聯過去各自一張迷你表格，表頭（等級/店數/W.../
@@ -3750,14 +3892,21 @@ function _buildDayBoxCells(s, period, week, stdN, actual){
   var today = _todayEpochDay();
   var mvRule = _mustVisitRuleForStore(s);
   var mustVisit = !!mvRule;
+  /* 1.22.0：非整週檔期的最後一週，格子仍固定畫 7 格維持版面寬度一致，
+     但終止日之後的格子標成「已超出檔期範圍」，不參與已達/超額排序、
+     不算必訪格、也不佔用動態白格名額——這些天根本不屬於這個檔期，
+     _classifyParts 本來就不會把這幾天的巡補紀錄算進 actual，這裡的
+     視覺呈現要跟那份計算邏輯一致，不能讓格子看起來「可以打卡」。 */
+  var weekEndDay = _weekEndDay(p, week);
   var days = [];
   for(var i=0;i<7;i++){
     var day = startDay+i;
+    var isOutOfRange = day > weekEndDay;
     var dow = new Date(day*86400000).getUTCDay();
-    var visited = _hasVisitOnDay(s.code, day);
+    var visited = !isOutOfRange && _hasVisitOnDay(s.code, day);
     var isPastDay = day < today;
-    var isForceWhite = mustVisit && !isPastDay && !visited && mvRule.weekdays.indexOf(dow)!==-1;
-    days.push({ day:day, dow:dow, visited:visited, isPastDay:isPastDay, isForceWhite:isForceWhite });
+    var isForceWhite = !isOutOfRange && mustVisit && !isPastDay && !visited && mvRule.weekdays.indexOf(dow)!==-1;
+    days.push({ day:day, dow:dow, visited:visited, isPastDay:isPastDay, isForceWhite:isForceWhite, isOutOfRange:isOutOfRange });
   }
   var neededWhite = Math.max(0, stdN-actual);
   /* 必訪格（週五、六）先從 neededWhite 裡佔位，剩下的名額才輪到其他
@@ -3774,7 +3923,10 @@ function _buildDayBoxCells(s, period, week, stdN, actual){
     var dowLbl = DOW_LABELS[d.dow];
     var isWeekendLbl = (d.dow===0 || d.dow===6);
     var inner, title;
-    if(d.visited){
+    if(d.isOutOfRange){
+      inner = '<span class="box-ghost" aria-hidden="true"></span>';
+      title = dateLbl+'（週'+dowLbl+'）：已超出檔期範圍（終止日之後）';
+    } else if(d.visited){
       visitedRank++;
       if(visitedRank<=stdN){ inner = '<input type="checkbox" class="std-check" checked>'; title = dateLbl+'（週'+dowLbl+'）：已完成，算入應達次數'; }
       else { inner = '<input type="checkbox" class="extra-check" checked>'; title = dateLbl+'（週'+dowLbl+'）：已完成，超額次數'; }
@@ -3803,9 +3955,12 @@ function render(){
   /* 依「期」把連續欄位分組（中元 W1~W3 一組／中秋 W1~W2 一組），
      用來畫出跨欄的檔期分組表頭 + 組間強分隔線；同檔期內週與週之間也加上
      較細的分隔線，強化不同檔期／不同週次的視覺區隔 */
-  /* 1.6.0：欄頭中元/中秋 emoji 獨立成 span 以便放大，字樣本身維持原字級 */
+  /* 1.6.0：欄頭中元/中秋 emoji 獨立成 span 以便放大，字樣本身維持原字級。
+     1.22.0：periodIconMap 改直接從 PERIODS 的 icon 欄位建表（留空退回
+     DEFAULT_PERIOD_ICON），不再寫死 zhong/mid 兩個 key，新增檔期不用
+     改這裡的程式碼。 */
   var periodLabelMap = {}; PERIODS.forEach(function(p){ periodLabelMap[p.key] = p.label.replace('專案',''); });
-  var periodIconMap = { zhong:'🏮', mid:'🎑' };
+  var periodIconMap = {}; PERIODS.forEach(function(p){ periodIconMap[p.key] = p.icon || DEFAULT_PERIOD_ICON; });
   var colGroups = [];
   var colMeta = [];
   cols.forEach(function(c, idx){
@@ -3863,7 +4018,7 @@ function render(){
     var rowExp=0, rowStdDone=0, rowExtra=0, mvMissTotal=0;
     cols.forEach(function(c){
       var actual = _actualCount(s.code, c.period, c.week);
-      var stdN = std===undefined ? 0 : std;
+      var stdN = std===undefined ? 0 : _stdForCol(c.period, c.week, std); /* 1.22.0：非整週檔期最後一週折算應達次數 */
       var stdDone = Math.min(actual, stdN);
       var extra = Math.max(0, actual - stdN);
       rowExp += stdN; rowStdDone += stdDone; rowExtra += extra;
@@ -4206,7 +4361,7 @@ function openStoreDetail(code, scopePeriod, scopeWeek, evt){
   var expTotal=0, stdDoneTotal=0, extraTotal=0;
   cols.forEach(function(c){
     var actual = _actualCount(code, c.period, c.week);
-    var stdN = std===undefined?0:std;
+    var stdN = std===undefined?0:_stdForCol(c.period, c.week, std); /* 1.22.0：非整週檔期最後一週折算應達次數 */
     expTotal += stdN;
     stdDoneTotal += Math.min(actual, stdN);
     extraTotal += Math.max(0, actual-stdN);
@@ -4304,10 +4459,10 @@ function _staffStatsData(staffName){
   var totalExp=0, totalStdDone=0, totalExtra=0;
   var rows = stores.map(function(s){
     var std = GRADE_FREQ[s.grade];
-    var stdN = std===undefined?0:std;
     var exp=0, stdDone=0, extra=0, mvMissTotal=0;
     cols.forEach(function(c){
       var actual = _actualCount(s.code, c.period, c.week);
+      var stdN = std===undefined?0:_stdForCol(c.period, c.week, std); /* 1.22.0：非整週檔期最後一週折算應達次數 */
       exp += stdN; stdDone += Math.min(actual,stdN); extra += Math.max(0,actual-stdN);
       var mv = _mustVisitStatusForCol(s, c.period, c.week);
       if(mv) mvMissTotal += mv.filter(function(d){ return !d.visited && d.isPast; }).length;
@@ -4743,10 +4898,10 @@ function _summaryForShare(){
   var totalExp=0, totalStdDone=0, totalExtra=0;
   var perStore = stores.map(function(s){
     var std = GRADE_FREQ[s.grade];
-    var stdN = std===undefined?0:std;
     var exp=0, stdDone=0, extra=0, mvMissTotal=0;
     cols.forEach(function(c){
       var actual = _actualCount(s.code, c.period, c.week);
+      var stdN = std===undefined?0:_stdForCol(c.period, c.week, std); /* 1.22.0：非整週檔期最後一週折算應達次數 */
       exp += stdN; stdDone += Math.min(actual,stdN); extra += Math.max(0,actual-stdN);
       var mv = _mustVisitStatusForCol(s, c.period, c.week);
       if(mv) mvMissTotal += mv.filter(function(d){ return !d.visited && d.isPast; }).length;
