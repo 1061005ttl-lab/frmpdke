@@ -140,6 +140,23 @@
     把 <head> 裡那段 <script> 拿掉即可。
 
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.20.2 2026-08-12  修正 fetchConfig() 抓不到「看版設定」分頁部分欄位的
+                      問題：改用 gviz out:csv 取代 out:json。原因是
+                      out:json 介面會依「整欄」（跨全表）自動判斷資料
+                      型別，同一欄若同時混有數字（例如【檔期】的
+                      「年」、【等級對照】的「每週應達次數」），整欄
+                      會被判定成 number，文字表頭（「年」「日」「週數」
+                      「每週應達次數」等）會被 API 直接吐成 null——跟
+                      儲存格實際內容、有沒有存檔都無關，是 out:json 這
+                      個介面本身已知的限制。out:csv 每格都是純文字、沒
+                      有整欄型別統一的問題，改用它並新增極簡 CSV 解析
+                      器 _parseConfigCsv()（處理欄位含逗號時的雙引號
+                      包裹、雙引號逃脫）取代 gvizParse，_splitConfigBlocks
+                      ／_applyConfigBlocks 完全不用改，因為兩者輸出的
+                      rows 資料形狀一樣（陣列的陣列，每格純文字）。
+  1.20.1 2026-08-12  fetchConfig() 加上 &_ts= 時間戳記防止快取；
+                      【區域順序】區塊改成完全不讀，AREA_ORDER 維持寫死
+                      （已與需求方確認不會變動，不開放）。
   1.20.0 2026-08-12  試行「看版設定」分頁改成可調整設定檔：新增 fetchConfig()／
                       _splitConfigBlocks()／_applyConfigBlocks()，開站時
                       先讀「看版設定」分頁裡的【基本設定】【檔期】【等級對照】
@@ -1925,26 +1942,52 @@ function mobileGateEnter(){
    自動略過、沿用程式碼裡原本寫死的預設值，不會讓整個看板因為某一格
    打錯格式就掛掉。 */
 function fetchConfig(callback){
-  /* 加 &_ts= 時間戳記防止瀏覽器／gviz 介面用到快取的舊資料——每次開站
-     都是一個全新網址，強迫抓最新的「看版設定」內容，不然改完試算表
-     有時候要等 gviz 自己的快取過期（1~5 分鐘）才會反映到頁面上。 */
+  /* 1.20.2：改用 out:csv 而不是 out:json 讀「看版設定」分頁。原因：
+     gviz 的 out:json 介面會依「整欄」（跨全表、不只這個區塊）自動判斷
+     資料型別——例如 C 欄同時放著【檔期】的「年」（數字 2026）跟
+     【等級對照】的「每週應達次數」（數字 5/2/1），整欄會被判定成
+     number，一旦判定成 number，這一欄裡任何文字內容（包括表頭文字
+     「年」「日」「週數」「每週應達次數」本身）都會被 API 直接吐成
+     null，跟儲存格裡實際打的文字、有沒有存檔完全無關，純粹是這個
+     API 的已知限制。out:csv 匯出介面每格都是純文字、不會有整欄型別
+     統一的問題，表頭文字不會被吃掉，藉此徹底避開這個坑。
+     加 &_ts= 時間戳記防止瀏覽器快取用到舊資料，是既有機制、這次沒動。 */
   var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
-    '/gviz/tq?tqx=out:json&headers=0&sheet=' + encodeURIComponent(CONFIG_SHEET) +
+    '/gviz/tq?tqx=out:csv&sheet=' + encodeURIComponent(CONFIG_SHEET) +
     '&_ts=' + Date.now();
   fetch(url).then(function(r){ return r.text(); }).then(function(txt){
-    var json = gvizParse(txt);
-    var rows = (json.table.rows||[]).map(function(row){
-      return (row.c||[]).map(function(cell){
-        if(!cell) return '';
-        var v = cell.v;
-        return (v!==null && v!==undefined && v!=='') ? v : (cell.f||'');
-      });
-    });
+    var rows = _parseConfigCsv(txt);
     var blocks = _splitConfigBlocks(rows);
     _applyConfigBlocks(blocks);
   }).catch(function(err){
     console.warn('【看版設定分頁】設定讀取失敗，改用程式碼內建的預設值：', err);
   }).then(function(){ callback(); });
+}
+/* 1.20.2：極簡 CSV 解析器，專供 fetchConfig() 使用（跟 gvizParse 是兩條
+   平行機制，互不影響、互不共用）。處理 RFC4180 常見的兩種情況：
+   ①欄位內容本身包含逗號時，Google 匯出時會整格用雙引號包起來（例如
+   【必訪規則】的「5,6」會匯出成 "5,6"）；②欄位內容包含雙引號時，
+   會用兩個雙引號 "" 表示一個雙引號。逐字元掃描、不用正規表示式，
+   避免多行字串、跨欄逗號誤判。 */
+function _parseConfigCsv(text){
+  var rows = [], row = [], field = '', inQuotes = false;
+  for(var i=0; i<text.length; i++){
+    var c = text[i];
+    if(inQuotes){
+      if(c === '"'){
+        if(text[i+1] === '"'){ field += '"'; i++; }
+        else { inQuotes = false; }
+      } else { field += c; }
+    } else {
+      if(c === '"'){ inQuotes = true; }
+      else if(c === ','){ row.push(field); field = ''; }
+      else if(c === '\r'){ /* 忽略，跟後面的 \n 一起當作換行處理 */ }
+      else if(c === '\n'){ row.push(field); rows.push(row); row = []; field = ''; }
+      else { field += c; }
+    }
+  }
+  if(field.length || row.length){ row.push(field); rows.push(row); }
+  return rows;
 }
 /* 把整張「看版設定」分頁的原始格子，依照【區塊名稱】列切成
    { 區塊名稱: [ {欄名:值, ...}, ... ] } ；區塊結束條件＝遇到整列都是空的，
