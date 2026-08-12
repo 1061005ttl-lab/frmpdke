@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.19.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-11
+  版本：Ver. 1.20.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-12
 
 【這個檔案是什麼】
   ‧ 單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 讀取同一份
@@ -17,16 +17,23 @@
   ‧ 沒有 contract_board 式的「處→所→人員」四層鑽層卡片，改用「檔期／
     通路／等級／區域」四組 chip 篩選，風格更接近 coverage_board。
   ‧ 沒有多專案切換（MGMT 機制）；SHEET_ID 直接從網址 ?sheetId= 帶入，
-    是中元/中秋專用單一看板（已與需求方確認）。未來若要擴充尾牙/春節，
-    PERIODS 常數需要改成從管理表動態載入。
+    是中元/中秋專用單一看板（已與需求方確認）。1.20.0 起 PERIODS／
+    GRADE_FREQ／GRADE_LABEL／QUESTIONNAIRE_SHEETS／MUST_VISIT_RULES／
+    專案名稱已改成從同一份試算表的「看版設定」分頁動態載入（見下方
+    【看版設定分頁】說明），業務要調整檔期／等級門檻/必訪規則直接改
+    試算表即可，不用再動 HTML；未來若要擴充尾牙/春節，只要在「看版
+    設定」的【檔期】區塊多加一列即可，不用改程式。
 
 ────────────────────────────────────────────────────────────
 【兩份資料來源（同一份 SHEET_ID 試算表裡的兩個分頁）】
   ‧「店家名冊」（母體）欄位：營業處名稱／營業所/課／主要訪員／通路別／
     店家型態／店家代碼／店家名稱／店家等級
     - 通路判斷（見常數區 _chanKey()）：量販＝通路別＝「量販通路」；
-      全聯＝店家型態＝「全聯社」（不看通路別欄）。
-    - 店家等級決定每週應達次數，對照表寫死在 GRADE_FREQ（見下方）。
+      全聯＝店家型態＝「全聯社」（不看通路別欄）。這條判斷邏輯本身
+      仍寫死在 _chanKey()，1.20.0 只有「等級門檻/簡稱/所屬通路」改
+      成動態載入，「怎麼從欄位值判斷通路」不在這次調整範圍內。
+    - 店家等級決定每週應達次數，對照表 1.20.0 起改由「看版設定」分頁
+      動態載入到 GRADE_FREQ（見下方【看版設定分頁】）。
     - 名冊不分檔期／週次，兩檔期共用同一套等級標準。
   ‧「處理層」（比對資料，每列＝一筆巡補紀錄，由後端 GAS 從問卷分頁
     整理產生，比照 contract_board 的 extractSurveyDataToMasterRegistry()）
@@ -38,36 +45,66 @@
   ‧ 兩者都讀自同一個 SHEET_ID（網址參數 ?sheetId= 帶入）。
 
 ────────────────────────────────────────────────────────────
-【檔期定義（常數 PERIODS）】
-  ‧ 中元專案：2026/08/08（六）– 08/28（五），共 3 週（W1–W3）
-  ‧ 中秋專案：2026/09/14（一）– 09/27（日），共 2 週（W1–W2）
-  ‧ 整體視角：兩檔期合併顯示（W1–W5）
+【看版設定分頁（1.20.0 新增，常數 CFG_SHEET＝'看版設定'）】
+  ‧ 同一份 SHEET_ID 試算表裡再多一個分頁，集中放「業務可能會調整」的
+    設定值，看板進站第一步（fetchBoardConfig()）就會先讀這個分頁，讀
+    完才會建篩選列 UI、才會去抓店家名冊／處理層；分頁讀取失敗會直接
+    在畫面顯示錯誤訊息並中止載入，不會用殘缺設定硬跑。
+  ‧ 排版是「多個【區塊標題】小表由上到下排列，中間留空白列分隔」，
+    不是單一標準表格，程式用 _scanConfigSections() 自己找區塊、不吃
+    gviz 的表頭機制，所以區塊順序可以調整、但每個區塊內部的欄位順序
+    不能亂動。目前支援的區塊：
+    - 【基本設定】設定項／值：目前只認「專案名稱」這一列。
+    - 【檔期】key／label／年／月／日／週數：對應 PERIODS，可以有
+      多列（不限中元/中秋兩個），對應下方【檔期定義】的計算邏輯。
+    - 【等級對照】key／簡稱／每週應達次數／所屬通路：對應
+      GRADE_FREQ／GRADE_LABEL／CHANNEL_GRADES；「key」須跟「店家名冊」
+      的「店家等級」欄位真實值完全一致（含全形字），「所屬通路」須跟
+      _chanKey() 判斷出來的通路 key（'量販'／'全聯'）一致，否則等級
+      chip 篩選會抓不到對應等級。
+    - 【問卷分頁】通路／問卷分頁名稱：對應 QUESTIONNAIRE_SHEETS，「通路」
+      同樣須是 '量販'／'全聯' 這種 chanKey，不是通路別欄原始值。
+    - 【必訪規則】通路／等級／必訪星期(逗號分隔)：對應
+      MUST_VISIT_RULES，可以放 0～多列，每列各自獨立一條規則；星期
+      用 0=日...6=六（跟 JS 的 getUTCDay() 一致），本次交接範例只給了
+      「量販,量販A,5,6」一列，若要多條規則（例如再加一條全聯的必訪
+      日），直接在這個區塊多加一列即可，不用改程式。
+
+────────────────────────────────────────────────────────────
+【檔期定義（常數 PERIODS，值來自「看版設定」【檔期】區塊）】
+  ‧ 目前設定值（見「看版設定」分頁，非寫死在 HTML）：
+    中元專案 2026/08/08（六）起 3 週（W1–W3）；
+    中秋專案 2026/09/14（一）起 3 週（W1–W3）。
+  ‧ 整體視角：全部檔期合併顯示。
   ‧ 週次判斷：「巡補日期－檔期起始日」天數差每 7 天一週；超過該檔期
     總週數視為不屬於任何檔期，不計入統計。
 
-【稽核用必訪日規則（1.9.6 新增，常數 MUST_VISIT_RULE）】
-  ‧ 通路別＝量販通路 ＋ 店家等級＝量販A 的店，該檔期每一週的「星期五、
-    星期六」視為必定必訪日：不管這一週的巡補「次數」有沒有達到 GRADE_FREQ
-    標準，只要處理層裡這兩天當中有任一天完全查無紀錄，就視為未達必訪
-    規則。這跟「週應達次數」是兩套互相獨立的判斷，其中一項符合不代表
-    另一項也符合（例如週一到週四衝滿 5 次、週五週六都沒去，次數達標但
-    仍算必訪未達）。
+【稽核用必訪日規則（1.9.6 新增；1.20.0 改成可多條規則，常數
+  MUST_VISIT_RULES，值來自「看版設定」【必訪規則】區塊）】
+  ‧ 每一條規則各自指定「通路＋等級」＋「必訪星期清單」：符合的店，該
+    檔期每一週對應的星期視為必定必訪日：不管這一週的巡補「次數」有沒有
+    達到 GRADE_FREQ 標準，只要處理層裡規則指定的星期當中有任一天完全
+    查無紀錄，就視為未達必訪規則。這跟「週應達次數」是兩套互相獨立的
+    判斷，其中一項符合不代表另一項也符合（例如週一到週四衝滿 5 次、
+    規則指定的日子都沒去，次數達標但仍算必訪未達）。
   ‧ 只在「規定的那天已經過去」才判定為未達（比照 _isWeekPast 的精神，
     當天／未來的必訪日只顯示「尚未到期」，不會被誤判成沒做到）。
-  ‧ 畫面呈現：桌機週次格子／手機週次徽章都會在對應格子上加註五、六兩個
-    小徽章（✓已到店／✖已過期未到店／·尚未到期），只要當週有任一天判定
-    未達，儲存格會加上高亮底色＋發光紅框（.mv-alert-cell／.mv-miss），
-    次數合計欄與手機店卡也會多一顆「🚨 必訪缺」提示；另外篩選列新增
-    「🚨 量販A五六必訪未達」獨立開關 chip，可直接篩出所有必訪未達店家清單，
-    做法跟既有「🔴 巡次未達標」開關（toggleUnmetChip）完全對稱。
-  ‧ 這條規則寫死只認「量販通路＋量販A」，日後若要擴大到其他等級／改成
-    可設定的星期，改 MUST_VISIT_RULE 常數即可，不用動判斷邏輯本身。
+  ‧ 畫面呈現：桌機週次格子／手機週次徽章都會在對應格子上加註規則指定
+    星期的小徽章（✓已到店／✖已過期未到店／·尚未到期），只要當週有任一
+    天判定未達，儲存格會加上高亮底色＋發光紅框（.mv-alert-cell／
+    .mv-miss），次數合計欄與手機店卡也會多一顆「🚨 必訪缺」提示；另外
+    篩選列新增「🚨 必訪未達」獨立開關 chip，可直接篩出所有必訪未達店家
+    清單，做法跟既有「🔴 巡次未達標」開關（toggleUnmetChip）完全對稱。
+  ‧ 一店最多只吃第一條相符的規則（_mustVisitRuleForStore()），設定表
+    不該讓同一個「通路+等級」重複出現兩條規則。目前設定值只有「量販通路
+    ＋量販A」一條（星期五、六），日後要擴大到其他等級／改星期，直接
+    改「看版設定」【必訪規則】區塊，不用動判斷邏輯本身。
 
-【等級應達次數對照（常數 GRADE_FREQ／GRADE_LABEL）】
-  ‧ 量販 A：每週 5 次／量販 B：每週 3 次／量販 C：每週 2 次
-  ‧ 全聯「連鎖超市A」（畫面簡稱「超市A」）：每週 1 次
-  ‧ 已與需求方確認先寫死在 HTML 常數，不做管理表可調整設定；日後要
-    調整直接改 GRADE_FREQ／GRADE_LABEL 即可。
+【等級應達次數對照（常數 GRADE_FREQ／GRADE_LABEL，值來自「看版設定」
+  【等級對照】區塊）】
+  ‧ 目前設定值：量販A 每週5次／量販B 每週2次／量販C 每週1次／
+    全聯「連鎖超市A」（畫面簡稱「超市A」）每週1次。
+  ‧ 1.20.0 起改成可從「看版設定」分頁調整，不用再改 HTML 常數。
 
 ────────────────────────────────────────────────────────────
 【核心計算邏輯】
@@ -131,15 +168,30 @@
     問卷分頁整理成【處理層】欄位格式；「巡補日期」務必是 Sheet 日期
     格式（不要存純文字字串）。
   ‧ 兩份問卷分頁務必各自有「店家代碼」欄，值須跟店家名冊對得上。
-  ‧ 「店家名冊」的「店家等級」欄位值須跟 GRADE_FREQ 的 key 完全一致
-    （量販A／量販B／量販C／連鎖超市A，含全形字），否則判定為「等級
-    未知」，應達次數算 0、不進達成率分母（仍會顯示該店，見 render()
-    內 _unknownGradeCount）。
+  ‧ 「店家名冊」的「店家等級」欄位值須跟「看版設定」【等級對照】區塊
+    的 key 欄完全一致（含全形字），否則判定為「等級未知」，應達次數
+    算 0、不進達成率分母（仍會顯示該店，見 render() 內
+    _unknownGradeCount）。
+  ‧ 1.20.0 起同一份試算表要多一個「看版設定」分頁（CFG_SHEET），且分頁
+    內至少要有【檔期】【等級對照】兩個區塊有資料，否則看板會直接顯示
+    載入失敗訊息、不會退回舊版寫死的預設值；部署新專案／複製這份看版
+    時記得先把「看版設定」分頁一併複製過去並填好內容。
   ‧ 本檔預設走跟 coverage_board.html 相同的 session 驗證（localStorage
     'ttl_auth_v1' !== '1' 就導回 index.html），獨立部署不經登入頁時
     把 <head> 裡那段 <script> 拿掉即可。
 
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.20.0 2026-08-12  新增「看版設定」試算表分頁（常數 CFG_SHEET），把
+                      專案名稱／PERIODS（檔期）／GRADE_FREQ+GRADE_LABEL
+                      （等級對照）／QUESTIONNAIRE_SHEETS（問卷分頁）／
+                      MUST_VISIT_RULE（必訪規則，改名並改成陣列
+                      MUST_VISIT_RULES 以支援多條規則）從 HTML 寫死常數
+                      改成 init() 一開始呼叫 fetchBoardConfig() 動態載入；
+                      新增 _scanConfigSections()／_applyBoardConfig() 解析
+                      多區塊排版的設定分頁，CHANNEL_GRADES 也改成直接吃
+                      設定表的「所屬通路」欄位，不再用 key 字首猜測。
+                      看版設定分頁載入失敗會顯示錯誤訊息並中止，不會退回
+                      舊版預設值硬跑。
   1.19.0 2026-08-11  接續 1.18.0，直屏手機再瘦身三項：①中元／中秋卡片
                       （#ov-cards）直接不顯示——這兩張卡片的迷你表格跟上方
                       「營業處執行狀況」＋時間切換器要傳達的資訊高度重疊，
@@ -596,34 +648,19 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
 .m-week-pager { display:none; }
 @media (max-width:640px) {
   .m-week-pager {
-    display:flex; align-items:center; justify-content:space-between; gap:6px;
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
     background:var(--card); border:1px solid var(--border); border-radius:var(--r);
-    padding:6px 8px; margin-bottom:8px;
+    padding:8px 10px; margin-bottom:8px;
   }
   .m-week-nav {
-    flex-shrink:0; width:30px; height:30px; border-radius:50%; border:1px solid var(--border);
-    background:#fff; color:var(--primary); font-size:14px; font-weight:800; cursor:pointer;
+    flex-shrink:0; width:34px; height:34px; border-radius:50%; border:1px solid var(--border);
+    background:#fff; color:var(--primary); font-size:15px; font-weight:800; cursor:pointer;
     display:flex; align-items:center; justify-content:center; transition:background .15s;
   }
   .m-week-nav:active { background:var(--primary-bg); }
   .m-week-nav:disabled { color:#c8ccd2; border-color:#eee; cursor:default; background:#fff; }
-  /* 1.19.1：兩顆切換器並排後 label 可用寬度只剩幾十 px，14px 字級塞不下
-     完整文字時瀏覽器會逐字換行（中／元 W2 拆成兩行、甚至三行疊在一起，
-     把整排撐得比按鈕還高）。改成 flex column 置中＋主文字／小字各自
-     white-space:nowrap + text-overflow:ellipsis，寬度不夠時優雅裁切成
-     「...」而不是硬拆字；同時字級／行高一起調小，讓正常情況下（多數
-     期別／營業處名稱其實塞得下）完全不觸發省略號。 */
-  .m-week-pager-label {
-    flex:1 1 0; min-width:0; display:flex; flex-direction:column; justify-content:center;
-    text-align:center; color:var(--text); line-height:1.2;
-  }
-  .m-week-pager-label .pgr-main {
-    display:block; font-size:12.5px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  }
-  .m-week-pager-label small {
-    display:block; font-size:10px; font-weight:600; color:var(--sub); margin-top:1px;
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  }
+  .m-week-pager-label { flex:1; text-align:center; font-size:14px; font-weight:800; color:var(--text); min-width:0; }
+  .m-week-pager-label small { display:block; font-size:11px; font-weight:600; color:var(--sub); margin-top:1px; }
 }
 /* 1.15.0：「營業處執行狀況」手機版一次只看一個處的 ◄／► 切換列，樣式
    比照 .m-week-pager／.m-week-nav（同一套視覺語言，使用者不用學新手勢）。
@@ -634,13 +671,28 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
    ──直屏兩顆一起看，橫向省下的高度讓下面的店家卡片提早進入可視範圍；
    橫屏（時間切換器本身隱藏，這排只剩這顆單獨佔滿整排）跟桌機
    （.oo-tbl-scroll 走完整表格，這排完全不出現）維持原本行為不受影響。 */
-/* 1.19.1：手機版「營業處執行狀況」不再一次只看一個處──改成全部處攤開
-   直接列出（.oo-area-list，見 renderOfficeOverview()），不用再切換，也
-   把上面挪出來的空間用掉。原本 ◄／► 單處切換的視覺語言（圓形按鈕＋置中
-   label）保留給「時間」切換器（.ov-week-pager）繼續用，這裡不再需要。 */
+.oo-area-pager { display:none; }
 @media (max-width:640px) {
-  .ov-mobile-pager-row { display:flex; align-items:stretch; gap:6px; margin-bottom:8px; }
-  .ov-mobile-pager-row > .ov-week-pager { flex:1 1 0; min-width:0; margin-bottom:0; }
+  .oo-area-pager {
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    background:var(--card); border:1px solid var(--border); border-radius:var(--r);
+    padding:8px 10px;
+  }
+  .oo-area-nav {
+    flex-shrink:0; width:34px; height:34px; border-radius:50%; border:1px solid var(--border);
+    background:#fff; color:var(--primary); font-size:15px; font-weight:800; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; transition:background .15s;
+  }
+  .oo-area-nav:active { background:var(--primary-bg); }
+  .oo-area-nav:disabled { color:#c8ccd2; border-color:#eee; cursor:default; background:#fff; }
+  .oo-area-pager-label { flex:1; text-align:center; font-size:14px; font-weight:800; color:var(--text); min-width:0; }
+  .oo-area-pager-label small { display:block; font-size:11px; font-weight:600; color:var(--sub); margin-top:1px; }
+  /* 1.19.0：「時間」「營業處」兩顆 ◄／► 切換器同一水平排列的容器──直屏
+     時兩顆並排各佔一半寬度；橫屏這排只剩「營業處」一顆（時間切換器本身
+     隱藏），自然佔滿整排，不用另外處理。 */
+  .ov-mobile-pager-row { display:flex; align-items:stretch; gap:8px; margin-bottom:8px; }
+  .ov-mobile-pager-row > .ov-week-pager,
+  .ov-mobile-pager-row > .oo-area-pager { flex:1 1 0; min-width:0; margin-bottom:0; }
 }
 /* 1.9.6：稽核用「必訪日」高亮樣式（量販A店五/六必訪未達）。刻意跟現有
    .miss-mark（週應達次數的過去週未達）做視覺區隔，用發光紅框＋實心徽章，
@@ -1225,15 +1277,13 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
          renderOfficeOverview() 就地填入，不再放在下方卡片清單最上方）包在
          同一個 .ov-mobile-pager-row 裡橫向並排，直屏一次看兩顆，省下的
          高度讓店家卡片提早進入可視範圍。 -->
-    <!-- 1.19.1：「營業處」◄／► 單處切換已移除——攤開改成全部處同時列出
-         （見 renderOfficeOverview() 的 .oo-area-list），不用再跟「時間」
-         切換器搶這排的寬度，.ov-week-pager 現在獨占整排。 -->
     <div class="ov-mobile-pager-row" id="ov-mobile-pager-row">
       <div class="ov-week-pager" id="ov-week-pager">
         <button class="m-week-nav" id="ov-week-prev" onclick="ovMobilePageWeek(-1)" aria-label="上一週">◄</button>
         <div class="m-week-pager-label" id="ov-week-pager-label">—</div>
         <button class="m-week-nav" id="ov-week-next" onclick="ovMobilePageWeek(1)" aria-label="下一週">►</button>
       </div>
+      <div class="oo-area-pager" id="oo-area-pager"></div>
     </div>
     <div class="chip-group" id="ov-office-week-chips"></div>
     <div id="ov-office-wrap"></div>
@@ -1502,7 +1552,12 @@ document.addEventListener('click', function(e){
 /* ════ 常數 ════ */
 var params    = new URLSearchParams(location.search);
 var SHEET_ID  = params.get('sheetId') || '';
-var PROJ_NAME = '2026 節慶巡補看板';
+/* 1.20.0：以下這批「業務可調」設定改成從同一份試算表的「看版設定」分頁
+   動態讀取（見 fetchBoardConfig()／_applyBoardConfig()），這裡只保留
+   載入前的預設值／空殼，實際值以 CFG_SHEET 內容為準，不要再回頭改這裡
+   當作調整設定的方式。 */
+var CFG_SHEET = '看版設定';
+var PROJ_NAME = '2026 節慶巡補看板'; /* 載入前的暫時標題，fetchBoardConfig 完成後覆蓋 */
 
 var POP_SHEET  = '店家名冊';
 var PROC_SHEET = '處理層';
@@ -1511,8 +1566,9 @@ var SYNC_CELL  = 'B1';
 /* 原始問卷分頁（給店家明細 Dialog 顯示「問卷內容」用，比照 coverage_board 的
    _fetchQuestionnaireSheet 設計：欄名含「_」的視為「大題_選項」，其餘視為
    基本欄位；用「店家代碼」分組建索引。跟 coverage 的差異：這裡問卷分成
-   量販／全聯兩個分頁，依店家的 chanKey 決定要查哪一份，快取也各自獨立） */
-var QUESTIONNAIRE_SHEETS = { '量販':'卷_巡量販', '全聯':'卷_巡全聯' };
+   量販／全聯兩個分頁，依店家的 chanKey 決定要查哪一份，快取也各自獨立。
+   1.20.0 起改由「看版設定」分頁【問卷分頁】區塊載入，這裡先給空物件） */
+var QUESTIONNAIRE_SHEETS = {};
 
 /* 母體（店家名冊）欄名 */
 var P_AREA='營業處名稱', P_OFFICE='營業所/課', P_STAFF='主要訪員', P_CHANNEL='通路別',
@@ -1520,27 +1576,21 @@ var P_AREA='營業處名稱', P_OFFICE='營業所/課', P_STAFF='主要訪員', 
 /* 處理層欄名 */
 var R_CODE='店家代碼', R_DATE='巡補日期', R_SOURCEREF='來源分頁+行數', R_STAFF='執行人員';
 
-/* 檔期定義：起始日 + 週數。之後年度數字要改就改這裡，不用動下方邏輯 */
-var PERIODS = [
-  { key:'zhong', label:'中元專案', y:2026, mo:8, d:8,  weeks:3 },
-  { key:'mid',   label:'中秋專案', y:2026, mo:9, d:14, weeks:2 }
-];
-/* 等級 → 每週應達次數（已與需求方確認先寫死，不做管理表）
+/* 檔期定義：起始日 + 週數。1.20.0 起改由「看版設定」分頁【檔期】區塊載入，
+   這裡先給空陣列，fetchBoardConfig() 載入完成前不應該有任何畫面邏輯讀到它。 */
+var PERIODS = [];
+/* 等級 → 每週應達次數。1.20.0 起改由「看版設定」分頁【等級對照】區塊載入，
    key 必須跟「店家名冊」的「店家等級」欄位真實值完全一致（含全形字） */
-var GRADE_FREQ = { '量販A':5, '量販B':2, '量販C':1, '連鎖超市A':1 };
+var GRADE_FREQ = {};
 /* 等級的畫面簡稱（真實值較長時，畫面上仍顯示簡稱，不影響比對邏輯） */
-var GRADE_LABEL = { '量販A':'量販A', '量販B':'量販B', '量販C':'量販C', '連鎖超市A':'超市A' };
+var GRADE_LABEL = {};
 var AREA_ORDER = ['北部','桃園','臺中','嘉義','臺南','高雄','花蓮'];
 /* 1.11.0：通路 → 該通路底下才有的店家等級清單，用來讓「等級」chip 只列出
    跟目前選定「通路」相關的選項（例如選了「全聯」，等級 chip 不該還列出
-   「量販A/B/C」）。直接用 GRADE_FREQ 的 key 字首「量販」判斷是否屬於量販
-   通路，非「量販」開頭者一律歸給全聯（目前只有「連鎖超市A」一種，日後
-   全聯若新增其他等級，只要 key 不是「量販」開頭就會自動歸進來，不用
-   額外改這裡）。 */
-var CHANNEL_GRADES = {
-  '量販': Object.keys(GRADE_FREQ).filter(function(g){ return g.indexOf('量販')===0; }),
-  '全聯': Object.keys(GRADE_FREQ).filter(function(g){ return g.indexOf('量販')!==0; })
-};
+   「量販A/B/C」）。1.20.0 起不再用 key 字首「量販」猜測所屬通路，改直接
+   採用「看版設定」【等級對照】區塊裡明列的「所屬通路」欄位建表，日後
+   通路或等級怎麼組合，都由試算表決定，不用改程式碼判斷。 */
+var CHANNEL_GRADES = {};
 
 /* 通路判斷（依真實欄位值分類為「量販」／「全聯」兩種內部簡稱 key，
    畫面上的 chip／badge 一律顯示簡稱，篩選比對則一律用這個 key）：
@@ -1661,7 +1711,7 @@ function _updateMobileWeekPager(){
   var pLabel = (p ? p.label.replace('專案','') : MOBILE_SEL.period);
   var icon = MOBILE_SEL.period==='zhong' ? '🏮' : '🎑';
   var dateRange = _weekDateRange(MOBILE_SEL.period, MOBILE_SEL.week);
-  labelEl.innerHTML = '<span class="pgr-main">'+icon+' '+esc(pLabel)+' W'+MOBILE_SEL.week+'</span><small>'+esc(dateRange)+'</small>';
+  labelEl.innerHTML = icon+' '+esc(pLabel)+' W'+MOBILE_SEL.week+'<small>'+esc(dateRange)+'</small>';
   if(prevBtn) prevBtn.disabled = (idx<=0);
   if(nextBtn) nextBtn.disabled = (idx===-1 || idx>=all.length-1);
 }
@@ -1675,10 +1725,18 @@ function _updateMobileWeekPager(){
 var OFFICE_WEEK_SEL = null;
 
 /* ════ 1.15.0：手機版「營業處執行狀況」瘦身共用狀態 ══════════════════════
-   1.19.1：原本 OV_AREA_IDX／ovPageArea 是手機卡片「一次只看一個處」的
-   ◄／► 切換狀態；改成全部處攤開列出（.oo-area-list）後，切換頁碼的概念
-   已經不存在，這份狀態跟切換函式整段移除，避免留著沒人呼叫的死狀態。 */
-
+   OV_AREA_IDX：手機卡片改成一次只看一個營業處（比照 MOBILE_SEL 週期切換
+   的手感），頁面順序＝['全部合計'].concat(areasPresent)，索引 0＝全部
+   合計；桌機表格不受影響，仍是完整表格。
+   1.17.0：中元/中秋迷你表格原本另外有自己一份獨立狀態（OV_MINI_WEEK／
+   ovMiniPageWeek），跟這裡的 OV_AREA_IDX、跟上面「營業處執行狀況」表的
+   OFFICE_WEEK_SEL 是三份互不相干的「目前在看哪個時間範圍」狀態，同一個
+   總覽頁上使用者要切三次、彼此還可能顯示對不上（例如頂端 chip 選了
+   「中元 W2」，中元卡片的迷你表格卻還停在自己上次切到的 W1）。已整段
+   移除，迷你表格改直接吃 OFFICE_WEEK_SEL 決定顯示哪一週（見
+   renderOverview()），全頁時間維度統一只有 OFFICE_WEEK_SEL 這一個
+   來源。 */
+var OV_AREA_IDX = 0;
 /* 1.17.0：量販A五六必訪稽核摘要列，目前完全沒有異常（未達／今日待完成／
    連續未達皆為 0）時預設收合成一行，不用被迫看一排「都是 0」的必要資訊
    卡片；有異常時永遠強制展開、不能收合，避免真的有問題卻被使用者手動
@@ -1727,8 +1785,15 @@ function _defaultWeekForPeriod(periodKey){
   }
   return nextFuture || p.weeks;
 }
-/* ◄／► 切換「營業處執行狀況」手機版目前顯示的頁面（全部合計／單一處）
-   1.19.1：已移除，手機版改成全部處攤開列出，不再需要換頁。 */
+/* ◄／► 切換「營業處執行狀況」手機版目前顯示的頁面（全部合計／單一處） */
+function ovPageArea(dir){
+  var areasPresent = AREA_ORDER.filter(function(a){
+    return STORE_ROWS.some(function(s){ return s.area===a; });
+  });
+  var maxIdx = areasPresent.length; /* 頁面總數 = 1(全部合計) + areasPresent.length */
+  OV_AREA_IDX = Math.max(0, Math.min(maxIdx, OV_AREA_IDX + dir));
+  renderOfficeOverview();
+}
 
 function showLoading(){ document.getElementById('loading').classList.add('show'); }
 function hideLoading(){ document.getElementById('loading').classList.remove('show'); }
@@ -1744,27 +1809,39 @@ function init(){
     document.getElementById('empty-msg').textContent = '⚠️ 缺少 sheetId 參數';
     return;
   }
-  buildFilterUI();
   showLoading();
-  fetchPopulation(function(){
-    fetchProcessLayer(function(){
-      hideLoading();
-      /* 1.14.0：手機斷面且店家名冊有資料時，先跳單位導引篩選，使用者
-         選完（或按略過）才會實際呼叫 renderOverview()／_enterDetail()；
-         桌機、或名冊載入失敗（STORE_ROWS 是空的，錯誤訊息已經另外處理）
-         都不顯示導引，維持原本「進站直接看整體總覽」的行為。 */
-      if(_isMobileViewport() && STORE_ROWS.length){
-        openMobileGate();
-      } else {
-        renderOverview(); /* 先進概況主畫面，不直接跳明細 */
-      }
-      /* 背景預先載入兩份問卷分頁，點店家明細時就不用現點現等 */
-      Object.keys(QUESTIONNAIRE_SHEETS).forEach(function(chanKey){
-        _fetchQuestionnaireSheet(chanKey, function(){});
+  /* 1.20.0：PERIODS／GRADE_FREQ／GRADE_LABEL／CHANNEL_GRADES／
+     QUESTIONNAIRE_SHEETS／MUST_VISIT_RULES／PROJ_NAME 都要等「看版設定」
+     分頁載入完成才有正確值，buildFilterUI()（會用到 PERIODS／
+     CHANNEL_GRADES）跟後面的店家名冊／處理層抓取都必須排在它後面；
+     設定載入失敗時 fetchBoardConfig 內部已經顯示錯誤訊息，這裡直接
+     中止、不繼續往下抓表，避免用空殼設定跑出一堆「等級未知」假警訊。 */
+  fetchBoardConfig(function(ok){
+    if(!ok){ hideLoading(); return; }
+    document.getElementById('tb-title').textContent = PROJ_NAME;
+    document.getElementById('ov-title').textContent = PROJ_NAME;
+    document.title = PROJ_NAME;
+    buildFilterUI();
+    fetchPopulation(function(){
+      fetchProcessLayer(function(){
+        hideLoading();
+        /* 1.14.0：手機斷面且店家名冊有資料時，先跳單位導引篩選，使用者
+           選完（或按略過）才會實際呼叫 renderOverview()／_enterDetail()；
+           桌機、或名冊載入失敗（STORE_ROWS 是空的，錯誤訊息已經另外處理）
+           都不顯示導引，維持原本「進站直接看整體總覽」的行為。 */
+        if(_isMobileViewport() && STORE_ROWS.length){
+          openMobileGate();
+        } else {
+          renderOverview(); /* 先進概況主畫面，不直接跳明細 */
+        }
+        /* 背景預先載入問卷分頁，點店家明細時就不用現點現等 */
+        Object.keys(QUESTIONNAIRE_SHEETS).forEach(function(chanKey){
+          _fetchQuestionnaireSheet(chanKey, function(){});
+        });
       });
     });
+    fetchSyncTime();
   });
-  fetchSyncTime();
 }
 
 /* ════ 1.14.0：手機版單位導引篩選——營業處→營業所/課→業務員三層連動
@@ -1857,6 +1934,115 @@ function mobileGateEnter(){
   FILTER.area = MOBILE_GATE.area; FILTER.office = MOBILE_GATE.office; FILTER.staff = MOBILE_GATE.staff;
   FILTER.keyword = ''; FILTER.onlyUnmet = false; FILTER.onlyMvMiss = false; FILTER.week = null;
   _enterDetail();
+}
+
+/* ════ 1.20.0：讀「看版設定」分頁，動態載入可調設定 ═════════════════
+   分頁排版是「多個區塊各自一組小表」而不是單一標準表格（欄名不重複、
+   區塊之間留白列分隔，見區塊清單），所以用 headers=0 把整份分頁當原始
+   格子讀進來，自己找【區塊標題】列、跳過緊接在後的欄名列，再吃資料列
+   直到遇到空白列或下一個【區塊標題】為止；不透過 gviz 的表頭機制解析，
+   避免跟「每個區塊各自的欄名」互相打架。
+   目前支援的區塊（缺少的區塊維持程式內建的空殼，不會整頁壞掉，只是
+   該區塊對應功能形同沒設定）：
+   【基本設定】設定項／值 → 目前只吃「專案名稱」一列，可以放在最上方
+   【檔期】key／label／年／月／日／週數 → 對應 PERIODS
+   【等級對照】key／簡稱／每週應達次數／所屬通路 → 對應 GRADE_FREQ／
+     GRADE_LABEL／CHANNEL_GRADES；「所屬通路」的值必須跟「問卷分頁」
+     區塊、以及 _chanKey() 判斷出來的通路 key（'量販'／'全聯'）一致
+   【問卷分頁】通路／問卷分頁名稱 → 對應 QUESTIONNAIRE_SHEETS
+   【必訪規則】通路／等級／必訪星期(逗號分隔) → 對應 MUST_VISIT_RULES，
+     可以放 0～多列；星期用 0=日...6=六（跟 getUTCDay() 一致） */
+function _cfgRowVals(row, width){
+  var out = [];
+  var c = (row && row.c) || [];
+  for(var i=0;i<width;i++){
+    var cell = c[i];
+    var v = cell ? ((cell.v!==null && cell.v!==undefined && cell.v!=='') ? cell.v : (cell.f||'')) : '';
+    out.push(String(v).trim());
+  }
+  return out;
+}
+function _scanConfigSections(rows){
+  var W = 6; /* 目前最寬的區塊（檔期）是 6 欄，其餘區塊用不到的欄位留空即可 */
+  var grid = rows.map(function(row){ return _cfgRowVals(row, W); });
+  var sections = {};
+  var i = 0;
+  while(i < grid.length){
+    var m = grid[i][0].match(/^【(.+)】$/);
+    if(!m){ i++; continue; }
+    var name = m[1];
+    i++; /* 跳過區塊標題列 */
+    if(i < grid.length) i++; /* 跳過緊接著的欄名列 */
+    var dataRows = [];
+    while(i < grid.length){
+      var r = grid[i];
+      var isBlank = r.every(function(v){ return v===''; });
+      if(isBlank || /^【.+】$/.test(r[0])) break;
+      dataRows.push(r);
+      i++;
+    }
+    sections[name] = dataRows;
+  }
+  return sections;
+}
+function _applyBoardConfig(sections){
+  var base = {};
+  (sections['基本設定']||[]).forEach(function(r){ if(r[0]) base[r[0]] = r[1]; });
+  if(base['專案名稱']) PROJ_NAME = base['專案名稱'];
+
+  var periodRows = (sections['檔期']||[]).filter(function(r){ return r[0]; });
+  if(periodRows.length){
+    PERIODS = periodRows.map(function(r){
+      return { key:r[0], label:r[1]||r[0], y:+r[2], mo:+r[3], d:+r[4], weeks:+r[5] };
+    });
+  }
+
+  var gradeRows = (sections['等級對照']||[]).filter(function(r){ return r[0]; });
+  if(gradeRows.length){
+    var newFreq = {}, newLabel = {}, newChannelGrades = {};
+    gradeRows.forEach(function(r){
+      var key = r[0];
+      newFreq[key] = +r[2] || 0;
+      newLabel[key] = r[1] || key;
+      var ch = r[3] || '';
+      if(ch){
+        if(!newChannelGrades[ch]) newChannelGrades[ch] = [];
+        newChannelGrades[ch].push(key);
+      }
+    });
+    GRADE_FREQ = newFreq;
+    GRADE_LABEL = newLabel;
+    CHANNEL_GRADES = newChannelGrades;
+  }
+
+  var qRows = (sections['問卷分頁']||[]).filter(function(r){ return r[0]; });
+  if(qRows.length){
+    var newQ = {};
+    qRows.forEach(function(r){ newQ[r[0]] = r[1]; });
+    QUESTIONNAIRE_SHEETS = newQ;
+  }
+
+  var mvRows = (sections['必訪規則']||[]).filter(function(r){ return r[0] && r[1]; });
+  MUST_VISIT_RULES = mvRows.map(function(r){
+    var weekdays = String(r[2]||'').split(',')
+      .map(function(x){ return parseInt(String(x).trim(), 10); })
+      .filter(function(n){ return !isNaN(n); });
+    return { chanKey:r[0], grade:r[1], weekdays:weekdays };
+  });
+}
+function fetchBoardConfig(callback){
+  var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+    '/gviz/tq?tqx=out:json&headers=0&sheet=' + encodeURIComponent(CFG_SHEET);
+  fetch(url).then(function(r){ return r.text(); }).then(function(txt){
+    var json = gvizParse(txt);
+    var rows = (json.table||{}).rows || [];
+    _applyBoardConfig(_scanConfigSections(rows));
+    callback(true);
+  }).catch(function(err){
+    document.getElementById('empty-msg').style.display = 'block';
+    document.getElementById('empty-msg').textContent = '⚠️ 看版設定（分頁「'+CFG_SHEET+'」）載入失敗：'+err;
+    callback(false);
+  });
 }
 
 /* ════ 讀「店家名冊」════ */
@@ -1962,17 +2148,27 @@ function _isWeekPast(periodKey, week){
   return _todayEpochDay() > weekEndDay;
 }
 
-/* ════ 稽核用「必訪日」規則（1.9.6 新增，見檔頭【稽核用必訪日規則】說明）════
-   量販通路＋量販A店，每個檔期週次裡的星期五、星期六視為必定必訪日；跟
-   GRADE_FREQ 的「週應達次數」比對邏輯完全獨立，互不影響、互不覆蓋——
-   一個管「去了幾次」，一個管「規定的那天有沒有去」。 */
-var MUST_VISIT_RULE = { chanKey:'量販', grade:'量販A', weekdays:[5,6] }; /* getUTCDay()：0=日...5=五,6=六 */
-function _isMustVisitStore(s){
-  return s.chanKey===MUST_VISIT_RULE.chanKey && s.grade===MUST_VISIT_RULE.grade;
+/* ════ 稽核用「必訪日」規則（1.9.6 新增，見檔頭【稽核用必訪日規則】說明；
+   1.20.0 改成可多條規則，來源是「看版設定」分頁【必訪規則】區塊）════
+   例：量販通路＋量販A店，每個檔期週次裡的星期五、星期六視為必定必訪日；
+   跟 GRADE_FREQ 的「週應達次數」比對邏輯完全獨立，互不影響、互不覆蓋——
+   一個管「去了幾次」，一個管「規定的那天有沒有去」。同一店最多只吃第一條
+   相符的規則（同一個通路+等級不應該在設定表裡重複出現兩條規則）。 */
+var MUST_VISIT_RULES = []; /* [{chanKey, grade, weekdays:[0-6,...]}, ...]，getUTCDay()：0=日...5=五,6=六 */
+function _mustVisitRuleForStore(s){
+  for(var i=0;i<MUST_VISIT_RULES.length;i++){
+    var rule = MUST_VISIT_RULES[i];
+    if(s.chanKey===rule.chanKey && s.grade===rule.grade) return rule;
+  }
+  return null;
 }
-/* 換算某個檔期週次裡，落在 MUST_VISIT_RULE.weekdays 的實際日期
-   （epoch day 陣列，固定 7 天一週，一定會剛好命中 2 天：五、六）。 */
-function _mustVisitDaysForCol(period, week){
+function _isMustVisitStore(s){
+  return !!_mustVisitRuleForStore(s);
+}
+/* 換算某個檔期週次裡，落在 weekdays 清單裡的實際日期
+   （epoch day 陣列，固定 7 天一週）。weekdays 一律由呼叫端帶入該店對應
+   規則的 weekdays，不再讀取單一全域規則。 */
+function _mustVisitDaysForCol(period, week, weekdays){
   var p = PERIODS.filter(function(pp){ return pp.key===period; })[0];
   if(!p) return [];
   var startDay = _toEpochDay(p.y,p.mo,p.d) + (week-1)*7;
@@ -1980,7 +2176,7 @@ function _mustVisitDaysForCol(period, week){
   for(var i=0;i<7;i++){
     var day = startDay+i;
     var dow = new Date(day*86400000).getUTCDay();
-    if(MUST_VISIT_RULE.weekdays.indexOf(dow)!==-1) out.push(day);
+    if(weekdays.indexOf(dow)!==-1) out.push(day);
   }
   return out;
 }
@@ -1997,9 +2193,10 @@ function _hasVisitOnDay(code, epochDay){
 /* 組出某店某檔期週次的必訪日狀態陣列（給 render() 桌機/手機共用），
    非「量販A」店回傳 null，避免其他等級的格子被誤加標記。 */
 function _mustVisitStatusForCol(s, period, week){
-  if(!_isMustVisitStore(s)) return null;
+  var rule = _mustVisitRuleForStore(s);
+  if(!rule) return null;
   var today = _todayEpochDay();
-  return _mustVisitDaysForCol(period, week).map(function(day){
+  return _mustVisitDaysForCol(period, week, rule.weekdays).map(function(day){
     return { day:day, dow:new Date(day*86400000).getUTCDay(), visited:_hasVisitOnDay(s.code, day), isPast: today>day };
   });
 }
@@ -2611,14 +2808,14 @@ function _updateOvWeekPager(){
   var nextBtn = document.getElementById('ov-week-next');
   if(!labelEl || !_ovMobileIsPortrait()) return;
   var cur = _ovResolveMobileWeek();
-  if(!cur){ labelEl.innerHTML = '<span class="pgr-main">—</span>'; return; }
+  if(!cur){ labelEl.textContent = '—'; return; }
   var all = _allPeriodWeekCols();
   var idx = all.findIndex(function(c){ return c.period===cur.period && c.week===cur.week; });
   var p = PERIODS.filter(function(pp){ return pp.key===cur.period; })[0];
   var pLabel = (p ? p.label.replace('專案','') : cur.period);
   var icon = cur.period==='zhong' ? '🏮' : '🎑';
   var dateRange = _weekDateRange(cur.period, cur.week);
-  labelEl.innerHTML = '<span class="pgr-main">'+icon+' '+esc(pLabel)+' W'+cur.week+'</span><small>'+esc(dateRange)+'</small>';
+  labelEl.innerHTML = icon+' '+esc(pLabel)+' W'+cur.week+'<small>'+esc(dateRange)+'</small>';
   if(prevBtn) prevBtn.disabled = (idx<=0);
   if(nextBtn) nextBtn.disabled = (idx===-1 || idx>=all.length-1);
 }
@@ -2840,18 +3037,26 @@ function renderOfficeOverview(){
       + mvStat
       + '</div></div>';
   }).join('');
-  /* 1.19.1：手機版「攤開」──不再一次只看一個處，全部處＋全部合計一次
-     列出（比照桌機表格「一次看全部」的資訊量，只是排版換成直式卡片）。
-     全部合計固定放最上面、視覺上跟其他處區隔（oo-mcard-total），其餘
-     依 AREA_ORDER 依序往下排；原本的 ◄／► 換頁、OV_AREA_IDX 狀態、
-     oo-area-pager 都不再需要，整段移除。 */
-  var totalCardHtml = '<div class="oo-mcard oo-mcard-total"><div class="oo-mcard-head">全部合計</div>' + totalChanBlocks + '</div>';
-  var areaCardsHtml = areasPresent.map(function(area){
-    return '<div class="oo-mcard"><div class="oo-mcard-head">'+esc(area)+'</div>'
-      + CHANS.map(function(ck){ return _mcardChan(area, ck); }).join('')
-      + '</div>';
-  }).join('');
-  var mobileHtml = '<div class="oo-mobile-cards">' + totalCardHtml + areaCardsHtml + '</div>';
+  var ovPages = ['全部合計'].concat(areasPresent);
+  if(OV_AREA_IDX >= ovPages.length) OV_AREA_IDX = 0;
+  if(OV_AREA_IDX < 0) OV_AREA_IDX = 0;
+  var curPageName = ovPages[OV_AREA_IDX];
+  var curCardHtml = curPageName==='全部合計'
+    ? ('<div class="oo-mcard oo-mcard-total"><div class="oo-mcard-head">全部合計</div>' + totalChanBlocks + '</div>')
+    : ('<div class="oo-mcard"><div class="oo-mcard-head">'+esc(curPageName)+'</div>'
+        + CHANS.map(function(ck){ return _mcardChan(curPageName, ck); }).join('')
+        + '</div>');
+  var pagerHtml = '<div class="oo-area-pager" id="oo-area-pager">'
+    + '<button class="oo-area-nav" id="oo-area-prev" onclick="ovPageArea(-1)" aria-label="上一處"'+(OV_AREA_IDX<=0?' disabled':'')+'>◄</button>'
+    + '<div class="oo-area-pager-label">'+esc(curPageName)+'<small>'+(OV_AREA_IDX+1)+' / '+ovPages.length+'</small></div>'
+    + '<button class="oo-area-nav" id="oo-area-next" onclick="ovPageArea(1)" aria-label="下一處"'+(OV_AREA_IDX>=ovPages.length-1?' disabled':'')+'>►</button>'
+    + '</div>';
+  /* 1.19.0：這顆切換器改成跟上方「時間」切換器同一排並排（.ov-mobile-pager-row，
+     見 HTML），不再跟著卡片清單字串一起產生——直接就地替換靜態佔位的
+     #oo-area-pager 節點（outerHTML 帶著同樣的 id，下次渲染還是找得到）。 */
+  var pagerSlot = document.getElementById('oo-area-pager');
+  if(pagerSlot) pagerSlot.outerHTML = pagerHtml;
+  var mobileHtml = '<div class="oo-mobile-cards">' + curCardHtml + '</div>';
 
   wrap.innerHTML = mvSummaryHtml + tableHtml + mobileHtml;
 }
@@ -3475,14 +3680,15 @@ function _buildDayBoxCells(s, period, week, stdN, actual){
   if(!p) return '';
   var startDay = _toEpochDay(p.y,p.mo,p.d) + (week-1)*7;
   var today = _todayEpochDay();
-  var mustVisit = _isMustVisitStore(s);
+  var mvRule = _mustVisitRuleForStore(s);
+  var mustVisit = !!mvRule;
   var days = [];
   for(var i=0;i<7;i++){
     var day = startDay+i;
     var dow = new Date(day*86400000).getUTCDay();
     var visited = _hasVisitOnDay(s.code, day);
     var isPastDay = day < today;
-    var isForceWhite = mustVisit && !isPastDay && !visited && MUST_VISIT_RULE.weekdays.indexOf(dow)!==-1;
+    var isForceWhite = mustVisit && !isPastDay && !visited && mvRule.weekdays.indexOf(dow)!==-1;
     days.push({ day:day, dow:dow, visited:visited, isPastDay:isPastDay, isForceWhite:isForceWhite });
   }
   var neededWhite = Math.max(0, stdN-actual);
