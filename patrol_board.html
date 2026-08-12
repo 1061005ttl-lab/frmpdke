@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.20.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-12
+  版本：Ver. 1.21.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-12
 
 【這個檔案是什麼】
   ‧ 單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 讀取同一份
@@ -45,7 +45,7 @@
   ‧ 兩者都讀自同一個 SHEET_ID（網址參數 ?sheetId= 帶入）。
 
 ────────────────────────────────────────────────────────────
-【看版設定分頁（1.20.0 新增，常數 CFG_SHEET＝'看版設定'）】
+【看版設定分頁（1.20.0 新增，1.21.0 調整欄位排列，常數 CFG_SHEET＝'看版設定'）】
   ‧ 同一份 SHEET_ID 試算表裡再多一個分頁，集中放「業務可能會調整」的
     設定值，看板進站第一步（fetchBoardConfig()）就會先讀這個分頁，讀
     完才會建篩選列 UI、才會去抓店家名冊／處理層；分頁讀取失敗會直接
@@ -53,17 +53,33 @@
   ‧ 排版是「多個【區塊標題】小表由上到下排列，中間留空白列分隔」，
     不是單一標準表格，程式用 _scanConfigSections() 自己找區塊、不吃
     gviz 的表頭機制，所以區塊順序可以調整、但每個區塊內部的欄位順序
-    不能亂動。目前支援的區塊：
+    不能亂動（順序錯了程式不會報錯，只會把值塞進錯的欄位，屬於最容易
+    改壞又最難發現的地方，改動前務必對照下面欄序）。目前支援的區塊：
     - 【基本設定】設定項／值：目前只認「專案名稱」這一列。
-    - 【檔期】key／label／年／月／日／週數：對應 PERIODS，可以有
-      多列（不限中元/中秋兩個），對應下方【檔期定義】的計算邏輯。
-    - 【等級對照】key／簡稱／每週應達次數／所屬通路：對應
-      GRADE_FREQ／GRADE_LABEL／CHANNEL_GRADES；「key」須跟「店家名冊」
-      的「店家等級」欄位真實值完全一致（含全形字），「所屬通路」須跟
-      _chanKey() 判斷出來的通路 key（'量販'／'全聯'）一致，否則等級
-      chip 篩選會抓不到對應等級。
-    - 【問卷分頁】通路／問卷分頁名稱：對應 QUESTIONNAIRE_SHEETS，「通路」
-      同樣須是 '量販'／'全聯' 這種 chanKey，不是通路別欄原始值。
+    - 【檔期】key／label／起始日／週數：對應 PERIODS，可以有多列（不限
+      中元/中秋兩個），對應下方【檔期定義】的計算邏輯。key／起始日／
+      週數必填，label 留空退回用 key 當標籤。起始日 1.21.0 起改成單一
+      欄位（不再拆年/月/日三欄），接受 "2026/08/08" 或 "2026-08-08"
+      這類純文字，也接受把該欄格式化成 Google Sheets 原生日期型別
+      （見 _parseCfgDate()）；解析不出來的列會被直接跳過、不會讓其他
+      檔期跟著壞掉，但也代表那個檔期不會出現在畫面上，要留意。
+    - 【等級對照】通路／等級／簡稱／每週應達次數（1.21.0 起改成通路
+      開頭，跟【必訪規則】欄序一致，方便對照）：對應 GRADE_FREQ／
+      GRADE_LABEL／CHANNEL_GRADES。通路、等級都必填：「等級」須跟
+      「店家名冊」的「店家等級」欄位真實值完全一致（含全形字）；
+      「通路」須跟 _chanKey() 判斷出來的通路 key（'量販'／'全聯'）
+      一致，否則這個等級不會出現在該通路底下的等級 chip 篩選選項裡
+      （但仍會正常計入達成率計算，因為算式只查 GRADE_FREQ[等級]，
+      跟通路欄本身無關，純粹是篩選介面選不到）。簡稱留空退回顯示
+      「等級」本身；每週應達次數留空視為 0（等於「這個等級沒有應達
+      次數要求」，該等級的店永遠不會被判定為未達）。
+    - 【問卷分頁】通路／問卷分頁名稱：對應 QUESTIONNAIRE_SHEETS，只
+      影響店家明細 Dialog 裡的「問卷內容」分頁（顯示原始問卷逐題
+      答案），跟巡補次數／達成率／必訪規則等核心計算完全無關；「通路」
+      同樣須是 '量販'／'全聯' 這種 chanKey，不是通路別欄原始值。可以
+      整段留白，或只填其中一個通路——沒填的通路，店家在明細 Dialog
+      打開「問卷內容」時會顯示「找不到○○對應的問卷分頁設定」，不影響
+      看板其他任何功能。
     - 【必訪規則】通路／等級／必訪星期(逗號分隔)：對應
       MUST_VISIT_RULES，可以放 0～多列，每列各自獨立一條規則；星期
       用 0=日...6=六（跟 JS 的 getUTCDay() 一致），本次交接範例只給了
@@ -181,6 +197,18 @@
     把 <head> 裡那段 <script> 拿掉即可。
 
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.21.0 2026-08-12  調整「看版設定」分頁欄位排列（不改變分頁本身
+                      「多區塊堆疊」的排版風格，只調整區塊內部欄序）：
+                      ①【檔期】年/月/日三欄合併成單一「起始日」欄，
+                      新增 _parseCfgDate() 同時接受 "2026/08/08"／
+                      "2026-08-08" 純文字或 Google Sheets 原生日期型別；
+                      ②【等級對照】欄序改成「通路／等級／簡稱／每週應達
+                      次數」（通路開頭），跟【必訪規則】欄序一致，通路／
+                      等級改為必填，簡稱／每週應達次數留空有預設行為
+                      （分別退回等級本身／視為0）；③【問卷分頁】維持
+                      原欄序，只是收資料時改成通路＋分頁名稱都要有值才
+                      收，單一通路留白時只影響該通路的「問卷內容」顯示，
+                      不影響其他功能。
   1.20.0 2026-08-12  新增「看版設定」試算表分頁（常數 CFG_SHEET），把
                       專案名稱／PERIODS（檔期）／GRADE_FREQ+GRADE_LABEL
                       （等級對照）／QUESTIONNAIRE_SHEETS（問卷分頁）／
@@ -1944,14 +1972,40 @@ function mobileGateEnter(){
    避免跟「每個區塊各自的欄名」互相打架。
    目前支援的區塊（缺少的區塊維持程式內建的空殼，不會整頁壞掉，只是
    該區塊對應功能形同沒設定）：
-   【基本設定】設定項／值 → 目前只吃「專案名稱」一列，可以放在最上方
-   【檔期】key／label／年／月／日／週數 → 對應 PERIODS
-   【等級對照】key／簡稱／每週應達次數／所屬通路 → 對應 GRADE_FREQ／
-     GRADE_LABEL／CHANNEL_GRADES；「所屬通路」的值必須跟「問卷分頁」
-     區塊、以及 _chanKey() 判斷出來的通路 key（'量販'／'全聯'）一致
-   【問卷分頁】通路／問卷分頁名稱 → 對應 QUESTIONNAIRE_SHEETS
+   【基本設定】設定項／值 → 目前只吃「專案名稱」一列，可以放在最上方。
+   【檔期】key／label／起始日／週數 → 對應 PERIODS。1.21.0 起「起始日」
+     合併成單一欄位（見 _parseCfgDate()），接受 "2026/08/08" 或
+     "2026-08-08" 純文字，也接受把該欄設成 Google Sheets 的日期格式；
+     key／起始日／週數必填，label 留空時退回用 key 當標籤。
+   【等級對照】通路／等級／簡稱／每週應達次數 → 對應 GRADE_FREQ／
+     GRADE_LABEL／CHANNEL_GRADES。1.21.0 起改成「通路」開頭，跟【必訪
+     規則】的欄序一致；通路／等級必填，「等級」須跟「店家名冊」的
+     「店家等級」欄位真實值完全一致（含全形字），「通路」須跟 _chanKey()
+     判斷出來的通路 key（'量販'／'全聯'）一致，否則等級 chip 在該通路
+     底下不會顯示（但不影響達成率計算，因為計算只看等級對 GRADE_FREQ
+     的查表，跟通路欄無關）。簡稱留空時退回顯示「等級」本身；每週應達
+     次數留空視為 0（等同「這個等級沒有應達次數要求」，不會被判定未達）。
+   【問卷分頁】通路／問卷分頁名稱 → 對應 QUESTIONNAIRE_SHEETS，只影響
+     店家明細 Dialog 裡的「問卷內容」分頁（顯示原始問卷逐題答案）；跟
+     巡補次數/達成率/必訪規則等核心計算完全無關。某個通路留空不填，
+     只有那個通路的店家在明細 Dialog 打開「問卷內容」時會顯示「找不到
+     ○○對應的問卷分頁設定」，不影響看板其他任何功能，也不會讓整頁壞掉。
    【必訪規則】通路／等級／必訪星期(逗號分隔) → 對應 MUST_VISIT_RULES，
-     可以放 0～多列；星期用 0=日...6=六（跟 getUTCDay() 一致） */
+     可以放 0～多列；星期用 0=日...6=六（跟 getUTCDay() 一致）。 */
+/* 解析【檔期】起始日欄位：接受 Google Sheets 原生日期格式（gviz 會回傳
+   類似 "Date(2026,7,8,...)" 的字串，月份 0-based，需要 +1），也接受
+   使用者直接打的純文字 "YYYY/MM/DD" 或 "YYYY-MM-DD"（月/日可以 1～2 碼，
+   例如 "2026/8/8" 也算合法）。兩種都解析不出來就回傳 null，呼叫端要自行
+   決定跳過該筆還是報錯，不要在這裡默默塞一個錯的日期進去。 */
+function _parseCfgDate(raw){
+  var s = String(raw||'').trim();
+  if(!s) return null;
+  var m1 = s.match(/^Date\((\d+),(\d+),(\d+)/);
+  if(m1) return { y:+m1[1], mo:+m1[2]+1, d:+m1[3] };
+  var m2 = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if(m2) return { y:+m2[1], mo:+m2[2], d:+m2[3] };
+  return null;
+}
 function _cfgRowVals(row, width){
   var out = [];
   var c = (row && row.c) || [];
@@ -1963,7 +2017,8 @@ function _cfgRowVals(row, width){
   return out;
 }
 function _scanConfigSections(rows){
-  var W = 6; /* 目前最寬的區塊（檔期）是 6 欄，其餘區塊用不到的欄位留空即可 */
+  var W = 4; /* 1.21.0：檔期改成單一日期欄後，目前最寬的區塊（檔期／
+    等級對照）都是 4 欄，其餘區塊用不到的欄位留空即可 */
   var grid = rows.map(function(row){ return _cfgRowVals(row, W); });
   var sections = {};
   var i = 0;
@@ -1990,32 +2045,45 @@ function _applyBoardConfig(sections){
   (sections['基本設定']||[]).forEach(function(r){ if(r[0]) base[r[0]] = r[1]; });
   if(base['專案名稱']) PROJ_NAME = base['專案名稱'];
 
+  /* 【檔期】欄序：key／label／起始日／週數。key、起始日、週數都必填，
+     起始日解析失敗的列直接跳過（不會讓整個 PERIODS 掛掉，只是那個檔期
+     不會出現在畫面上——比讓 _toEpochDay 吃到 NaN 之後整段週次計算跑歪
+     安全）。label 留空退回用 key 當標籤。 */
   var periodRows = (sections['檔期']||[]).filter(function(r){ return r[0]; });
   if(periodRows.length){
-    PERIODS = periodRows.map(function(r){
-      return { key:r[0], label:r[1]||r[0], y:+r[2], mo:+r[3], d:+r[4], weeks:+r[5] };
+    var newPeriods = [];
+    periodRows.forEach(function(r){
+      var dp = _parseCfgDate(r[2]);
+      var weeks = +r[3];
+      if(!dp || !weeks) return; /* 起始日解析不出來，或週數空白/非數字，跳過這筆 */
+      newPeriods.push({ key:r[0], label:r[1]||r[0], y:dp.y, mo:dp.mo, d:dp.d, weeks:weeks });
     });
+    if(newPeriods.length) PERIODS = newPeriods;
   }
 
-  var gradeRows = (sections['等級對照']||[]).filter(function(r){ return r[0]; });
+  /* 【等級對照】欄序：通路／等級／簡稱／每週應達次數（1.21.0 起改成
+     通路開頭，跟【必訪規則】欄序一致）。通路、等級都必填；簡稱留空
+     退回顯示「等級」本身；每週應達次數留空視為 0。 */
+  var gradeRows = (sections['等級對照']||[]).filter(function(r){ return r[0] && r[1]; });
   if(gradeRows.length){
     var newFreq = {}, newLabel = {}, newChannelGrades = {};
     gradeRows.forEach(function(r){
-      var key = r[0];
-      newFreq[key] = +r[2] || 0;
-      newLabel[key] = r[1] || key;
-      var ch = r[3] || '';
-      if(ch){
-        if(!newChannelGrades[ch]) newChannelGrades[ch] = [];
-        newChannelGrades[ch].push(key);
-      }
+      var ch = r[0], key = r[1];
+      newFreq[key] = +r[3] || 0;
+      newLabel[key] = r[2] || key;
+      if(!newChannelGrades[ch]) newChannelGrades[ch] = [];
+      newChannelGrades[ch].push(key);
     });
     GRADE_FREQ = newFreq;
     GRADE_LABEL = newLabel;
     CHANNEL_GRADES = newChannelGrades;
   }
 
-  var qRows = (sections['問卷分頁']||[]).filter(function(r){ return r[0]; });
+  /* 【問卷分頁】欄序：通路／問卷分頁名稱，兩欄都要有值才收進
+     QUESTIONNAIRE_SHEETS——只填通路沒填分頁名稱、或整個區塊留白，都只
+     會讓那個通路的店家在明細 Dialog 的「問卷內容」分頁顯示找不到設定
+     的提示，不影響其他任何功能（詳見上方區塊說明）。 */
+  var qRows = (sections['問卷分頁']||[]).filter(function(r){ return r[0] && r[1]; });
   if(qRows.length){
     var newQ = {};
     qRows.forEach(function(r){ newQ[r[0]] = r[1]; });
