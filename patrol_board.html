@@ -143,13 +143,14 @@
   1.20.0 2026-08-12  試行「看版設定」分頁改成可調整設定檔：新增 fetchConfig()／
                       _splitConfigBlocks()／_applyConfigBlocks()，開站時
                       先讀「看版設定」分頁裡的【基本設定】【檔期】【等級對照】
-                      【區域順序】【問卷分頁】【必訪規則】六個區塊，覆蓋
+                      【問卷分頁】【必訪規則】五個區塊，覆蓋
                       PROJ_NAME／PERIODS／GRADE_FREQ／GRADE_LABEL／
-                      CHANNEL_GRADES／AREA_ORDER／QUESTIONNAIRE_SHEETS／
+                      CHANNEL_GRADES／QUESTIONNAIRE_SHEETS／
                       MUST_VISIT_RULE，讀不到或該區塊沒填才 fallback 回
-                      程式碼內建預設值。欄位名稱對照（P_*／R_*／
-                      POP_SHEET／PROC_SHEET）跟 _chanKey() 判斷邏輯這輪
-                      維持寫死，未開放。MUST_VISIT_RULE 現在可能是 null
+                      程式碼內建預設值。AREA_ORDER（區域順序）跟欄位名稱
+                      對照（P_*／R_*／POP_SHEET／PROC_SHEET）跟
+                      _chanKey() 判斷邏輯這輪維持寫死，未開放。
+                      MUST_VISIT_RULE 現在可能是 null
                       （本輪無必訪規則），_isMustVisitStore() 加了 null
                       防呆；init() 執行順序改成 fetchConfig 完成後才組
                       標題文字／呼叫 fetchPopulation，避免用到覆蓋前的
@@ -1894,8 +1895,10 @@ function mobileGateEnter(){
 }
 
 /* ════ 1.20.0：讀「看版設定」分頁的設定區塊（每輪專案會變的：專案名稱／
-   檔期／等級對照／區域順序／問卷分頁對照／必訪規則），取代原本寫死在
-   常數區的值。設計上刻意不用固定儲存格範圍（例如 A8:F10），而是整份
+   檔期／等級對照／問卷分頁對照／必訪規則），取代原本寫死在
+   常數區的值。AREA_ORDER（區域順序）維持寫死在程式碼，不從這裡讀
+   （已與需求方確認：區域順序不會變動，不需要開放）。設計上刻意不用
+   固定儲存格範圍（例如 A8:F10），而是整份
    「看版設定」分頁一次抓下來，用【區塊名稱】列當標記自己找表格範圍——這樣
    之後在某個區塊裡插入/刪除列（例如多加一個檔期、多加一個等級），
    不會因為別的區塊範圍跟著往下移而抓錯。
@@ -1912,8 +1915,6 @@ function mobileGateEnter(){
        key | label | 年 | 月 | 日 | 週數
      【等級對照】
        key | 簡稱 | 每週應達次數 | 所屬通路
-     【區域順序】
-       區域            （只有一欄，由上到下＝顯示順序）
      【問卷分頁】
        通路 | 問卷分頁名稱
      【必訪規則】
@@ -1924,8 +1925,12 @@ function mobileGateEnter(){
    自動略過、沿用程式碼裡原本寫死的預設值，不會讓整個看板因為某一格
    打錯格式就掛掉。 */
 function fetchConfig(callback){
+  /* 加 &_ts= 時間戳記防止瀏覽器／gviz 介面用到快取的舊資料——每次開站
+     都是一個全新網址，強迫抓最新的「看版設定」內容，不然改完試算表
+     有時候要等 gviz 自己的快取過期（1~5 分鐘）才會反映到頁面上。 */
   var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
-    '/gviz/tq?tqx=out:json&headers=0&sheet=' + encodeURIComponent(CONFIG_SHEET);
+    '/gviz/tq?tqx=out:json&headers=0&sheet=' + encodeURIComponent(CONFIG_SHEET) +
+    '&_ts=' + Date.now();
   fetch(url).then(function(r){ return r.text(); }).then(function(txt){
     var json = gvizParse(txt);
     var rows = (json.table.rows||[]).map(function(row){
@@ -2004,15 +2009,6 @@ function _applyConfigBlocks(blocks){
       (chan==='全聯' ? cg['全聯'] : cg['量販']).push(key);
     });
     if(Object.keys(gf).length){ GRADE_FREQ = gf; GRADE_LABEL = gl; CHANNEL_GRADES = cg; }
-  }
-
-  var areaRows = blocks['區域順序']||[];
-  if(areaRows.length){
-    var newAreaOrder = areaRows.map(function(r){
-      var firstKey = Object.keys(r)[0];
-      return String(r[firstKey]||'').trim();
-    }).filter(Boolean);
-    if(newAreaOrder.length) AREA_ORDER = newAreaOrder;
   }
 
   var qRows = blocks['問卷分頁']||[];
