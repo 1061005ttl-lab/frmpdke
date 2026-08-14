@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 3.7.0 ｜ 最後更新：2026-08-14
+  版本：Ver. 3.8.0 ｜ 最後更新：2026-08-14
 ════════════════════════════════════════════════════════════
 
 
@@ -49,6 +49,37 @@
 
 
 【版本紀錄】
+  3.8.0  2026-08-14  趨勢圖新增「三種模式」分頁切換（trend-mode-tabs，
+                      #trend-dialog 內、週數下拉選單同排下方）：
+                      1)「週執行率」＝原本 3.7.0 的邏輯，逐週各自獨立計算
+                        （_covWeeklySeries／_weekEffectiveRows），回答「這
+                        一週做了多少」，數字會忽高忽低、不是累加的。
+                      2)「累計達成進度」＝新增 _cumulativeEffectiveRows／
+                        _covCumulativeSeries，同樣是套用目前畫面範圍，但
+                        每一週改成「從最早紀錄到這週為止」找每家店最新一
+                        筆紀錄來判斷狀態（不限定在該週內），畫出的線理論
+                        上會逐步逼近 100%（除非有品項被店家撤除才會回
+                        落），回答「累計推進到哪裡了」，這是使用者這次
+                        明確要的「進度推進圖」。
+                      3)「每週新增家數」＝新增 _covDeltaSeries（把模式 2
+                        算出的累計快照，相鄰兩週相減）＋手刻長條圖
+                        _buildTrendBarSVG（非折線，正值長條在基準線上方、
+                        負值在下方，一眼看出哪一週衝很快、哪一週停滯甚至
+                        倒退），回答「這週比上週多／少了幾家」，是業界
+                        常見的 burn-up 累計圖搭配「期間增量」長條圖的標準
+                        組合，補足純折線圖看不出來的「單週貢獻量」細節。
+                      三種模式共用同一份 _covTrendSeriesDefs()（新增
+                      getRaw 回傳原始家數／份數，getVal 維持原本的 %或
+                      原始值邏輯，供模式1/2的折線圖與模式3的長條圖共用同
+                      一組顏色／標籤，不用重複定義三次)。週數下拉選單、
+                      「範圍：…（跟目前畫面篩選連動）」說明列、逐週數字
+                      對照表在三種模式下都繼續提供，切換模式不影響已選
+                      的週數與畫面篩選範圍。
+                      同時把 lamp-row 裡「B/C 桶燈號 chips」與「週檢視
+                      pager」用有底色的分組容器（.lamp-group／.cwn-group，
+                      各自淡色底＋小標籤「🚦 燈號篩選」「📅 週檢視」）
+                      視覺區隔開來，避免兩種性質不同的資料（一個是「篩選
+                      條件」、一個是「切換要看哪一週」）黏在一起分不清。
   3.7.0  2026-08-14  新增「📈 趨勢圖」：toolbar 彙整看板群組裡新增按鈕，
                       開啟後把週檢視已經在用的「算某一週有效覆蓋狀態」
                       （_weekEffectiveRows）在最近 N 週（4/8/12/26 週可選）
@@ -366,10 +397,44 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .trend-table thead th { color:var(--sub,#888); font-weight:700; font-size:11px; }
 .trend-table tbody tr:hover td { background:#FAFAF8; }
 .trend-empty { padding:24px 16px; text-align:center; color:var(--sub,#888); font-size:13px; }
+/* ── 趨勢圖三種模式切換（v3.8.0）：週執行率／累計達成進度／每週新增家數，
+   三顆並排的分頁式按鈕，選中的模式底色標示，跟旁邊「近N週」下拉選單同一列 ── */
+.trend-mode-tabs {
+  display:flex; gap:4px; padding:8px 14px 0; flex-wrap:wrap;
+}
+.trend-mode-btn {
+  font-family:inherit; font-size:12px; font-weight:700; cursor:pointer;
+  padding:6px 12px; border-radius:9px; border:1px solid var(--border);
+  background:#fff; color:var(--sub,#888); transition:all .15s; white-space:nowrap;
+}
+.trend-mode-btn:hover { border-color:var(--primary); color:var(--primary); }
+.trend-mode-btn.active { background:var(--primary); border-color:var(--primary); color:#fff; }
+.trend-mode-desc {
+  padding:8px 14px 0; font-size:11.5px; line-height:1.6; color:var(--sub,#888);
+}
 @media (max-width:640px) {
   #trend-dialog { padding:0; }
   #trend-dialog .dlg-box { max-width:100vw; width:100vw; height:100dvh; max-height:100dvh; border-radius:0; }
+  .trend-mode-btn { font-size:11px; padding:5px 9px; }
 }
+
+
+/* ── lamp-row 內兩種不同性質的資料分組視覺區隔（v3.8.0）：
+   .lamp-group＝B/C 桶燈號 chips（篩選條件，綠色調），
+   .cwn-group＝週檢視 pager（切換要看哪一週，藍色調）。
+   各自淡底色＋圓角＋小標籤，讓使用者一眼看出這是兩種不同性質的控制項，
+   不是同一組被硬擠在一起的按鈕 ── */
+.lamp-group, .cwn-group {
+  display:flex; align-items:center; gap:6px; flex-shrink:0;
+  padding:3px 9px 3px 8px; border-radius:11px;
+}
+.lamp-group { background:#F3FAEE; border:1px solid rgba(59,109,17,.16); }
+.cwn-group  { background:#EDF5FC; border:1px solid rgba(21,101,163,.18); }
+.lamp-group-tag, .cwn-group-tag {
+  font-size:10px; font-weight:800; white-space:nowrap; letter-spacing:.02em; flex-shrink:0;
+}
+.lamp-group-tag { color:var(--green,#3B6D11); opacity:.85; }
+.cwn-group-tag  { color:#1565A3; opacity:.85; }
 
 
 /* ── quicknav ── */
@@ -874,6 +939,9 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   .cwn-btn { font-size:10px; padding:3px 7px; }
   .cwn-btn-icon { padding:3px 6px; }
   .cwn-label { font-size:10.5px; min-width:60px; }
+  /* 分組容器（v3.8.0）手機縮小 padding／字級，標籤太窄時只留 emoji 圖示 */
+  .lamp-group, .cwn-group { padding:2px 6px 2px 6px; gap:4px; border-radius:9px; }
+  .lamp-group-tag, .cwn-group-tag { font-size:9px; }
 
 
   /* lamp-row 和 quicknav 的 top 由 JS updateStickyTops 動態設定
@@ -1124,14 +1192,20 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 <!-- 燈號列獨立在 toolbar 下方，與 quicknav 同層 sticky；週檢視導航（v3.6.2 起）
      直接內嵌在這裡，一開始就展開，不需要另外點擊切換 -->
 <div class="lamp-row" id="lamp-row" style="display:none">
-  <div class="lamp-bar" id="lamp-bar"></div>
+  <div class="lamp-group" title="燈號篩選：開/關某個分類，卡片與彙整看板的統計會跟著重算">
+    <span class="lamp-group-tag">🚦 燈號篩選</span>
+    <div class="lamp-bar" id="lamp-bar"></div>
+  </div>
   <span class="lamp-sep"></span>
-  <div class="cwn-pager" id="cwn-pager" title="週檢視：切換要看哪一週的最新巡查狀態，「全部」＝目前即時快照">
-    <button class="cwn-btn cwn-btn-icon" onclick="covPageWeek(-1)" aria-label="上一週">◄</button>
-    <span class="cwn-label" id="cwn-label">全部</span>
-    <button class="cwn-btn cwn-btn-icon" onclick="covPageWeek(1)" aria-label="下一週">►</button>
-    <button class="cwn-btn" id="cwn-btn-today" onclick="covJumpToday()">本週</button>
-    <button class="cwn-btn" id="cwn-btn-all" onclick="covJumpAll()">全部</button>
+  <div class="cwn-group">
+    <span class="cwn-group-tag">📅 週檢視</span>
+    <div class="cwn-pager" id="cwn-pager" title="週檢視：切換要看哪一週的最新巡查狀態，「全部」＝目前即時快照">
+      <button class="cwn-btn cwn-btn-icon" onclick="covPageWeek(-1)" aria-label="上一週">◄</button>
+      <span class="cwn-label" id="cwn-label">全部</span>
+      <button class="cwn-btn cwn-btn-icon" onclick="covPageWeek(1)" aria-label="下一週">►</button>
+      <button class="cwn-btn" id="cwn-btn-today" onclick="covJumpToday()">本週</button>
+      <button class="cwn-btn" id="cwn-btn-all" onclick="covJumpAll()">全部</button>
+    </div>
   </div>
   <span class="lamp-sep"></span>
   <button id="manual-toggle" onclick="(function(){var i=document.getElementById('manual-inner');var open=i.style.display==='block';i.style.display=open?'none':'block';document.getElementById('manual-toggle').innerHTML=open?'📖 說明 ▶':'📖 說明 ▼';setTimeout(updateStickyTops,0);})()">📖 說明 ▶</button>
@@ -1181,6 +1255,11 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
         </select>
         <button class="dlg-close" onclick="closeTrendDialog()">✕</button>
       </div>
+    </div>
+    <div class="trend-mode-tabs" id="trend-mode-tabs">
+      <button class="trend-mode-btn" data-mode="rate" onclick="switchTrendMode('rate')">📈 週執行率</button>
+      <button class="trend-mode-btn" data-mode="cumulative" onclick="switchTrendMode('cumulative')">📊 累計達成進度</button>
+      <button class="trend-mode-btn" data-mode="delta" onclick="switchTrendMode('delta')">📶 每週新增家數</button>
     </div>
     <div class="dlg-body" id="trend-body" style="overflow-y:auto;overflow-x:hidden;"></div>
   </div>
@@ -1423,6 +1502,40 @@ function _weekEffectiveRows(rows, weekSel, qCache){
     return er;
   });
 }
+/* ── v3.8.0 累計版本 ──────────────────────────────────────────
+   _weekEffectiveRows 只看「落在某一週範圍內」的最新一筆紀錄，每週各自
+   獨立、互不相關（回答「這週做了多少」）。這裡改成「從最早的紀錄到
+   uptoEnd 這個時間點為止」找每家店最新一筆紀錄──也就是「如果現在是
+   uptoEnd 這一刻，各店最後一次被記錄到的狀態是什麼」，串成一條時間序
+   會逐步逼近 100%（回答「累計推進到哪裡了」），供趨勢圖「累計達成進度」
+   模式使用。跟 _weekEffectiveRows 共用同一套欄位比對邏輯
+   （_covRecordMatchedCols），差別只在時間篩選條件（只有上界、沒有下界）。 */
+function _cumulativeEffectiveRows(rows, uptoEnd, qCache){
+  if(!qCache || qCache.error) return rows;
+  var colNames = _covBucketColNames();
+  return rows.map(function(r){
+    var code = String(r[COL_CODE]||'').trim();
+    var recs = code ? (qCache.codeToRecords[code]||[]) : [];
+    var inRange = recs.filter(function(rec){
+      var t = _cwParseTimeKey(rec.timeKey);
+      return t && t <= uptoEnd;
+    });
+    var er = {}; for(var k in r) er[k] = r[k];
+    if(!inRange.length){
+      colNames.forEach(function(c){ er[c] = 0; });
+      if(COL_UNFILL) er[COL_UNFILL] = 1;
+      er.__covNoVisit = true;
+      return er;
+    }
+    var latest = inRange[0]; /* codeToRecords 已依時間新到舊排序，篩選後順序不變 */
+    var hitCols = _covRecordMatchedCols(latest, colNames);
+    colNames.forEach(function(c){ er[c] = (hitCols.indexOf(c) !== -1) ? 1 : 0; });
+    if(COL_UNFILL) er[COL_UNFILL] = 0;
+    er.__covNoVisit = false;
+    er.__covWeekRecord = latest;
+    return er;
+  });
+}
 /* getCurrentRows() 的資料源頭：週檢視開啟且問卷資料已載入時，回傳轉換後的
    rows；否則回傳原本的 allRows（即時快照，行為完全不變）。 */
 function _covBaseRows(){
@@ -1523,6 +1636,39 @@ function _covWeeklySeries(nWeeks){
   }
   return out;
 }
+/* v3.8.0：跟 _covWeeklySeries 結構一樣（同樣的 N 週、同樣的範圍過濾），
+   差別只在每一週的資料源頭改用 _cumulativeEffectiveRows（累計到當週週末
+   為止，而不是只看該週內的紀錄），畫出來的線會逐步逼近 100%。 */
+function _covCumulativeSeries(nWeeks){
+  var out = [];
+  if(!_qSheetCache || _qSheetCache.error) return out;
+  var curStart = _cwStartOfWeek(_cwTaipeiNow());
+  for(var i = nWeeks - 1; i >= 0; i--){
+    var start = new Date(curStart); start.setDate(start.getDate() - 7*i);
+    var range = _cwRangeFromStart(start);
+    var cumRows = _cumulativeEffectiveRows(allRows, range.end, _qSheetCache);
+    var scoped = applyGradeFilter(_applyDrillStack(cumRows));
+    var stat = calcGroup(scoped);
+    out.push({ range: range, label: _cwLabel(range), stat: stat });
+  }
+  return out;
+}
+/* v3.8.0：把「累計達成進度」序列相鄰兩週的原始家數／份數（defs[].getRaw）
+   相減，算出「這週比上週多／少了幾家」，供「每週新增家數」長條圖使用。
+   第一週（i=0）沒有更早的週可以比，delta 就等於該週累計到當下的原始值本身
+   （代表「觀察範圍開始前已經累積的量」，柱狀圖上會是最高的第一根，符合
+   burn-up 圖表「第一根＝起始基準」的慣例畫法）。 */
+function _covDeltaSeries(cumSeries, defs){
+  return cumSeries.map(function(pt, i){
+    var prevStat = i > 0 ? cumSeries[i-1].stat : null;
+    var deltaVals = defs.map(function(d){
+      var cur = d.getRaw(pt.stat);
+      var prev = prevStat ? d.getRaw(prevStat) : 0;
+      return cur - prev;
+    });
+    return { range: pt.range, label: pt.label, deltaVals: deltaVals };
+  });
+}
 /* 每條線要畫什麼、什麼顏色、百分比還是原始數字——跟卡片上目前顯示的統計
    口徑保持一致：計數型畫「各 B 群 / C 群 / 未填寫」百分比＋「已有（整體）」
    參考線；加總型沒有清楚的百分比分母，改畫各群原始份數＋總份數。只列
@@ -1533,33 +1679,44 @@ function _covPalette(i, kind){
   var pal = kind==='warn' ? warnPal : goodPal;
   return pal[i % pal.length];
 }
+/* getVal＝原本給折線圖用的值（計數型是 %，加總型是原始份數）；
+   getRaw＝v3.8.0 新增，一律回傳「原始家數／份數」（不管計數型還是加總型
+   都不是 %），給「每週新增家數」長條圖算相鄰兩週差值用──折線圖看的是
+   當週的相對比例，長條圖看的是絕對數量的增減，兩者算法本來就該不一樣，
+   不能直接拿 % 相減。 */
 function _covTrendSeriesDefs(){
   var defs = [];
   if(isSum()){
     BUCKETS_B.forEach(function(g, i){
       if(chips['b:'+i]===false) return;
       defs.push({ label:g.label, color:_covPalette(i,'good'), isPercent:false, bold:false,
-        getVal:function(stat){ return stat.bGroupCounts[i]||0; } });
+        getVal:function(stat){ return stat.bGroupCounts[i]||0; },
+        getRaw:function(stat){ return stat.bGroupCounts[i]||0; } });
     });
     defs.push({ label:'已跟訪（總份數）', color:'#333333', isPercent:false, bold:true,
-      getVal:function(stat){ return stat.bTotalSum||0; } });
+      getVal:function(stat){ return stat.bTotalSum||0; },
+      getRaw:function(stat){ return stat.bTotalSum||0; } });
   } else {
     BUCKETS_B.forEach(function(g, i){
       if(chips['b:'+i]===false) return;
       defs.push({ label:g.label, color:_covPalette(i,'good'), isPercent:true, bold:false,
-        getVal:function(stat){ return stat.total>0 ? stat.bGroupCounts[i]/stat.total*100 : null; } });
+        getVal:function(stat){ return stat.total>0 ? stat.bGroupCounts[i]/stat.total*100 : null; },
+        getRaw:function(stat){ return stat.bGroupCounts[i]||0; } });
     });
     BUCKETS_C.forEach(function(g, j){
       if(chips['c:'+j]===false) return;
       defs.push({ label:g.label, color:_covPalette(j,'warn'), isPercent:true, bold:false,
-        getVal:function(stat){ return stat.total>0 ? stat.cGroupCounts[j]/stat.total*100 : null; } });
+        getVal:function(stat){ return stat.total>0 ? stat.cGroupCounts[j]/stat.total*100 : null; },
+        getRaw:function(stat){ return stat.cGroupCounts[j]||0; } });
     });
     if(COL_UNFILL && chips['unfill']!==false){
       defs.push({ label:UNFILL_LABEL||'未填寫', color:'#E65100', isPercent:true, bold:false,
-        getVal:function(stat){ return stat.total>0 ? stat.unfilled/stat.total*100 : null; } });
+        getVal:function(stat){ return stat.total>0 ? stat.unfilled/stat.total*100 : null; },
+        getRaw:function(stat){ return stat.unfilled||0; } });
     }
     defs.push({ label:'已有（整體）', color:'#3B6D11', isPercent:true, bold:true,
-      getVal:function(stat){ return stat.total>0 ? stat.hasDisp/stat.total*100 : null; } });
+      getVal:function(stat){ return stat.total>0 ? stat.hasDisp/stat.total*100 : null; },
+      getRaw:function(stat){ return stat.hasDisp||0; } });
   }
   return defs;
 }
@@ -1607,6 +1764,55 @@ function _buildTrendSVG(series, defs){
     + gridHtml + xHtml + linesHtml
     + '<line x1="'+padL+'" y1="'+(H-padB)+'" x2="'+(W-padR)+'" y2="'+(H-padB)+'" stroke="rgba(0,0,0,.15)" stroke-width="1"/></svg>';
 }
+/* v3.8.0：「每週新增家數」長條圖──跟 _buildTrendSVG 同一個 viewBox 尺寸，
+   方便切換模式時畫面高度不跳動；正值長條畫在基準線上方、負值（代表這週
+   有品項被店家撤除、累計數字回落）畫在下方，一眼看出哪一週衝很快、哪一
+   週停滯甚至倒退。每週一組，組內每個 def（B/C 群、整體）各一根小長條，
+   顏色沿用跟折線圖/圖例同一份 _covPalette，不用另外配色。 */
+function _buildTrendBarSVG(deltaSeries, defs){
+  var W=760, H=260, padL=40, padR=14, padT=14, padB=32;
+  var n = deltaSeries.length, m = defs.length || 1;
+  var plotW = W-padL-padR, plotH = H-padT-padB;
+  var allVals = [];
+  deltaSeries.forEach(function(pt){ pt.deltaVals.forEach(function(v){ allVals.push(v); }); });
+  var maxPos = allVals.length ? Math.max(0, Math.max.apply(null, allVals)) : 0;
+  var maxNeg = allVals.length ? Math.max(0, -Math.min.apply(null, allVals)) : 0;
+  var hasNeg = maxNeg > 0;
+  var maxAbs = Math.max(maxPos, maxNeg, 1);
+  var yZero = hasNeg ? (padT + plotH/2) : (padT + plotH);
+  var scale = hasNeg ? (plotH/2)/maxAbs : plotH/maxAbs;
+  function xGroupStart(i){ return padL + plotW*(i/n); }
+  var groupW = plotW/n;
+  var barW = Math.max(2, (groupW*0.72)/m);
+  var gridHtml = '';
+  var gridN = hasNeg ? 4 : 4;
+  for(var g=0; g<=gridN; g++){
+    var gy = padT + plotH*g/gridN;
+    var gv = hasNeg ? (maxAbs - 2*maxAbs*g/gridN) : (maxAbs*(1-g/gridN));
+    gridHtml += '<line x1="'+padL+'" y1="'+gy+'" x2="'+(W-padR)+'" y2="'+gy+'" stroke="rgba(0,0,0,.07)" stroke-width="1"/>'
+      + '<text x="'+(padL-6)+'" y="'+(gy+3)+'" text-anchor="end" font-size="9.5" fill="#999">'+Math.round(gv)+'</text>';
+  }
+  var step = n<=8 ? 1 : Math.ceil(n/8);
+  var xHtml = '';
+  deltaSeries.forEach(function(pt, i){
+    if(i%step!==0 && i!==n-1) return;
+    xHtml += '<text x="'+(xGroupStart(i)+groupW/2)+'" y="'+(H-padB+16)+'" text-anchor="middle" font-size="9.5" fill="#999">'+esc(pt.label)+'</text>';
+  });
+  var barsHtml = '';
+  deltaSeries.forEach(function(pt, i){
+    var gx = xGroupStart(i) + (groupW - barW*m)/2;
+    defs.forEach(function(d, j){
+      var v = pt.deltaVals[j];
+      var x = gx + j*barW;
+      var h = Math.abs(v)*scale;
+      var y = v>=0 ? yZero-h : yZero;
+      barsHtml += '<rect x="'+(x+0.5)+'" y="'+y+'" width="'+Math.max(1,barW-1)+'" height="'+Math.max(0,h)+'" fill="'+d.color+'" opacity="'+(v>=0?0.88:0.55)+'"><title>'+esc(pt.label)+'　'+esc(d.label)+'：'+(v>0?'+':'')+v+'</title></rect>';
+    });
+  });
+  return '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;display:block" xmlns="http://www.w3.org/2000/svg">'
+    + gridHtml + xHtml + barsHtml
+    + '<line x1="'+padL+'" y1="'+yZero+'" x2="'+(W-padR)+'" y2="'+yZero+'" stroke="rgba(0,0,0,.25)" stroke-width="1"/></svg>';
+}
 /* 明細表：跟折線圖同一份資料，逐週逐項列數字，滑鼠停在點上看得到、
    手機上滑不到 tooltip 時也能直接查表，順便就是「期間比較」──挑任兩欄
    對照著看即可，不用另外做「兩期並排」模式 */
@@ -1616,6 +1822,19 @@ function _buildTrendTable(series, defs){
     var cells = series.map(function(pt){
       var v = d.getVal(pt.stat);
       return v==null ? '<td>—</td>' : '<td>'+(d.isPercent?Math.round(v)+'%':Math.round(v))+'</td>';
+    }).join('');
+    return '<tr><td><span class="trend-legend-dot" style="background:'+d.color+';display:inline-block;margin-right:5px;vertical-align:middle;"></span>'+esc(d.label)+'</td>'+cells+'</tr>';
+  }).join('');
+  return '<div class="trend-table-wrap"><table class="trend-table"><thead>'+head+'</thead><tbody>'+rows+'</tbody></table></div>';
+}
+/* v3.8.0：「每週新增家數」模式的對照表，跟 _buildTrendTable 版面一致，
+   差別是儲存格內容是「相鄰兩週差值」（帶正負號），不是當週的原始值或 %。 */
+function _buildTrendDeltaTable(deltaSeries, defs){
+  var head = '<tr><th>項目 ＼ 週次</th>' + deltaSeries.map(function(pt){ return '<th>'+esc(pt.label)+'</th>'; }).join('') + '</tr>';
+  var rows = defs.map(function(d, j){
+    var cells = deltaSeries.map(function(pt){
+      var v = pt.deltaVals[j];
+      return '<td'+(v<0?' style="color:var(--red,#A32D2D)"':'')+'>'+(v>0?'+':'')+v+'</td>';
     }).join('');
     return '<tr><td><span class="trend-legend-dot" style="background:'+d.color+';display:inline-block;margin-right:5px;vertical-align:middle;"></span>'+esc(d.label)+'</td>'+cells+'</tr>';
   }).join('');
@@ -1633,9 +1852,30 @@ function _covTrendScopeLabel(){
   }
   return parts.join('　｜　');
 }
+/* v3.8.0：趨勢圖三種模式——rate=週執行率（原3.7.0邏輯）／
+   cumulative=累計達成進度／delta=每週新增家數。切換模式不影響已選的
+   週數（trend-weeks-sel）與畫面篩選範圍，只換算法跟畫法。 */
+var TREND_MODE = 'rate';
+var TREND_MODE_DESC = {
+  rate:       '每一週「各自獨立」計算，只看落在該週範圍內的巡查紀錄——回答「這一週做了多少」，數字本來就會忽高忽低，不是累加的。',
+  cumulative: '每一週改成「從最早紀錄累計到這一週為止」找每家店最新狀態——回答「累計推進到哪裡了」，理論上會逐步逼近 100%（除非有品項被店家撤除才會回落）。',
+  delta:      '把「累計達成進度」相鄰兩週的家數相減，長條在基準線上方＝這週比上週多了幾家、下方＝少了幾家（可能是被撤除）——回答「這週的貢獻量」，補足純折線圖看不出來的單週增減細節。'
+};
+function switchTrendMode(mode){
+  TREND_MODE = mode;
+  _renderTrendDialog();
+}
+function _renderTrendModeTabs(){
+  var wrap = document.getElementById('trend-mode-tabs');
+  if(!wrap) return;
+  wrap.querySelectorAll('.trend-mode-btn').forEach(function(btn){
+    btn.classList.toggle('active', btn.dataset.mode === TREND_MODE);
+  });
+}
 function _renderTrendDialog(){
   var body = document.getElementById('trend-body');
   if(!body) return;
+  _renderTrendModeTabs();
   if(!_qSheetCache){
     body.innerHTML = '<div class="trend-empty">⏳ 讀取拜訪紀錄中…</div>';
     _fetchQuestionnaireSheet(function(){ _renderTrendDialog(); });
@@ -1647,16 +1887,32 @@ function _renderTrendDialog(){
   }
   var selEl = document.getElementById('trend-weeks-sel');
   var nWeeks = (selEl && parseInt(selEl.value,10)) || 8;
-  var series = _covWeeklySeries(nWeeks);
   var defs = _covTrendSeriesDefs();
-  if(!series.length || !defs.length){
-    body.innerHTML = '<div class="trend-empty">目前範圍沒有可畫的資料（可能是燈號都關掉了，或問卷資料還沒有任何一筆落在這段期間）。</div>';
-    return;
-  }
+  var descHtml = '<div class="trend-mode-desc">'+esc(TREND_MODE_DESC[TREND_MODE]||'')+'</div>';
+  var scopeHtml = '<div style="padding:6px 14px 0;font-size:11.5px;color:var(--sub,#888)">範圍：'+esc(_covTrendScopeLabel())+'　（跟目前畫面篩選連動）</div>';
   var legendHtml = '<div class="trend-legend">' + defs.map(function(d){
     return '<span class="trend-legend-item"><span class="trend-legend-dot" style="background:'+d.color+'"></span>'+esc(d.label)+'</span>';
   }).join('') + '</div>';
-  body.innerHTML = '<div style="padding:10px 14px 0;font-size:11.5px;color:var(--sub,#888)">範圍：'+esc(_covTrendScopeLabel())+'　（跟目前畫面篩選連動）</div>'
+
+  if(TREND_MODE === 'delta'){
+    var cumSeries = _covCumulativeSeries(nWeeks);
+    if(!cumSeries.length || !defs.length){
+      body.innerHTML = descHtml + '<div class="trend-empty">目前範圍沒有可畫的資料（可能是燈號都關掉了，或問卷資料還沒有任何一筆落在這段期間）。</div>';
+      return;
+    }
+    var deltaSeries = _covDeltaSeries(cumSeries, defs);
+    body.innerHTML = descHtml + scopeHtml + legendHtml
+      + '<div class="trend-chart-wrap">' + _buildTrendBarSVG(deltaSeries, defs) + '</div>'
+      + _buildTrendDeltaTable(deltaSeries, defs);
+    return;
+  }
+
+  var series = (TREND_MODE === 'cumulative') ? _covCumulativeSeries(nWeeks) : _covWeeklySeries(nWeeks);
+  if(!series.length || !defs.length){
+    body.innerHTML = descHtml + '<div class="trend-empty">目前範圍沒有可畫的資料（可能是燈號都關掉了，或問卷資料還沒有任何一筆落在這段期間）。</div>';
+    return;
+  }
+  body.innerHTML = descHtml + scopeHtml
     + legendHtml
     + '<div class="trend-chart-wrap">' + _buildTrendSVG(series, defs) + '</div>'
     + _buildTrendTable(series, defs);
@@ -1665,6 +1921,7 @@ function openTrendDialog(){
   var dlg = document.getElementById('trend-dialog');
   if(!dlg) return;
   dlg.style.display = 'flex';
+  TREND_MODE = 'rate';
   _renderTrendDialog();
 }
 function closeTrendDialog(){
