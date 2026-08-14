@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 3.8.3 ｜ 最後更新：2026-08-14
+  版本：Ver. 3.9.0 ｜ 最後更新：2026-08-14
 ════════════════════════════════════════════════════════════
 
 
@@ -49,6 +49,54 @@
 
 
 【版本紀錄】
+  3.9.0  2026-08-14  使用者回報「趨勢圖畫面撐爆、單一畫面看不完」＋想針對
+                      單一線型檢視＋想一次看各分支進度，三點優化：
+                      1) 響應式修正：#trend-dialog 整頁強制 box-sizing:
+                        border-box（含所有子元素），dlg-header 改
+                        flex-wrap，窄螢幕（≤400px）另加一組更緊縮的
+                        padding/字級；SVG 圖表加 max-height:46vh 上限，
+                        避免橫向手機或極窄視窗時圖表本身比可視高度還高。
+                        更關鍵的是明細表（逐週數字對照，最多近26週欄）
+                        改成預設收合、按鈕點開才載入——這才是「看不完」
+                        的主因：原本圖表＋完整表格全部展開，手機上要一直
+                        往下滑才能看到圖表，收合表格後圖表跟圖例本身在
+                        大多數螢幕上就能一次看完。
+                      2) 趨勢圖新增「🎯 單看」chips（_buildTrendFocusChips，
+                        新增 TREND_FOCUS 狀態）：週執行率／累計達成進度／
+                        每週新增家數三種模式頂端新增可點擊的 B/C 桶＋未
+                        填寫＋已有整體 chips，點一下只留這一條線（再點
+                        一次或按「✕ 全部顯示」恢復全部），不用再瞇眼睛
+                        分辨疊在一起的好幾條線分別是哪個狀態。純粹是
+                        「把要傳給既有繪圖函式的 defs 陣列從全部換成
+                        單一一個」，_buildTrendSVG／_buildTrendTable 等
+                        繪圖函式本身完全沒改。
+                      3) 承上，選定單一線型後新增「🔀 同時比較各分支」
+                        開關（新增 TREND_COMPARE 狀態、_covBranchSeries／
+                        _covBranchCompareDefs）：原本折線圖一次只能看
+                        TREND_SCOPE 選到的單一營業處/所，要看別的分支
+                        得回上面下拉選單重選，一個一個切很慢。開啟這個
+                        開關後，圖表改成「每個分支各一條線」──沒選營業
+                        處時＝一次看全部營業處，選了某營業處但沒選營業
+                        所時＝一次看該處底下全部營業所/課（跟「🏢 各處/
+                        所比較」排行榜共用同一份 _covTrendRankLevel() 層級
+                        判斷，兩處邏輯保證一致）；已經鎖到單一營業所
+                        （最細範圍）則不顯示這個開關，跟排行榜「沒有更
+                        下一層可以比較了」同一個道理。
+                      架構上刻意讓「跨分支比較」重用既有的
+                      _buildTrendSVG／_buildTrendBarSVG／_buildTrendTable／
+                      _buildTrendDeltaTable，不重寫一套繪圖邏輯：差別只在
+                      _covBranchCompareDefs() 給每個分支包一個 def，
+                      getVal/getRaw 內部才知道要去讀哪個分支的 calcGroup
+                      統計，對繪圖函式來說跟原本「一組 def 各是一種狀態」
+                      的呼叫方式完全相同。用 jsdom 載入本檔實際程式碼＋
+                      合成 3 處 6 所共 90 家店資料＋合成問卷記錄，驗證：
+                      單看 chips 正確標記啟用狀態、比較各營業處時圖例/
+                      明細表出現三處名稱、比較「已選營業處」底下各營業所
+                      時只出現該處底下兩所、不洩漏其他營業處名稱、鎖到
+                      單一營業所時比較開關正確隱藏、明細表預設收合按鈕
+                      展開/收合皆正確、rate/cumulative/delta/rank 四種
+                      模式與計數型/加總型兩種專案類型皆驗證通過，0
+                      runtime error，node --check 語法通過。
   3.8.3  2026-08-14  修正 3.8.2 沒修完整的比對漏洞＋趨勢圖改整頁呈現：
                       1) 比對邏輯二度修正──3.8.2 只切選項文字冒號前的
                         「標籤」去比對桶欄位名稱，這個做法本身就不夠周全：
@@ -492,11 +540,20 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   max-width:none; width:100%; height:100dvh; max-height:100dvh;
   margin:0; border-radius:0; display:flex; flex-direction:column;
 }
-#trend-dialog.trend-page .dlg-header { flex-shrink:0; gap:10px; }
+#trend-dialog.trend-page .dlg-header { flex-shrink:0; gap:10px; flex-wrap:wrap; row-gap:6px; }
 #trend-dialog.trend-page .dlg-header .back-btn { flex-shrink:0; }
 #trend-dialog.trend-page .trend-mode-tabs { flex-shrink:0; }
 #trend-dialog.trend-page .dlg-body { flex:1; min-height:0; }
+/* v3.9.0：響應式安全網——窄螢幕（手機）常見的「畫面撐爆」多半不是圖表本身
+   （SVG 用 viewBox+width:100% 本來就會縮放），而是 header/選單/chips 一整排
+   塞不下時沒有地方可以換行、或某個子元素的 padding 用 content-box 算寬度
+   多算出來的幾 px 累積起來超版。這裡強制整個趨勢頁都用 border-box，並讓
+   標題列在窄螢幕改成自動換行（週數下拉選單掉到第二行），不再單靠子元素
+   各自的 max-width 硬撐。 */
+#trend-dialog.trend-page, #trend-dialog.trend-page * { box-sizing:border-box; }
+#trend-dialog.trend-page .dlg-box { overflow-x:hidden; max-width:100vw; }
 .trend-chart-wrap { padding:6px 4px 10px; }
+.trend-chart-wrap svg { max-height:46vh; }
 .trend-legend { display:flex; flex-wrap:wrap; gap:10px; padding:2px 14px 10px; font-size:12px; }
 .trend-legend-item { display:inline-flex; align-items:center; gap:5px; color:var(--sub,#888); }
 .trend-legend-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
@@ -559,11 +616,58 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .trend-rank-bar { height:100%; border-radius:7px; transition:width .25s; }
 .trend-rank-val { width:108px; flex-shrink:0; text-align:right; font-size:12px; font-weight:800; color:var(--text); }
 .trend-rank-sub { font-size:10.5px; font-weight:600; color:var(--sub,#888); }
+/* ── v3.9.0：趨勢圖「🎯 單看」chips──讓折線/長條圖只留單一線型（單一 B/C
+   桶或「已有整體」），解決多條線疊在一起看不清楚單一狀態走勢的問題；
+   選定後才會出現「🔀 同時比較各分支」選項（見下方 .trend-compare-bar）。 ── */
+.trend-focus-bar {
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+  padding:8px 14px 0;
+}
+.trend-focus-chip {
+  font-family:inherit; font-size:11.5px; font-weight:700; cursor:pointer;
+  display:inline-flex; align-items:center; gap:5px;
+  padding:5px 10px; border-radius:20px; border:1px solid var(--border);
+  background:#fff; color:var(--text); transition:all .15s; white-space:nowrap;
+}
+.trend-focus-chip:hover { border-color:var(--primary); }
+.trend-focus-chip.active { font-weight:800; }
+.trend-focus-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+/* ── v3.9.0：選定單一線型後，若目前範圍還有下一層可以展開（未選營業所時
+   比較各營業處、已選營業處時比較該處底下各營業所/課），就出現這顆開關，
+   把原本「一次只能看一個分支」的折線圖改成一次畫出所有分支各自一條線。 ── */
+.trend-compare-bar { padding:8px 14px 0; }
+.trend-compare-toggle {
+  display:inline-flex; align-items:center; gap:6px; cursor:pointer;
+  font-size:12px; font-weight:700; color:var(--text);
+  padding:6px 10px; border-radius:9px; background:#F0F5EC; border:1px solid rgba(59,109,17,.25);
+}
+.trend-compare-toggle input { cursor:pointer; }
+/* ── v3.9.0：明細表預設收合──逐週數字對照表欄數多（最多近26週）容易讓
+   整頁高度暴增、圖表被推到很下面要一直滑，改成預設只顯示圖表本身，
+   表格點開才載入。 ── */
+.trend-table-toggle-bar { padding:4px 14px 0; }
+.trend-table-toggle-btn {
+  font-family:inherit; font-size:12px; font-weight:700; cursor:pointer;
+  padding:6px 12px; border-radius:9px; border:1px dashed var(--border);
+  background:#fff; color:var(--sub,#888); width:100%; text-align:center;
+  transition:all .15s;
+}
+.trend-table-toggle-btn:hover { border-color:var(--primary); color:var(--primary); }
 @media (max-width:640px) {
   .trend-mode-btn { font-size:11px; padding:5px 9px; }
   .trend-scope-sel { max-width:110px; font-size:11px; }
   .trend-rank-label { width:64px; font-size:11px; }
   .trend-rank-val { width:88px; font-size:11px; }
+  .trend-focus-chip { font-size:11px; padding:4px 8px; }
+}
+@media (max-width:400px) {
+  #trend-dialog.trend-page .dlg-header { padding:8px 10px; }
+  .trend-mode-tabs, .trend-scope-bar, .trend-focus-bar, .trend-compare-bar,
+  .trend-table-toggle-bar, .trend-legend, .trend-table-wrap, .trend-rank-hint, .trend-rank-list {
+    padding-left:8px; padding-right:8px;
+  }
+  .trend-mode-btn { padding:5px 7px; font-size:10.5px; }
+  .trend-mode-desc { padding-left:8px; padding-right:8px; }
 }
 
 
@@ -2145,6 +2249,108 @@ function switchTrendMode(mode){
   TREND_MODE = mode;
   _renderTrendDialog();
 }
+/* ══════════════ v3.9.0：趨勢圖「🎯 單看單一線型」＋「🔀 跨分支比較」
+   ── 使用者原本的困擾是：折線圖一次把所有 B/C 桶＋已有整體全部疊在一起，
+   線太多看不出單一狀態的走勢；而要比較不同營業處/所，又只能透過上面的
+   「🔎 只看」下拉選單一次選一個、要比較另一個得重選，來回切換很慢。
+   這裡的解法：
+   1) TREND_FOCUS＝從 _covTrendSeriesDefs() 挑一個 def 的 label 出來，
+      折線/長條圖與明細表都只畫這一條線（不用重寫繪圖函式，呼叫端把
+      defs 陣列從「全部」換成「只有這一個」即可）。
+   2) 選了 TREND_FOCUS 之後，只要目前範圍還有下一層可以展開（複用跟
+      「🏢 各處/所比較」排行榜同一份 _covTrendRankLevel() 判斷──沒選
+      營業處就是比較各營業處，選了營業處沒選營業所就是比較該處底下各
+      營業所/課），就會出現「🔀 同時比較各分支」開關，打開後圖表改成
+      「多分支＝多條線」，每條線都是同一個 TREND_FOCUS 指標在不同分支
+      的走勢，一次看完全部、不用再一個一個切。
+   兩者都只是「幫 _renderTrendDialog 組出另一組 series/defs」，共用同一套
+   _buildTrendSVG／_buildTrendBarSVG／_buildTrendTable／_buildTrendDeltaTable
+   繪圖函式，沒有另外重畫一套圖表邏輯。 ══════ */
+var TREND_FOCUS = null;     /* null＝顯示全部線型；有值＝只顯示這一個 def.label */
+var TREND_COMPARE = false;  /* 是否啟用「跨分支比較」（需先選定 TREND_FOCUS 才有意義） */
+var TREND_TABLE_OPEN = false; /* 明細表預設收合，避免逐週數字表把畫面撐得要一直往下滑 */
+function _toggleTrendFocus(label){
+  TREND_FOCUS = (label && TREND_FOCUS !== label) ? label : null;
+  if(!TREND_FOCUS) TREND_COMPARE = false; /* 沒有單看指標，跨分支比較沒有意義，一併關掉 */
+  _renderTrendDialog();
+}
+function _toggleTrendCompare(){
+  TREND_COMPARE = !TREND_COMPARE;
+  _renderTrendDialog();
+}
+function _toggleTrendTable(){
+  TREND_TABLE_OPEN = !TREND_TABLE_OPEN;
+  _renderTrendDialog();
+}
+/* chips 用 label 當 key（defs 每次都是同一組固定設定重新產生，label 穩定
+   可以拿來對應），沒有命中（例如切換模式或燈號變動後這個 label 已經不在
+   目前的 defs 清單裡）就視同沒選，避免卡在一個畫不出東西的殘留狀態 */
+function _buildTrendFocusChips(defs){
+  if(defs.length <= 1) return ''; /* 只有一條線可畫時，「單看」沒有意義 */
+  var chipsHtml = defs.map(function(d){
+    var active = TREND_FOCUS === d.label;
+    var dotBg = active ? '#fff' : d.color;
+    var style = active ? ('background:'+d.color+';border-color:'+d.color+';color:#fff;') : '';
+    return '<button type="button" class="trend-focus-chip'+(active?' active':'')+'" style="'+style+'" data-focus="'+esc(d.label)+'" onclick="_toggleTrendFocus(this.dataset.focus)">'
+      + '<span class="trend-focus-dot" style="background:'+dotBg+'"></span>'+esc(d.label)+'</button>';
+  }).join('');
+  return '<div class="trend-focus-bar"><span class="trend-scope-tag">🎯 單看</span>' + chipsHtml
+    + (TREND_FOCUS ? '<button type="button" class="trend-scope-clear" onclick="_toggleTrendFocus(null)">✕ 全部顯示</button>' : '')
+    + '</div>';
+}
+/* 只有選定 TREND_FOCUS、且目前範圍還有下一層可展開時才顯示這顆開關；
+   level 判斷跟「🏢 各處/所比較」排行榜共用同一份 _covTrendRankLevel() */
+function _buildTrendCompareBar(focusDef, level){
+  if(!focusDef || !level) return '';
+  var scopeDesc = level.drillKey==='area' ? '各營業處' : ('「'+esc(TREND_SCOPE.area)+'」底下各營業所/課');
+  return '<div class="trend-compare-bar"><label class="trend-compare-toggle">'
+    + '<input type="checkbox" '+(TREND_COMPARE?'checked':'')+' onchange="_toggleTrendCompare()">'
+    + '🔀 同時比較'+scopeDesc+'（都顯示「'+esc(focusDef.label)+'」這條線）'
+    + '</label></div>';
+}
+/* 跟 _covWeeklySeries／_covCumulativeSeries 結構相同（同一套 N 週迴圈、
+   同一套 drillStack＋等級篩選＋TREND_SCOPE.area 範圍過濾），差別是每一週
+   不合併成單一 calcGroup，而是先用 getNextGroups 依 level.col 分組、
+   每組各自算一次 calcGroup，存進 branchStats，供 _covBranchCompareDefs()
+   的 getVal/getRaw 逐分支讀取。 */
+function _covBranchSeries(nWeeks, level, cumulative){
+  var out = [];
+  if(!_qSheetCache || _qSheetCache.error) return out;
+  var curStart = _cwStartOfWeek(_cwTaipeiNow());
+  for(var i = nWeeks - 1; i >= 0; i--){
+    var start = new Date(curStart); start.setDate(start.getDate() - 7*i);
+    var range = _cwRangeFromStart(start);
+    var rows = cumulative
+      ? _cumulativeEffectiveRows(allRows, range.end, _qSheetCache)
+      : _weekEffectiveRows(allRows, range, _qSheetCache);
+    var scoped = applyGradeFilter(_applyDrillStack(rows));
+    if(TREND_SCOPE.area) scoped = scoped.filter(function(r){ return String(r[COL_AREA]||'')===TREND_SCOPE.area; });
+    var groups = getNextGroups(scoped, level.col);
+    var branchStats = {};
+    Object.keys(groups).forEach(function(k){ branchStats[k] = calcGroup(groups[k]); });
+    var matchFail = scoped.filter(function(r){ return r.__covMatchFail; }).length;
+    out.push({ range: range, label: _cwLabel(range), stat: { branchStats: branchStats }, matchFail: matchFail });
+  }
+  return out;
+}
+/* 把「單一分支」的 def（focusDef）展開成「每個分支各一條線」的 defs 陣列；
+   分支清單跟排序依目前範圍（drillStack＋等級篩選＋TREND_SCOPE.area）內
+   實際店數多寡排序（多的排前面，跟其他清單一致的排序習慣）。getVal／
+   getRaw 收到的是 _covBranchSeries() 產出的 weekStat（{branchStats:{...}}），
+   不是單一 calcGroup stat，這點跟一般 defs 不同，只有跨分支比較模式會用到。*/
+function _covBranchCompareDefs(level, focusDef){
+  var rows = applyGradeFilter(_applyDrillStack(allRows));
+  if(TREND_SCOPE.area) rows = rows.filter(function(r){ return String(r[COL_AREA]||'')===TREND_SCOPE.area; });
+  var groups = getNextGroups(rows, level.col);
+  var keys = Object.keys(groups).sort(function(a,b){ return groups[b].length - groups[a].length; });
+  return keys.map(function(k, i){
+    return {
+      label: k, color: _covPalette(i, 'good'), isPercent: focusDef.isPercent, bold:false,
+      getVal:function(weekStat){ var s = weekStat.branchStats[k]; return s ? focusDef.getVal(s) : null; },
+      getRaw:function(weekStat){ var s = weekStat.branchStats[k]; return s ? focusDef.getRaw(s) : 0; }
+    };
+  });
+}
 function _renderTrendModeTabs(){
   var wrap = document.getElementById('trend-mode-tabs');
   if(!wrap) return;
@@ -2227,34 +2433,48 @@ function _renderTrendDialog(){
   }
   var selEl = document.getElementById('trend-weeks-sel');
   var nWeeks = (selEl && parseInt(selEl.value,10)) || 8;
-  var defs = _covTrendSeriesDefs();
-  var scopeHtml = '<div style="padding:6px 14px 0;font-size:11.5px;color:var(--sub,#888)">範圍：'+esc(_covTrendScopeLabel())+'　（跟目前畫面篩選連動）</div>';
+  var allDefs = _covTrendSeriesDefs();
+  /* TREND_FOCUS 存的是 label 字串；每次重繪都用當下的 allDefs 重新對應，
+     對不到（例如切換模式或燈號變動後這條線已經不在清單裡）就當作沒選，
+     不會卡住畫不出東西 */
+  var focusDef = TREND_FOCUS ? allDefs.filter(function(d){ return d.label===TREND_FOCUS; })[0] : null;
+  if(TREND_FOCUS && !focusDef) TREND_FOCUS = null;
+  var level = _covTrendRankLevel(); /* 跟「🏢 各處/所比較」排行榜共用同一份「還有沒有下一層可展開」判斷 */
+  var comparing = !!(focusDef && TREND_COMPARE && level);
+  var defs = comparing ? _covBranchCompareDefs(level, focusDef) : (focusDef ? [focusDef] : allDefs);
+  var focusChipsHtml = _buildTrendFocusChips(allDefs);
+  var compareBarHtml = _buildTrendCompareBar(focusDef, level);
+  var scopeLabel = esc(_covTrendScopeLabel()) + (comparing ? '　｜　🔀 比較模式：' + (level.drillKey==='area'?'各營業處':'各營業所/課') : '');
+  var scopeHtml = '<div style="padding:6px 14px 0;font-size:11.5px;color:var(--sub,#888)">範圍：'+scopeLabel+'　（跟目前畫面篩選連動）</div>';
   var legendHtml = '<div class="trend-legend">' + defs.map(function(d){
     return '<span class="trend-legend-item"><span class="trend-legend-dot" style="background:'+d.color+'"></span>'+esc(d.label)+'</span>';
   }).join('') + '</div>';
+  var tableToggleHtml = '<div class="trend-table-toggle-bar"><button type="button" class="trend-table-toggle-btn" onclick="_toggleTrendTable()">'
+    + (TREND_TABLE_OPEN ? '▲ 收合明細表' : '▼ 展開明細表（逐週數字對照）') + '</button></div>';
 
   if(TREND_MODE === 'delta'){
-    var cumSeries = _covCumulativeSeries(nWeeks);
+    var cumSeries = comparing ? _covBranchSeries(nWeeks, level, true) : _covCumulativeSeries(nWeeks);
     if(!cumSeries.length || !defs.length){
-      body.innerHTML = descHtml + scopeBarHtml + '<div class="trend-empty">目前範圍沒有可畫的資料（可能是燈號都關掉了，或問卷資料還沒有任何一筆落在這段期間）。</div>';
+      body.innerHTML = descHtml + scopeBarHtml + focusChipsHtml + compareBarHtml + '<div class="trend-empty">目前範圍沒有可畫的資料（可能是燈號都關掉了，或問卷資料還沒有任何一筆落在這段期間）。</div>';
       return;
     }
     var deltaSeries = _covDeltaSeries(cumSeries, defs);
-    body.innerHTML = descHtml + scopeBarHtml + _buildTrendMatchFailBanner(cumSeries) + scopeHtml + legendHtml
+    body.innerHTML = descHtml + scopeBarHtml + focusChipsHtml + compareBarHtml + _buildTrendMatchFailBanner(cumSeries) + scopeHtml + legendHtml
       + '<div class="trend-chart-wrap">' + _buildTrendBarSVG(deltaSeries, defs) + '</div>'
-      + _buildTrendDeltaTable(deltaSeries, defs);
+      + tableToggleHtml + (TREND_TABLE_OPEN ? _buildTrendDeltaTable(deltaSeries, defs) : '');
     return;
   }
 
-  var series = (TREND_MODE === 'cumulative') ? _covCumulativeSeries(nWeeks) : _covWeeklySeries(nWeeks);
+  var series = comparing ? _covBranchSeries(nWeeks, level, TREND_MODE==='cumulative')
+    : ((TREND_MODE === 'cumulative') ? _covCumulativeSeries(nWeeks) : _covWeeklySeries(nWeeks));
   if(!series.length || !defs.length){
-    body.innerHTML = descHtml + scopeBarHtml + '<div class="trend-empty">目前範圍沒有可畫的資料（可能是燈號都關掉了，或問卷資料還沒有任何一筆落在這段期間）。</div>';
+    body.innerHTML = descHtml + scopeBarHtml + focusChipsHtml + compareBarHtml + '<div class="trend-empty">目前範圍沒有可畫的資料（可能是燈號都關掉了，或問卷資料還沒有任何一筆落在這段期間）。</div>';
     return;
   }
-  body.innerHTML = descHtml + scopeBarHtml + _buildTrendMatchFailBanner(series) + scopeHtml
+  body.innerHTML = descHtml + scopeBarHtml + focusChipsHtml + compareBarHtml + _buildTrendMatchFailBanner(series) + scopeHtml
     + legendHtml
     + '<div class="trend-chart-wrap">' + _buildTrendSVG(series, defs) + '</div>'
-    + _buildTrendTable(series, defs);
+    + tableToggleHtml + (TREND_TABLE_OPEN ? _buildTrendTable(series, defs) : '');
 }
 function openTrendDialog(){
   var dlg = document.getElementById('trend-dialog');
@@ -2262,6 +2482,9 @@ function openTrendDialog(){
   dlg.style.display = 'flex';
   TREND_MODE = 'rate';
   TREND_SCOPE = { area:'', office:'' };
+  TREND_FOCUS = null;
+  TREND_COMPARE = false;
+  TREND_TABLE_OPEN = false;
   _renderTrendDialog();
 }
 function closeTrendDialog(){
