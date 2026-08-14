@@ -4142,7 +4142,10 @@ function render(){
     var sumHtml = '<div class="sum-cell"><div class="sum-main">'+rd.rowStdDone+'/'+rd.rowExp+'</div>'
       + '<div class="sum-rate">'+rowRate.toFixed(1)+'%</div>'
       + (rd.rowExtra>0 ? '<div class="sum-extra-badge">超額 +'+rd.rowExtra+'</div>' : '')
-      + (rd.isUnmet ? '<div class="sum-unmet-badge">🔴 未達標</div>' : '')
+      /* 1.23.1：拿掉「次數合計」欄這顆紅色未達標徽章——現在每個週次格子
+         已經有各自的「✓ 已達成」小標籤可以看，這顆整檔期總計的紅字太搶眼、
+         反而讓人誤以為系統判定有問題。isUnmet 判斷本身保留（篩選 chip／
+         「巡次未達標」開關數字都還在用），只是不在這裡疊加顯示。 */
       + (rd.isMvMiss ? '<div class="sum-mv-badge">🚨 必訪缺 '+rd.mvMissTotal+'</div>' : '')
       + '</div>';
 
