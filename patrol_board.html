@@ -204,6 +204,20 @@
     把 <head> 裡那段 <script> 拿掉即可。
 
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.25.5  「看版設定」防呆與可觀測性強化，皆為零風險改動（原本填對的設定
+          行為完全不變，只讓填錯的情況變成「自動修正」或「看得到原因」）：
+          ①新增 CFG_DIAG／「⚙️ 設定診斷」Dialog：_applyBoardConfig() 解析
+            過程中每一筆被跳過的列、對不上其他區塊的 key、重複規則，統一
+            收集顯示（error/warn/info 三級），讀完店家名冊後再補上「通路
+            無法判斷／等級未知」的實際店數與範例；按鈕平常不打擾，只有
+            偵測到 error/warn 才顯示紅點數字。
+          ②【通路設定】`*` 萬用比對規則自動排序到清單最後執行（同組相對
+            順序不變），不再需要操作者自己注意排列順序；規則若被自動重排
+            會記一筆 CFG_DIAG 提醒。
+          ③【通路設定】「判斷欄位」比對前先正規化全形/半形空白，並允許
+            少量常見別名（「通路類別」「店家类型」等）視為「通路別」
+            「店家型態」；比對到別名會記一筆 info 級提醒建議改回正式
+            寫法，比對失敗才維持原本「跳過該列」行為。
   1.25.4  全檔冗餘代碼稽核（純清理，無任何功能/計算邏輯變動）：
           ①移除 .raw-detail-grid/-item/-label/-val 四條死碼 CSS
             規則（複製 coverage_board 樣式時一併帶過來，本檔實際只用
@@ -953,6 +967,36 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
 #manual-inner hr { border:none; border-top:1px solid #eee; margin:10px 0; }
 #manual-inner b { color:#333; }
 
+/* ── ⚙️ 設定診斷 Dialog（1.25.5 新增：呈現 CFG_DIAG 收集到的「看版設定」
+   健檢結果，跟 manual-overlay 共用外觀骨架，但用白底＋依 error/warn/info
+   三色分級，平常收在選單裡、只有偵測到異常才在按鈕上顯示紅點 badge） ── */
+.cfgdiag-badge { display:none; margin-left:5px; min-width:15px; height:15px; padding:0 4px; border-radius:8px; background:var(--red); color:#fff; font-size:10px; font-weight:800; line-height:15px; text-align:center; vertical-align:middle; }
+.cfgdiag-badge.show { display:inline-block; }
+#cfgdiag-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.35); z-index:200; align-items:flex-start; justify-content:center; padding:40px 16px; overflow:auto; }
+#cfgdiag-overlay.open { display:flex; }
+#cfgdiag-box { background:#fff; border:1px solid var(--border); border-radius:12px; max-width:720px; width:100%; padding:0; box-shadow:0 12px 30px rgba(0,0,0,.18); }
+#cfgdiag-box .manual-head { display:flex; align-items:center; justify-content:space-between; padding:14px 20px; border-bottom:1px solid var(--border); }
+#cfgdiag-box .manual-head h3 { font-size:15px; font-weight:800; color:#444; }
+#cfgdiag-box .manual-close { border:none; background:none; font-size:18px; cursor:pointer; color:#888; }
+#cfgdiag-box .manual-close:hover { color:#333; }
+#cfgdiag-inner { font-size:13.5px; line-height:1.75; color:#555; padding:14px 20px 20px; max-height:74vh; overflow:auto; }
+.cfgdiag-empty { padding:24px 8px; text-align:center; color:var(--sub); font-size:13.5px; }
+.cfgdiag-sec { margin-bottom:16px; }
+.cfgdiag-sec:last-child { margin-bottom:0; }
+.cfgdiag-sec-head { display:flex; align-items:center; gap:8px; font-weight:800; color:#333; font-size:13.5px; margin-bottom:6px; }
+.cfgdiag-sec-count { font-size:11px; font-weight:700; color:var(--sub); background:#f6f4ef; border-radius:10px; padding:1px 8px; }
+.cfgdiag-item { display:flex; align-items:flex-start; gap:8px; padding:6px 10px; border-radius:8px; margin-bottom:4px; font-size:12.5px; line-height:1.6; }
+.cfgdiag-item:last-child { margin-bottom:0; }
+.cfgdiag-lvl-tag { flex-shrink:0; font-weight:800; font-size:11px; padding:1px 7px; border-radius:8px; white-space:nowrap; color:#fff; }
+.cfgdiag-lvl-error { background:var(--red-bg); }
+.cfgdiag-lvl-error .cfgdiag-lvl-tag { background:var(--red); }
+.cfgdiag-lvl-warn { background:var(--bonus-bg); }
+.cfgdiag-lvl-warn .cfgdiag-lvl-tag { background:var(--bonus); }
+.cfgdiag-lvl-info { background:#f6f4ef; }
+.cfgdiag-lvl-info .cfgdiag-lvl-tag { background:#888; }
+.cfgdiag-row { flex-shrink:0; font-size:11px; color:var(--sub); font-weight:700; white-space:nowrap; }
+.cfgdiag-msg { flex:1; color:var(--text); }
+
 /* ── 人次估算工具 Dialog（PM 排班規劃用，1.9.0 新增）：跟看板本體的
    達成率追蹤是兩件事——這裡純粹依店家名冊＋等級標準往下算「應達人次」，
    不看實際巡補資料，回答「開戰前要排多少人力」。比照 manual-overlay 的
@@ -1077,6 +1121,7 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
       <div class="ov-toolbar-controls" id="ov-toolbar-controls">
         <button class="manual-btn" id="ov-mv-menu-btn" onclick="openMvSummaryDialog();closeOvMenu();">🚨 必訪稽核</button>
         <button class="manual-btn" onclick="openManpower();closeOvMenu();">🧮 人次估算</button>
+        <button class="manual-btn" onclick="openCfgDiag();closeOvMenu();">⚙️ 設定診斷<span class="cfgdiag-badge"></span></button>
         <button class="manual-btn" onclick="openManual();closeOvMenu();">📖 使用說明</button>
       </div>
     </div>
@@ -1132,6 +1177,19 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
       <button class="manual-close" onclick="closeManual()">✕</button>
     </div>
     <div id="manual-inner"></div>
+  </div>
+</div>
+
+<!-- ════ ⚙️ 設定診斷 Dialog（呈現 CFG_DIAG：這次讀取「看版設定」時
+     偵測到的格式錯誤／欄位對不上／實際資料交叉比對異常，讓操作者不用等
+     業務回報數字兜不起來，重新整理看板就能自己抓到設定表哪裡打錯） ════ -->
+<div id="cfgdiag-overlay" onclick="if(event.target===this)closeCfgDiag()">
+  <div id="cfgdiag-box">
+    <div class="manual-head">
+      <h3>⚙️ 看版設定 — 設定診斷</h3>
+      <button class="manual-close" onclick="closeCfgDiag()">✕</button>
+    </div>
+    <div id="cfgdiag-inner"></div>
   </div>
 </div>
 
@@ -1376,6 +1434,22 @@ var SHEET_ID  = params.get('sheetId') || '';
    載入前的預設值／空殼，實際值以 CFG_SHEET 內容為準，不要再回頭改這裡
    當作調整設定的方式。 */
 var CFG_SHEET = '看版設定';
+
+/* ════ 1.25.5：設定診斷（設定健檢）════
+   操作者在【看版設定】分頁打錯字時，現行策略是「該列悄悄跳過，不影響
+   其他列」——這樣不會拖垮整頁，但操作者也完全看不到「我剛剛是不是
+   設錯了」。CFG_DIAG 收集 _applyBoardConfig() 解析過程中每一筆「被跳過
+   ／對不上其他區塊」的紀錄，讀完店家名冊後再補上「通路無法判斷／
+   等級未知」的實際店數與範例，統一在「⚙️ 設定診斷」Dialog 顯示（見
+   openCfgDiag()）。純粹唯讀診斷，不影響任何計算邏輯或畫面篩選。 */
+var CFG_DIAG = [];
+function _cfgDiagReset(){ CFG_DIAG = []; }
+/* level: 'error'＝該筆設定被跳過、直接沒生效；'warn'＝設定有生效但疑似
+   有問題（例如通路對不到、規則重複）；row＝原始分頁列號（1-indexed），
+   查不到就傳 null，畫面上該筆不顯示列號。 */
+function _cfgDiagPush(section, level, msg, row){
+  CFG_DIAG.push({ section:section, level:level, msg:msg, row:row||null });
+}
 var PROJ_NAME = '2026 節慶巡補看板'; /* 載入前的暫時標題，fetchBoardConfig 完成後覆蓋 */
 
 var POP_SHEET  = '店家名冊';
@@ -1470,6 +1544,26 @@ var CHANNEL_ICON = {};    /* key → icon */
    ['量販','全聯']；凡是「要列出所有通路」的地方都改呼叫 CHANS()，
    通路數量、名稱、順序全部跟著設定表走，不用再改程式。 */
 function CHANS(){ return CHANNELS.map(function(c){ return c.key; }); }
+
+/* 1.25.5：【通路設定】「判斷欄位」容錯比對——現況只認完全等於「通路別」
+   或「店家型態」兩個字串，操作者多打一個空格、或打成「通路類別」這種
+   常見別名，整列會被直接判定格式錯誤而跳過、且原本沒有任何提示。這裡
+   純粹放寬既有的嚴格比對：先去除全形/半形空白，再對照一份常見別名表；
+   對到才回傳 'channel'／'storeType'，對不到才維持原本「跳過＋記
+   CFG_DIAG」的行為，不影響任何「原本就填對」的設定。 */
+var FIELD_ALIASES = {
+  channel:   ['通路別','通路类别','通路類別'],
+  storeType: ['店家型態','店家类型','店家型态']
+};
+function _normFieldLabel(s){
+  return String(s||'').replace(/[\s\u3000]/g, '');
+}
+function _matchFieldAlias(raw){
+  var norm = _normFieldLabel(raw);
+  if(FIELD_ALIASES.channel.indexOf(norm)!==-1) return 'channel';
+  if(FIELD_ALIASES.storeType.indexOf(norm)!==-1) return 'storeType';
+  return '';
+}
 
 /* 通路判斷：依序比對 CHANNEL_RULES，第一條「判斷欄位值」相符的規則決定
    該店 chanKey；全部對不到則回傳空字串（「通路無法判斷」，見
@@ -1870,6 +1964,11 @@ function _scanConfigSections(rows){
       var r = grid[i];
       var isBlank = r.every(function(v){ return v===''; });
       if(isBlank || /^【.+】$/.test(r[0])) break;
+      /* 1.25.5：在每列固定 6 欄之後多塞一個「原始分頁列號」（1-indexed，
+         headers=0 讀入時 grid 索引 i 對應分頁第 i+1 列），只給 CFG_DIAG
+         診斷訊息用；既有程式只會存取 r[0]～r[5]，多這個 r[6] 不影響任何
+         既有欄位讀取邏輯。 */
+      r.push(i+1);
       dataRows.push(r);
       i++;
     }
@@ -1878,9 +1977,11 @@ function _scanConfigSections(rows){
   return sections;
 }
 function _applyBoardConfig(sections){
+  _cfgDiagReset();
   var base = {};
   (sections['基本設定']||[]).forEach(function(r){ if(r[0]) base[r[0]] = r[1]; });
   if(base['專案名稱']) PROJ_NAME = base['專案名稱'];
+  else _cfgDiagPush('基本設定', 'info', '找不到「專案名稱」設定項，畫面標題會維持預設值，不影響其他功能。', null);
 
 /* 【檔期】欄序（1.23.0 起）：key／label／圖示／起始日／終止日／週數
    （終止日排週數前，對應業務試算表的欄位排列習慣）。
@@ -1893,33 +1994,44 @@ function _applyBoardConfig(sections){
        7天由 _stdForCol() 折算應達次數）；終止日早於起始日視為設定錯誤、
        跳過。
      - 終止日空白：退回原本行為，週數必填、每週固定 7 天不折算。
-     - 兩欄皆空白：該筆設定不完整，跳過。 */
+     - 兩欄皆空白：該筆設定不完整，跳過。
+   1.25.5：以上每一種「跳過」都同步記一筆 CFG_DIAG，並額外檢查 key 重複
+   （重複的 key 在畫面上會出現兩個同名檔期，篩選 chip／週次切換容易互相
+   打架，過去只在文件裡口頭要求「同表不重複」，這裡改成主動檢查提醒）。 */
   var periodRows = (sections['檔期']||[]).filter(function(r){ return r[0]; });
+  var periodKeySeen = {};
   if(periodRows.length){
     var newPeriods = [];
     periodRows.forEach(function(r){
+      if(periodKeySeen[r[0]]){
+        _cfgDiagPush('檔期', 'warn', 'key「'+r[0]+'」重複出現，畫面上會有兩個同名檔期、篩選與週次切換可能互相干擾。', r[6]);
+      }
+      periodKeySeen[r[0]] = true;
       var dp = _parseCfgDate(r[3]);
-      if(!dp) return; /* 起始日解析不出來，跳過這筆 */
+      if(!dp){ _cfgDiagPush('檔期', 'error', '起始日「'+(r[3]||'（空白）')+'」格式無法辨識，這筆檔期整列被跳過、不會出現在畫面上。', r[6]); return; }
       var icon = r[2] || DEFAULT_PERIOD_ICON;
       var ep = r[4] ? _parseCfgDate(r[4]) : null;
+      if(r[4] && !ep){ _cfgDiagPush('檔期', 'warn', '終止日「'+r[4]+'」格式無法辨識，本列改用「週數」欄位計算（若週數也空白則整列被跳過）。', r[6]); }
       var weeks, lastWeekDays = null, endDayEpoch = null;
       if(ep){
         var startDay = _toEpochDay(dp.y,dp.mo,dp.d);
         var endDay = _toEpochDay(ep.y,ep.mo,ep.d);
         var totalDays = endDay - startDay + 1;
-        if(totalDays < 1) return; /* 終止日早於起始日，設定不合法，跳過這筆 */
+        if(totalDays < 1){ _cfgDiagPush('檔期', 'error', '終止日早於起始日，這筆檔期整列被跳過、不會出現在畫面上。', r[6]); return; }
         weeks = Math.ceil(totalDays/7);
         var rem = totalDays % 7;
         lastWeekDays = rem===0 ? 7 : rem; /* 剛好整除代表最後一週仍是整週 7 天 */
         endDayEpoch = endDay;
       } else {
         weeks = +r[5];
-        if(!weeks) return; /* 沒終止日、週數也空白/非數字，跳過這筆 */
+        if(!weeks){ _cfgDiagPush('檔期', 'error', '終止日與週數都是空白（或週數不是數字），這筆檔期整列被跳過、不會出現在畫面上。', r[6]); return; }
       }
       newPeriods.push({ key:r[0], label:r[1]||r[0], icon:icon, y:dp.y, mo:dp.mo, d:dp.d,
         weeks:weeks, lastWeekDays:lastWeekDays, endDayEpoch:endDayEpoch });
     });
     if(newPeriods.length) PERIODS = newPeriods;
+  } else {
+    _cfgDiagPush('檔期', 'error', '【檔期】區塊沒有任何一列填了 key，整個看板不會有任何檔期可顯示。', null);
   }
 
 /* 1.24.0 新增【通路設定】欄序：通路key／label／圖示／判斷欄位／判斷值。
@@ -1930,16 +2042,35 @@ function _applyBoardConfig(sections){
    ‧ 由上到下第一條符合的規則決定通路；同 key 可出現多列（同通路吃多種
      判斷條件），CHANNELS 顯示清單只取第一次出現的 label／圖示。
    ‧ 區塊留白＝沒有任何通路可判斷，所有店顯示「通路無法判斷」，不會退回
-     舊版寫死值——逼部署新專案時務必填好這個區塊。 */
-  var chanRows = (sections['通路設定']||[]).filter(function(r){ return r[0] && r[3] && r[4]; });
+     舊版寫死值——逼部署新專案時務必填好這個區塊。
+   1.25.5：新增兩項零風險防呆——①判斷值 `*`（萬用比對）規則若沒有排在
+   最後，原本「排前面會攔截後面所有規則」的地雷改成程式自動把所有 `*`
+   規則搬到清單最後執行（同組相對順序不變），操作者原本排對的設定完全
+   不受影響，排錯的設定則直接變成正確結果；②同步記錄「被跳過的列」與
+   「自動重排」都進 CFG_DIAG，讓操作者看得到自己是不是設錯了。 */
+  var rawChanRows = sections['通路設定']||[];
+  rawChanRows.forEach(function(r){
+    if(!r[0] && !r[3] && !r[4]) return; /* 整列空白，純版面留白，不視為設定錯誤 */
+    if(!(r[0] && r[3] && r[4])){
+      _cfgDiagPush('通路設定', 'error', '「通路key／判斷欄位／判斷值」三欄未填齊（key='+(r[0]||'空')+'／判斷欄位='+(r[3]||'空')+'／判斷值='+(r[4]||'空')+'），這一列規則被跳過。', r[6]);
+    }
+  });
+  var chanRows = rawChanRows.filter(function(r){ return r[0] && r[3] && r[4]; });
   if(chanRows.length){
-    var newRules = [], newChannels = [], newChanLabel = {}, newChanIcon = {}, seenChan = {};
+    var newRulesRaw = [], newChannels = [], newChanLabel = {}, newChanIcon = {}, seenChan = {};
     chanRows.forEach(function(r){
       var key = r[0], label = r[1]||r[0], icon = r[2]||'●';
       var fieldRaw = String(r[3]).trim();
-      var field = fieldRaw==='店家型態' ? 'storeType' : (fieldRaw==='通路別' ? 'channel' : '');
-      if(!field) return; /* 判斷欄位打錯字（非「通路別」「店家型態」）就跳過這條規則 */
-      newRules.push({ key:key, field:field, value:r[4] });
+      var field = _matchFieldAlias(fieldRaw);
+      if(!field){
+        _cfgDiagPush('通路設定', 'error', '「判斷欄位」填的是「'+fieldRaw+'」，只認「通路別」或「店家型態」（含常見別名），這一列規則被跳過。', r[6]);
+        return;
+      }
+      var fieldCanon = field==='storeType' ? '店家型態' : '通路別';
+      if(fieldRaw !== fieldCanon){
+        _cfgDiagPush('通路設定', 'info', '「判斷欄位」填的是「'+fieldRaw+'」，已自動視為「'+fieldCanon+'」；建議之後直接填「'+fieldCanon+'」，設定表看起來才會跟實際生效狀態一致。', r[6]);
+      }
+      newRulesRaw.push({ key:key, field:field, value:r[4], row:r[6] });
       if(!seenChan[key]){
         seenChan[key] = true;
         newChannels.push({ key:key, label:label, icon:icon });
@@ -1947,10 +2078,24 @@ function _applyBoardConfig(sections){
         newChanIcon[key] = icon;
       }
     });
-    CHANNEL_RULES = newRules;
+    /* 穩定排序：把 value==='*' 的規則搬到最後，同為 '*' 或同為非 '*' 的
+       彼此相對順序維持原樣（Array.sort 在現代瀏覽器已保證穩定排序）。 */
+    var newRules = newRulesRaw.slice().sort(function(a,b){
+      var aw = a.value==='*' ? 1 : 0, bw = b.value==='*' ? 1 : 0;
+      return aw - bw;
+    });
+    for(var wi=0; wi<newRulesRaw.length; wi++){
+      if(newRulesRaw[wi].value==='*' && wi !== newRules.indexOf(newRulesRaw[wi])){
+        _cfgDiagPush('通路設定', 'warn', '第 '+newRulesRaw[wi].row+' 列的萬用比對「*」原本沒有排在區塊最後，已自動改成最後執行；建議直接把這一列移到區塊最後一列，設定表看起來才會跟實際生效順序一致。', newRulesRaw[wi].row);
+        break;
+      }
+    }
+    CHANNEL_RULES = newRules.map(function(x){ return { key:x.key, field:x.field, value:x.value }; });
     CHANNELS = newChannels;
     CHANNEL_LABEL = newChanLabel;
     CHANNEL_ICON = newChanIcon;
+  } else {
+    _cfgDiagPush('通路設定', 'error', '【通路設定】沒有任何一條完整規則，所有店家都會顯示「通路無法判斷」。', null);
   }
 
 /* 【等級對照】欄序：通路／等級／簡稱／每週應達次數（1.21.0 起通路
@@ -1958,12 +2103,22 @@ function _applyBoardConfig(sections){
    代表「這個通路不分等級，全部套用同一標準」，存進 CHANNEL_DEFAULT_FREQ
    而非 GRADE_FREQ（兩者互不干擾，可同時有「指名等級規則」＋「不分等級
    預設」）。簡稱留空退回顯示「等級」本身（不分等級列留空退回「未設定」）；
-   每週應達次數留空視為 0。 */
+   每週應達次數留空視為 0。
+   1.25.5：新增「通路」欄跟【通路設定】key 對不上的提醒（仍會正常計入
+   達成率計算，只是不會出現在對應通路的等級 chip，維持原有行為不變，
+   純粹多一筆診斷訊息）。 */
   var gradeRows = (sections['等級對照']||[]).filter(function(r){ return r[0]; });
   if(gradeRows.length){
     var newFreq = {}, newLabel = {}, newChannelGrades = {}, newChannelDefault = {};
+    var chanKeySet = {};
+    CHANNELS.forEach(function(c){ chanKeySet[c.key] = true; });
+    var gradeChanWarned = {};
     gradeRows.forEach(function(r){
       var ch = r[0], key = r[1];
+      if(!chanKeySet[ch] && !gradeChanWarned[ch]){
+        gradeChanWarned[ch] = true;
+        _cfgDiagPush('等級對照', 'warn', '通路「'+ch+'」在【通路設定】找不到對應的 key，這個通路底下的等級不會出現在篩選 chip（但仍會正常計入達成率）。', r[6]);
+      }
       if(key){
         newFreq[key] = +r[3] || 0;
         newLabel[key] = r[2] || key;
@@ -1977,12 +2132,20 @@ function _applyBoardConfig(sections){
     GRADE_LABEL = newLabel;
     CHANNEL_GRADES = newChannelGrades;
     CHANNEL_DEFAULT_FREQ = newChannelDefault;
+  } else {
+    _cfgDiagPush('等級對照', 'error', '【等級對照】區塊沒有任何一列填了通路，所有店家的每週應達次數都會是 0。', null);
   }
 
   /* 【問卷分頁】欄序：通路／問卷分頁名稱，兩欄都要有值才收進
      QUESTIONNAIRE_SHEETS——只填通路沒填分頁名稱、或整個區塊留白，都只
      會讓那個通路的店家在明細 Dialog 的「問卷內容」分頁顯示找不到設定
      的提示，不影響其他任何功能（詳見上方區塊說明）。 */
+  var qChanKeySet = {}; CHANNELS.forEach(function(c){ qChanKeySet[c.key] = true; });
+  (sections['問卷分頁']||[]).forEach(function(r){
+    if(!r[0] && !r[1]) return;
+    if(!(r[0] && r[1])){ _cfgDiagPush('問卷分頁', 'warn', '通路或問卷分頁名稱只填了一半（通路='+(r[0]||'空')+'／分頁名稱='+(r[1]||'空')+'），這一列不會生效，該通路的明細 Dialog 會顯示「找不到對應問卷分頁設定」。', r[6]); return; }
+    if(!qChanKeySet[r[0]]) _cfgDiagPush('問卷分頁', 'warn', '通路「'+r[0]+'」在【通路設定】找不到對應的 key，這一列可能永遠用不到。', r[6]);
+  });
   var qRows = (sections['問卷分頁']||[]).filter(function(r){ return r[0] && r[1]; });
   if(qRows.length){
     var newQ = {};
@@ -1990,6 +2153,20 @@ function _applyBoardConfig(sections){
     QUESTIONNAIRE_SHEETS = newQ;
   }
 
+  /* 【必訪規則】欄序：通路／等級／必訪星期(逗號分隔)。
+     1.25.5：新增①同一「通路+等級」重複出現的提醒（_mustVisitRuleForStore
+     只吃第一條相符規則，重複的列會被靜默忽略）；②星期欄位有填內容、卻
+     一個有效數字都解析不出來的提醒（例如誤填中文數字，會讓規則變成
+     「必訪星期＝0 天」，形同沒設定但沒有任何提示）。 */
+  var mvSeen = {};
+  (sections['必訪規則']||[]).forEach(function(r){
+    if(!(r[0] && r[1])) return;
+    var comboKey = r[0]+'｜'+r[1];
+    if(mvSeen[comboKey]) _cfgDiagPush('必訪規則', 'warn', '通路「'+r[0]+'」＋等級「'+r[1]+'」重複出現，只有第一條規則會生效，這一列被忽略。', r[6]);
+    mvSeen[comboKey] = true;
+    var weekdaysChk = String(r[2]||'').split(',').map(function(x){ return parseInt(String(x).trim(), 10); }).filter(function(n){ return !isNaN(n); });
+    if(r[2] && !weekdaysChk.length) _cfgDiagPush('必訪規則', 'warn', '必訪星期「'+r[2]+'」解析不出任何有效數字（0=日…6=六），這條規則形同沒有指定必訪日。', r[6]);
+  });
   var mvRows = (sections['必訪規則']||[]).filter(function(r){ return r[0] && r[1]; });
   MUST_VISIT_RULES = mvRows.map(function(r){
     var weekdays = String(r[2]||'').split(',')
@@ -1997,6 +2174,7 @@ function _applyBoardConfig(sections){
       .filter(function(n){ return !isNaN(n); });
     return { chanKey:r[0], grade:r[1], weekdays:weekdays };
   });
+  _cfgDiagBadge();
 }
 function fetchBoardConfig(callback){
   var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
@@ -2044,6 +2222,7 @@ function fetchPopulation(callback){
         staff: String(obj[P_STAFF]||'').trim()
       };
     }).filter(function(r){ return r.code; });
+    _cfgDiagStoreChecks();
   }).catch(function(err){
     STORE_ROWS = [];
     document.getElementById('empty-msg').style.display = 'block';
@@ -2051,6 +2230,25 @@ function fetchPopulation(callback){
     var ov = document.getElementById('ov-cards');
     if(ov) ov.innerHTML = '<div class="ov-empty">⚠️ 店家名冊載入失敗：'+esc(String(err))+'</div>';
   }).then(function(){ callback(); });
+}
+/* 1.25.5：店家名冊實際載入完成後，才能真正知道「有多少店對不到通路／
+   等級」——上面 _applyBoardConfig() 只能檢查設定表本身格式對不對，這裡
+   補上跟真實資料交叉比對後的結果，一併併入 CFG_DIAG，讓「⚙️ 設定診斷」
+   一次看完整份健檢結果。純唯讀統計，不影響 render()／_unknownGradeCount
+   既有的畫面邏輯。 */
+function _cfgDiagStoreChecks(){
+  if(!STORE_ROWS.length) return;
+  var noChan = STORE_ROWS.filter(function(s){ return !s.chanKey; });
+  if(noChan.length){
+    var chanEg = noChan.slice(0,5).map(function(s){ return s.storeName+'('+s.code+')'; }).join('、');
+    _cfgDiagPush('通路設定', 'error', '店家名冊裡有 '+noChan.length+' 家店「通路無法判斷」（對不到任何一條【通路設定】規則），例如：'+chanEg+(noChan.length>5?' 等':'')+'。', null);
+  }
+  var noGrade = STORE_ROWS.filter(function(s){ return s.chanKey && _freqForGradeKey(s.chanKey, s.grade)===undefined; });
+  if(noGrade.length){
+    var gradeEg = noGrade.slice(0,5).map(function(s){ return s.storeName+'('+s.code+')／等級「'+(s.grade||'空白')+'」'; }).join('、');
+    _cfgDiagPush('等級對照', 'error', '店家名冊裡有 '+noGrade.length+' 家店「等級未知」（等級文字對不到【等級對照】、該通路也沒有設「不分等級預設」），例如：'+gradeEg+(noGrade.length>5?' 等':'')+'。這些店的每週應達次數會算 0，不計入達成率分母。', null);
+  }
+  _cfgDiagBadge();
 }
 
 /* ════ 日期解析／檔期週次判斷（核心邏輯，已獨立單元測試過，改動請對照
@@ -4924,6 +5122,54 @@ function openManual(){
 }
 function closeManual(){
   document.getElementById('manual-overlay').classList.remove('open');
+}
+
+/* ════ 1.25.5：⚙️ 設定診斷 Dialog——把 CFG_DIAG 收集到的「看版設定」
+   健檢結果呈現給操作者。跟「📖 使用說明」共用同一種 Dialog 外觀
+   （.manual-head／.manual-close），但這顆是「有問題才需要點開」，平常
+   收在選單裡不主動打擾；有異常時按鈕會多一顆數字紅點（_cfgDiagBadge()）
+   讓操作者知道「這次讀到的設定表可能有地方要檢查」。 ════ */
+var LEVEL_ORDER = { error:0, warn:1, info:2 };
+var LEVEL_LABEL = { error:'❌ 未生效', warn:'⚠️ 建議檢查', info:'ℹ️ 提示' };
+function _cfgDiagBadge(){
+  var n = CFG_DIAG.filter(function(d){ return d.level==='error' || d.level==='warn'; }).length;
+  Array.from(document.querySelectorAll('.cfgdiag-badge')).forEach(function(el){
+    if(n>0){ el.textContent = n>99?'99+':String(n); el.classList.add('show'); }
+    else { el.classList.remove('show'); }
+  });
+}
+function _buildCfgDiagContent(){
+  if(!CFG_DIAG.length){
+    return '<div class="cfgdiag-empty">✅ 這次讀到的「看版設定」沒有偵測到任何問題。</div>';
+  }
+  var bySection = {};
+  var order = ['基本設定','檔期','通路設定','等級對照','問卷分頁','必訪規則'];
+  CFG_DIAG.forEach(function(d){
+    if(!bySection[d.section]) bySection[d.section] = [];
+    bySection[d.section].push(d);
+  });
+  var sections = order.filter(function(s){ return bySection[s]; });
+  Object.keys(bySection).forEach(function(s){ if(order.indexOf(s)===-1) sections.push(s); });
+  return sections.map(function(sec){
+    var items = bySection[sec].slice().sort(function(a,b){ return LEVEL_ORDER[a.level]-LEVEL_ORDER[b.level]; });
+    return '<div class="cfgdiag-sec">'
+      + '<div class="cfgdiag-sec-head">【'+esc(sec)+'】<span class="cfgdiag-sec-count">'+items.length+' 筆</span></div>'
+      + items.map(function(d){
+          return '<div class="cfgdiag-item cfgdiag-lvl-'+d.level+'">'
+            + '<span class="cfgdiag-lvl-tag">'+LEVEL_LABEL[d.level]+'</span>'
+            + (d.row ? '<span class="cfgdiag-row">第 '+d.row+' 列</span>' : '')
+            + '<span class="cfgdiag-msg">'+esc(d.msg)+'</span>'
+            + '</div>';
+        }).join('')
+      + '</div>';
+  }).join('');
+}
+function openCfgDiag(){
+  document.getElementById('cfgdiag-inner').innerHTML = _buildCfgDiagContent();
+  document.getElementById('cfgdiag-overlay').classList.add('open');
+}
+function closeCfgDiag(){
+  document.getElementById('cfgdiag-overlay').classList.remove('open');
 }
 
 /* ════ 共用層載入防呆 ════ */
