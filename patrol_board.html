@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.24.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-14
+  版本：Ver. 1.25.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-14
 
 【這個檔案是什麼】
   ‧ 單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 讀取同一份
@@ -116,14 +116,22 @@
         參數這類「機器看」的地方用到，使用者完全不會看到 key 本身。
     - 【等級對照】通路／等級／簡稱／每週應達次數（1.21.0 起改成通路
       開頭，跟【必訪規則】欄序一致，方便對照）：對應 GRADE_FREQ／
-      GRADE_LABEL／CHANNEL_GRADES。通路、等級都必填：「等級」須跟
-      「店家名冊」的「店家等級」欄位真實值完全一致（含全形字）；
-      「通路」須跟【通路設定】區塊定義的通路 key 一致，否則這個等級
-      不會出現在該通路底下的等級 chip 篩選選項裡
-      （但仍會正常計入達成率計算，因為算式只查 GRADE_FREQ[等級]，
-      跟通路欄本身無關，純粹是篩選介面選不到）。簡稱留空退回顯示
-      「等級」本身；每週應達次數留空視為 0（等於「這個等級沒有應達
-      次數要求」，該等級的店永遠不會被判定為未達）。
+      GRADE_LABEL／CHANNEL_GRADES／CHANNEL_DEFAULT_FREQ。通路必填；
+      「等級」1.25.0 起可以留白——留白代表「這個通路不分等級，全部
+      套用同一個標準」，會存進 CHANNEL_DEFAULT_FREQ，套用到這個通路
+      底下「店家名冊」等級欄本身也是空白的店（例如沒有分級的 CVS
+      通路）；「等級」有填值時，須跟「店家名冊」的「店家等級」欄位
+      真實值完全一致（含全形字），存進 GRADE_FREQ。「通路」須跟
+      【通路設定】區塊定義的通路 key 一致，否則這個等級不會出現在該
+      通路底下的等級 chip 篩選選項裡（但仍會正常計入達成率計算，因為
+      算式只查等級對應的標準，跟通路欄本身無關，純粹是篩選介面選不
+      到）。簡稱留空退回顯示「等級」本身（不分等級那列留空則退回顯示
+      「未設定」）；每週應達次數留空視為 0（等於「這個等級／這個通路
+      沒有應達次數要求」，永遠不會被判定為未達）。注意：「等級」留白
+      只吃「店家名冊裡這家店的等級欄真的是空白」，如果等級欄位有填字
+      但打錯字、對不到任何一列，仍然算「等級未知」（畫面顯示 ⚠️、
+      不計入應達次數／達成率），不會被這個預設頂替掉，避免資料品質
+      問題被誤蓋過去。
     - 【問卷分頁】通路／問卷分頁名稱：對應 QUESTIONNAIRE_SHEETS，只
       影響店家明細 Dialog 裡的「問卷內容」分頁（顯示原始問卷逐題
       答案），跟巡補次數／達成率／必訪規則等核心計算完全無關；「通路」
@@ -257,6 +265,22 @@
     把 <head> 裡那段 <script> 拿掉即可。
 
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.25.0 2026-08-14  三項調整：①【等級對照】的「等級」欄改成可以留白，
+                      代表「這個通路不分等級，全部套用同一個標準」
+                      （CHANNEL_DEFAULT_FREQ），套用到店家名冊等級欄也
+                      是空白的店（例如 CVS 這種沒有分級的通路）；新增
+                      _stdFreq()／_gradeLabel()／_freqForGradeKey()／
+                      _labelForGradeKey() 四個查表小函式，取代原本全部
+                      直接寫 GRADE_FREQ[s.grade]／GRADE_LABEL[s.grade]
+                      的十幾處呼叫點，行為只在「等級真的空白」時多一條
+                      退回規則，等級文字打錯字仍照舊算「等級未知」。
+                      ②畫面文案全面檢查一次，把原本只適用「量販/全聯/
+                      中元/中秋」情境下寫的措辭改成中性用語（例如「套用
+                      整頁，含下方中元/中秋卡片」這類寫死節慶名稱的
+                      提示文字），避免換成別的通路/檔期名稱後畫面文字
+                      跟實際設定對不上。③沒有功能變動，純粹補充上面
+                      【看版設定分頁】說明的可讀性（哪些欄位是程式讀取
+                      用、哪些純粹給人看，見部署交接文件另附的對照表）。
   1.24.0 2026-08-14  通路本身改成完全動態載入，不再寫死「量販」「全聯」：
                       ①「看版設定」新增【通路設定】區塊（通路key／label／
                       圖示／判斷欄位／判斷值），_chanKey() 改成依這個表逐條
@@ -1431,7 +1455,7 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
     <h2><span>🏢 營業處執行狀況</span></h2>
     <!-- 1.17.0：這排 chip 是整個總覽頁唯一的時間範圍選擇——下方中元/中秋
          卡片的手機版顯示週次也會跟著同步，不是只管這張表自己 -->
-    <div class="ov-timescope-hint">🕐 時間範圍（套用整頁，含下方中元/中秋卡片）</div>
+    <div class="ov-timescope-hint">🕐 時間範圍（套用整頁，含下方各檔期卡片）</div>
     <!-- 1.18.0：手機小螢幕直式版，跟明細頁一樣的 ◄／► 單一週次切換器，取代
          下面這排 chip（含「整體／中元／中秋」不分週次的彙總選項，直式窄
          螢幕不適合塞這麼多顆）；橫屏或桌機寬螢幕看不到這顆，維持原本 chip
@@ -1757,6 +1781,33 @@ var DEFAULT_PERIOD_ICON = '📅';
 var GRADE_FREQ = {};
 /* 等級的畫面簡稱（真實值較長時，畫面上仍顯示簡稱，不影響比對邏輯） */
 var GRADE_LABEL = {};
+/* 1.25.0 新增：【等級對照】某一列的「等級」欄留白時，不再直接被整列
+   跳過，而是視為「這個通路的預設標準」——不分等級、套用到這個通路底下
+   所有店，包含店家名冊「店家等級」欄本身也是空白的店（例如 CVS 這種
+   沒有分級的通路）。CHANNEL_DEFAULT_FREQ：chanKey → { freq, label }。
+   注意這只吃「等級欄位真的是空白」的情況；店家等級欄位有填字但對不到
+   任何一列（例如打錯字），仍然維持「等級未知」，不會被這個預設頂替
+   ——避免打錯字的等級被誤判成「套用預設」而掩蓋掉資料品質問題。 */
+var CHANNEL_DEFAULT_FREQ = {};
+/* 查一家店（或任一 chanKey+grade 組合）的「每週應達次數」，優先序：
+   ①店家等級文字有填且能在 GRADE_FREQ 精確對到 → 用那個值；
+   ②店家等級文字是空白、且該通路有設【等級對照】留白列（不分等級預設）
+     → 用該通路的預設值；③以上都對不到 → 回傳 undefined（等同原本的
+   「等級未知」，畫面上會顯示 ⚠️、不計入應達次數／達成率分母）。 */
+function _freqForGradeKey(chanKey, grade){
+  if(grade && GRADE_FREQ.hasOwnProperty(grade)) return GRADE_FREQ[grade];
+  if(!grade && CHANNEL_DEFAULT_FREQ.hasOwnProperty(chanKey)) return CHANNEL_DEFAULT_FREQ[chanKey].freq;
+  return undefined;
+}
+/* 同上，但回傳畫面顯示用的簡稱／標籤，找不到時退回顯示原始等級文字
+   （或「未設定」，跟原本 GRADE_LABEL[grade]||grade 的退回邏輯一致）。 */
+function _labelForGradeKey(chanKey, grade){
+  if(grade && GRADE_LABEL.hasOwnProperty(grade)) return GRADE_LABEL[grade];
+  if(!grade && CHANNEL_DEFAULT_FREQ.hasOwnProperty(chanKey)) return CHANNEL_DEFAULT_FREQ[chanKey].label;
+  return grade || '未設定';
+}
+function _stdFreq(s){ return _freqForGradeKey(s.chanKey, s.grade); }
+function _gradeLabel(s){ return _labelForGradeKey(s.chanKey, s.grade); }
 var AREA_ORDER = ['北部','桃園','臺中','嘉義','臺南','高雄','花蓮'];
 /* 1.11.0：通路 → 該通路底下才有的店家等級清單，用來讓「等級」chip 只列出
    跟目前選定「通路」相關的選項（例如選了「全聯」，等級 chip 不該還列出
@@ -2288,21 +2339,31 @@ function _applyBoardConfig(sections){
   }
 
   /* 【等級對照】欄序：通路／等級／簡稱／每週應達次數（1.21.0 起改成
-     通路開頭，跟【必訪規則】欄序一致）。通路、等級都必填；簡稱留空
-     退回顯示「等級」本身；每週應達次數留空視為 0。 */
-  var gradeRows = (sections['等級對照']||[]).filter(function(r){ return r[0] && r[1]; });
+     通路開頭，跟【必訪規則】欄序一致）。通路必填；「等級」1.25.0 起
+     改成可以留白——留白代表「這個通路不分等級，全部套用同一個標準」，
+     會存進 CHANNEL_DEFAULT_FREQ 而不是 GRADE_FREQ（GRADE_FREQ 仍然只放
+     「等級」有填值的列，維持原本以等級文字為 key 的查表方式，兩者互不
+     干擾，一個通路可以同時有「幾條指名等級的規則」＋「一條不分等級的
+     預設規則」）。簡稱留空退回顯示「等級」本身（不分等級這列留空則
+     退回顯示「未設定」）；每週應達次數留空視為 0。 */
+  var gradeRows = (sections['等級對照']||[]).filter(function(r){ return r[0]; });
   if(gradeRows.length){
-    var newFreq = {}, newLabel = {}, newChannelGrades = {};
+    var newFreq = {}, newLabel = {}, newChannelGrades = {}, newChannelDefault = {};
     gradeRows.forEach(function(r){
       var ch = r[0], key = r[1];
-      newFreq[key] = +r[3] || 0;
-      newLabel[key] = r[2] || key;
-      if(!newChannelGrades[ch]) newChannelGrades[ch] = [];
-      newChannelGrades[ch].push(key);
+      if(key){
+        newFreq[key] = +r[3] || 0;
+        newLabel[key] = r[2] || key;
+        if(!newChannelGrades[ch]) newChannelGrades[ch] = [];
+        newChannelGrades[ch].push(key);
+      } else {
+        newChannelDefault[ch] = { freq: +r[3] || 0, label: r[2] || '未設定' };
+      }
     });
     GRADE_FREQ = newFreq;
     GRADE_LABEL = newLabel;
     CHANNEL_GRADES = newChannelGrades;
+    CHANNEL_DEFAULT_FREQ = newChannelDefault;
   }
 
   /* 【問卷分頁】欄序：通路／問卷分頁名稱，兩欄都要有值才收進
@@ -3006,7 +3067,7 @@ function _statsFor(storesSubset, cols){
   var totalExp=0, totalStdDone=0;
   var byGrade = {}; /* grade → {count, exp, stdDone, weeks:{week:{exp,stdDone,unmet}}, unmetCount} */
   storesSubset.forEach(function(s){
-    var std = GRADE_FREQ[s.grade];
+    var std = _stdFreq(s);
     if(std===undefined) return; /* 等級未知不計入概況統計，跟主表邏輯一致 */
     if(!byGrade[s.grade]) byGrade[s.grade] = { count:0, exp:0, stdDone:0, weeks:{}, unmetCount:0 };
     var g = byGrade[s.grade];
@@ -3050,7 +3111,7 @@ function _officeStatsFor(area, chanKey){
     : (OFFICE_WEEK_SEL.week ? [{ period:OFFICE_WEEK_SEL.period, week:OFFICE_WEEK_SEL.week }] : _periodColumns(OFFICE_WEEK_SEL.period));
   var exp=0, stdDone=0, extra=0, unknownGrade=0, unmetCount=0;
   subset.forEach(function(s){
-    var std = GRADE_FREQ[s.grade];
+    var std = _stdFreq(s);
     if(std===undefined){ unknownGrade++; return; }
     var rowExp=0, rowStdDone=0;
     cols.forEach(function(c){
@@ -3555,7 +3616,7 @@ function mpBuildData(){
   var cols = mpActiveColumns();
   var groups = {};
   stores.forEach(function(s){
-    var std = GRADE_FREQ[s.grade];
+    var std = _stdFreq(s);
     if(std===undefined || !s.chanKey) return;
     var key = s.area+'‖'+s.office+'‖'+s.chanKey;
     if(!groups[key]){
@@ -3774,7 +3835,7 @@ function renderOverview(){
       var subset = chanSubsets[chanKey];
       var stat = _statsFor(subset, cols);
       var gradeKeys = Object.keys(stat.byGrade).sort(function(a,b){
-        return (GRADE_FREQ[b]||0) - (GRADE_FREQ[a]||0);
+        return (_freqForGradeKey(chanKey,b)||0) - (_freqForGradeKey(chanKey,a)||0);
       });
       gradeKeys.forEach(function(g){ acc.push({ chanKey:chanKey, grade:g, gd:stat.byGrade[g] }); });
       return acc;
@@ -3800,7 +3861,7 @@ function renderOverview(){
       + allGrades.map(function(item){
           var chanKey = item.chanKey, g = item.grade, gd = item.gd;
           var r = gd.exp>0 ? (gd.stdDone/gd.exp*100).toFixed(1) : '0.0';
-          var label = (GRADE_LABEL[g]||g) + '（' + GRADE_FREQ[g] + '）';
+          var label = _labelForGradeKey(chanKey,g) + '（' + _freqForGradeKey(chanKey,g) + '）';
           var clickAttrs = ' onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event)" title="點擊查看這個等級整個檔期的門市明細"';
           var wd = gd.weeks[curWeek] || { exp:0, stdDone:0, unmet:0 };
           var met = gd.count - wd.unmet;
@@ -3832,7 +3893,7 @@ function renderOverview(){
       + allGrades.map(function(item){
           var chanKey = item.chanKey, g = item.grade, gd = item.gd;
           var r = gd.exp>0 ? (gd.stdDone/gd.exp*100).toFixed(1) : '0.0';
-          var label = (GRADE_LABEL[g]||g) + '（' + GRADE_FREQ[g] + '）';
+          var label = _labelForGradeKey(chanKey,g) + '（' + _freqForGradeKey(chanKey,g) + '）';
           var clickAttrs = ' onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event)" title="點擊查看這個等級整個檔期的門市明細"';
           var weekCells = weekNums.map(function(w){
             var wd = gd.weeks[w] || { exp:0, stdDone:0, unmet:0 };
@@ -3920,8 +3981,8 @@ function _updateFilterToggleSummary(){
     parts.push(pInfo ? pInfo.label.replace('專案','') : FILTER.period);
   }
   if(FILTER.period!=='全部' && FILTER.week) parts.push('W'+FILTER.week);
-  if(FILTER.channel!=='全部') parts.push(FILTER.channel);
-  if(FILTER.grade!=='全部') parts.push(GRADE_LABEL[FILTER.grade]||FILTER.grade);
+  if(FILTER.channel!=='全部') parts.push(CHANNEL_LABEL[FILTER.channel]||FILTER.channel);
+  if(FILTER.grade!=='全部') parts.push(_labelForGradeKey(FILTER.channel, FILTER.grade));
   if(FILTER.area!=='全部') parts.push(FILTER.area);
   if(FILTER.office!=='全部') parts.push(FILTER.office);
   if(FILTER.staff!=='全部') parts.push(FILTER.staff);
@@ -4192,8 +4253,8 @@ function render(){
      達標次數還沒補滿應達次數」──跟「巡次未達標」篩選／欄位標示共用同一份
      判斷，不另外算一套，確保 chip 數字／表格標籤／篩選結果三處保證一致。 */
   var rowsDataAll = stores.map(function(s){
-    var std = GRADE_FREQ[s.grade];
-    var gradeLabel = GRADE_LABEL[s.grade] || s.grade;
+    var std = _stdFreq(s);
+    var gradeLabel = _gradeLabel(s);
 
     var colStats = [];
     var rowExp=0, rowStdDone=0, rowExtra=0, mvMissTotal=0;
@@ -4538,7 +4599,7 @@ function openStoreDetail(code, scopePeriod, scopeWeek, evt){
     document.getElementById('dlg-title').textContent = store.storeName+'（'+store.code+'）';
   }
 
-  var std = GRADE_FREQ[store.grade];
+  var std = _stdFreq(store);
   var expTotal=0, stdDoneTotal=0, extraTotal=0;
   cols.forEach(function(c){
     var actual = _actualCount(code, c.period, c.week);
@@ -4561,7 +4622,7 @@ function openStoreDetail(code, scopePeriod, scopeWeek, evt){
     + '<div class="visit-summary">'
     + '<div class="vs-item">單位<br><b>'+esc(store.area)+' '+esc(store.office)+'</b></div>'
     + '<div class="vs-item">主要訪員<br><b>'+esc(store.staff)+'</b></div>'
-    + '<div class="vs-item">等級<br><b>'+esc(store.grade ? (GRADE_LABEL[store.grade]||store.grade) : '未設定')+'</b></div>'
+    + '<div class="vs-item">等級<br><b>'+esc(_gradeLabel(store))+'</b></div>'
     + '<div class="vs-item">'+(scoped?'該週次達成率':'目前篩選範圍達成率')+'<br><b>'+stdDoneTotal+'/'+expTotal+'（'+rate+'%）</b></div>'
     + '<div class="vs-item">超額次數<br><b style="color:var(--bonus)">'+extraTotal+'</b></div>'
     + '</div>';
@@ -4595,11 +4656,11 @@ function openStoreDetail(code, scopePeriod, scopeWeek, evt){
   dlg.style.display = 'flex';
   setTimeout(function(){ dlg.classList.add('open'); }, 10);
 
-  /* 問卷內容依店家的通路（量販／全聯）決定要抓哪一份問卷分頁，
-     非同步載入，載入期間不擋住時間軸先顯示 */
+  /* 問卷內容依店家的通路決定要抓哪一份問卷分頁，非同步載入，
+     載入期間不擋住時間軸先顯示 */
   var panelEl = document.getElementById('q-panel-'+qRid);
   if(!store.chanKey){
-    if(panelEl) panelEl.innerHTML = '<div class="store-history-empty">⚠️ 這家店的通路無法判斷（通路別／店家型態欄位對不到量販或全聯），無法查找對應的問卷分頁</div>';
+    if(panelEl) panelEl.innerHTML = '<div class="store-history-empty">⚠️ 這家店的通路無法判斷（通路別／店家型態欄位對不到「看版設定」【通路設定】區塊設定的任何一條規則），無法查找對應的問卷分頁</div>';
     return;
   }
   _fetchQuestionnaireSheet(store.chanKey, function(qData){
@@ -4639,7 +4700,7 @@ function _staffStatsData(staffName){
   var cols = activeColumns();
   var totalExp=0, totalStdDone=0, totalExtra=0;
   var rows = stores.map(function(s){
-    var std = GRADE_FREQ[s.grade];
+    var std = _stdFreq(s);
     var exp=0, stdDone=0, extra=0, mvMissTotal=0;
     cols.forEach(function(c){
       var actual = _actualCount(s.code, c.period, c.week);
@@ -4663,8 +4724,8 @@ function openStaffDetail(staffName, evt){
   var data = _staffStatsData(staffName);
   var rowsHtml = data.rows.map(function(it){
     var s = it.store;
-    var std = GRADE_FREQ[s.grade];
-    var gradeLabel = std===undefined ? (s.grade||'未設定')+' ⚠️' : (GRADE_LABEL[s.grade]||s.grade);
+    var std = _stdFreq(s);
+    var gradeLabel = std===undefined ? (s.grade||'未設定')+' ⚠️' : _gradeLabel(s);
     return '<tr><td class="td-left">'+esc(s.storeName)+'<div class="td-code">'+esc(s.code)+'</div></td>'
       + '<td>'+esc(s.chanKey||'—')+'</td>'
       + '<td>'+esc(gradeLabel)+'</td>'
@@ -4718,7 +4779,7 @@ function _staffDownloadCsv(staffName, evt){
   data.rows.forEach(function(it){
     var s = it.store;
     totalMvMiss += it.mvMissTotal;
-    rows.push([s.storeName, s.code, s.chanKey||'', GRADE_LABEL[s.grade]||s.grade||'未設定', it.stdDone, it.exp, it.rate.toFixed(1), it.extra, it.mvMissTotal]);
+    rows.push([s.storeName, s.code, s.chanKey||'', _gradeLabel(s), it.stdDone, it.exp, it.rate.toFixed(1), it.extra, it.mvMissTotal]);
   });
   rows.push(['合計','','','', data.totalStdDone, data.totalExp, data.overallRate.toFixed(1), data.totalExtra, totalMvMiss]);
   var csv = '\uFEFF'+rows.map(function(r){
@@ -5078,7 +5139,7 @@ function _summaryForShare(){
   var cols = activeColumns();
   var totalExp=0, totalStdDone=0, totalExtra=0;
   var perStore = stores.map(function(s){
-    var std = GRADE_FREQ[s.grade];
+    var std = _stdFreq(s);
     var exp=0, stdDone=0, extra=0, mvMissTotal=0;
     cols.forEach(function(c){
       var actual = _actualCount(s.code, c.period, c.week);
@@ -5102,7 +5163,7 @@ function buildCsvContent(){
   data.stores.forEach(function(item){
     var s = item.store;
     var row = [s.area, s.office, s.staff, s.channel, s.storeType, s.code, s.storeName, s.grade];
-    var std = GRADE_FREQ[s.grade];
+    var std = _stdFreq(s);
     var stdN = std===undefined?0:std;
     cols.forEach(function(c){ row.push(_actualCount(s.code, c.period, c.week)); });
     row.push(item.exp, item.stdDone, item.extra, item.rate.toFixed(1), item.mvMissTotal);
@@ -5159,16 +5220,16 @@ function toolbarScreenshot(){
 var _manualBuilt = false;
 function _buildManualContent(){
   return ''
-    + '<p><b>【這是什麼看板？】</b>追蹤中元／中秋節慶專案，各店家每週有沒有'
+    + '<p><b>【這是什麼看板？】</b>追蹤各檔期專案，各店家每週有沒有'
     + '達到應該去巡補的次數。看板依店家等級自動抓「這家店這週該去幾次」，'
     + '再跟實際去過的次數比對，一眼看出誰達標、誰超標、誰還沒去。</p>'
     + '<hr>'
     + '<p><b>【概況主畫面怎麼看？】</b></p>'
     + '<p>上方「營業處執行狀況」表格是先看每個營業處的整體表現，不分檔期'
-    + '／通路；時間範圍除了「整體」跟切到某一週，也可以直接點「中元」'
-    + '「中秋」看整個檔期（W1~Wn）合計的表現，不用自己切每一週再心算加總。'
+    + '／通路；時間範圍除了「整體」跟切到某一週，也可以直接點各檔期名稱'
+    + '看整個檔期（W1~Wn）合計的表現，不用自己切每一週再心算加總。'
     + '點任一列同樣可以直接進明細（只鎖定該營業處）。</p>'
-    + '<p>下方四張卡片＝中元／中秋 ×量販／全聯，每張顯示整體達成率，卡片內'
+    + '<p>下方每張卡片＝一個檔期 × 一個通路，各顯示整體達成率，卡片內'
     + '表格再依店家等級拆分各週達成率。點卡片會帶著對應的檔期／通路篩選'
     + '直接進明細表格。</p>'
     + '<hr>'
@@ -5182,7 +5243,7 @@ function _buildManualContent(){
     + '📥 匯出 CSV 帶去排班。</p>'
     + '<hr>'
     + '<p><b>【篩選列】</b></p>'
-    + '<p><b>檔期</b>：只看中元或只看中秋，或全部一起看（欄位會跟著變成 W1~W5）<br>'
+    + '<p><b>檔期</b>：只看單一檔期或全部一起看（欄位會跟著展開成 W1~Wn）<br>'
     + '<b>通路／等級</b>：不同通路的應達次數標準不同（等級旁邊的數字'
     + '就是每週該去幾次），可個別篩選；選定通路後，等級選項只會列出這個'
     + '通路底下有的等級，切換通路若原本選的等級不屬於新通路，會自動退回'
