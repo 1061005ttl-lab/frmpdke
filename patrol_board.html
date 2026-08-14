@@ -393,6 +393,12 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .sum-rate { font-weight:700; font-size:12.5px; color:var(--green); }
 .sum-extra-badge { display:inline-block; padding:1px 8px; border-radius:10px; background:var(--bonus-bg); color:var(--bonus); font-size:11.5px; font-weight:700; white-space:nowrap; }
 .sum-unmet-badge { display:inline-block; padding:1px 8px; border-radius:10px; background:var(--red-bg); color:var(--red); font-size:11.5px; font-weight:700; white-space:nowrap; margin-top:2px; }
+/* 1.23.0：單週已達標小標籤——跟「次數合計」欄的紅色未達標徽章分開判斷（那顆
+   看的是整個篩選檔期範圍的總計，這顆只看「這一格、這一週」自己夠不夠），
+   放在週次格子裡，讓人一眼看出「這週其實已經跑完了，只是還有別週沒到」，
+   不會被總計那顆紅色未達標誤導去追問。配色比照現有 --green／--green-bg，
+   跟手機卡片 .m-rate-full 同一套語彙，維持整份看板色彩一致。 */
+.wk-achieved-badge { display:inline-block; margin-top:3px; padding:1px 7px; border-radius:9px; background:var(--green-bg); color:var(--green); font-size:10.5px; font-weight:700; white-space:nowrap; letter-spacing:.2px; }
 .m-unmet-flag { margin-left:3px; }
 
 /* ── 訪員分組標題列（1.8.0：同一訪員的店家排序後連續排列，段落交界插入
@@ -4119,11 +4125,17 @@ function render(){
         }).join('') + '</div>';
         if(cs.mv.some(function(d){ return !d.visited && d.isPast; })) mvCellCls = ' mv-alert-cell';
       }
+      /* 1.23.0：單週已達標小標籤——只看「這一格」自己的 std/actual，跟「次數
+         合計」欄的紅色未達標徽章（看整個篩選檔期總計）是分開的兩套判斷，故意
+         不共用 rd.isUnmet。這樣即使總計那欄還顯示未達標（因為還有別週沒到），
+         已經跑完的那幾週也能各自標出「✓ 已達成」，不會讓人誤以為系統算錯。 */
+      var wkAchieved = cs.std>0 && cs.actual>=cs.std;
+      var achievedHtml = wkAchieved ? '<div class="wk-achieved-badge">✓ 已達成</div>' : '';
       /* 1.9.1：週次格子點擊 → 帶入該週次範圍縮限明細 Dialog（帶 period/week
          參數＋stopPropagation，避免同時觸發整列的 openStoreDetail 顯示全檔期）；
          其餘欄位（店名／區域…）點擊仍維持整列 <tr> 的 onclick，顯示目前篩選
          檔期範圍的完整明細，兩種入口並存不衝突。 */
-      colsHtml += '<td class="'+m.periodCls+dividerCls+mvCellCls+' wk-cell-click" onclick="openStoreDetail(\''+esc(rd.s.code)+'\',\''+cs.col.period+'\','+cs.col.week+',event)"><div class="box-container">'+boxesHtml+'</div>'+mvHtml+'</td>';
+      colsHtml += '<td class="'+m.periodCls+dividerCls+mvCellCls+' wk-cell-click" onclick="openStoreDetail(\''+esc(rd.s.code)+'\',\''+cs.col.period+'\','+cs.col.week+',event)"><div class="box-container">'+boxesHtml+'</div>'+mvHtml+achievedHtml+'</td>';
     });
 
     var rowRate = rd.rowExp>0 ? (rd.rowStdDone/rd.rowExp*100) : 0;
