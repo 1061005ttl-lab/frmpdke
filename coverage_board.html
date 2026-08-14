@@ -671,14 +671,31 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .trend-tooltip {
   position:absolute; z-index:5; pointer-events:none; display:none;
   background:rgba(30,30,28,.94); color:#fff; border-radius:10px;
-  padding:8px 10px; font-size:11.5px; line-height:1.5; max-width:220px;
+  padding:8px 10px; font-size:11.5px; line-height:1.5; max-width:240px;
   box-shadow:0 4px 14px rgba(0,0,0,.25);
 }
 .trend-tooltip-title { font-weight:800; font-size:11.5px; margin-bottom:4px; color:#fff; }
-.trend-tooltip-row { display:flex; align-items:center; gap:6px; white-space:nowrap; }
-.trend-tooltip-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
-.trend-tooltip-label { flex:1; overflow:hidden; text-overflow:ellipsis; color:#ddd; }
-.trend-tooltip-val { font-weight:800; color:#fff; }
+/* v3.10.0：使用者反映數字沒切齊、要「像 GRID 一樣對整齊」──.trend-tooltip-rows
+   是唯一的 grid container（4 欄：色點／名稱／%數／家數），每一列
+   （.trend-tooltip-row）用 display:contents 把 4 個子元素直接交給外層
+   grid 排版，這樣所有列才會共用同一組欄寬、真的對齊；如果每列自己各開
+   一個 grid，各列欄寬會各算各的，视覺上還是會歪掉。%跟家數都靠右對齊＋
+   等寬數字（tabular-nums），名稱太長時省略號截斷、不會撐開欄寬。 */
+.trend-tooltip-rows {
+  display:grid; grid-template-columns:8px minmax(0,1fr) auto auto;
+  align-items:center; column-gap:6px; row-gap:3px;
+}
+.trend-tooltip-row { display:contents; }
+.trend-tooltip-dot { width:8px; height:8px; border-radius:50%; }
+.trend-tooltip-label { overflow:hidden; text-overflow:ellipsis; color:#ddd; white-space:nowrap; }
+.trend-tooltip-val {
+  font-weight:800; color:#fff; text-align:right; white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+}
+.trend-tooltip-sub {
+  font-weight:600; color:#bbb; text-align:right; font-size:10.5px; white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+}
 
 .trend-table-wrap { overflow-x:auto; padding:0 14px 16px; -webkit-overflow-scrolling:touch; }
 .trend-table { border-collapse:collapse; font-size:12px; white-space:nowrap; }
@@ -726,7 +743,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   .trend-rank-label { width:64px; font-size:11px; }
   .trend-rank-val { width:88px; font-size:11px; }
   .trend-focus-chip { font-size:11px; padding:4px 7px; }
-  .trend-tooltip { font-size:11px; max-width:170px; padding:6px 8px; }
+  .trend-tooltip { font-size:11px; max-width:190px; padding:6px 8px; }
 }
 @media (max-width:400px) {
   #trend-dialog.trend-page .dlg-header { padding:8px 10px; }
@@ -2205,9 +2222,11 @@ function _buildTrendSVG(series, defs){
   /* v3.10.0：滑鼠/觸控 hover 用的資料——每一週一筆，記錄每條線在該週的
      顏色/名稱/數值文字，供 _onTrendHoverMove 直接查表組浮動小卡內容，
      不用在 DOM 屬性裡塞 JSON（屬性轉義麻煩，用全域變數簡單很多）。
-     val 是純數字（供小卡依當週數值由高到低即時排序用），txt 除了數值
-     本身，isPercent 的話還會帶上「（家數/分母）」，回應「只有 % 看不到
-     家數」的回報，跟排行榜列表的顯示口徑一致。 */
+     val 是純數字（供小卡依當週數值由高到低即時排序用），txt 是純數值
+     （% 或整數，不含家數），isPercent 的話另外把「（家數/分母）」放進
+     獨立的 sub 欄位——回應「都有數據了為什麼不切齊、像 GRID 一樣對整齊」
+     的需求，txt／sub 分開才能各自用固定寬度＋等寬數字對齊，不會因為
+     百分比跟家數黏成一串文字、長度不同就對不齊。 */
   _TREND_HOVER = {
     W:W,
     xs: series.map(function(pt,i){ return xAt(i); }),
@@ -2215,16 +2234,16 @@ function _buildTrendSVG(series, defs){
     rows: series.map(function(pt){
       return defs.map(function(d){
         var v = d.getVal(pt.stat);
-        var txt;
+        var txt, sub = '';
         if(v==null) txt = '—';
         else if(d.isPercent){
           txt = Math.round(v)+'%';
           if(d.getTotal){
             var tot = d.getTotal(pt.stat), raw = d.getRaw ? d.getRaw(pt.stat) : null;
-            if(tot!=null && raw!=null) txt += '（'+raw+'/'+tot+'）';
+            if(tot!=null && raw!=null) sub = raw+'/'+tot;
           }
         } else txt = Math.round(v);
-        return { label:d.label, color:d.color, val:v, txt:txt };
+        return { label:d.label, color:d.color, val:v, txt:txt, sub:sub };
       });
     })
   };
@@ -2290,7 +2309,7 @@ function _buildTrendBarSVG(deltaSeries, defs){
     rows: deltaSeries.map(function(pt){
       return defs.map(function(d, j){
         var v = pt.deltaVals[j];
-        return { label:d.label, color:d.color, val:v, txt:(v>0?'+':'')+v };
+        return { label:d.label, color:d.color, val:v, txt:(v>0?'+':'')+v, sub:'' };
       });
     })
   };
@@ -2695,10 +2714,13 @@ function _onTrendHoverMove(e){
   });
   var tip = wrap.querySelector('.trend-tooltip');
   if(!tip){ tip = document.createElement('div'); tip.className = 'trend-tooltip'; wrap.appendChild(tip); }
-  tip.innerHTML = '<div class="trend-tooltip-title">'+esc(_TREND_HOVER.labels[idx]||'')+'</div>' + rows.map(function(r){
-    return '<div class="trend-tooltip-row"><span class="trend-tooltip-dot" style="background:'+r.color+'"></span>'
-      + '<span class="trend-tooltip-label">'+esc(r.label)+'</span><span class="trend-tooltip-val">'+esc(String(r.txt))+'</span></div>';
-  }).join('');
+  tip.innerHTML = '<div class="trend-tooltip-title">'+esc(_TREND_HOVER.labels[idx]||'')+'</div>'
+    + '<div class="trend-tooltip-rows">' + rows.map(function(r){
+      return '<div class="trend-tooltip-row"><span class="trend-tooltip-dot" style="background:'+r.color+'"></span>'
+        + '<span class="trend-tooltip-label">'+esc(r.label)+'</span>'
+        + '<span class="trend-tooltip-val">'+esc(String(r.txt))+'</span>'
+        + '<span class="trend-tooltip-sub">'+(r.sub?esc(String(r.sub)):'')+'</span></div>';
+    }).join('') + '</div>';
   tip.style.display = 'block';
   var wrapRect = wrap.getBoundingClientRect();
   var left = e.clientX - wrapRect.left + 14;
