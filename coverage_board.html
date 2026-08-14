@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 3.5.4 ｜ 最後更新：2026-07-16
+  版本：Ver. 3.6.0 ｜ 最後更新：2026-08-14
 ════════════════════════════════════════════════════════════
 
 
@@ -18,14 +18,37 @@
     目前以二次請求補回，但 gviz 仍可能讀不到文字值，需 Google Sheet 端設純文字格式
   · 長按 Tooltip 後的 click 事件：用 window._lastLongPress 時間戳攔截，
     card click handler 600ms 內忽略，避免長按後意外鑽層
-  · sticky 層疊順序：toolbar(z:50) → lamp-row(z:41) → quicknav(z:40)
-    top 值由 updateStickyTops() 動態計算，每次 render/resize 後呼叫
+  · sticky 層疊順序：toolbar(z:50) → lamp-row(z:41) → cov-week-nav(z:39) →
+    quicknav(z:40)（v3.6.0 新增 cov-week-nav 一層），top 值由
+    updateStickyTops() 動態計算，每次 render/resize 後呼叫
   · calcGroup 有兩條完全獨立路徑：isSum()=true 走加總型，false 走計數型
     加總型不計算 C 群，bTotalSum 為所有 B 欄 numVal 加總（份數）
     修改計算邏輯時兩條路徑都要確認，不要讓其中一條覆蓋另一條
+  · 週檢視（v3.6.0）核心假設：問卷資料裡「巡查情況」等選項的文字，必須
+    包含主資料表對應的 B/C 欄位名稱（見 _covRecordMatchedCols 比對邏輯），
+    才能正確覆蓋當週狀態；若新專案的問卷選項文字跟欄位名稱對不起來，
+    該專案在週檢視下所有店都會落到「本期未巡」，需要跟資料源頭確認
+    命名方式，而不是來這裡改比對邏輯（比對邏輯本身是通用、config-driven
+    的，不寫死任何專案名稱）
 
 
 【版本紀錄】
+  3.6.0  2026-08-14  新增「週檢視」：toolbar 加「📅 週檢視」切換鈕＋
+                      ◄/► 週導航列（lamp-row 與 quicknav 之間，v3.6.0
+                      cov-week-nav），開啟後以「問卷資料」裡每家店在選定
+                      週範圍內最新一筆巡查紀錄覆蓋主資料 B/C 欄位，重算
+                      當週覆蓋率。只在資料源頭 getCurrentRows()（改吃新增
+                      的 _covBaseRows()）插一層轉換，卡片統計／彙整看板
+                      六分頁／CSV／LINE 全部沿用既有渲染管線，不用逐一
+                      修改。範圍內無紀錄的店 B/C 全設 0，若專案有設定
+                      「未知欄位」則順勢標記未知，沿用既有「未填寫」分類
+                      顯示「本期未巡」，不新增燈號。店家明細的拜訪時間軸
+                      比照套用週篩選（_covFilterRecordsForWeek），切週或
+                      切換模式時清快取（_covResetStoreDetailCache）。
+                      已知限制：B/C 欄位跟問卷選項文字的對應是用「選項
+                      文字是否包含欄位名稱」比對，目前對「高鐵CVS雲泡」
+                      系列專案成立，其他專案未驗證，詳見上方【關鍵注意
+                      事項】。
   3.5.4  2026-07-16  新增操作手冊：另外撰寫獨立的「操作者操作手冊」網頁文件
                       （coverage_board_manual.html，內容取自本檔既有的
                       頁內「📖 說明」面板並補強排版，給前台操作人員離線
@@ -232,6 +255,39 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 
 
 /* .hamburger-btn／.toolbar-controls → shared/dashboard-common.css */
+
+
+/* ── 週檢視導航列（v3.6.0）：比照 patrol_board 的 ◄/► 週切換手感移植過來，
+   接的是 COVERAGE 自己的資料層（問卷資料 timeKey），跟 lamp-row／quicknav
+   同層 sticky，順序見 window._STICKY_IDS ── */
+.cov-week-nav {
+  padding:8px 16px;
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:10px;
+  border-bottom:1px solid var(--border);
+  background:#FFFDF5;
+  position:sticky;
+  z-index:39;
+}
+.cwn-pager { display:flex; align-items:center; gap:6px; flex-shrink:0; }
+.cwn-btn {
+  background:#fff;
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:5px 10px;
+  font-size:12px;
+  font-weight:700;
+  cursor:pointer;
+  color:var(--text);
+  transition:background .15s;
+}
+.cwn-btn:hover { background:var(--primary-bg); border-color:var(--primary); color:var(--primary); }
+.cwn-label { font-size:13px; font-weight:900; min-width:108px; text-align:center; }
+.cwn-stats { font-size:12px; color:var(--sub); display:flex; gap:10px; flex-wrap:wrap; }
+.cwn-stats b { color:var(--text); }
+.tb-act-btn.week-active { border-color:var(--primary); color:var(--primary); background:var(--primary-bg); }
 
 
 /* ── quicknav ── */
@@ -814,6 +870,8 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
       <button class="vt-btn"        id="vt-grade"   onclick="setViewMode('grade');closeMobileMenu();">🏷️ 等級</button>
     </div>
     <div class="ctrl-sep"></div>
+    <button class="tb-act-btn" id="tb-btn-week" onclick="covToggleWeekMode();closeMobileMenu();" title="切換週檢視：卡片、彙整看板、明細都會改成顯示該週的最新巡查狀態">📅 週檢視</button>
+    <div class="ctrl-sep"></div>
     <div class="tb-group" id="toolbar-actions-board">
       <span class="tb-group-tag">彙整看板</span>
       <button class="tb-act-btn" onclick="_subColSel={};openSummaryDialog('staff', function(){ return applyGradeFilter(getCurrentRows()); });closeMobileMenu();">👤 人員</button>
@@ -984,6 +1042,18 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 </div>
 
 
+<!-- v3.6.0 週檢視導航列：跟 lamp-row/quicknav 同層 sticky，只在「週檢視」開啟時顯示 -->
+<div class="cov-week-nav" id="cov-week-nav" style="display:none">
+  <div class="cwn-pager">
+    <button class="cwn-btn" onclick="covPageWeek(-1)" aria-label="上一週">◄ 上一週</button>
+    <span class="cwn-label" id="cwn-label"></span>
+    <button class="cwn-btn" onclick="covPageWeek(1)" aria-label="下一週">下一週 ►</button>
+    <button class="cwn-btn" onclick="covJumpToday()">回本週</button>
+  </div>
+  <div class="cwn-stats" id="cwn-stats"></div>
+</div>
+
+
 <div class="quicknav" id="quicknav"></div>
 <div class="stage" id="stage"></div>
 
@@ -1017,8 +1087,8 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 <script src="shared/ui-chrome.js"></script>
 <script src="shared/pivot-dialog.js"></script>
 <script>
-/* sticky 堆疊順序：toolbar → lamp-row（燈號列）→ quicknav */
-window._STICKY_IDS = ['lamp-row', 'quicknav'];
+/* sticky 堆疊順序：toolbar → lamp-row（燈號列）→ cov-week-nav（週導航，v3.6.0）→ quicknav */
+window._STICKY_IDS = ['lamp-row', 'cov-week-nav', 'quicknav'];
 </script>
 <script>
 /* ── 設定（寫死，同 INDEX 架構）── */
@@ -1098,6 +1168,173 @@ var _overallLevel = 'area';
 var _overallTitle = '';
 /* 視角：'org'（組織）| 'channel'（通路） */
 var viewMode = 'org';
+
+
+/* ══════════════ v3.6.0 週檢視 ══════════════
+   COVERAGE 主資料（店家名冊）本身是「當下快照」，沒有時間欄位；真正帶時間
+   的是「問卷資料」分頁（每筆巡查紀錄的打卡時間，已經在 _fetchQuestionnaireSheet
+   讀進 _qSheetCache.codeToRecords）。週檢視的作法：開啟後，把每家店在選定
+   週範圍內「最新一筆」問卷紀錄，拿來覆蓋主資料的 B/C 欄位值，重算當週覆蓋率
+   ──不新增分頁、不碰 calcGroup／render／彙整看板的既有邏輯，只在資料源頭
+   （getCurrentRows）多一層轉換，後面全部沿用現有渲染管線。
+   範圍內完全沒紀錄的店：所有 B/C 欄位設 0，且若專案有設定「未知欄位」
+   （COL_UNFILL），順勢標記為未知／未填寫──語意上就是「這週沒有可判斷的
+   巡查依據」，沿用既有「未填寫」分類，不用另外設計新燈號。 */
+var COV_WEEK_MODE = false;   /* false=即時快照（原本行為）｜true=週檢視 */
+var COV_WEEK_SEL  = null;    /* {start:Date, end:Date} 目前選定的週（僅週檢視開啟時有意義） */
+
+/* 用台灣時區判斷「今天」，避免使用者瀏覽器時區跟公司作業時區（UTC+8）兜不起來 */
+function _cwTaipeiNow(){
+  return new Date(new Date().toLocaleString('en-US', {timeZone:'Asia/Taipei'}));
+}
+/* 週一為一週起始 */
+function _cwStartOfWeek(d){
+  var dt = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  var day = dt.getDay();
+  dt.setDate(dt.getDate() + (day===0 ? -6 : 1-day));
+  dt.setHours(0,0,0,0);
+  return dt;
+}
+function _cwRangeFromStart(startDt){
+  var start = new Date(startDt); start.setHours(0,0,0,0);
+  var end = new Date(start); end.setDate(end.getDate()+6); end.setHours(23,59,59,999);
+  return { start:start, end:end };
+}
+function _cwCurrentRange(){ return _cwRangeFromStart(_cwStartOfWeek(_cwTaipeiNow())); }
+function _cwLabel(range){
+  function f(d){ return (d.getMonth()+1)+'/'+d.getDate(); }
+  return f(range.start)+' – '+f(range.end);
+}
+/* 問卷資料的 timeKey 來自 _findTimeText（shared/core-utils.js），格式不完全
+   保證，這裡用寬鬆解析：先直接丟給 Date，失敗再用正規表達式抓年月日時分秒。
+   兩種都失敗回傳 null（該筆紀錄視為無法判斷時間，不計入該週）。 */
+function _cwParseTimeKey(s){
+  if(!s) return null;
+  s = String(s).trim();
+  var d = new Date(s.replace(' ', 'T'));
+  if(!isNaN(d.getTime())) return d;
+  var m = s.match(/(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})(?:[^\d]+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+  if(m) return new Date(+m[1], +m[2]-1, +m[3], +(m[4]||0), +(m[5]||0), +(m[6]||0));
+  return null;
+}
+/* 目前專案設定的所有 B/C 欄位名稱（扁平化），週檢視只覆蓋這些欄位 */
+function _covBucketColNames(){
+  var cols = [];
+  BUCKETS_B.forEach(function(g){ g.cols.forEach(function(c){ if(c && cols.indexOf(c)===-1) cols.push(c); }); });
+  if(!isSum()) BUCKETS_C.forEach(function(g){ g.cols.forEach(function(c){ if(c && cols.indexOf(c)===-1) cols.push(c); }); });
+  return cols;
+}
+/* 一筆問卷紀錄命中哪些 B/C 欄位：掃描該筆所有已填選項文字，若選項文字
+   「包含」某個欄位名稱就算命中（config-driven 比對，不寫死任何專案的
+   個別欄位名稱——目前「高鐵CVS雲泡」等專案的問卷選項文字本身就包含對應
+   的欄位名稱，如「巡查情況_已撤架：…」包含欄位名「已撤架」）。
+   若之後有專案的問卷選項文字跟欄位名稱對不起來，這裡會比對不到、該店
+   在週檢視下會被視為「本期未巡」，屆時需要請管理表另外補一份對照設定。 */
+function _covRecordMatchedCols(record, colNames){
+  var hit = [];
+  (record.sections||[]).forEach(function(sec){
+    (sec.picks||[]).forEach(function(p){
+      var opt = String(p.option||'');
+      colNames.forEach(function(c){ if(c && opt.indexOf(c)!==-1 && hit.indexOf(c)===-1) hit.push(c); });
+    });
+  });
+  return hit;
+}
+/* 把 allRows 轉成「選定週的有效狀態」：每家店查 codeToRecords，取範圍內
+   最新一筆覆蓋 B/C 欄位；沒紀錄的店 B/C 全設 0 並標記未知（若有設定）。 */
+function _weekEffectiveRows(rows, weekSel, qCache){
+  if(!qCache || qCache.error) return rows;
+  var colNames = _covBucketColNames();
+  return rows.map(function(r){
+    var code = String(r[COL_CODE]||'').trim();
+    var recs = code ? (qCache.codeToRecords[code]||[]) : [];
+    var inRange = recs.filter(function(rec){
+      var t = _cwParseTimeKey(rec.timeKey);
+      return t && t >= weekSel.start && t <= weekSel.end;
+    });
+    var er = {}; for(var k in r) er[k] = r[k];
+    if(!inRange.length){
+      colNames.forEach(function(c){ er[c] = 0; });
+      if(COL_UNFILL) er[COL_UNFILL] = 1;
+      er.__covNoVisit = true;
+      return er;
+    }
+    var latest = inRange[0]; /* codeToRecords 已依時間新到舊排序，篩選後順序不變 */
+    var hitCols = _covRecordMatchedCols(latest, colNames);
+    colNames.forEach(function(c){ er[c] = (hitCols.indexOf(c) !== -1) ? 1 : 0; });
+    if(COL_UNFILL) er[COL_UNFILL] = 0;
+    er.__covNoVisit = false;
+    er.__covWeekRecord = latest;
+    return er;
+  });
+}
+/* getCurrentRows() 的資料源頭：週檢視開啟且問卷資料已載入時，回傳轉換後的
+   rows；否則回傳原本的 allRows（即時快照，行為完全不變）。 */
+function _covBaseRows(){
+  if(COV_WEEK_MODE && COV_WEEK_SEL && _qSheetCache && !_qSheetCache.error){
+    return _weekEffectiveRows(allRows, COV_WEEK_SEL, _qSheetCache);
+  }
+  return allRows;
+}
+function _renderWeekNavLabel(){
+  var lbl = document.getElementById('cwn-label');
+  if(lbl && COV_WEEK_SEL) lbl.textContent = _cwLabel(COV_WEEK_SEL);
+  var stats = document.getElementById('cwn-stats');
+  if(stats){
+    if(!_qSheetCache){ stats.textContent = '⏳ 讀取拜訪紀錄中…'; }
+    else if(_qSheetCache.error){ stats.textContent = '⚠️ 拜訪紀錄讀取失敗：'+_qSheetCache.error; }
+    else {
+      var rows = _weekEffectiveRows(allRows, COV_WEEK_SEL, _qSheetCache);
+      var noVisit = rows.filter(function(r){ return r.__covNoVisit; }).length;
+      stats.innerHTML = '本週共 <b>'+rows.length+'</b> 家店　本期未巡 <b>'+noVisit+'</b> 家';
+    }
+  }
+}
+/* 店家明細的拜訪時間軸有快取（_storeDetailLoaded/_storeDetailCache），內容
+   跟目前週篩選有關，切換週檢視或翻週都要清掉，否則會顯示到別週的舊內容 */
+function _covResetStoreDetailCache(){
+  _storeDetailLoaded = {};
+  _storeDetailCache  = {};
+}
+function covToggleWeekMode(){
+  COV_WEEK_MODE = !COV_WEEK_MODE;
+  if(COV_WEEK_MODE && !COV_WEEK_SEL) COV_WEEK_SEL = _cwCurrentRange();
+  var nav = document.getElementById('cov-week-nav');
+  var btn = document.getElementById('tb-btn-week');
+  if(nav) nav.style.display = COV_WEEK_MODE ? 'flex' : 'none';
+  if(btn) btn.classList.toggle('week-active', COV_WEEK_MODE);
+  setTimeout(updateStickyTops, 0);
+  _covResetStoreDetailCache();
+  if(COV_WEEK_MODE){
+    _renderWeekNavLabel();
+    _fetchQuestionnaireSheet(function(){ _renderWeekNavLabel(); render(); });
+  }
+  render();
+}
+function covPageWeek(dir){
+  if(!COV_WEEK_SEL) COV_WEEK_SEL = _cwCurrentRange();
+  var newStart = new Date(COV_WEEK_SEL.start); newStart.setDate(newStart.getDate() + 7*dir);
+  COV_WEEK_SEL = _cwRangeFromStart(newStart);
+  _covResetStoreDetailCache();
+  _renderWeekNavLabel();
+  render();
+}
+function covJumpToday(){
+  COV_WEEK_SEL = _cwCurrentRange();
+  _covResetStoreDetailCache();
+  _renderWeekNavLabel();
+  render();
+}
+/* 店家明細裡的拜訪時間軸：週檢視開啟時只顯示落在選定週內的紀錄，
+   讓「進度」跟「細節」對到同一週；沒有落在範圍內的舊紀錄不會消失，
+   只是先不顯示——切回快照模式或翻到別週都能看到。 */
+function _covFilterRecordsForWeek(records){
+  if(!COV_WEEK_MODE || !COV_WEEK_SEL || !records) return records;
+  return records.filter(function(rec){
+    var t = _cwParseTimeKey(rec.timeKey);
+    return t && t >= COV_WEEK_SEL.start && t <= COV_WEEK_SEL.end;
+  });
+}
 
 
 /* ── 燈號 chips 狀態 ── */
@@ -1436,7 +1673,7 @@ function _toggleStoreDetail(rid, storeCode){
       liveBodyEl.innerHTML = htmlErr;
       return; /* 讀取失敗不快取，允許下次重試 */
     }
-    var records = (qData.codeToRecords && qData.codeToRecords[storeCode]) || [];
+    var records = _covFilterRecordsForWeek((qData.codeToRecords && qData.codeToRecords[storeCode]) || []);
     var htmlOk = _buildStoreHistoryPanel(storeRow, records, rid, null);
     _storeDetailLoaded[rid] = true;
     _storeDetailCache[rid] = htmlOk;
@@ -1479,6 +1716,7 @@ function _storeDetailCopy(rid, btn){
   var qData = _qSheetCache;
   var storeRow = allRows.find(function(x){ return ('st-'+_rid(String(x[COL_CODE]||'')))===rid; }) || null;
   var records = (storeRow && qData && qData.codeToRecords) ? (qData.codeToRecords[storeRow[COL_CODE]]||[]) : [];
+  records = _covFilterRecordsForWeek(records);
   _doCopy(_buildStoreDetailLineText(rid, storeRow, records), btn);
 }
 function _storeDetailScreenshot(rid, btn){
@@ -1868,9 +2106,10 @@ function calcGroup(rows) {
 
 /* ── 篩選 ── */
 function getCurrentRows() {
-  if(!drillStack.length) return allRows;
+  var baseRows = _covBaseRows(); /* v3.6.0：週檢視開啟時，這裡換成該週的有效狀態 */
+  if(!drillStack.length) return baseRows;
   /* 逐層累積過濾：每一層都在上一層的結果裡再篩 */
-  var rows = allRows;
+  var rows = baseRows;
   drillStack.forEach(function(d){
     var col;
     if(d.level==='area'||d.level==='ch-area')    col=COL_AREA;
