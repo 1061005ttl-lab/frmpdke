@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.25.3 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-14
+  版本：Ver. 1.25.4 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-14
 
 【檔案定位】
   ‧ 單一 HTML 檔案，純前端 JS，透過 gviz API 讀同一份試算表兩分頁，
@@ -204,6 +204,20 @@
     把 <head> 裡那段 <script> 拿掉即可。
 
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.25.4  全檔冗餘代碼稽核（純清理，無任何功能/計算邏輯變動）：
+          ①移除 .raw-detail-grid/-item/-label/-val 四條死碼 CSS
+            規則（複製 coverage_board 樣式時一併帶過來，本檔實際只用
+            .raw-detail-panel 承接 shared/photo-viewer.js 輸出，這組
+            grid 版型全檔無任何 HTML/JS 引用，確認為純死碼）；
+          ②合併 .oo-mcard-chan／.oo-mcard-chan-title 原本拆成「基底
+            宣告＋1.14.0 覆寫」兩段的 CSS 規則為單一宣告塊（屬性不
+            衝突、純粹加法覆寫，合併後渲染結果不變，純可讀性整理）。
+          全檔另跑過系統性稽核：函式/變數命名（無重複宣告、無同名
+          異義）、console/debugger/alert 殘留、TODO/FIXME/測試殘留、
+          CSS 選擇器與 :root 變數重複、HTML id 唯一性，均無發現其他
+          問題——確認本檔本身已相當精簡（前幾版已陸續做過同類清理，
+          見 1.25.0～1.25.3），故本輪僅上述兩項為實際可安全變動之
+          冗餘代碼，未強行製造變動。用 node --check 過語法。
   1.25.3  純文件/註解精簡：置頂說明文與全檔約 36 處大段落式備註改寫成
           條列式、濃縮文字量（檔案由 5,458 行降至約 4,940 行），無任何
           功能或計算邏輯變動。用 node --check 過語法，並重跑 1.25.2 的
@@ -789,11 +803,22 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
 .oo-mobile-cards { display:none; flex-direction:column; gap:10px; }
 .oo-mcard { border:1px solid var(--border); border-radius:10px; overflow:hidden; background:#fff; }
 .oo-mcard-head { padding:8px 12px; font-weight:800; font-size:14px; background:var(--bg); border-bottom:1px solid var(--border); }
-.oo-mcard-chan { padding:9px 12px; border-bottom:1px dashed var(--border); }
+/* 1.14.0：.oo-mcard-chan（含可點擊版）強制單行顯示——原本「標題另起一行＋
+   底下統計用 grid 排」，量販 7 項統計在窄螢幕固定 4 欄 grid 會擠成 2 行，
+   拉高卡片高度、打斷閱讀動線。改成整塊用 flex 橫排同一行：標題不換行、
+   .oo-mcard-grid 從 grid 改 flex nowrap，每個 .oo-mstat 改成左右並排
+   k:v，放不下用橫向捲動；.oo-clickable（各處×通路）跟不可點的「全部合計」
+   版本一致套用。（1.25.4：原本拆成基底＋1.14.0 覆寫兩段宣告，屬性不衝突、
+   純粹是加法覆寫，合併成單一宣告塊，無視覺/行為差異。） */
+.oo-mcard-chan {
+  padding:9px 12px; border-bottom:1px dashed var(--border);
+  display:flex; align-items:center; gap:10px; overflow-x:auto; -webkit-overflow-scrolling:touch;
+  white-space:nowrap; scrollbar-width:thin;
+}
 .oo-mcard-chan:last-child { border-bottom:none; }
 .oo-mcard-chan.oo-clickable { cursor:pointer; }
 .oo-mcard-chan.oo-clickable:active { background:var(--primary-bg); }
-.oo-mcard-chan-title { font-size:13.5px; font-weight:700; color:var(--sub); margin-bottom:6px; }
+.oo-mcard-chan-title { font-size:13.5px; font-weight:700; color:var(--sub); margin-bottom:0; flex-shrink:0; }
 .oo-mcard-empty { color:var(--sub); font-size:13.5px; padding:2px 0; }
 /* 1.8.1：原 auto-fit + minmax(56px,1fr) 窄螢幕會被擠到下一行（5欄變3+2），
    改固定 5 欄（店數/應達/達標/達成率/超額）、欄寬 1fr 均分自動變窄。
@@ -816,17 +841,6 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
   .oo-tbl-scroll { display:none; }
   .oo-mobile-cards { display:flex; }
 }
-/* 1.14.0：.oo-mcard-chan（含可點擊版）強制單行顯示——原本「標題另起一行＋
-   底下統計用 grid 排」，量販 7 項統計在窄螢幕固定 4 欄 grid 會擠成 2 行，
-   拉高卡片高度、打斷閱讀動線。改成整塊用 flex 橫排同一行：標題不換行、
-   .oo-mcard-grid 從 grid 改 flex nowrap，每個 .oo-mstat 改成左右並排
-   k:v，放不下用橫向捲動；.oo-clickable（各處×通路）跟不可點的「全部合計」
-   版本一致套用。 */
-.oo-mcard-chan {
-  display:flex; align-items:center; gap:10px; overflow-x:auto; -webkit-overflow-scrolling:touch;
-  white-space:nowrap; scrollbar-width:thin;
-}
-.oo-mcard-chan-title { margin-bottom:0; flex-shrink:0; }
 .oo-mcard-chan .oo-mcard-grid, .oo-mcard-chan .oo-mcard-grid-7 {
   display:flex; flex-wrap:nowrap; grid-template-columns:none; gap:0 12px; flex:1; min-width:0;
 }
@@ -973,11 +987,11 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
   #manpower-inner { max-height:none; height:calc(100% - 50px); }
 }
 
-/* ── 店家明細 Dialog：問卷內容區塊（比照 coverage_board 的 store-history-* / raw-detail-*） ── */
-.raw-detail-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:8px 18px; margin-top:6px; }
-.raw-detail-item { min-width:0; }
-.raw-detail-label { font-size:10px; font-weight:700; color:var(--primary); margin-bottom:2px; letter-spacing:.3px; text-transform:uppercase; }
-.raw-detail-val { font-size:12.5px; font-weight:500; color:var(--text); word-break:break-word; line-height:1.5; }
+/* ── 店家明細 Dialog：問卷內容區塊（比照 coverage_board 的 store-history-* / raw-detail-*） ──
+   （1.25.4：移除 .raw-detail-grid/-item/-label/-val 四條規則——本檔實際只用
+   .raw-detail-panel 承接 shared/photo-viewer.js 的 _renderQuizSections 輸出
+   （raw-quiz-*），這組 grid 版型是複製 coverage_board 樣式時一併帶過來、
+   本檔從未產生對應 class 的元素，純死碼，已確認全檔無任何 HTML/JS 引用。） */
 .store-history-list { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
 .store-history-record { background:#fff; border:1px solid rgba(0,0,0,.07); border-radius:8px; overflow:hidden; }
 .store-history-head { display:flex; align-items:center; gap:8px; padding:8px 12px; cursor:pointer; user-select:none; transition:background .12s; }
