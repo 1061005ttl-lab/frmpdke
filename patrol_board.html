@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.22.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-12
+  版本：Ver. 1.24.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-14
 
 【這個檔案是什麼】
   ‧ 單一 HTML 檔案，純前端 JS，透過 Google Sheets 的 gviz API 讀取同一份
@@ -28,10 +28,13 @@
 【兩份資料來源（同一份 SHEET_ID 試算表裡的兩個分頁）】
   ‧「店家名冊」（母體）欄位：營業處名稱／營業所/課／主要訪員／通路別／
     店家型態／店家代碼／店家名稱／店家等級
-    - 通路判斷（見常數區 _chanKey()）：量販＝通路別＝「量販通路」；
-      全聯＝店家型態＝「全聯社」（不看通路別欄）。這條判斷邏輯本身
-      仍寫死在 _chanKey()，1.20.0 只有「等級門檻/簡稱/所屬通路」改
-      成動態載入，「怎麼從欄位值判斷通路」不在這次調整範圍內。
+    - 通路判斷（見常數區 _chanKey()）：1.24.0 起改成完全動態——通路
+      有哪些、畫面顯示文字/圖示、怎麼從「通路別」或「店家型態」欄位值
+      判斷屬於哪個通路，全部由「看版設定」分頁的【通路設定】區塊決定
+      （見下方【看版設定分頁】說明），不再寫死「量販＝通路別＝量販
+      通路」「全聯＝店家型態＝全聯社」這兩條規則本身。換句話說，日後
+      要把通路換成「傳統」「即飲」之類完全不同的名稱／分類方式，只要
+      改試算表【通路設定】區塊，不用動這支 HTML。
     - 店家等級決定每週應達次數，對照表 1.20.0 起改由「看版設定」分頁
       動態載入到 GRADE_FREQ（見下方【看版設定分頁】）。
     - 名冊不分檔期／週次，兩檔期共用同一套等級標準。
@@ -56,18 +59,34 @@
     不能亂動（順序錯了程式不會報錯，只會把值塞進錯的欄位，屬於最容易
     改壞又最難發現的地方，改動前務必對照下面欄序）。目前支援的區塊：
     - 【基本設定】設定項／值：目前只認「專案名稱」這一列。
-    - 【檔期】key／label／圖示／起始日／週數／終止日（1.22.0 起新增
-      「圖示」「終止日」兩欄，對應 PERIODS）：可以有多列（不限中元/
-      中秋兩個），對應下方【檔期定義】的計算邏輯。key／起始日必填，
-      label 留空退回用 key 當標籤，圖示留空退回 DEFAULT_PERIOD_ICON
-      （目前是 📅，一個中性、不綁定任何節慶的圖示——這一欄就是拿來讓
-      業務自己指定每個檔期要顯示的 emoji，不用再等改版才能換掉舊版
-      寫死在程式碼裡的 🏮／🎑，換成尾牙／春節專案時直接在這欄填
+    - 【通路設定】（1.24.0 新增）通路key／label／圖示／判斷欄位／判斷值：
+      定義畫面上會出現哪些通路、顯示文字/圖示，以及怎麼從店家名冊的
+      「通路別」或「店家型態」欄位判斷一家店屬於哪個通路。通路key／
+      判斷欄位／判斷值三欄必填；判斷欄位只能填「通路別」或「店家
+      型態」（要跟店家名冊欄名完全一致），判斷值是該欄位要完全等於的
+      文字。由上到下第一條符合的規則決定通路；同一個 key 可以出現在
+      多列（同一通路想吃多種判斷條件時用）。這個區塊留白＝沒有任何
+      通路可判斷，所有店都會顯示「通路無法判斷」，不會自動退回舊版
+      量販/全聯，所以複製這份看板部署新專案時務必填好這個區塊。
+      範例（沿用目前量販/全聯設定）：
+        量販 ／量販店／📦／通路別／量販通路
+        全聯 ／全聯社／🛒／店家型態／全聯社
+      日後要換成「傳統」「即飲」，改成類似：
+        傳統 ／傳統通路／🏪／通路別／傳統通路
+        即飲 ／即飲通路／🥤／通路別／即飲通路
+      （判斷欄位／判斷值要對照店家名冊實際存的文字，不是隨便打的。）
+    - 【檔期】key／label／圖示／起始日／終止日／週數（1.22.0 新增
+      「圖示」「終止日」兩欄，1.23.0 把「終止日」搬到「週數」前面，
+      對應 PERIODS）：可以有多列（不限中元/中秋兩個，也不限定只能有
+      兩列），對應下方【檔期定義】的計算邏輯。key／起始日必填，label
+      留空退回用 key 當標籤，圖示留空退回 DEFAULT_PERIOD_ICON（目前是
+      📅，一個中性、不綁定任何節慶的圖示——這一欄就是拿來讓業務自己
+      指定每個檔期要顯示的 emoji，換尾牙／春節專案時直接在這欄填
       🥢／🧧 之類應景圖示即可，不用動 HTML）。起始日接受 "2026/08/08"
       或 "2026-08-08" 這類純文字，也接受把該欄格式化成 Google Sheets
       原生日期型別（見 _parseCfgDate()）；解析不出來的列會被直接跳過、
       不會讓其他檔期跟著壞掉，但也代表那個檔期不會出現在畫面上，要
-      留意。週數／終止日兩欄擇一即可（見下）：
+      留意。終止日／週數兩欄擇一即可（見下）：
       ‧ 只填週數（原本的整週計算法）：跟 1.21.0 以前行為完全相同，
         每週固定 7 天，每個等級每週應達次數＝【等級對照】設定值，
         不會被折算。
@@ -82,12 +101,25 @@
         以終止日換算出的結果為準，週數欄的值會被忽略（純粹只是這種
         情況下週數欄不會報錯，不代表兩者衝突時週數欄還有作用）；兩欄
         都空白則視為該筆檔期設定不完整，直接跳過。
+      ‧ key 怎麼取名（1.23.0 釐清）：key 只是這個檔期的內部識別字串，
+        程式完全不看它的拼字內容做任何判斷——1.21.0 以前遺留的
+        'zhong'／'mid' 純粹是前手 AI 沿用中元/中秋的漢語拼音，不是
+        程式邏輯依賴的保留字。1.23.0 已經把最後兩處還在用
+        c.period==='zhong' 這種寫死字串判斷的地方（週次格子表頭的
+        圖示、欄位分組底色）都改掉了，現在全部改成讀 PERIODS 裡對應
+        那一列的欄位值（圖示讀 icon 欄，底色改成依「這是第幾組檔期」
+        交替配色，不再看 key 本身）。所以：新增/替換檔期時，key 可以
+        自由命名，只要滿足「不能空白」「同一份設定表裡不重複」這兩個
+        條件即可，例如尾牙可以取 'weiya'、春節可以取 'cny' 或 'chunjie'，
+        中英文、拼音都可以，不影響任何功能；真正決定畫面顯示文字/圖示
+        的是 label／圖示兩欄，key 只有在篩選列的內部比對、URL 分享
+        參數這類「機器看」的地方用到，使用者完全不會看到 key 本身。
     - 【等級對照】通路／等級／簡稱／每週應達次數（1.21.0 起改成通路
       開頭，跟【必訪規則】欄序一致，方便對照）：對應 GRADE_FREQ／
       GRADE_LABEL／CHANNEL_GRADES。通路、等級都必填：「等級」須跟
       「店家名冊」的「店家等級」欄位真實值完全一致（含全形字）；
-      「通路」須跟 _chanKey() 判斷出來的通路 key（'量販'／'全聯'）
-      一致，否則這個等級不會出現在該通路底下的等級 chip 篩選選項裡
+      「通路」須跟【通路設定】區塊定義的通路 key 一致，否則這個等級
+      不會出現在該通路底下的等級 chip 篩選選項裡
       （但仍會正常計入達成率計算，因為算式只查 GRADE_FREQ[等級]，
       跟通路欄本身無關，純粹是篩選介面選不到）。簡稱留空退回顯示
       「等級」本身；每週應達次數留空視為 0（等於「這個等級沒有應達
@@ -95,7 +127,7 @@
     - 【問卷分頁】通路／問卷分頁名稱：對應 QUESTIONNAIRE_SHEETS，只
       影響店家明細 Dialog 裡的「問卷內容」分頁（顯示原始問卷逐題
       答案），跟巡補次數／達成率／必訪規則等核心計算完全無關；「通路」
-      同樣須是 '量販'／'全聯' 這種 chanKey，不是通路別欄原始值。可以
+      同樣須是【通路設定】定義的通路 key，不是通路別欄原始值。可以
       整段留白，或只填其中一個通路——沒填的通路，店家在明細 Dialog
       打開「問卷內容」時會顯示「找不到○○對應的問卷分頁設定」，不影響
       看板其他任何功能。
@@ -225,6 +257,46 @@
     把 <head> 裡那段 <script> 拿掉即可。
 
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.24.0 2026-08-14  通路本身改成完全動態載入，不再寫死「量販」「全聯」：
+                      ①「看版設定」新增【通路設定】區塊（通路key／label／
+                      圖示／判斷欄位／判斷值），_chanKey() 改成依這個表逐條
+                      比對，CHANNELS／CHANNEL_LABEL／CHANNEL_ICON／CHANS()
+                      取代原本到處寫死的 ['量販','全聯'] 陣列與 chanIcon
+                      物件（篩選 chip、人次估算篩選、營業處總覽表頭/合計、
+                      手機卡片、店數彙總全部改讀這幾個新常數，通路數量也
+                      不再限定只能兩個）。②原本「🚨必訪缺」欄／必訪稽核
+                      摘要列/開關寫死只認 ck==='量販'，改成看
+                      MUST_VISIT_RULES 裡這個通路是否真的有規則
+                      （_channelHasMustVisit()）；_mvOfficeStatsFor() 新增
+                      chanKey 參數，改成逐通路各自彙總，避免以後不只一個
+                      通路設必訪規則時，必訪缺數字被錯誤合併顯示。
+                      ③openMvAuditFromOffice() 不再寫死鑽入
+                      「量販＋量販A」，改成吃點擊當下的通路，等級留給
+                      onlyMvMiss 篩選自己去對規則。④UI 文案／使用說明裡
+                      「量販A五六必訪」等寫死字樣改成通用的「必訪」措辭。
+                      影響範圍：只要「看版設定」分頁補上【通路設定】區塊
+                      （對照下方部署重點的範例列），現有量販/全聯行為完全
+                      不變；沒有補這個區塊則所有店的通路會判斷不出來（等同
+                      其他必填區塊留白時的行為，不會偷偷退回舊版寫死值）。
+  1.23.0 2026-08-12  接續 1.22.0 的兩項修正／調整：①【檔期】欄序把
+                      「終止日」搬到「週數」前面，變成 key／label／
+                      圖示／起始日／終止日／週數，對應業務實際試算表
+                      「起始日→終止日→週數」的欄位排列習慣（純粹是
+                      欄序調整，_applyBoardConfig 讀取的欄位索引跟著
+                      改，解析邏輯本身不變）。②抓出 1.22.0 沒改乾淨、
+                      還殘留在 render() 裡的最後一處寫死 key 判斷：欄位
+                      分組底色 periodCls 原本是
+                      c.period==='zhong'?'pg-zhong':'pg-mid'，只認得
+                      'zhong'／'mid' 這兩個 key，換成其他檔期 key 時
+                      底色會直接消失（class 對不到 CSS）。改成
+                      'pg-'+((colGroups.length-1)%2)，依「這是第幾組
+                      檔期欄」交替配色（CSS .pg-zhong／.pg-mid 也同步
+                      改名成 .pg-0／.pg-1），從此檔期 key 可以自由命名
+                      （只要求不空白、同一份設定表裡不重複），不會再有
+                      任何地方因為 key 拼字不是 zhong/mid 而少了圖示或
+                      底色；至此檔頭圖示（1.22.0 已修 4 處）＋欄位分組
+                      底色（本次修 1 處）是目前找得到、僅有的兩處曾經
+                      綁定 zhong/mid 字面值的地方，全部改完。
   1.22.0 2026-08-12  三項優化：①【檔期】區塊新增「圖示」欄（PERIODS
                       多一個 icon 欄位），中元/中秋原本寫死在程式碼裡的
                       🏮／🎑（periodIconMap、MOBILE_SEL 週次列等 4 處）
@@ -650,11 +722,17 @@ td.staff-group-cell { padding:8px 14px !important; text-align:left !important; b
   .sum-card .sc-val { font-size:17px; }
 }
 
-/* ── 檔期欄位分組底色＋跨欄分隔（強化不同檔期／同檔期不同週的視覺區隔） ── */
-.pg-zhong { background:rgba(26,80,139,.08); }
-.pg-mid { background:rgba(230,81,0,.08); }
-.main-tbl thead th.pg-zhong { color:var(--primary); }
-.main-tbl thead th.pg-mid { color:var(--bonus); }
+/* ── 檔期欄位分組底色＋跨欄分隔（強化不同檔期／同檔期不同週的視覺區隔） ──
+   1.23.0：原本是 .pg-zhong／.pg-mid 兩個綁死中元/中秋 key 名稱的 class，
+   換成任何其他檔期 key（例如尾牙、春節）就會找不到對應樣式、整組欄位
+   底色消失。改成跟 key 本身無關、純粹依「這是第幾組檔期欄」交替配色的
+   .pg-0／.pg-1（見 render() 的 periodCls 指定），永遠只是相鄰兩個檔期
+   群組互相交替、不會重複到看不出分界，不管檔期 key 叫什麼名字都適用，
+   也不限定只能有兩個檔期（第 3、4...組會繼續 0/1/0/1 交替下去）。 */
+.pg-0 { background:rgba(26,80,139,.08); }
+.pg-1 { background:rgba(230,81,0,.08); }
+.main-tbl thead th.pg-0 { color:var(--primary); }
+.main-tbl thead th.pg-1 { color:var(--bonus); }
 .th-wk-flex { display:flex; align-items:baseline; justify-content:center; gap:5px; white-space:nowrap; }
 .th-period-name { font-size:13.5px; font-weight:800; letter-spacing:.04em; }
 .th-period-emoji { font-size:2em; line-height:1; vertical-align:middle; }
@@ -1383,7 +1461,7 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
 <div id="mv-overlay" onclick="if(event.target===this)closeMvSummaryDialog()">
   <div id="mv-box">
     <div class="manual-head">
-      <h3>🚨 量販A五六必訪稽核</h3>
+      <h3>🚨 必訪稽核</h3>
       <button class="manual-close" onclick="closeMvSummaryDialog()">✕</button>
     </div>
     <div id="mv-inner"></div>
@@ -1687,14 +1765,33 @@ var AREA_ORDER = ['北部','桃園','臺中','嘉義','臺南','高雄','花蓮'
    通路或等級怎麼組合，都由試算表決定，不用改程式碼判斷。 */
 var CHANNEL_GRADES = {};
 
-/* 通路判斷（依真實欄位值分類為「量販」／「全聯」兩種內部簡稱 key，
-   畫面上的 chip／badge 一律顯示簡稱，篩選比對則一律用這個 key）：
-   ‧ 通路別＝「量販通路」→ 判定為量販
-   ‧ 店家型態＝「全聯社」→ 判定為全聯（不看通路別欄，避免全聯的通路別
-     欄值寫法不一致時漏判） */
+/* 1.24.0：通路本身（key／畫面標籤／圖示／怎麼從店家名冊欄位判斷）改成
+   完全由「看版設定」【通路設定】區塊動態載入，不再寫死「量販」「全聯」
+   兩個字面值。CHANNEL_RULES 是判斷用的規則陣列（照表格列順序，由上到下
+   第一條符合的規則決定該店的 chanKey）；CHANNELS 是畫面用的通路清單
+   （順序＝表格列出現順序，同一個 key 重複出現只留第一次）；
+   CHANNEL_LABEL／CHANNEL_ICON 是給 UI 查表用的簡表。三者都在
+   fetchBoardConfig() 讀完設定分頁後才會有值，讀取失敗或區塊留白時維持
+   空陣列/空物件（畫面上就不會有任何通路可選，效果等同其他必填區塊
+   留白時的「形同沒設定」，不會用舊版寫死的量販/全聯頂替）。 */
+var CHANNEL_RULES = [];   /* [{key, field, value}], field 是 'channel' 或 'storeType' */
+var CHANNELS = [];        /* [{key, label, icon}]，畫面顯示用，依設定表列順序 */
+var CHANNEL_LABEL = {};   /* key → label */
+var CHANNEL_ICON = {};    /* key → icon */
+/* 通路 key 陣列（依【通路設定】列出順序），取代原本到處寫死的
+   ['量販','全聯']；凡是「要列出所有通路」的地方都改呼叫 CHANS()，
+   通路數量、名稱、順序全部跟著設定表走，不用再改程式。 */
+function CHANS(){ return CHANNELS.map(function(c){ return c.key; }); }
+
+/* 通路判斷：依序比對 CHANNEL_RULES，第一條「判斷欄位值」相符的規則
+   決定這家店的 chanKey；全部規則都對不到則回傳空字串（等同「通路無法
+   判斷」，畫面上會顯示對應提示，見 _fillHistoryTab 等處）。 */
 function _chanKey(channelVal, storeTypeVal){
-  if(channelVal === '量販通路') return '量販';
-  if(storeTypeVal === '全聯社') return '全聯';
+  for(var i=0;i<CHANNEL_RULES.length;i++){
+    var rule = CHANNEL_RULES[i];
+    var fieldVal = rule.field==='storeType' ? storeTypeVal : channelVal;
+    if(fieldVal === rule.value) return rule.key;
+  }
   return '';
 }
 
@@ -2048,10 +2145,11 @@ function mobileGateEnter(){
      GRADE_LABEL／CHANNEL_GRADES。1.21.0 起改成「通路」開頭，跟【必訪
      規則】的欄序一致；通路／等級必填，「等級」須跟「店家名冊」的
      「店家等級」欄位真實值完全一致（含全形字），「通路」須跟 _chanKey()
-     判斷出來的通路 key（'量販'／'全聯'）一致，否則等級 chip 在該通路
-     底下不會顯示（但不影響達成率計算，因為計算只看等級對 GRADE_FREQ
-     的查表，跟通路欄無關）。簡稱留空時退回顯示「等級」本身；每週應達
-     次數留空視為 0（等同「這個等級沒有應達次數要求」，不會被判定未達）。
+     判斷出來的通路 key（見「看版設定」【通路設定】區塊）一致，否則
+     等級 chip 在該通路底下不會顯示（但不影響達成率計算，因為計算只看
+     等級對 GRADE_FREQ 的查表，跟通路欄無關）。簡稱留空時退回顯示
+     「等級」本身；每週應達次數留空視為 0（等同「這個等級沒有應達次數
+     要求」，不會被判定未達）。
    【問卷分頁】通路／問卷分頁名稱 → 對應 QUESTIONNAIRE_SHEETS，只影響
      店家明細 Dialog 裡的「問卷內容」分頁（顯示原始問卷逐題答案）；跟
      巡補次數/達成率/必訪規則等核心計算完全無關。某個通路留空不填，
@@ -2086,7 +2184,8 @@ function _cfgRowVals(row, width){
 function _scanConfigSections(rows){
   var W = 6; /* 1.22.0：檔期新增「圖示」「終止日」兩欄後變成最寬的區塊
     （key／label／圖示／起始日／週數／終止日＝6 欄），其餘區塊（等級
-    對照 4 欄、必訪規則 3 欄、問卷分頁 2 欄）用不到的欄位留空即可 */
+    對照 4 欄、必訪規則 3 欄、問卷分頁 2 欄、1.24.0 新增的通路設定 5 欄）
+    用不到的欄位留空即可 */
   var grid = rows.map(function(row){ return _cfgRowVals(row, W); });
   var sections = {};
   var i = 0;
@@ -2113,11 +2212,13 @@ function _applyBoardConfig(sections){
   (sections['基本設定']||[]).forEach(function(r){ if(r[0]) base[r[0]] = r[1]; });
   if(base['專案名稱']) PROJ_NAME = base['專案名稱'];
 
-  /* 【檔期】欄序（1.22.0 起）：key／label／圖示／起始日／週數／終止日。
-     key、起始日必填，起始日解析失敗的列直接跳過（不會讓整個 PERIODS
-     掛掉，只是那個檔期不會出現在畫面上——比讓 _toEpochDay 吃到 NaN
-     之後整段週次計算跑歪安全）。label 留空退回用 key 當標籤；圖示留空
-     退回 DEFAULT_PERIOD_ICON。週數／終止日兩欄擇一即可：
+  /* 【檔期】欄序（1.23.0 起）：key／label／圖示／起始日／終止日／週數
+     （終止日排在週數前面，對應業務實際試算表的欄位排列習慣：起始日→
+     終止日→週數，日期兩欄相鄰、週數放最後）。key、起始日必填，起始日
+     解析失敗的列直接跳過（不會讓整個 PERIODS 掛掉，只是那個檔期不會
+     出現在畫面上——比讓 _toEpochDay 吃到 NaN 之後整段週次計算跑歪
+     安全）。label 留空退回用 key 當標籤；圖示留空退回
+     DEFAULT_PERIOD_ICON。終止日／週數兩欄擇一即可：
      ‧ 終止日有值：忽略週數欄，改由起始日／終止日直接算出總天數
        （totalDays=endDay-startDay+1），無條件進位換算成週數，順便算出
        最後一週實際天數（lastWeekDays，不足 7 天時 _stdForCol() 會拿去
@@ -2132,7 +2233,7 @@ function _applyBoardConfig(sections){
       var dp = _parseCfgDate(r[3]);
       if(!dp) return; /* 起始日解析不出來，跳過這筆 */
       var icon = r[2] || DEFAULT_PERIOD_ICON;
-      var ep = r[5] ? _parseCfgDate(r[5]) : null;
+      var ep = r[4] ? _parseCfgDate(r[4]) : null;
       var weeks, lastWeekDays = null, endDayEpoch = null;
       if(ep){
         var startDay = _toEpochDay(dp.y,dp.mo,dp.d);
@@ -2144,13 +2245,46 @@ function _applyBoardConfig(sections){
         lastWeekDays = rem===0 ? 7 : rem; /* 剛好整除代表最後一週仍是整週 7 天 */
         endDayEpoch = endDay;
       } else {
-        weeks = +r[4];
+        weeks = +r[5];
         if(!weeks) return; /* 沒終止日、週數也空白/非數字，跳過這筆 */
       }
       newPeriods.push({ key:r[0], label:r[1]||r[0], icon:icon, y:dp.y, mo:dp.mo, d:dp.d,
         weeks:weeks, lastWeekDays:lastWeekDays, endDayEpoch:endDayEpoch });
     });
     if(newPeriods.length) PERIODS = newPeriods;
+  }
+
+  /* 1.24.0 新增【通路設定】欄序：通路key／label／圖示／判斷欄位／判斷值。
+     通路key／判斷欄位／判斷值三欄必填（label 留空退回用 key 當標籤；
+     圖示留空退回一個中性圓點 ●，避免沒填圖示時整排 icon 消失）。
+     「判斷欄位」只認兩種文字：「通路別」或「店家型態」（要跟店家名冊
+     的欄名一致，程式對照時忽略前後空白）；「判斷值」是該欄位要完全
+     等於的文字，例如通路別＝「量販通路」，或店家型態＝「全聯社」。
+     由上到下第一條符合的規則決定通路，同一個 key 可以出現在多列
+     （例如同一通路想同時吃兩種判斷條件），CHANNELS 顯示清單只會取
+     第一次出現的 label／圖示。這個區塊留白等同「沒有任何通路可判斷」
+     ——不會偷偷退回舊版寫死的量販/全聯，畫面上所有店都會落在「通路
+     無法判斷」，藉此逼著部署新專案時一定要把這個區塊填好，不會漏掉。 */
+  var chanRows = (sections['通路設定']||[]).filter(function(r){ return r[0] && r[3] && r[4]; });
+  if(chanRows.length){
+    var newRules = [], newChannels = [], newChanLabel = {}, newChanIcon = {}, seenChan = {};
+    chanRows.forEach(function(r){
+      var key = r[0], label = r[1]||r[0], icon = r[2]||'●';
+      var fieldRaw = String(r[3]).trim();
+      var field = fieldRaw==='店家型態' ? 'storeType' : (fieldRaw==='通路別' ? 'channel' : '');
+      if(!field) return; /* 判斷欄位打錯字（非「通路別」「店家型態」）就跳過這條規則 */
+      newRules.push({ key:key, field:field, value:r[4] });
+      if(!seenChan[key]){
+        seenChan[key] = true;
+        newChannels.push({ key:key, label:label, icon:icon });
+        newChanLabel[key] = label;
+        newChanIcon[key] = icon;
+      }
+    });
+    CHANNEL_RULES = newRules;
+    CHANNELS = newChannels;
+    CHANNEL_LABEL = newChanLabel;
+    CHANNEL_ICON = newChanIcon;
   }
 
   /* 【等級對照】欄序：通路／等級／簡稱／每週應達次數（1.21.0 起改成
@@ -2360,6 +2494,15 @@ function _isWeekPast(periodKey, week){
    一個管「去了幾次」，一個管「規定的那天有沒有去」。同一店最多只吃第一條
    相符的規則（同一個通路+等級不應該在設定表裡重複出現兩條規則）。 */
 var MUST_VISIT_RULES = []; /* [{chanKey, grade, weekdays:[0-6,...]}, ...]，getUTCDay()：0=日...5=五,6=六 */
+/* 1.24.0：原本總覽表「🚨必訪缺」欄／手機必訪卡片都寫死只在 ck==='量販'
+   時才顯示，換算成通路名稱之後就會判斷錯誤（新通路即使有設必訪規則也
+   不會顯示這格，沒設規則的舊通路名稱反而繼續顯示）。改成完全依
+   MUST_VISIT_RULES 內容判斷：這個通路只要在【必訪規則】區塊裡有任何
+   一列設定，就視為「這個通路有必訪規則」，該顯示對應的稽核欄位/卡片；
+   通路換名字、規則換等級或星期，都不用再改這裡。 */
+function _channelHasMustVisit(chanKey){
+  return MUST_VISIT_RULES.some(function(r){ return r.chanKey===chanKey; });
+}
 function _mustVisitRuleForStore(s){
   for(var i=0;i<MUST_VISIT_RULES.length;i++){
     var rule = MUST_VISIT_RULES[i];
@@ -2450,14 +2593,19 @@ function _mvStoreStreak(s){
   }
   return streak;
 }
-/* 依營業處彙總「量販A必訪」稽核數字。範圍跟著 _officeStatsFor 一樣吃
+/* 依營業處彙總「必訪」稽核數字。範圍跟著 _officeStatsFor 一樣吃
    OFFICE_WEEK_SEL（整體／單一檔期／單一週），這樣總覽頁切頁籤時，
    必訪缺欄位的數字才會跟旁邊「未達店數」等欄位對得起來，不會一個算
    全期間、一個算單週互相矛盾。連續未達（repeat）例外：那是店家本身的
    「近況體質」，不該隨使用者正在看哪個週次頁籤而改變，固定看「到目前
-   為止」的最新狀態，不受 OFFICE_WEEK_SEL 影響。 */
-function _mvOfficeStatsFor(area){
-  var subset = STORE_ROWS.filter(function(s){ return s.area===area && _isMustVisitStore(s); });
+   為止」的最新狀態，不受 OFFICE_WEEK_SEL 影響。
+   1.24.0：新增 chanKey 參數，只彙總「這個通路」的必訪店家——原本沒有
+   這個參數時，全域只可能有一個通路設了必訪規則（量販），不分通路彙總
+   跟只彙總那一個通路結果相同，看不出差異；一旦以後有兩個以上通路各自
+   都設了必訪規則，不分通路彙總會讓每個通路欄位顯示同一組（跨通路加總
+   後）的數字，造成誤導，所以改成依通路各自獨立彙總。 */
+function _mvOfficeStatsFor(area, chanKey){
+  var subset = STORE_ROWS.filter(function(s){ return s.area===area && s.chanKey===chanKey && _isMustVisitStore(s); });
   var cols = !OFFICE_WEEK_SEL ? _allPeriodColumns()
     : (OFFICE_WEEK_SEL.week ? [{ period:OFFICE_WEEK_SEL.period, week:OFFICE_WEEK_SEL.week }] : _periodColumns(OFFICE_WEEK_SEL.period));
   var total=0, pendingToday=0, repeat=0;
@@ -2683,9 +2831,9 @@ function buildFilterUI(){
     return '<div class="chip'+(i===0?' active':'')+'" data-v="'+o[0]+'" onclick="setChip(this,\'period\')">'+o[1]+'</div>';
   }).join('');
 
-  var channelOpts = ['全部','量販','全聯'];
+  var channelOpts = ['全部'].concat(CHANS());
   document.getElementById('chip-channel').innerHTML = channelOpts.map(function(v,i){
-    return '<div class="chip'+(i===0?' active':'')+'" data-v="'+v+'" onclick="setChip(this,\'channel\')">'+(v==='全部'?'全部通路':(v==='量販'?'量販店':'全聯社'))+'</div>';
+    return '<div class="chip'+(i===0?' active':'')+'" data-v="'+v+'" onclick="setChip(this,\'channel\')">'+(v==='全部'?'全部通路':(CHANNEL_LABEL[v]||v))+'</div>';
   }).join('');
 
   renderGradeChipRow();
@@ -2700,7 +2848,7 @@ function buildFilterUI(){
      幾家店違反必訪規則。 */
   document.getElementById('chip-special').innerHTML =
     '<div class="chip'+(FILTER.onlyUnmet?' active':'')+'" id="chip-unmet-toggle" onclick="toggleUnmetChip(this)">🔴 巡次未達標</div>'
-    + '<div class="chip'+(FILTER.onlyMvMiss?' active':'')+'" id="chip-mv-toggle" onclick="toggleMvMissChip(this)">🚨 量販A五六必訪未達</div>';
+    + '<div class="chip'+(FILTER.onlyMvMiss?' active':'')+'" id="chip-mv-toggle" onclick="toggleMvMissChip(this)">🚨 必訪未達</div>';
 
   var areaOpts = ['全部'].concat(AREA_ORDER);
   document.getElementById('chip-area').innerHTML = areaOpts.map(function(v,i){
@@ -3040,8 +3188,8 @@ function renderOfficeOverview(){
     return STORE_ROWS.some(function(s){ return s.area===a; });
   });
   if(!areasPresent.length){ wrap.innerHTML = '<div class="ov-empty">目前沒有符合資料</div>'; return; }
-  var CHANS = ['量販','全聯'];
-  var chanIcon = { '量販':'📦', '全聯':'🛒' };
+  var chans = CHANS(); /* 1.24.0：改讀【通路設定】，通路數量/名稱不再寫死兩個 */
+  var chanIcon = CHANNEL_ICON;
   /* 1.9.3：_officeStatsFor(area, ck) 本身要掃一次 STORE_ROWS 再逐店查
      _actualCount，成本不算小；舊版桌機表格格子、chanTotals 加總、手機卡片
      三處各自呼叫一次，等於同一組數字重算三遍。改成每個 (area, ck) 組合
@@ -3051,18 +3199,21 @@ function renderOfficeOverview(){
      避免桌機/手機各自再跑一次 STORE_ROWS.some() 全表掃描。 */
   var statCache = {}; /* key: area+'␟'+ck → { hasData, r } */
   areasPresent.forEach(function(area){
-    CHANS.forEach(function(ck){
+    chans.forEach(function(ck){
       var hasData = STORE_ROWS.some(function(s){ return s.area===area && s.chanKey===ck; });
       statCache[area+'␟'+ck] = { hasData: hasData, r: hasData ? _officeStatsFor(area, ck) : null };
     });
   });
-  /* 1.9.7：必訪稽核只跟「量販」通路裡的「量販A」等級有關，跟 statCache
-     分開存一份（key 只到 area，不用像 statCache 拆 ck），每個 area 只算
-     一次，桌機欄位／手機卡片／頂端摘要列共用同一份數字。 */
+  /* 1.9.7：必訪稽核數字跟 statCache 分開存一份，1.24.0 起改成跟 statCache
+     一樣拆 (area, ck)——因為必訪規則現在可能同時掛在不只一個通路底下，
+     每個通路要各自看到自己的必訪缺數字，不能再全部通路共用同一份。 */
   var mvCache = {};
   areasPresent.forEach(function(area){
-    var r = _mvOfficeStatsFor(area);
-    mvCache[area] = { hasData: r.count>0, r: r };
+    chans.forEach(function(ck){
+      if(!_channelHasMustVisit(ck)) return;
+      var r = _mvOfficeStatsFor(area, ck);
+      mvCache[area+'␟'+ck] = { hasData: r.count>0, r: r };
+    });
   });
   /* 每個通路各自的 6 個統計儲存格（店數／應達／達標／達成率／未達店數／超額），
      hasData=false 時（該處沒有這個通路的店）顯示「—」且不可點擊。
@@ -3083,31 +3234,32 @@ function renderOfficeOverview(){
         + '<td'+unmetClick+' title="點擊查看未達標門市">'+r.unmetCount+'</td>'
         + '<td'+click+' class="oo-extra">'+(r.extra>0?'+'+r.extra:'0')+'</td>';
     })();
-    if(ck!=='量販') return base;
-    return base + _mvCellHtml(area);
+    if(!_channelHasMustVisit(ck)) return base;
+    return base + _mvCellHtml(area, ck);
   }
-  /* 桌機版「🚨必訪缺」儲存格：主數字是目前選定範圍內未達的量販A店數
+  /* 桌機版「🚨必訪缺」儲存格：主數字是目前選定範圍內未達的必訪店數
      （點擊直接下鑽到明細頁、鎖定必訪稽核篩選）；旁邊兩個小徽章分別是
      「⚠️今日待完成」（還沒被列入未達，但今天就是必訪日、還沒到店，提早
      預警）跟「🔁連續未達」（連續未達店數，不受目前頁籤週次影響，見
      _mvOfficeStatsFor 註解），兩個小徽章數字是 0 就不顯示，避免畫面
      塞滿一堆「0」。 */
-  function _mvCellHtml(area){
-    var c = mvCache[area];
-    if(!c.hasData) return '<td class="oo-mv">—</td>';
+  function _mvCellHtml(area, ck){
+    var c = mvCache[area+'␟'+ck];
+    if(!c || !c.hasData) return '<td class="oo-mv">—</td>';
     var r = c.r;
     var subs = ''
       + (r.pendingToday>0 ? '<span class="oo-mv-sub oo-mv-pending" title="今天就是必訪日、還沒到店">⚠️'+r.pendingToday+'</span>' : '')
       + (r.repeat>0 ? '<span class="oo-mv-sub oo-mv-repeat" title="連續2週以上必訪未達">🔁'+r.repeat+'</span>' : '');
-    return '<td class="oo-mv oo-clickable" onclick="openMvAuditFromOffice(\''+area+'\',event)" title="點擊查看必訪未達門市">'
+    return '<td class="oo-mv oo-clickable" onclick="openMvAuditFromOffice(\''+area+'\',\''+ck+'\',event)" title="點擊查看必訪未達門市">'
       + '<span class="oo-mv-num'+(r.total>0?' has':'')+'">'+(r.total>0?'🚨 '+r.total:'—')+'</span>'
       + subs + '</td>';
   }
-  var chanTotals = { '量販':{exp:0,stdDone:0,extra:0,count:0,unmet:0}, '全聯':{exp:0,stdDone:0,extra:0,count:0,unmet:0} };
+  var chanTotals = {};
+  chans.forEach(function(ck){ chanTotals[ck] = {exp:0,stdDone:0,extra:0,count:0,unmet:0}; });
   var mvTotals = { total:0, pendingToday:0, repeat:0 };
   var bodyRows = areasPresent.map(function(area){
     var row = '<tr><td class="oo-name">'+esc(area)+'</td>';
-    CHANS.forEach(function(ck){
+    chans.forEach(function(ck){
       var c = statCache[area+'␟'+ck];
       if(c.hasData){
         var r = c.r;
@@ -3118,31 +3270,51 @@ function renderOfficeOverview(){
     row += '</tr>';
     return row;
   }).join('');
+  /* 1.24.0：mvTotals 拆成逐通路各自加總（mvTotalsByChan），才能讓總覽表
+     每個通路的合計列各自顯示自己通路的必訪缺數字，不會不同通路都設了
+     必訪規則時互相混在一起。mvTotals（不分通路）留給頂端摘要列／複製
+     清單用，仍是全部通路加總的整體提示。 */
+  var mvTotalsByChan = {};
+  chans.forEach(function(ck){ mvTotalsByChan[ck] = { total:0, pendingToday:0, repeat:0 }; });
   areasPresent.forEach(function(area){
-    var c = mvCache[area];
-    if(!c.hasData) return;
-    mvTotals.total += c.r.total; mvTotals.pendingToday += c.r.pendingToday; mvTotals.repeat += c.r.repeat;
+    chans.forEach(function(ck){
+      var c = mvCache[area+'␟'+ck];
+      if(!c || !c.hasData) return;
+      mvTotalsByChan[ck].total += c.r.total; mvTotalsByChan[ck].pendingToday += c.r.pendingToday; mvTotalsByChan[ck].repeat += c.r.repeat;
+      mvTotals.total += c.r.total; mvTotals.pendingToday += c.r.pendingToday; mvTotals.repeat += c.r.repeat;
+    });
   });
-  var totalRow = '<tr class="oo-total"><td class="oo-name">全部合計</td>' + CHANS.map(function(ck){
+  var totalRow = '<tr class="oo-total"><td class="oo-name">全部合計</td>' + chans.map(function(ck){
     var t = chanTotals[ck];
     var rate = t.exp>0 ? (t.stdDone/t.exp*100) : 0;
     var cells = '<td>'+t.count+'</td><td>'+t.exp+'</td><td>'+t.stdDone+'</td>'
       + '<td class="oo-rate">'+rate.toFixed(1)+'%</td>'
       + '<td class="oo-unmet">'+t.unmet+'</td>'
       + '<td class="oo-extra">'+(t.extra>0?'+'+t.extra:'0')+'</td>';
-    if(ck==='量販'){
+    if(_channelHasMustVisit(ck)){
+      var mt = mvTotalsByChan[ck];
       cells += '<td class="oo-mv">'
-        + '<span class="oo-mv-num'+(mvTotals.total>0?' has':'')+'">'+(mvTotals.total>0?'🚨 '+mvTotals.total:'—')+'</span>'
-        + (mvTotals.pendingToday>0 ? '<span class="oo-mv-sub oo-mv-pending">⚠️'+mvTotals.pendingToday+'</span>' : '')
-        + (mvTotals.repeat>0 ? '<span class="oo-mv-sub oo-mv-repeat">🔁'+mvTotals.repeat+'</span>' : '')
+        + '<span class="oo-mv-num'+(mt.total>0?' has':'')+'">'+(mt.total>0?'🚨 '+mt.total:'—')+'</span>'
+        + (mt.pendingToday>0 ? '<span class="oo-mv-sub oo-mv-pending">⚠️'+mt.pendingToday+'</span>' : '')
+        + (mt.repeat>0 ? '<span class="oo-mv-sub oo-mv-repeat">🔁'+mt.repeat+'</span>' : '')
         + '</td>';
     }
     return cells;
   }).join('') + '</tr>';
+  /* 表頭：每個通路各自的欄位數（有必訪規則的通路多一欄「🚨必訪缺」），
+     colspan／第二列欄名都依 chans 動態展開，不再寫死「量販 7 欄／全聯
+     6 欄」這兩個數字。 */
+  var chanHeadRow1 = chans.map(function(ck){
+    var n = _channelHasMustVisit(ck) ? 7 : 6;
+    return '<th colspan="'+n+'">'+(chanIcon[ck]||'')+' '+esc(CHANNEL_LABEL[ck]||ck)+'</th>';
+  }).join('');
+  var chanHeadRow2 = chans.map(function(ck){
+    return '<th>店數</th><th>應達次數</th><th>達標次數</th><th>達成率%</th><th>未達店數</th><th>超額次數</th>'
+      + (_channelHasMustVisit(ck) ? '<th>🚨必訪缺</th>' : '');
+  }).join('');
   var tableHtml = '<div class="oo-tbl-scroll"><table class="ov-office-tbl">'
-    + '<tr><th rowspan="2">營業處</th><th colspan="7">📦 量販</th><th colspan="6">🛒 全聯</th></tr>'
-    + '<tr><th>店數</th><th>應達次數</th><th>達標次數</th><th>達成率%</th><th>未達店數</th><th>超額次數</th><th>🚨必訪缺</th>'
-    + '<th>店數</th><th>應達次數</th><th>達標次數</th><th>達成率%</th><th>未達店數</th><th>超額次數</th></tr>'
+    + '<tr><th rowspan="2">營業處</th>'+chanHeadRow1+'</tr>'
+    + '<tr>'+chanHeadRow2+'</tr>'
     + bodyRows
     + totalRow
     + '</table></div>';
@@ -3163,12 +3335,12 @@ function renderOfficeOverview(){
   if(mvClean && !MV_SUMMARY_EXPANDED){
     mvSummaryHtml = '<div class="ov-mv-summary ov-mv-summary-clean" onclick="toggleMvSummary()" role="button" tabindex="0">'
       + '<span class="ov-mv-clean-icon">✅</span>'
-      + '<span class="ov-mv-clean-text">量販A五六必訪稽核：目前無異常</span>'
+      + '<span class="ov-mv-clean-text">必訪稽核：目前無異常</span>'
       + '<span class="ov-mv-clean-expand">展開 ▾</span>'
       + '</div>';
   } else {
     mvSummaryHtml = '<div class="ov-mv-summary">'
-      + '<div class="ov-mv-summary-title">🚨 量販A五六必訪稽核</div>'
+      + '<div class="ov-mv-summary-title">🚨 必訪稽核</div>'
       + '<div class="ov-mv-summary-pills">'
       + '<span class="ov-mv-pill'+(mvTotals.total>0?' alert':'')+'">必訪未達 '+mvTotals.total+' 店</span>'
       + '<span class="ov-mv-pill'+(mvTotals.pendingToday>0?' warn':'')+'">⚠️ 今日待完成 '+mvTotals.pendingToday+' 店</span>'
@@ -3188,20 +3360,21 @@ function renderOfficeOverview(){
     document.getElementById('mv-inner').innerHTML = mvSummaryHtml;
   }
 
-  /* 手機版：改成一處一張直式卡片（量販／全聯各一區塊），避免表格橫向
+  /* 手機版：改成一處一張直式卡片（每個通路各一區塊），避免表格橫向
      欄位在窄螢幕被裁到看不到，同一份統計數字（_officeStatsFor／
      chanTotals）只是換一種排版，不重算 */
   function _mcardChan(area, ck){
     var c = statCache[area+'␟'+ck];
-    var title = '<div class="oo-mcard-chan-title">'+chanIcon[ck]+' '+ck+'</div>';
+    var title = '<div class="oo-mcard-chan-title">'+(chanIcon[ck]||'')+' '+esc(CHANNEL_LABEL[ck]||ck)+'</div>';
     if(!c.hasData){ return '<div class="oo-mcard-chan">'+title+'<div class="oo-mcard-empty">—</div></div>'; }
     var r = c.r;
-    var gridCls = ck==='量販' ? 'oo-mcard-grid oo-mcard-grid-7' : 'oo-mcard-grid';
+    var hasMv = _channelHasMustVisit(ck);
+    var gridCls = hasMv ? 'oo-mcard-grid oo-mcard-grid-7' : 'oo-mcard-grid';
     var mvStat = '';
-    if(ck==='量販'){
-      var mc = mvCache[area];
-      var mr = mc.hasData ? mc.r : { total:0, pendingToday:0, repeat:0 };
-      mvStat = '<div class="oo-mstat oo-mstat-mv" onclick="openMvAuditFromOffice(\''+area+'\',event)">'
+    if(hasMv){
+      var mc = mvCache[area+'␟'+ck];
+      var mr = (mc && mc.hasData) ? mc.r : { total:0, pendingToday:0, repeat:0 };
+      mvStat = '<div class="oo-mstat oo-mstat-mv" onclick="openMvAuditFromOffice(\''+area+'\',\''+ck+'\',event)">'
         + '<span class="k">必訪缺</span>'
         + '<span class="v mv'+(mr.total>0?' has':'')+'">'+(mr.total>0?'🚨'+mr.total:'—')+'</span>'
         + (mr.pendingToday>0||mr.repeat>0 ? '<span class="oo-mv-mob-subs">'
@@ -3224,16 +3397,18 @@ function renderOfficeOverview(){
      週期切換的 ◄／► 手感——不再一次把 7 個處＋全部合計共 8 張卡片全部
      堆疊在同一頁，捲動距離跟版面高度砍到原本的 1/8；桌機表格（tableHtml）
      完全不受影響，維持一次看全部處的完整表格。 */
-  var totalChanBlocks = CHANS.map(function(ck){
+  var totalChanBlocks = chans.map(function(ck){
     var t = chanTotals[ck];
     var rate = t.exp>0 ? (t.stdDone/t.exp*100) : 0;
-    var gridCls = ck==='量販' ? 'oo-mcard-grid oo-mcard-grid-7' : 'oo-mcard-grid';
-    var mvStat = ck==='量販' ? ('<div class="oo-mstat">'
+    var hasMv = _channelHasMustVisit(ck);
+    var gridCls = hasMv ? 'oo-mcard-grid oo-mcard-grid-7' : 'oo-mcard-grid';
+    var mt = mvTotalsByChan[ck];
+    var mvStat = hasMv ? ('<div class="oo-mstat">'
         + '<span class="k">必訪缺</span>'
-        + '<span class="v mv'+(mvTotals.total>0?' has':'')+'">'+(mvTotals.total>0?'🚨'+mvTotals.total:'—')+'</span>'
+        + '<span class="v mv'+(mt.total>0?' has':'')+'">'+(mt.total>0?'🚨'+mt.total:'—')+'</span>'
         + '</div>') : '';
     return '<div class="oo-mcard-chan">'
-      + '<div class="oo-mcard-chan-title">'+chanIcon[ck]+' '+ck+'</div>'
+      + '<div class="oo-mcard-chan-title">'+(chanIcon[ck]||'')+' '+esc(CHANNEL_LABEL[ck]||ck)+'</div>'
       + '<div class="'+gridCls+'">'
       + '<div class="oo-mstat"><span class="k">店數</span><span class="v">'+t.count+'</span></div>'
       + '<div class="oo-mstat"><span class="k">應達</span><span class="v">'+t.exp+'</span></div>'
@@ -3251,7 +3426,7 @@ function renderOfficeOverview(){
   var curCardHtml = curPageName==='全部合計'
     ? ('<div class="oo-mcard oo-mcard-total"><div class="oo-mcard-head">全部合計</div>' + totalChanBlocks + '</div>')
     : ('<div class="oo-mcard"><div class="oo-mcard-head">'+esc(curPageName)+'</div>'
-        + CHANS.map(function(ck){ return _mcardChan(curPageName, ck); }).join('')
+        + chans.map(function(ck){ return _mcardChan(curPageName, ck); }).join('')
         + '</div>');
   var pagerHtml = '<div class="oo-area-pager" id="oo-area-pager">'
     + '<button class="oo-area-nav" id="oo-area-prev" onclick="ovPageArea(-1)" aria-label="上一處"'+(OV_AREA_IDX<=0?' disabled':'')+'>◄</button>'
@@ -3274,7 +3449,7 @@ function copyMvAuditList(btnEl){
   var btn = btnEl || document.getElementById('ov-mv-copy-btn');
   var list = _mvAuditStoreList();
   if(!list.length){ _flashBtn(btn, '✅ 目前無必訪缺'); return; }
-  var lines = ['🚨 量販A五六必訪稽核清單', ''];
+  var lines = ['🚨 必訪稽核清單', ''];
   list.forEach(function(it){
     var tag = it.violated ? '🚨 未符合標準' : '⚠️ 今日待完成';
     var streakNote = it.streak>=2 ? '　🔁連續'+it.streak+'週' : '';
@@ -3304,9 +3479,9 @@ function mpBuildFilterUI(){
     return '<div class="chip'+(o[0]===MANPOWER_FILTER.period?' active':'')+'" data-v="'+o[0]+'" onclick="mpSetChip(this,\'period\')">'+o[1]+'</div>';
   }).join('');
 
-  var channelOpts = ['全部','量販','全聯'];
+  var channelOpts = ['全部'].concat(CHANS());
   document.getElementById('mp-chip-channel').innerHTML = channelOpts.map(function(v){
-    return '<div class="chip'+(v===MANPOWER_FILTER.channel?' active':'')+'" data-v="'+v+'" onclick="mpSetChip(this,\'channel\')">'+(v==='全部'?'全部通路':(v==='量販'?'量販店':'全聯社'))+'</div>';
+    return '<div class="chip'+(v===MANPOWER_FILTER.channel?' active':'')+'" data-v="'+v+'" onclick="mpSetChip(this,\'channel\')">'+(v==='全部'?'全部通路':(CHANNEL_LABEL[v]||v))+'</div>';
   }).join('');
 
   var gradeOpts = ['全部'].concat(Object.keys(GRADE_FREQ));
@@ -3468,12 +3643,12 @@ function renderManpowerTable(){
     var areaSub = _mpEmptyAgg(cols);
     var areaBody = '';
     officesInArea.forEach(function(office){
-      ['量販','全聯'].forEach(function(ck){
+      CHANS().forEach(function(ck){
         var g = groups[area+'‖'+office+'‖'+ck];
         if(!g) return;
         areaBody += '<tr>'
           + '<td class="mp-office-cell">'+esc(office)+'</td>'
-          + '<td>'+(ck==='量販'?'📦 量販':'🛒 全聯')+'</td>'
+          + '<td>'+(CHANNEL_ICON[ck]||'')+' '+esc(CHANNEL_LABEL[ck]||ck)+'</td>'
           + '<td>'+g.count+'</td>'
           + _rowCells(g)
           + '</tr>';
@@ -3541,11 +3716,16 @@ function openDetailFromOffice(area, chanKey, onlyUnmet, evt){
   FILTER.onlyMvMiss = false;
   _enterDetail();
 }
-/* 1.9.7：點總覽表「🚨必訪缺」欄 → 直接帶進明細頁並鎖定「量販＋量販A＋
-   🚨量販A五六必訪未達」篩選，主管不用自己手動切三個篩選條件才找得到
-   要看的店，跟 openDetailFromOffice 共用「跟隨 OFFICE_WEEK_SEL 頁籤」
-   的檔期/週次邏輯，只是篩選目標換成必訪規則而不是次數達成率。 */
-function openMvAuditFromOffice(area, evt){
+/* 1.9.7：點總覽表「🚨必訪缺」欄 → 直接帶進明細頁並鎖定「該通路＋
+   🚨必訪未達」篩選，主管不用自己手動切篩選條件才找得到要看的店，跟
+   openDetailFromOffice 共用「跟隨 OFFICE_WEEK_SEL 頁籤」的檔期/週次
+   邏輯，只是篩選目標換成必訪規則而不是次數達成率。
+   1.24.0：新增 chanKey 參數（改成從點擊當下所在的通路欄位傳進來，不
+   再寫死「量販」）；等級不寫死成「量販A」，改留在「全部」——必訪規則
+   本身已經是「通路＋等級」對應，onlyMvMiss 篩選會自動只留下真的符合
+   規則的店，不需要在這裡另外重複鎖等級，也才不會漏掉日後同一通路裡
+   幫別的等級也設了必訪規則的情況。 */
+function openMvAuditFromOffice(area, chanKey, evt){
   if(evt){ evt.stopPropagation(); }
   if(OFFICE_WEEK_SEL && OFFICE_WEEK_SEL.period){
     FILTER.period = OFFICE_WEEK_SEL.period;
@@ -3554,7 +3734,7 @@ function openMvAuditFromOffice(area, evt){
     FILTER.period = '全部';
     FILTER.week = null;
   }
-  FILTER.channel = '量販'; FILTER.grade = '量販A';
+  FILTER.channel = chanKey || '全部'; FILTER.grade = '全部';
   FILTER.area = area; FILTER.office = '全部'; FILTER.staff = '全部'; FILTER.keyword = '';
   FILTER.onlyUnmet = false;
   FILTER.onlyMvMiss = true;
@@ -3575,8 +3755,8 @@ function renderOverview(){
      重新 filter 一次 STORE_ROWS，等於同一份「量販店家清單」「全聯店家
      清單」被篩了兩遍。搬到迴圈外先各算一次、快取起來，兩個檔期一起用，
      省掉一半的 STORE_ROWS 全表掃描。 */
-  var chanSubsets = { '量販': STORE_ROWS.filter(function(s){ return s.chanKey==='量販'; }),
-                       '全聯': STORE_ROWS.filter(function(s){ return s.chanKey==='全聯'; }) };
+  var chanSubsets = {};
+  CHANS().forEach(function(ck){ chanSubsets[ck] = STORE_ROWS.filter(function(s){ return s.chanKey===ck; }); });
   var cardsHtml = PERIODS.map(function(p){
     var icon = p.icon || DEFAULT_PERIOD_ICON; /* 1.22.0：改讀 PERIODS 設定的圖示，不再寫死中元/中秋 */
     var cols = _periodColumns(p.key);
@@ -3590,7 +3770,7 @@ function renderOverview(){
        同時把整列共用一顆 onclick 改成每個儲存格各自綁定（跟上方「營業
        處執行狀況總覽表」一致），不再有「點哪裡都觸發整列篩選、只有
        未達欄例外」的不一致行為。 */
-    var allGrades = ['量販','全聯'].reduce(function(acc, chanKey){
+    var allGrades = CHANS().reduce(function(acc, chanKey){
       var subset = chanSubsets[chanKey];
       var stat = _statsFor(subset, cols);
       var gradeKeys = Object.keys(stat.byGrade).sort(function(a,b){
@@ -3935,7 +4115,7 @@ function _buildDayBoxCells(s, period, week, stdN, actual){
       title = dateLbl+'（週'+dowLbl+'）：已過期未到店';
     } else if(d.isForceWhite){
       inner = '<input type="checkbox" class="std-check">';
-      title = dateLbl+'（週'+dowLbl+'）：量販A必訪日，尚未到店';
+      title = dateLbl+'（週'+dowLbl+'）：必訪日，尚未到店';
     } else if(openAssigned<dynamicBudget){
       inner = '<input type="checkbox" class="std-check">'; openAssigned++;
       title = dateLbl+'（週'+dowLbl+'）：本週尚未結束，還沒完成';
@@ -3958,7 +4138,8 @@ function render(){
   /* 1.6.0：欄頭中元/中秋 emoji 獨立成 span 以便放大，字樣本身維持原字級。
      1.22.0：periodIconMap 改直接從 PERIODS 的 icon 欄位建表（留空退回
      DEFAULT_PERIOD_ICON），不再寫死 zhong/mid 兩個 key，新增檔期不用
-     改這裡的程式碼。 */
+     改這裡的程式碼。1.23.0：欄位分組底色 periodCls 也是同樣的問題，
+     一併改成依分組順序交替（見下方 .pg-0／.pg-1）。 */
   var periodLabelMap = {}; PERIODS.forEach(function(p){ periodLabelMap[p.key] = p.label.replace('專案',''); });
   var periodIconMap = {}; PERIODS.forEach(function(p){ periodIconMap[p.key] = p.icon || DEFAULT_PERIOD_ICON; });
   var colGroups = [];
@@ -3973,7 +4154,7 @@ function render(){
     colMeta.push({
       isGroupDivider: isGroupDivider,
       isWeekDivider: isWeekDivider,
-      periodCls: c.period==='zhong' ? 'pg-zhong' : 'pg-mid',
+      periodCls: 'pg-'+((colGroups.length-1)%2), /* 1.23.0：改依「第幾組檔期欄」交替配色，不再寫死 zhong/mid key（見上方 .pg-0／.pg-1 CSS 註解） */
       dateRange: _weekDateRange(c.period, c.week),
       isPastWeek: _isWeekPast(c.period, c.week)
     });
@@ -4045,7 +4226,7 @@ function render(){
      可以同時開（同時只看「未達標」且「必訪未達」的店） */
   var mvMissCount = rowsDataAll.filter(function(rd){ return rd.isMvMiss; }).length;
   var mvToggleEl = document.getElementById('chip-mv-toggle');
-  if(mvToggleEl) mvToggleEl.textContent = '🚨 量販A五六必訪未達（'+mvMissCount+'）';
+  if(mvToggleEl) mvToggleEl.textContent = '🚨 必訪未達（'+mvMissCount+'）';
 
   var rowsData = rowsDataAll.filter(function(rd){
     if(FILTER.onlyUnmet && !rd.isUnmet) return false;
@@ -4950,7 +5131,7 @@ function toolbarCopyLine(){
   var mvStores = data.stores.filter(function(it){ return it.mvMissTotal>0; }).slice(0,50);
   if(mvStores.length){
     lines.push('');
-    lines.push('🚨 量販A五六必訪未達：');
+    lines.push('🚨 必訪未達：');
     mvStores.forEach(function(it){
       lines.push('🚨 '+it.store.storeName+'('+it.store.code+') '+it.store.staff+'　必訪缺 '+it.mvMissTotal+' 次');
     });
@@ -5002,10 +5183,9 @@ function _buildManualContent(){
     + '<hr>'
     + '<p><b>【篩選列】</b></p>'
     + '<p><b>檔期</b>：只看中元或只看中秋，或全部一起看（欄位會跟著變成 W1~W5）<br>'
-    + '<b>通路／等級</b>：量販店與全聯社的應達次數標準不同（等級旁邊的數字'
+    + '<b>通路／等級</b>：不同通路的應達次數標準不同（等級旁邊的數字'
     + '就是每週該去幾次），可個別篩選；選定通路後，等級選項只會列出這個'
-    + '通路底下有的等級（例如選「全聯」，等級只會出現「超市A」，不會混'
-    + '進量販A/B/C），切換通路若原本選的等級不屬於新通路，會自動退回'
+    + '通路底下有的等級，切換通路若原本選的等級不屬於新通路，會自動退回'
     + '「全部等級」<br>'
     + '<b>營業處／營業所</b>：依組織層級篩選，選定營業處後才會出現底下的'
     + '營業所選項</p>'
@@ -5029,18 +5209,18 @@ function _buildManualContent(){
     + '<b>依日期</b>（預設）：7 格對應這個檔期週次實際的星期日～六，每格'
     + '上方印出星期幾（週六、週日固定紅字），直接看出督導轄下的店家實際'
     + '習慣在星期幾去巡補。藍＝已完成且算應達、橘＝已完成的超額；白格＝'
-    + '還沒去但日期還沒過（今天或未來，或量販A的必訪日五、六）；灰格＝'
+    + '還沒去但日期還沒過（今天或未來，或設有必訪規則的必訪日）；灰格＝'
     + '日期已經過去卻沒有紀錄——這個名額不會憑空消失，會自動遞延到後面'
-    + '還沒過去的日子，繼續維持「還要去幾次」的白格數量不變（量販A店的'
-    + '五、六必訪格會優先從這個白格總額裡佔位，例如整週應達 5 次，必訪'
-    + '格先佔 2 格，剩下 3 格才動態遞補給其他天，白格總數仍然是 5 格，'
+    + '還沒過去的日子，繼續維持「還要去幾次」的白格數量不變（有必訪規則的'
+    + '店，規定日期的必訪格會優先從這個白格總額裡佔位，例如整週應達 5 次，'
+    + '必訪格先佔 2 格，剩下 3 格才動態遞補給其他天，白格總數仍然是 5 格，'
     + '不會因為必訪格另外加碼變成 7 格）。<br>'
     + '<b>依次數</b>：原本的視角，7 格代表第幾次巡補、跟哪一天去的無關。<br>'
     + '手機版店卡也是同一套格子（跟桌機共用同一套判斷與顏色），篩選列展開後'
     + '一樣看得到、切得動這排「格子視角」。</p>'
     + '<hr>'
-    + '<p><b>【🚨 五/六必訪日是什麼？】</b>量販通路＋量販A店，每週的星期五、'
-    + '星期六是規定一定要到店的日子，跟「這週去了幾次」是兩件事分開看──'
+    + '<p><b>【🚨 必訪日是什麼？】</b>「看版設定」可以針對特定通路＋等級，'
+    + '指定每週固定要到店的星期幾（例如星期五、星期六），跟「這週去了幾次」是兩件事分開看──'
     + '就算這週次數已經衝到達標，週五或週六只要有一天完全沒紀錄，仍然算'
     + '「必訪未符合標準」。「依日期」格子視角下，這兩天有沒有到店直接'
     + '看格子本身的顏色就好（白＝還沒去、藍＝已完成、灰＝已過期未到店），'
@@ -5048,13 +5228,13 @@ function _buildManualContent(){
     + '額外顯示「五✓／五✖／五·」兩個小徽章（✓已到店、✖必訪日已過仍未'
     + '到店、·還沒到那天不算未符合標準），只要出現✖，整格會亮起紅色高光'
     + '提醒。次數合計欄與手機店卡不分視角都會多一顆「🚨 必訪缺」提示。'
-    + '篩選列的「🚨 量販A五六必訪未達」開關可以直接'
+    + '篩選列的「🚨 必訪未達」開關可以直接'
     + '篩出所有未符合標準店家，用法跟「🔴 巡次未達標」一樣，兩顆開關也能同時開。'
-    + '不用點進明細也看得到：「營業處執行狀況總覽表」的📦量販欄位群組'
-    + '多了「🚨必訪缺」一欄（可點擊直接下鑽），旁邊「⚠️今日待完成」是'
+    + '不用點進明細也看得到：「營業處執行狀況總覽表」裡有設必訪規則的'
+    + '通路欄位群組會多一欄「🚨必訪缺」（可點擊直接下鑽），旁邊「⚠️今日待完成」是'
     + '今天剛好是必訪日、還沒到店的預警（還不算未符合標準，先catch住不用等'
     + '明天變紅字），「🔁連續未符合標準」是連續 2 週以上必訪未達的累犯店數；'
-    + '總覽頁最上面也有一條「🚨 量販A五六必訪稽核」摘要列，一進頁面'
+    + '總覽頁最上面也有一條「🚨 必訪稽核」摘要列，一進頁面'
     + '就看得到全公司總數，旁邊「📋 複製稽核清單」可以直接把未符合標準／'
     + '待完成的店家清單複製成文字貼到 LINE。</p>'
     + '<hr>'
