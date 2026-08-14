@@ -530,65 +530,36 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
    對 #detail-dialog 這個特定 id 的規則（那支檔案內容不在本檔可見範圍，
    無法確認是否為通用 class；.dlg-body 沿用既有 class，跟 #detail-dialog
    共用、已知能正常顯示）。 ── */
-#trend-dialog.trend-page {
-  position:fixed; inset:0; z-index:200;
-  background:#fff;
-  display:flex; align-items:stretch; justify-content:stretch;
-  padding:0;
-}
-#trend-dialog.trend-page .dlg-box {
-  max-width:none; width:100%; height:100dvh; max-height:100dvh;
-  margin:0; border-radius:0; display:flex; flex-direction:column;
-}
+#trend-dialog.trend-page { position:fixed; inset:0; z-index:200; background:#fff; display:flex; align-items:stretch; justify-content:stretch; padding:0; }
+#trend-dialog.trend-page .dlg-box { max-width:none; width:100%; height:100dvh; max-height:100dvh; margin:0; border-radius:0; display:flex; flex-direction:column; }
 #trend-dialog.trend-page .dlg-header { flex-shrink:0; gap:10px; flex-wrap:wrap; row-gap:6px; }
 #trend-dialog.trend-page .dlg-header .back-btn { flex-shrink:0; }
 #trend-dialog.trend-page .trend-mode-tabs { flex-shrink:0; }
 #trend-dialog.trend-page .dlg-body { flex:1; min-height:0; }
-/* v3.9.0：響應式安全網——窄螢幕（手機）常見的「畫面撐爆」多半不是圖表本身
-   （SVG 用 viewBox+width:100% 本來就會縮放），而是 header/選單/chips 一整排
-   塞不下時沒有地方可以換行、或某個子元素的 padding 用 content-box 算寬度
-   多算出來的幾 px 累積起來超版。這裡強制整個趨勢頁都用 border-box，並讓
-   標題列在窄螢幕改成自動換行（週數下拉選單掉到第二行），不再單靠子元素
-   各自的 max-width 硬撐。 */
 #trend-dialog.trend-page, #trend-dialog.trend-page * { box-sizing:border-box; }
 #trend-dialog.trend-page .dlg-box { overflow-x:hidden; max-width:100vw; }
-.trend-chart-wrap { padding:6px 4px 10px; }
-.trend-chart-wrap svg { max-height:46vh; }
-.trend-legend { display:flex; flex-wrap:wrap; gap:10px; padding:2px 14px 10px; font-size:12px; }
-.trend-legend-item { display:inline-flex; align-items:center; gap:5px; color:var(--sub,#888); }
-.trend-legend-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
-.trend-table-wrap { overflow-x:auto; padding:0 14px 16px; -webkit-overflow-scrolling:touch; }
-.trend-table { border-collapse:collapse; font-size:12px; white-space:nowrap; }
-.trend-table th, .trend-table td { padding:6px 10px; border-bottom:1px solid var(--border); text-align:right; }
-.trend-table th:first-child, .trend-table td:first-child { text-align:left; position:sticky; left:0; background:#fff; }
-.trend-table thead th { color:var(--sub,#888); font-weight:700; font-size:11px; }
-.trend-table tbody tr:hover td { background:#FAFAF8; }
-.trend-empty { padding:24px 16px; text-align:center; color:var(--sub,#888); font-size:13px; }
-/* ── 趨勢圖三種模式切換（v3.8.0）：週執行率／累計達成進度／每週新增家數，
-   三顆並排的分頁式按鈕，選中的模式底色標示，跟旁邊「近N週」下拉選單同一列 ── */
-.trend-mode-tabs {
-  display:flex; gap:4px; padding:8px 14px 0; flex-wrap:wrap;
-}
-.trend-mode-btn {
-  font-family:inherit; font-size:12px; font-weight:700; cursor:pointer;
-  padding:6px 12px; border-radius:9px; border:1px solid var(--border);
-  background:#fff; color:var(--sub,#888); transition:all .15s; white-space:nowrap;
-}
-.trend-mode-btn:hover { border-color:var(--primary); color:var(--primary); }
-.trend-mode-btn.active { background:var(--primary); border-color:var(--primary); color:#fff; }
+
+/* ── v3.10.0：整段控制列全部改成「能並列就並列」──原本 mode-desc／
+   scope-bar／focus-chips／compare-toggle／範圍文字／圖例，六種資訊各佔
+   一整列，手機上要滑很久才看得到圖表本身。改法：
+   1) mode-desc 壓成單行＋超出用刪節號（title 顯示完整說明，桌機滑鼠停留
+      看得到，不用整段文字常駐佔位）。
+   2) 🔎 只看 / 🎯 單看 / 🔀 比較，三組控制項合併進同一個 .trend-toolbar
+      （flex-wrap 容器＋直線分隔各組），有空間時同一列並排，位子不夠才換行，
+      不再各自用獨立整寬列。
+   3) 「範圍：」說明文字跟圖例合併進同一個 .trend-meta-row，桌機上左右並排，
+      手機再各自換行，比原本兩條獨立列省空間。 ── */
 .trend-mode-desc {
-  padding:8px 14px 0; font-size:11.5px; line-height:1.6; color:var(--sub,#888);
+  padding:6px 14px 0; font-size:11px; line-height:1.5; color:var(--sub,#888);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:help;
 }
-/* ── 趨勢圖範圍選單（v3.8.1）：在對話框裡直接選營業處/營業所，不用關掉
-   對話框回主畫面重新鑽層；跟主畫面的 drillStack 是疊加關係 ── */
-.trend-scope-bar {
-  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
-  padding:8px 14px 0;
-}
+.trend-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:6px 4px; padding:8px 14px 0; }
+.trend-toolbar-group { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding-left:10px; margin-left:2px; border-left:1px solid var(--border); }
+.trend-toolbar-group:first-child { padding-left:0; margin-left:0; border-left:none; }
 .trend-scope-tag { font-size:11px; font-weight:800; color:var(--sub,#888); white-space:nowrap; }
 .trend-scope-sel {
   font-family:inherit; font-size:12px; padding:4px 6px; border-radius:8px;
-  border:1px solid var(--border); background:#fff; color:var(--text); max-width:150px;
+  border:1px solid var(--border); background:#fff; color:var(--text); max-width:120px;
 }
 .trend-scope-sel:disabled { color:#ccc; background:#fafafa; }
 .trend-scope-clear {
@@ -597,13 +568,71 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   padding:4px 9px; border-radius:8px; transition:all .15s;
 }
 .trend-scope-clear:hover { border-color:var(--red,#A32D2D); color:var(--red,#A32D2D); }
-/* ── 診斷警示（v3.8.1）：問卷紀錄找得到但比對不到任何 B/C 欄位時顯示 ── */
+.trend-focus-chip {
+  font-family:inherit; font-size:11.5px; font-weight:700; cursor:pointer;
+  display:inline-flex; align-items:center; gap:5px;
+  padding:4px 9px; border-radius:20px; border:1px solid var(--border);
+  background:#fff; color:var(--text); transition:all .15s; white-space:nowrap;
+}
+.trend-focus-chip:hover { border-color:var(--primary); }
+.trend-focus-chip.active { font-weight:800; }
+.trend-focus-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.trend-compare-toggle {
+  display:inline-flex; align-items:center; gap:6px; cursor:pointer;
+  font-size:11.5px; font-weight:700; color:var(--text);
+  padding:4px 9px; border-radius:9px; background:#F0F5EC; border:1px solid rgba(59,109,17,.25);
+  white-space:nowrap;
+}
+.trend-compare-toggle input { cursor:pointer; }
+/* 「範圍」說明＋圖例合併同一列，左右並排、空間不夠才各自換行 */
+.trend-meta-row { display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:2px 14px; padding:6px 14px 0; }
+.trend-meta-scope { font-size:11px; color:var(--sub,#888); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%; cursor:help; flex-shrink:1; }
+.trend-legend { display:flex; flex-wrap:wrap; gap:4px 10px; font-size:12px; flex:1 1 auto; min-width:0; }
+.trend-legend-item { display:inline-flex; align-items:center; gap:5px; color:var(--sub,#888); white-space:nowrap; }
+.trend-legend-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+
+.trend-chart-wrap { padding:6px 4px 10px; position:relative; }
+.trend-chart-wrap svg { max-height:46vh; touch-action:pan-y; }
+/* ── v3.10.0：圖表 hover/觸控提示──多條線疊在一起時，靠這個浮動小卡＋
+   垂直參考線告訴使用者滑鼠/手指停留的那一週，每條線分別是哪個單位、
+   數值多少，不用再瞇眼睛比對圖例顏色。用一個透明的「偵測層」矩形
+   （#trend-hover-capture）蓋住整個繪圖區接收 pointer 事件，不綁在個別
+   資料點圓圈上（多條線在同一週常常疊在幾乎同一個像素，圓圈太小很難精準
+   點到）；命中的那一週，所有線的圓圈另外加大＋白邊醒目標示。 ── */
+.trend-hover-line { stroke:rgba(0,0,0,.35); stroke-width:1; stroke-dasharray:3 3; opacity:0; pointer-events:none; }
+.trend-pt-hover { stroke:#fff; stroke-width:2; }
+.trend-tooltip {
+  position:absolute; z-index:5; pointer-events:none; display:none;
+  background:rgba(30,30,28,.94); color:#fff; border-radius:10px;
+  padding:8px 10px; font-size:11.5px; line-height:1.5; max-width:220px;
+  box-shadow:0 4px 14px rgba(0,0,0,.25);
+}
+.trend-tooltip-title { font-weight:800; font-size:11.5px; margin-bottom:4px; color:#fff; }
+.trend-tooltip-row { display:flex; align-items:center; gap:6px; white-space:nowrap; }
+.trend-tooltip-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.trend-tooltip-label { flex:1; overflow:hidden; text-overflow:ellipsis; color:#ddd; }
+.trend-tooltip-val { font-weight:800; color:#fff; }
+
+.trend-table-wrap { overflow-x:auto; padding:0 14px 16px; -webkit-overflow-scrolling:touch; }
+.trend-table { border-collapse:collapse; font-size:12px; white-space:nowrap; }
+.trend-table th, .trend-table td { padding:6px 10px; border-bottom:1px solid var(--border); text-align:right; }
+.trend-table th:first-child, .trend-table td:first-child { text-align:left; position:sticky; left:0; background:#fff; }
+.trend-table thead th { color:var(--sub,#888); font-weight:700; font-size:11px; }
+.trend-table tbody tr:hover td { background:#FAFAF8; }
+.trend-empty { padding:24px 16px; text-align:center; color:var(--sub,#888); font-size:13px; }
+.trend-mode-tabs { display:flex; gap:4px; padding:8px 14px 0; flex-wrap:wrap; }
+.trend-mode-btn {
+  font-family:inherit; font-size:12px; font-weight:700; cursor:pointer;
+  padding:6px 12px; border-radius:9px; border:1px solid var(--border);
+  background:#fff; color:var(--sub,#888); transition:all .15s; white-space:nowrap;
+}
+.trend-mode-btn:hover { border-color:var(--primary); color:var(--primary); }
+.trend-mode-btn.active { background:var(--primary); border-color:var(--primary); color:#fff; }
 .trend-warn {
   margin:8px 14px 0; padding:8px 11px; border-radius:9px;
   background:#FFF3E0; border:1px solid rgba(230,81,0,.3);
   color:#B8560A; font-size:11.5px; line-height:1.6;
 }
-/* ── 各處/所比較排行榜（v3.8.1） ── */
 .trend-rank-hint { padding:6px 14px 4px; font-size:11px; color:var(--sub,#888); }
 .trend-rank-list { padding:2px 14px 16px; display:flex; flex-direction:column; gap:6px; }
 .trend-rank-row {
@@ -616,35 +645,6 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .trend-rank-bar { height:100%; border-radius:7px; transition:width .25s; }
 .trend-rank-val { width:108px; flex-shrink:0; text-align:right; font-size:12px; font-weight:800; color:var(--text); }
 .trend-rank-sub { font-size:10.5px; font-weight:600; color:var(--sub,#888); }
-/* ── v3.9.0：趨勢圖「🎯 單看」chips──讓折線/長條圖只留單一線型（單一 B/C
-   桶或「已有整體」），解決多條線疊在一起看不清楚單一狀態走勢的問題；
-   選定後才會出現「🔀 同時比較各分支」選項（見下方 .trend-compare-bar）。 ── */
-.trend-focus-bar {
-  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
-  padding:8px 14px 0;
-}
-.trend-focus-chip {
-  font-family:inherit; font-size:11.5px; font-weight:700; cursor:pointer;
-  display:inline-flex; align-items:center; gap:5px;
-  padding:5px 10px; border-radius:20px; border:1px solid var(--border);
-  background:#fff; color:var(--text); transition:all .15s; white-space:nowrap;
-}
-.trend-focus-chip:hover { border-color:var(--primary); }
-.trend-focus-chip.active { font-weight:800; }
-.trend-focus-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
-/* ── v3.9.0：選定單一線型後，若目前範圍還有下一層可以展開（未選營業所時
-   比較各營業處、已選營業處時比較該處底下各營業所/課），就出現這顆開關，
-   把原本「一次只能看一個分支」的折線圖改成一次畫出所有分支各自一條線。 ── */
-.trend-compare-bar { padding:8px 14px 0; }
-.trend-compare-toggle {
-  display:inline-flex; align-items:center; gap:6px; cursor:pointer;
-  font-size:12px; font-weight:700; color:var(--text);
-  padding:6px 10px; border-radius:9px; background:#F0F5EC; border:1px solid rgba(59,109,17,.25);
-}
-.trend-compare-toggle input { cursor:pointer; }
-/* ── v3.9.0：明細表預設收合──逐週數字對照表欄數多（最多近26週）容易讓
-   整頁高度暴增、圖表被推到很下面要一直滑，改成預設只顯示圖表本身，
-   表格點開才載入。 ── */
 .trend-table-toggle-bar { padding:4px 14px 0; }
 .trend-table-toggle-btn {
   font-family:inherit; font-size:12px; font-weight:700; cursor:pointer;
@@ -655,19 +655,21 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .trend-table-toggle-btn:hover { border-color:var(--primary); color:var(--primary); }
 @media (max-width:640px) {
   .trend-mode-btn { font-size:11px; padding:5px 9px; }
-  .trend-scope-sel { max-width:110px; font-size:11px; }
+  .trend-scope-sel { max-width:100px; font-size:11px; }
   .trend-rank-label { width:64px; font-size:11px; }
   .trend-rank-val { width:88px; font-size:11px; }
-  .trend-focus-chip { font-size:11px; padding:4px 8px; }
+  .trend-focus-chip { font-size:11px; padding:4px 7px; }
+  .trend-tooltip { font-size:11px; max-width:170px; padding:6px 8px; }
 }
 @media (max-width:400px) {
   #trend-dialog.trend-page .dlg-header { padding:8px 10px; }
-  .trend-mode-tabs, .trend-scope-bar, .trend-focus-bar, .trend-compare-bar,
-  .trend-table-toggle-bar, .trend-legend, .trend-table-wrap, .trend-rank-hint, .trend-rank-list {
+  .trend-mode-tabs, .trend-toolbar, .trend-meta-row,
+  .trend-table-toggle-bar, .trend-table-wrap, .trend-rank-hint, .trend-rank-list {
     padding-left:8px; padding-right:8px;
   }
   .trend-mode-btn { padding:5px 7px; font-size:10.5px; }
   .trend-mode-desc { padding-left:8px; padding-right:8px; }
+  .trend-toolbar-group { padding-left:6px; margin-left:0; }
 }
 
 
