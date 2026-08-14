@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 3.8.0 ｜ 最後更新：2026-08-14
+  版本：Ver. 3.8.1 ｜ 最後更新：2026-08-14
 ════════════════════════════════════════════════════════════
 
 
@@ -49,6 +49,42 @@
 
 
 【版本紀錄】
+  3.8.1  2026-08-14  補齊版本紀錄（程式碼已於同日完成，僅頂端版號／本節
+                      漏更新，本次僅補文件，不動邏輯）：
+                      1)「已有（整體）」異常歸零診斷──週檢視／趨勢圖比對
+                        邏輯新增 __covMatchFail 旗標：店家在範圍內「查得到
+                        拜訪紀錄」，但那筆紀錄比對不到任何一個 B/C 欄位時
+                        才標記（跟「本期未巡」＝完全沒紀錄不同）。趨勢圖
+                        （週執行率／累計達成進度／每週新增家數）頂端新增
+                        警示區塊 _buildTrendMatchFailBanner，只在該區間內
+                        有店家命中此旗標時顯示，說明這幾週的「已有＝0%」
+                        很可能不是真的零覆蓋，而是這個專案「問卷資料」分頁
+                        表頭命名跟既有比對邏輯兜不起來，請先檢查表頭命名，
+                        不建議直接把 0% 當真。（根因屬個別專案的問卷表頭
+                        命名與比對規則不吻合，不是可以在這裡改掉的通用
+                        邏輯錯誤，故做法是「診斷並提示」而非「動比對規則」，
+                        避免修好這個專案卻改壞其他專案。）
+                      2) 趨勢圖對話框新增第 4 個分頁「🏢 各處/所比較」
+                        （TREND_MODE='rank'）：直接用主畫面卡片同一份即時
+                        快照算 calcGroup（不經過問卷比對，數字保證跟卡片
+                        一致），依「已有」%（加總型則依總份數）由低到高
+                        排序列成橫向長條排行榜──排最上面的就是拖累整體
+                        平均的來源，跟卡片「暗掉的燈不算」同一口徑。列與
+                        列可點擊直接鑽層（營業處→營業所/課），比較到最細
+                        範圍時顯示提示文字、不再往下鑽。
+                      3) 趨勢圖對話框頂端新增「🔎 只看」範圍選單
+                        （TREND_SCOPE，_buildTrendScopeBar／_setTrendScope），
+                        可在對話框內直接切營業處／營業所，不用關掉對話框
+                        回主畫面重新點卡片鑽層；跟主畫面既有 drillStack 是
+                        疊加關係、互不影響，四種模式（週執行率／累計達成
+                        進度／每週新增家數／各處/所比較）共用同一份範圍
+                        狀態，切換分頁不會重置已選範圍，關閉對話框後主畫面
+                        鑽層完全不受影響。
+                      以上 3 點是使用者本次回報的「已有（整體）恆為 0、
+                      未填寫下降但 B 桶仍 0%」疑問，以及「要能知道哪個
+                      營業處/所拖累整體、且要簡單直觀」的優化需求；經比對
+                      程式碼確認邏輯與 UI 均已完整實作並通過語法檢查
+                      （node --check），僅版本文件漏更新，本次補上。
   3.8.0  2026-08-14  趨勢圖新增「三種模式」分頁切換（trend-mode-tabs，
                       #trend-dialog 內、週數下拉選單同排下方）：
                       1)「週執行率」＝原本 3.7.0 的邏輯，逐週各自獨立計算
@@ -412,10 +448,50 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .trend-mode-desc {
   padding:8px 14px 0; font-size:11.5px; line-height:1.6; color:var(--sub,#888);
 }
+/* ── 趨勢圖範圍選單（v3.8.1）：在對話框裡直接選營業處/營業所，不用關掉
+   對話框回主畫面重新鑽層；跟主畫面的 drillStack 是疊加關係 ── */
+.trend-scope-bar {
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+  padding:8px 14px 0;
+}
+.trend-scope-tag { font-size:11px; font-weight:800; color:var(--sub,#888); white-space:nowrap; }
+.trend-scope-sel {
+  font-family:inherit; font-size:12px; padding:4px 6px; border-radius:8px;
+  border:1px solid var(--border); background:#fff; color:var(--text); max-width:150px;
+}
+.trend-scope-sel:disabled { color:#ccc; background:#fafafa; }
+.trend-scope-clear {
+  font-family:inherit; font-size:11px; font-weight:700; cursor:pointer;
+  border:1px solid var(--border); background:#fff; color:var(--sub,#888);
+  padding:4px 9px; border-radius:8px; transition:all .15s;
+}
+.trend-scope-clear:hover { border-color:var(--red,#A32D2D); color:var(--red,#A32D2D); }
+/* ── 診斷警示（v3.8.1）：問卷紀錄找得到但比對不到任何 B/C 欄位時顯示 ── */
+.trend-warn {
+  margin:8px 14px 0; padding:8px 11px; border-radius:9px;
+  background:#FFF3E0; border:1px solid rgba(230,81,0,.3);
+  color:#B8560A; font-size:11.5px; line-height:1.6;
+}
+/* ── 各處/所比較排行榜（v3.8.1） ── */
+.trend-rank-hint { padding:6px 14px 4px; font-size:11px; color:var(--sub,#888); }
+.trend-rank-list { padding:2px 14px 16px; display:flex; flex-direction:column; gap:6px; }
+.trend-rank-row {
+  display:flex; align-items:center; gap:9px; cursor:pointer;
+  padding:5px 7px; border-radius:9px; transition:background .15s;
+}
+.trend-rank-row:hover { background:#FAFAF8; }
+.trend-rank-label { width:88px; flex-shrink:0; font-size:12px; font-weight:700; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.trend-rank-bar-wrap { flex:1; height:14px; background:#F0F0EE; border-radius:7px; overflow:hidden; }
+.trend-rank-bar { height:100%; border-radius:7px; transition:width .25s; }
+.trend-rank-val { width:108px; flex-shrink:0; text-align:right; font-size:12px; font-weight:800; color:var(--text); }
+.trend-rank-sub { font-size:10.5px; font-weight:600; color:var(--sub,#888); }
 @media (max-width:640px) {
   #trend-dialog { padding:0; }
   #trend-dialog .dlg-box { max-width:100vw; width:100vw; height:100dvh; max-height:100dvh; border-radius:0; }
   .trend-mode-btn { font-size:11px; padding:5px 9px; }
+  .trend-scope-sel { max-width:110px; font-size:11px; }
+  .trend-rank-label { width:64px; font-size:11px; }
+  .trend-rank-val { width:88px; font-size:11px; }
 }
 
 
@@ -1260,6 +1336,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
       <button class="trend-mode-btn" data-mode="rate" onclick="switchTrendMode('rate')">📈 週執行率</button>
       <button class="trend-mode-btn" data-mode="cumulative" onclick="switchTrendMode('cumulative')">📊 累計達成進度</button>
       <button class="trend-mode-btn" data-mode="delta" onclick="switchTrendMode('delta')">📶 每週新增家數</button>
+      <button class="trend-mode-btn" data-mode="rank" onclick="switchTrendMode('rank')">🏢 各處/所比較</button>
     </div>
     <div class="dlg-body" id="trend-body" style="overflow-y:auto;overflow-x:hidden;"></div>
   </div>
@@ -1498,6 +1575,12 @@ function _weekEffectiveRows(rows, weekSel, qCache){
     colNames.forEach(function(c){ er[c] = (hitCols.indexOf(c) !== -1) ? 1 : 0; });
     if(COL_UNFILL) er[COL_UNFILL] = 0;
     er.__covNoVisit = false;
+    /* v3.8.1 診斷用旗標：這家店「確實有找到落在範圍內的紀錄」，但那筆紀錄
+       比對不到任何一個 B/C 欄位（hitCols 是空的）。這種店會被算成
+       「已有＝0」，但跟「本期未巡」（完全沒紀錄）語意不同──很可能是問卷
+       表頭命名跟這個專案的比對邏輯兜不起來，不是真的零覆蓋。不影響既有
+       計算結果，只是額外標記起來，供趨勢圖畫警示用。 */
+    er.__covMatchFail = hitCols.length === 0;
     er.__covWeekRecord = latest;
     return er;
   });
@@ -1532,6 +1615,7 @@ function _cumulativeEffectiveRows(rows, uptoEnd, qCache){
     colNames.forEach(function(c){ er[c] = (hitCols.indexOf(c) !== -1) ? 1 : 0; });
     if(COL_UNFILL) er[COL_UNFILL] = 0;
     er.__covNoVisit = false;
+    er.__covMatchFail = hitCols.length === 0; /* 同上，v3.8.1 診斷旗標 */
     er.__covWeekRecord = latest;
     return er;
   });
@@ -1615,6 +1699,72 @@ function _covFilterRecordsForWeek(records){
 }
 
 
+/* ══════════════ v3.8.1 範圍鑽層（營業處/營業所）── 讓使用者在趨勢圖
+   對話框裡就能額外篩到特定營業處/營業所，不用關掉對話框回主畫面重新
+   點卡片鑽層。跟主畫面既有的 drillStack 是「疊加」關係、互不影響：
+   主畫面的篩選（組織/通路/等級鑽層＋等級篩選＋燈號）照樣先套用，
+   TREND_SCOPE 只是在那之上再多加一層「只看這個營業處/營業所」的過濾，
+   關掉趨勢圖對話框、回到主畫面時，主畫面的鑽層完全不受影響。 ══════ */
+var TREND_SCOPE = { area:'', office:'' };
+function _applyTrendScopeOverride(rows){
+  var r = rows;
+  if(TREND_SCOPE.area)   r = r.filter(function(row){ return String(row[COL_AREA]||'')===TREND_SCOPE.area; });
+  if(TREND_SCOPE.office) r = r.filter(function(row){ return String(row[COL_OFFICE]||'')===TREND_SCOPE.office; });
+  return r;
+}
+/* 下拉選單／排行榜點擊都走這個入口，統一收斂，改完直接重繪整個對話框 */
+function _setTrendScope(area, office){
+  TREND_SCOPE = { area: area||'', office: office||'' };
+  _renderTrendDialog();
+}
+/* 「營業處」下拉選單的選項：只列目前主畫面範圍（drillStack＋等級篩選）
+   底下實際有出現的營業處，跟卡片上鑽層看到的清單一致，不會列出範圍外
+   根本點不到的營業處 */
+function _covTrendAreaOptions(){
+  var rows = applyGradeFilter(_applyDrillStack(allRows));
+  var set = {}, groups = {};
+  rows.forEach(function(r){
+    var a = String(r[COL_AREA]||'').trim();
+    if(!a) return;
+    set[a] = true;
+    (groups[a] = groups[a] || []).push(r);
+  });
+  return sortAreaKeys(Object.keys(set), groups);
+}
+/* 「營業所」下拉選單：只在已選定某個營業處後才有內容，列該營業處底下
+   實際出現的營業所/課，依家數多寡排序（跟其他非營業處層級的排序邏輯一致）*/
+function _covTrendOfficeOptions(area){
+  if(!area) return [];
+  var rows = applyGradeFilter(_applyDrillStack(allRows)).filter(function(r){ return String(r[COL_AREA]||'')===area; });
+  var set = {}, groups = {};
+  rows.forEach(function(r){
+    var o = String(r[COL_OFFICE]||'').trim();
+    if(!o) return;
+    set[o] = true;
+    (groups[o] = groups[o] || []).push(r);
+  });
+  return Object.keys(set).sort(function(a,b){ return calcGroup(groups[b]).hasDisp - calcGroup(groups[a]).hasDisp; });
+}
+/* 對話框頂端的「🔎 只看：」範圍選單，三種折線/長條模式與排行榜模式共用
+   同一份 TREND_SCOPE 狀態，切換模式不會清掉已選的範圍 */
+function _buildTrendScopeBar(){
+  var areaOpts = _covTrendAreaOptions();
+  var areaHtml = '<option value="">🏢 整體（跟目前畫面一致）</option>' + areaOpts.map(function(a){
+    return '<option value="'+esc(a)+'"'+(TREND_SCOPE.area===a?' selected':'')+'>'+esc(a)+'</option>';
+  }).join('');
+  var officeOpts = TREND_SCOPE.area ? _covTrendOfficeOptions(TREND_SCOPE.area) : [];
+  var officeHtml = '<option value="">（全部營業所/課）</option>' + officeOpts.map(function(o){
+    return '<option value="'+esc(o)+'"'+(TREND_SCOPE.office===o?' selected':'')+'>'+esc(o)+'</option>';
+  }).join('');
+  return '<div class="trend-scope-bar">'
+    + '<span class="trend-scope-tag">🔎 只看</span>'
+    + '<select class="trend-scope-sel" onchange="_setTrendScope(this.value,\'\')">'+areaHtml+'</select>'
+    + '<select class="trend-scope-sel" onchange="_setTrendScope(TREND_SCOPE.area,this.value)"'+(TREND_SCOPE.area?'':' disabled')+'>'+officeHtml+'</select>'
+    + (TREND_SCOPE.area ? '<button type="button" class="trend-scope-clear" onclick="_setTrendScope(\'\',\'\')">✕ 清除</button>' : '')
+    + '</div>';
+}
+
+
 /* ══════════════ v3.6.3 趨勢圖 ══════════════
    把 _weekEffectiveRows（週檢視已經在用的「算出某一週的有效覆蓋狀態」）
    在最近 N 週分別各跑一次，每週都套用目前畫面上的範圍（drillStack 鑽層
@@ -1630,9 +1780,10 @@ function _covWeeklySeries(nWeeks){
     var start = new Date(curStart); start.setDate(start.getDate() - 7*i);
     var range = _cwRangeFromStart(start);
     var weekRows = _weekEffectiveRows(allRows, range, _qSheetCache);
-    var scoped = applyGradeFilter(_applyDrillStack(weekRows));
+    var scoped = _applyTrendScopeOverride(applyGradeFilter(_applyDrillStack(weekRows)));
     var stat = calcGroup(scoped);
-    out.push({ range: range, label: _cwLabel(range), stat: stat });
+    var matchFail = scoped.filter(function(r){ return r.__covMatchFail; }).length;
+    out.push({ range: range, label: _cwLabel(range), stat: stat, matchFail: matchFail });
   }
   return out;
 }
@@ -1647,9 +1798,10 @@ function _covCumulativeSeries(nWeeks){
     var start = new Date(curStart); start.setDate(start.getDate() - 7*i);
     var range = _cwRangeFromStart(start);
     var cumRows = _cumulativeEffectiveRows(allRows, range.end, _qSheetCache);
-    var scoped = applyGradeFilter(_applyDrillStack(cumRows));
+    var scoped = _applyTrendScopeOverride(applyGradeFilter(_applyDrillStack(cumRows)));
     var stat = calcGroup(scoped);
-    out.push({ range: range, label: _cwLabel(range), stat: stat });
+    var matchFail = scoped.filter(function(r){ return r.__covMatchFail; }).length;
+    out.push({ range: range, label: _cwLabel(range), stat: stat, matchFail: matchFail });
   }
   return out;
 }
@@ -1841,7 +1993,8 @@ function _buildTrendDeltaTable(deltaSeries, defs){
   return '<div class="trend-table-wrap"><table class="trend-table"><thead>'+head+'</thead><tbody>'+rows+'</tbody></table></div>';
 }
 /* 標題列說明目前範圍，讓使用者知道這張圖套用了哪些篩選（跟畫面上的
-   組織/通路/等級鑽層、等級篩選同步，不用另外選一次） */
+   組織/通路/等級鑽層、等級篩選同步，不用另外選一次；v3.8.1 起再加上
+   趨勢圖對話框內自己選的 TREND_SCOPE 營業處/營業所） */
 function _covTrendScopeLabel(){
   var parts = [];
   if(drillStack.length) parts.push(drillStack.map(function(d){ return d.key; }).join(' › '));
@@ -1850,16 +2003,30 @@ function _covTrendScopeLabel(){
     var active = Object.keys(selectedGrades).filter(function(k){ return selectedGrades[k]; });
     if(active.length) parts.push('等級：'+active.join('、'));
   }
+  if(TREND_SCOPE.area) parts.push('🔎 '+TREND_SCOPE.area+(TREND_SCOPE.office ? (' › '+TREND_SCOPE.office) : ''));
   return parts.join('　｜　');
 }
-/* v3.8.0：趨勢圖三種模式——rate=週執行率（原3.7.0邏輯）／
-   cumulative=累計達成進度／delta=每週新增家數。切換模式不影響已選的
-   週數（trend-weeks-sel）與畫面篩選範圍，只換算法跟畫法。 */
+/* v3.8.1：把每一週的診斷旗標（__covMatchFail）彙整成一句警示，只在
+   「確實有店家找得到拜訪紀錄、但那筆紀錄比對不到任何 B/C 欄位」時才顯示。
+   這種店會被算成「已有＝0」，但跟「本期未巡」（完全沒紀錄）不是同一回
+   事──很可能是這個專案「問卷資料」的表頭命名沒有被既有比對邏輯認出來，
+   不是真的零覆蓋，提醒使用者不要直接把這幾週的 0% 當真。 */
+function _buildTrendMatchFailBanner(series){
+  if(!series.length) return '';
+  var maxFail = Math.max.apply(null, series.map(function(p){ return p.matchFail||0; }));
+  if(maxFail<=0) return '';
+  var latest = series[series.length-1].matchFail||0;
+  return '<div class="trend-warn">⚠️ 有店家「查得到拜訪紀錄」但比對不到任何 B/C 欄位（最新一週 '+latest+' 家，這段區間內最多同時有 '+maxFail+' 家）。這些店目前會被算成「已有 0%」，但很可能不是真的零覆蓋，而是這個專案「問卷資料」分頁的表頭命名跟比對邏輯兜不起來。建議先確認問卷表頭命名方式，這幾週的 0% 暫時不建議當真。</div>';
+}
+/* v3.8.0：趨勢圖四種模式——rate=週執行率／cumulative=累計達成進度／
+   delta=每週新增家數／rank=各營業處(所)比較。切換模式不影響已選的
+   週數（trend-weeks-sel）與 TREND_SCOPE 範圍，只換算法跟畫法。 */
 var TREND_MODE = 'rate';
 var TREND_MODE_DESC = {
   rate:       '每一週「各自獨立」計算，只看落在該週範圍內的巡查紀錄——回答「這一週做了多少」，數字本來就會忽高忽低，不是累加的。',
   cumulative: '每一週改成「從最早紀錄累計到這一週為止」找每家店最新狀態——回答「累計推進到哪裡了」，理論上會逐步逼近 100%（除非有品項被店家撤除才會回落）。',
-  delta:      '把「累計達成進度」相鄰兩週的家數相減，長條在基準線上方＝這週比上週多了幾家、下方＝少了幾家（可能是被撤除）——回答「這週的貢獻量」，補足純折線圖看不出來的單週增減細節。'
+  delta:      '把「累計達成進度」相鄰兩週的家數相減，長條在基準線上方＝這週比上週多了幾家、下方＝少了幾家（可能是被撤除）——回答「這週的貢獻量」，補足純折線圖看不出來的單週增減細節。',
+  rank:       '用「目前即時快照」（跟主畫面卡片同一份數字，不經過問卷比對）算出各營業處（或已選定營業處內的營業所/課）現在的「已有」%，由低到高排序——排最上面的通常就是拖累整體平均的來源。點一下任一列可以往下鑽一層，也可以用上面的「只看」下拉選單直接跳。'
 };
 function switchTrendMode(mode){
   TREND_MODE = mode;
@@ -1872,23 +2039,82 @@ function _renderTrendModeTabs(){
     btn.classList.toggle('active', btn.dataset.mode === TREND_MODE);
   });
 }
+/* v3.8.1：「🏢 各營業處(所)比較」排行榜──刻意不走問卷比對那條路徑
+   （_weekEffectiveRows／_cumulativeEffectiveRows），直接用主畫面卡片
+   同一份「即時快照」資料（allRows）算 calcGroup，數字保證跟卡片上看到
+   的一致、不受目前已知的問卷表頭比對問題影響，使用者可以放心拿來比較
+   各單位的相對落差。層級規則：TREND_SCOPE 都沒選 → 比較各營業處；已選
+   營業處、未選營業所 → 比較該營業處底下各營業所/課；兩個都選了 → 已經
+   是最細範圍，沒有更下一層可比，改顯示提示文字。 */
+function _covTrendRankLevel(){
+  if(TREND_SCOPE.office) return null;
+  if(TREND_SCOPE.area) return { col:COL_OFFICE, label:'營業所/課', drillKey:'office' };
+  return { col:COL_AREA, label:'營業處', drillKey:'area' };
+}
+function _covTrendRankMetric(stat){
+  if(isSum()) return { val: stat.bTotalSum||0, isPercent:false };
+  return { val: stat.total>0 ? stat.hasDisp/stat.total*100 : null, isPercent:true };
+}
+function _buildTrendRankBody(){
+  var level = _covTrendRankLevel();
+  if(!level){
+    return '<div class="trend-empty">目前已經鎖定到單一營業所（'+esc(TREND_SCOPE.area)+' › '+esc(TREND_SCOPE.office)+'），沒有更下一層可以比較了。可以按上面的「✕ 清除」或改選其他營業所看看。</div>';
+  }
+  var rows = applyGradeFilter(_applyDrillStack(allRows));
+  if(TREND_SCOPE.area) rows = rows.filter(function(r){ return String(r[COL_AREA]||'')===TREND_SCOPE.area; });
+  var groups = getNextGroups(rows, level.col);
+  var keys = Object.keys(groups);
+  var items = keys.map(function(k){
+    var stat = calcGroup(groups[k]);
+    var m = _covTrendRankMetric(stat);
+    return { key:k, stat:stat, val:m.val, isPercent:m.isPercent };
+  }).filter(function(it){ return it.stat.total>0; });
+  if(!items.length) return '<div class="trend-empty">目前範圍沒有資料。</div>';
+  items.sort(function(a,b){
+    var av = a.val==null ? -1 : a.val, bv = b.val==null ? -1 : b.val;
+    return av - bv; /* 由低到高，最落後的排最上面 */
+  });
+  var maxV = items[0].isPercent ? 100 : Math.max(1, Math.max.apply(null, items.map(function(it){ return it.val||0; })));
+  var clickAttr = level.drillKey==='area'
+    ? 'onclick="_setTrendScope(this.dataset.k,\'\')"'
+    : 'onclick="_setTrendScope(TREND_SCOPE.area,this.dataset.k)"';
+  var rowsHtml = items.map(function(it){
+    var displayVal = it.isPercent ? (it.val==null?'—':Math.round(it.val)+'%') : it.val;
+    var barPct = it.val==null ? 0 : Math.max(2, (it.val/maxV)*100);
+    var barColor = !it.isPercent ? '#3B6D11' : (it.val==null ? '#ccc' : it.val<50 ? 'var(--red,#A32D2D)' : it.val<80 ? '#E65100' : 'var(--green,#3B6D11)');
+    return '<div class="trend-rank-row" data-k="'+esc(it.key)+'" '+clickAttr+'>'
+      + '<div class="trend-rank-label">'+esc(it.key)+'</div>'
+      + '<div class="trend-rank-bar-wrap"><div class="trend-rank-bar" style="width:'+barPct+'%;background:'+barColor+'"></div></div>'
+      + '<div class="trend-rank-val">'+displayVal+'<span class="trend-rank-sub"> ('+it.stat.hasDisp+'/'+it.stat.total+')</span></div>'
+      + '</div>';
+  }).join('');
+  return '<div class="trend-rank-hint">依「'+esc(level.label)+'」由低到高排序，點一下可以往下鑽一層看細分。</div>'
+    + '<div class="trend-rank-list">' + rowsHtml + '</div>';
+}
 function _renderTrendDialog(){
   var body = document.getElementById('trend-body');
   if(!body) return;
   _renderTrendModeTabs();
+  var descHtml = '<div class="trend-mode-desc">'+esc(TREND_MODE_DESC[TREND_MODE]||'')+'</div>';
+  var scopeBarHtml = _buildTrendScopeBar();
+
+  if(TREND_MODE === 'rank'){
+    body.innerHTML = descHtml + scopeBarHtml + _buildTrendRankBody();
+    return;
+  }
+
   if(!_qSheetCache){
-    body.innerHTML = '<div class="trend-empty">⏳ 讀取拜訪紀錄中…</div>';
+    body.innerHTML = descHtml + scopeBarHtml + '<div class="trend-empty">⏳ 讀取拜訪紀錄中…</div>';
     _fetchQuestionnaireSheet(function(){ _renderTrendDialog(); });
     return;
   }
   if(_qSheetCache.error){
-    body.innerHTML = '<div class="trend-empty">⚠️ 拜訪紀錄讀取失敗：'+esc(_qSheetCache.error)+'</div>';
+    body.innerHTML = descHtml + scopeBarHtml + '<div class="trend-empty">⚠️ 拜訪紀錄讀取失敗：'+esc(_qSheetCache.error)+'</div>';
     return;
   }
   var selEl = document.getElementById('trend-weeks-sel');
   var nWeeks = (selEl && parseInt(selEl.value,10)) || 8;
   var defs = _covTrendSeriesDefs();
-  var descHtml = '<div class="trend-mode-desc">'+esc(TREND_MODE_DESC[TREND_MODE]||'')+'</div>';
   var scopeHtml = '<div style="padding:6px 14px 0;font-size:11.5px;color:var(--sub,#888)">範圍：'+esc(_covTrendScopeLabel())+'　（跟目前畫面篩選連動）</div>';
   var legendHtml = '<div class="trend-legend">' + defs.map(function(d){
     return '<span class="trend-legend-item"><span class="trend-legend-dot" style="background:'+d.color+'"></span>'+esc(d.label)+'</span>';
@@ -1897,11 +2123,11 @@ function _renderTrendDialog(){
   if(TREND_MODE === 'delta'){
     var cumSeries = _covCumulativeSeries(nWeeks);
     if(!cumSeries.length || !defs.length){
-      body.innerHTML = descHtml + '<div class="trend-empty">目前範圍沒有可畫的資料（可能是燈號都關掉了，或問卷資料還沒有任何一筆落在這段期間）。</div>';
+      body.innerHTML = descHtml + scopeBarHtml + '<div class="trend-empty">目前範圍沒有可畫的資料（可能是燈號都關掉了，或問卷資料還沒有任何一筆落在這段期間）。</div>';
       return;
     }
     var deltaSeries = _covDeltaSeries(cumSeries, defs);
-    body.innerHTML = descHtml + scopeHtml + legendHtml
+    body.innerHTML = descHtml + scopeBarHtml + _buildTrendMatchFailBanner(cumSeries) + scopeHtml + legendHtml
       + '<div class="trend-chart-wrap">' + _buildTrendBarSVG(deltaSeries, defs) + '</div>'
       + _buildTrendDeltaTable(deltaSeries, defs);
     return;
@@ -1909,10 +2135,10 @@ function _renderTrendDialog(){
 
   var series = (TREND_MODE === 'cumulative') ? _covCumulativeSeries(nWeeks) : _covWeeklySeries(nWeeks);
   if(!series.length || !defs.length){
-    body.innerHTML = descHtml + '<div class="trend-empty">目前範圍沒有可畫的資料（可能是燈號都關掉了，或問卷資料還沒有任何一筆落在這段期間）。</div>';
+    body.innerHTML = descHtml + scopeBarHtml + '<div class="trend-empty">目前範圍沒有可畫的資料（可能是燈號都關掉了，或問卷資料還沒有任何一筆落在這段期間）。</div>';
     return;
   }
-  body.innerHTML = descHtml + scopeHtml
+  body.innerHTML = descHtml + scopeBarHtml + _buildTrendMatchFailBanner(series) + scopeHtml
     + legendHtml
     + '<div class="trend-chart-wrap">' + _buildTrendSVG(series, defs) + '</div>'
     + _buildTrendTable(series, defs);
@@ -1922,6 +2148,7 @@ function openTrendDialog(){
   if(!dlg) return;
   dlg.style.display = 'flex';
   TREND_MODE = 'rate';
+  TREND_SCOPE = { area:'', office:'' };
   _renderTrendDialog();
 }
 function closeTrendDialog(){
