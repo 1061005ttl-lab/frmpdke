@@ -87,6 +87,35 @@
                         toolbar 各控制項在合併後仍可正常互動（切換範圍/單看/
                         比較不受影響），node --check 語法通過，0 runtime
                         error。
+                      3) 使用者回報「都有數據了為什麼不 RANK 一下，由高至低
+                        排序」＋「想再往下鑽到人級」＋「% 之外想看到家數」，
+                        三點優化（連帶處理 % 分母在不同模式間各自為政的
+                        問題）：
+                        a) 折線圖圖例／線條改成依「最新一週數值」由高到低
+                          排序（_sortDefsByLatest，defs 排序連動圖例／畫線
+                          順序），hover 浮動小卡則改成依「當下滑鼠停留的
+                          那一週」數值即時重排（_onTrendHoverMove），兩處
+                          都是由高到低；註：既有的「🏢各處/所排行榜」
+                          （_buildTrendRankBody）維持原本「由低到高、最落後
+                          排最上面」的設計不動，跟這次改的折線圖排序方向
+                          相反，是刻意保留、非本次調整範圍，之後如果要統一
+                          方向要記得這裡也要一併改。
+                        b) _covTrendRankLevel／_covBranchSeries／
+                          _covBranchCompareDefs 新增 COL_STAFF 作為第三層
+                          （只有 TREND_SCOPE.office 已選時才會出現），可以
+                          再往下比較該營業所/課底下各業務人員；因為人是
+                          最細層級，drillKey:'staff' 不再往下掛 onclick，
+                          排行榜也不會再顯示可點擊游標。
+                        c) 各 series defs（B群/C群/未填寫/已有整體）補上
+                          getTotal，hover 小卡跟排行榜列表的 % 後面都加上
+                          「（家數/分母）」，跟卡片上的顯示口徑一致。
+                        d) 分母一致性：確認所有計數型 defs 的 getVal／
+                          getTotal 全部共用同一個 stat.total（來自
+                          calcGroup），週檢視／累計／跨分支比較模式走的是
+                          同一份計算路徑，不會有「切模式後 % 對不起來」的
+                          情況。
+                        用 node --check 驗證語法通過，另外掃過整份檔案
+                        確認沒有殘留 TODO/FIXME 或除錯用的 console.log。
   3.9.0  2026-08-14  使用者回報「趨勢圖畫面撐爆、單一畫面看不完」＋想針對
                       單一線型檢視＋想一次看各分支進度，三點優化：
                       1) 響應式修正：#trend-dialog 整頁強制 box-sizing:
@@ -2110,22 +2139,26 @@ function _covTrendSeriesDefs(){
       if(chips['b:'+i]===false) return;
       defs.push({ label:g.label, color:_covPalette(i,'good'), isPercent:true, bold:false,
         getVal:function(stat){ return stat.total>0 ? stat.bGroupCounts[i]/stat.total*100 : null; },
-        getRaw:function(stat){ return stat.bGroupCounts[i]||0; } });
+        getRaw:function(stat){ return stat.bGroupCounts[i]||0; },
+        getTotal:function(stat){ return stat.total||0; } });
     });
     BUCKETS_C.forEach(function(g, j){
       if(chips['c:'+j]===false) return;
       defs.push({ label:g.label, color:_covPalette(j,'warn'), isPercent:true, bold:false,
         getVal:function(stat){ return stat.total>0 ? stat.cGroupCounts[j]/stat.total*100 : null; },
-        getRaw:function(stat){ return stat.cGroupCounts[j]||0; } });
+        getRaw:function(stat){ return stat.cGroupCounts[j]||0; },
+        getTotal:function(stat){ return stat.total||0; } });
     });
     if(COL_UNFILL && chips['unfill']!==false){
       defs.push({ label:UNFILL_LABEL||'未填寫', color:'#E65100', isPercent:true, bold:false,
         getVal:function(stat){ return stat.total>0 ? stat.unfilled/stat.total*100 : null; },
-        getRaw:function(stat){ return stat.unfilled||0; } });
+        getRaw:function(stat){ return stat.unfilled||0; },
+        getTotal:function(stat){ return stat.total||0; } });
     }
     defs.push({ label:'已有（整體）', color:'#3B6D11', isPercent:true, bold:true,
       getVal:function(stat){ return stat.total>0 ? stat.hasDisp/stat.total*100 : null; },
-      getRaw:function(stat){ return stat.hasDisp||0; } });
+      getRaw:function(stat){ return stat.hasDisp||0; },
+      getTotal:function(stat){ return stat.total||0; } });
   }
   return defs;
 }
@@ -2171,7 +2204,10 @@ function _buildTrendSVG(series, defs){
   });
   /* v3.10.0：滑鼠/觸控 hover 用的資料——每一週一筆，記錄每條線在該週的
      顏色/名稱/數值文字，供 _onTrendHoverMove 直接查表組浮動小卡內容，
-     不用在 DOM 屬性裡塞 JSON（屬性轉義麻煩，用全域變數簡單很多） */
+     不用在 DOM 屬性裡塞 JSON（屬性轉義麻煩，用全域變數簡單很多）。
+     val 是純數字（供小卡依當週數值由高到低即時排序用），txt 除了數值
+     本身，isPercent 的話還會帶上「（家數/分母）」，回應「只有 % 看不到
+     家數」的回報，跟排行榜列表的顯示口徑一致。 */
   _TREND_HOVER = {
     W:W,
     xs: series.map(function(pt,i){ return xAt(i); }),
@@ -2179,7 +2215,16 @@ function _buildTrendSVG(series, defs){
     rows: series.map(function(pt){
       return defs.map(function(d){
         var v = d.getVal(pt.stat);
-        return { label:d.label, color:d.color, txt: v==null ? '—' : (d.isPercent?Math.round(v)+'%':Math.round(v)) };
+        var txt;
+        if(v==null) txt = '—';
+        else if(d.isPercent){
+          txt = Math.round(v)+'%';
+          if(d.getTotal){
+            var tot = d.getTotal(pt.stat), raw = d.getRaw ? d.getRaw(pt.stat) : null;
+            if(tot!=null && raw!=null) txt += '（'+raw+'/'+tot+'）';
+          }
+        } else txt = Math.round(v);
+        return { label:d.label, color:d.color, val:v, txt:txt };
       });
     })
   };
@@ -2235,7 +2280,9 @@ function _buildTrendBarSVG(deltaSeries, defs){
       barsHtml += '<rect x="'+(x+0.5)+'" y="'+y+'" width="'+Math.max(1,barW-1)+'" height="'+Math.max(0,h)+'" fill="'+d.color+'" opacity="'+(v>=0?0.88:0.55)+'"><title>'+esc(pt.label)+'　'+esc(d.label)+'：'+(v>0?'+':'')+v+'</title></rect>';
     });
   });
-  /* v3.10.0：hover 資料——長條圖每組（每週）中心點當作命中位置 */
+  /* v3.10.0：hover 資料——長條圖每組（每週）中心點當作命中位置；delta
+     長條本身畫的就是原始家數差值（不是 %），沒有分母可以搭，val 直接放
+     增減量供小卡即時排序用 */
   _TREND_HOVER = {
     W:W,
     xs: deltaSeries.map(function(pt,i){ return xGroupStart(i)+groupW/2; }),
@@ -2243,7 +2290,7 @@ function _buildTrendBarSVG(deltaSeries, defs){
     rows: deltaSeries.map(function(pt){
       return defs.map(function(d, j){
         var v = pt.deltaVals[j];
-        return { label:d.label, color:d.color, txt:(v>0?'+':'')+v };
+        return { label:d.label, color:d.color, val:v, txt:(v>0?'+':'')+v };
       });
     })
   };
@@ -2378,17 +2425,22 @@ function _buildTrendFocusChips(defs){
    level 判斷跟「🏢 各處/所比較」排行榜共用同一份 _covTrendRankLevel() */
 function _buildTrendCompareBar(focusDef, level){
   if(!focusDef || !level) return '';
-  var scopeDesc = level.drillKey==='area' ? '各營業處' : ('「'+esc(TREND_SCOPE.area)+'」底下各營業所/課');
+  var scopeDesc = level.drillKey==='area' ? '各營業處'
+    : level.drillKey==='office' ? ('「'+esc(TREND_SCOPE.area)+'」底下各營業所/課')
+    : ('「'+esc(TREND_SCOPE.area)+' › '+esc(TREND_SCOPE.office)+'」底下各業務人員');
   return '<div class="trend-toolbar-group"><label class="trend-compare-toggle">'
     + '<input type="checkbox" '+(TREND_COMPARE?'checked':'')+' onchange="_toggleTrendCompare()">'
     + '🔀 同時比較'+scopeDesc+'（都顯示「'+esc(focusDef.label)+'」這條線）'
     + '</label></div>';
 }
 /* 跟 _covWeeklySeries／_covCumulativeSeries 結構相同（同一套 N 週迴圈、
-   同一套 drillStack＋等級篩選＋TREND_SCOPE.area 範圍過濾），差別是每一週
-   不合併成單一 calcGroup，而是先用 getNextGroups 依 level.col 分組、
+   同一套 drillStack＋等級篩選＋TREND_SCOPE.area/office 範圍過濾），差別是
+   每一週不合併成單一 calcGroup，而是先用 getNextGroups 依 level.col 分組、
    每組各自算一次 calcGroup，存進 branchStats，供 _covBranchCompareDefs()
-   的 getVal/getRaw 逐分支讀取。 */
+   的 getVal/getRaw 逐分支讀取。v3.10.0：level.col 可能是 COL_STAFF（人級
+   比較），這種情況一定同時選了 TREND_SCOPE.area 跟 .office，也要一併
+   過濾 office，不然「比較各業務人員」會把整個營業處底下其他所/課的人
+   全部混進來。 */
 function _covBranchSeries(nWeeks, level, cumulative){
   var out = [];
   if(!_qSheetCache || _qSheetCache.error) return out;
@@ -2401,6 +2453,7 @@ function _covBranchSeries(nWeeks, level, cumulative){
       : _weekEffectiveRows(allRows, range, _qSheetCache);
     var scoped = applyGradeFilter(_applyDrillStack(rows));
     if(TREND_SCOPE.area) scoped = scoped.filter(function(r){ return String(r[COL_AREA]||'')===TREND_SCOPE.area; });
+    if(TREND_SCOPE.office) scoped = scoped.filter(function(r){ return String(r[COL_OFFICE]||'')===TREND_SCOPE.office; });
     var groups = getNextGroups(scoped, level.col);
     var branchStats = {};
     Object.keys(groups).forEach(function(k){ branchStats[k] = calcGroup(groups[k]); });
@@ -2410,20 +2463,25 @@ function _covBranchSeries(nWeeks, level, cumulative){
   return out;
 }
 /* 把「單一分支」的 def（focusDef）展開成「每個分支各一條線」的 defs 陣列；
-   分支清單跟排序依目前範圍（drillStack＋等級篩選＋TREND_SCOPE.area）內
-   實際店數多寡排序（多的排前面，跟其他清單一致的排序習慣）。getVal／
-   getRaw 收到的是 _covBranchSeries() 產出的 weekStat（{branchStats:{...}}），
-   不是單一 calcGroup stat，這點跟一般 defs 不同，只有跨分支比較模式會用到。*/
+   分支清單跟排序依目前範圍（drillStack＋等級篩選＋TREND_SCOPE.area/office）
+   內實際店數多寡排序（多的排前面，跟其他清單一致的排序習慣；v3.10.0 起
+   _renderTrendDialog 拿到這份 defs 後還會再依「最新一週的數值」重新排序
+   一次，這裡的排序只是給還沒有任何一週資料時的預設順序用）。getVal／
+   getRaw／getTotal 收到的是 _covBranchSeries() 產出的 weekStat
+   （{branchStats:{...}}），不是單一 calcGroup stat，這點跟一般 defs 不同，
+   只有跨分支比較模式會用到。 */
 function _covBranchCompareDefs(level, focusDef){
   var rows = applyGradeFilter(_applyDrillStack(allRows));
   if(TREND_SCOPE.area) rows = rows.filter(function(r){ return String(r[COL_AREA]||'')===TREND_SCOPE.area; });
+  if(TREND_SCOPE.office) rows = rows.filter(function(r){ return String(r[COL_OFFICE]||'')===TREND_SCOPE.office; });
   var groups = getNextGroups(rows, level.col);
   var keys = Object.keys(groups).sort(function(a,b){ return groups[b].length - groups[a].length; });
   return keys.map(function(k, i){
     return {
       label: k, color: _covPalette(i, 'good'), isPercent: focusDef.isPercent, bold:false,
       getVal:function(weekStat){ var s = weekStat.branchStats[k]; return s ? focusDef.getVal(s) : null; },
-      getRaw:function(weekStat){ var s = weekStat.branchStats[k]; return s ? focusDef.getRaw(s) : 0; }
+      getRaw:function(weekStat){ var s = weekStat.branchStats[k]; return s ? focusDef.getRaw(s) : 0; },
+      getTotal:function(weekStat){ var s = weekStat.branchStats[k]; return s ? (focusDef.getTotal ? focusDef.getTotal(s) : (s.total||0)) : 0; }
     };
   });
 }
@@ -2439,10 +2497,11 @@ function _renderTrendModeTabs(){
    同一份「即時快照」資料（allRows）算 calcGroup，數字保證跟卡片上看到
    的一致、不受目前已知的問卷表頭比對問題影響，使用者可以放心拿來比較
    各單位的相對落差。層級規則：TREND_SCOPE 都沒選 → 比較各營業處；已選
-   營業處、未選營業所 → 比較該營業處底下各營業所/課；兩個都選了 → 已經
-   是最細範圍，沒有更下一層可比，改顯示提示文字。 */
+   營業處、未選營業所 → 比較該營業處底下各營業所/課；兩個都選了 → 再
+   往下一階比較該營業所/課底下各業務人員（v3.10.0 新增，人是這條路徑的
+   最細層級，不會再有下一層可以鑽）。 */
 function _covTrendRankLevel(){
-  if(TREND_SCOPE.office) return null;
+  if(TREND_SCOPE.office) return { col:COL_STAFF, label:'業務人員', drillKey:'staff' };
   if(TREND_SCOPE.area) return { col:COL_OFFICE, label:'營業所/課', drillKey:'office' };
   return { col:COL_AREA, label:'營業處', drillKey:'area' };
 }
@@ -2453,10 +2512,11 @@ function _covTrendRankMetric(stat){
 function _buildTrendRankBody(){
   var level = _covTrendRankLevel();
   if(!level){
-    return '<div class="trend-empty">目前已經鎖定到單一營業所（'+esc(TREND_SCOPE.area)+' › '+esc(TREND_SCOPE.office)+'），沒有更下一層可以比較了。可以按上面的「✕ 清除」或改選其他營業所看看。</div>';
+    return '<div class="trend-empty">目前已經鎖定到最細層級，沒有更下一層可以比較了。可以按上面的「✕ 清除」或改選其他範圍看看。</div>';
   }
   var rows = applyGradeFilter(_applyDrillStack(allRows));
   if(TREND_SCOPE.area) rows = rows.filter(function(r){ return String(r[COL_AREA]||'')===TREND_SCOPE.area; });
+  if(TREND_SCOPE.office) rows = rows.filter(function(r){ return String(r[COL_OFFICE]||'')===TREND_SCOPE.office; });
   var groups = getNextGroups(rows, level.col);
   var keys = Object.keys(groups);
   var items = keys.map(function(k){
@@ -2470,20 +2530,23 @@ function _buildTrendRankBody(){
     return av - bv; /* 由低到高，最落後的排最上面 */
   });
   var maxV = items[0].isPercent ? 100 : Math.max(1, Math.max.apply(null, items.map(function(it){ return it.val||0; })));
-  var clickAttr = level.drillKey==='area'
-    ? 'onclick="_setTrendScope(this.dataset.k,\'\')"'
-    : 'onclick="_setTrendScope(TREND_SCOPE.area,this.dataset.k)"';
+  var clickAttr = level.drillKey==='area' ? 'onclick="_setTrendScope(this.dataset.k,\'\')"'
+    : level.drillKey==='office' ? 'onclick="_setTrendScope(TREND_SCOPE.area,this.dataset.k)"'
+    : ''; /* 人是最細層級，不能再往下鑽，不掛 onclick */
   var rowsHtml = items.map(function(it){
     var displayVal = it.isPercent ? (it.val==null?'—':Math.round(it.val)+'%') : it.val;
     var barPct = it.val==null ? 0 : Math.max(2, (it.val/maxV)*100);
     var barColor = !it.isPercent ? '#3B6D11' : (it.val==null ? '#ccc' : it.val<50 ? 'var(--red,#A32D2D)' : it.val<80 ? '#E65100' : 'var(--green,#3B6D11)');
-    return '<div class="trend-rank-row" data-k="'+esc(it.key)+'" '+clickAttr+'>'
+    return '<div class="trend-rank-row" data-k="'+esc(it.key)+'" '+clickAttr+(clickAttr?'':' style="cursor:default"')+'>'
       + '<div class="trend-rank-label">'+esc(it.key)+'</div>'
       + '<div class="trend-rank-bar-wrap"><div class="trend-rank-bar" style="width:'+barPct+'%;background:'+barColor+'"></div></div>'
       + '<div class="trend-rank-val">'+displayVal+'<span class="trend-rank-sub"> ('+it.stat.hasDisp+'/'+it.stat.total+')</span></div>'
       + '</div>';
   }).join('');
-  return '<div class="trend-rank-hint">依「'+esc(level.label)+'」由低到高排序，點一下可以往下鑽一層看細分。</div>'
+  var hintText = level.drillKey==='staff'
+    ? '依「'+esc(level.label)+'」由低到高排序（已經是最細層級）。'
+    : '依「'+esc(level.label)+'」由低到高排序，點一下可以往下鑽一層看細分。';
+  return '<div class="trend-rank-hint">'+hintText+'</div>'
     + '<div class="trend-rank-list">' + rowsHtml + '</div>';
 }
 function _renderTrendDialog(){
@@ -2523,14 +2586,24 @@ function _renderTrendDialog(){
   var focusChipsHtml = _buildTrendFocusChips(allDefs);
   var compareBarHtml = _buildTrendCompareBar(focusDef, level);
   var toolbarHtml = '<div class="trend-toolbar">' + scopeBarHtml + focusChipsHtml + compareBarHtml + '</div>';
-  var scopeLabel = esc(_covTrendScopeLabel()) + (comparing ? '　｜　🔀 比較模式：' + (level.drillKey==='area'?'各營業處':'各營業所/課') : '');
+  var levelDesc = level ? (level.drillKey==='area'?'各營業處':level.drillKey==='office'?'各營業所/課':'各業務人員') : '';
+  var scopeLabel = esc(_covTrendScopeLabel()) + (comparing ? '　｜　🔀 比較模式：' + levelDesc : '');
   var scopeFull = '範圍：'+scopeLabel+'　（跟目前畫面篩選連動）';
-  var legendHtml = '<div class="trend-legend">' + defs.map(function(d){
-    return '<span class="trend-legend-item"><span class="trend-legend-dot" style="background:'+d.color+'"></span>'+esc(d.label)+'</span>';
-  }).join('') + '</div>';
-  var metaRowHtml = '<div class="trend-meta-row"><span class="trend-meta-scope" title="'+scopeFull+'">'+scopeFull+'</span>' + legendHtml + '</div>';
   var tableToggleHtml = '<div class="trend-table-toggle-bar"><button type="button" class="trend-table-toggle-btn" onclick="_toggleTrendTable()">'
     + (TREND_TABLE_OPEN ? '▲ 收合明細表' : '▼ 展開明細表（逐週數字對照）') + '</button></div>';
+  /* v3.10.0：「都有數據了為什麼不 rank」──有一條以上的線時，依「最新一週
+     的數值」由高到低重新排序 defs，圖例／折線／長條的畫圖順序都跟著這份
+     排序走（一致），一眼就看得出目前排前面的是誰；hover 小卡則是依「當下
+     滑鼠停在的那一週」動態再排一次（見 _onTrendHoverMove），這裡的排序
+     只決定「預設（最新一週）」的視覺順序。 */
+  function _sortDefsByLatest(defs, lastStat){
+    if(defs.length <= 1 || !lastStat) return defs;
+    return defs.slice().sort(function(a,b){
+      var av = a.getVal(lastStat); av = (av==null ? -Infinity : av);
+      var bv = b.getVal(lastStat); bv = (bv==null ? -Infinity : bv);
+      return bv - av;
+    });
+  }
 
   if(TREND_MODE === 'delta'){
     var cumSeries = comparing ? _covBranchSeries(nWeeks, level, true) : _covCumulativeSeries(nWeeks);
@@ -2538,7 +2611,12 @@ function _renderTrendDialog(){
       body.innerHTML = descHtml + toolbarHtml + '<div class="trend-empty">目前範圍沒有可畫的資料（可能是燈號都關掉了，或問卷資料還沒有任何一筆落在這段期間）。</div>';
       return;
     }
+    defs = _sortDefsByLatest(defs, cumSeries[cumSeries.length-1].stat);
     var deltaSeries = _covDeltaSeries(cumSeries, defs);
+    var legendHtml = '<div class="trend-legend">' + defs.map(function(d){
+      return '<span class="trend-legend-item"><span class="trend-legend-dot" style="background:'+d.color+'"></span>'+esc(d.label)+'</span>';
+    }).join('') + '</div>';
+    var metaRowHtml = '<div class="trend-meta-row"><span class="trend-meta-scope" title="'+scopeFull+'">'+scopeFull+'</span>' + legendHtml + '</div>';
     body.innerHTML = descHtml + toolbarHtml + _buildTrendMatchFailBanner(cumSeries) + metaRowHtml
       + '<div class="trend-chart-wrap">' + _buildTrendBarSVG(deltaSeries, defs) + '</div>'
       + tableToggleHtml + (TREND_TABLE_OPEN ? _buildTrendDeltaTable(deltaSeries, defs) : '');
@@ -2552,6 +2630,11 @@ function _renderTrendDialog(){
     body.innerHTML = descHtml + toolbarHtml + '<div class="trend-empty">目前範圍沒有可畫的資料（可能是燈號都關掉了，或問卷資料還沒有任何一筆落在這段期間）。</div>';
     return;
   }
+  defs = _sortDefsByLatest(defs, series[series.length-1].stat);
+  var legendHtml = '<div class="trend-legend">' + defs.map(function(d){
+    return '<span class="trend-legend-item"><span class="trend-legend-dot" style="background:'+d.color+'"></span>'+esc(d.label)+'</span>';
+  }).join('') + '</div>';
+  var metaRowHtml = '<div class="trend-meta-row"><span class="trend-meta-scope" title="'+scopeFull+'">'+scopeFull+'</span>' + legendHtml + '</div>';
   body.innerHTML = descHtml + toolbarHtml + _buildTrendMatchFailBanner(series) + metaRowHtml
     + '<div class="trend-chart-wrap">' + _buildTrendSVG(series, defs) + '</div>'
     + tableToggleHtml + (TREND_TABLE_OPEN ? _buildTrendTable(series, defs) : '');
@@ -2603,7 +2686,13 @@ function _onTrendHoverMove(e){
   for(var i=0; i<xs.length; i++){ var diff = Math.abs(xs[i]-relX); if(diff<best){ best=diff; idx=i; } }
   var line = svg.querySelector('#trend-hover-line');
   if(line){ line.setAttribute('x1', xs[idx]); line.setAttribute('x2', xs[idx]); line.style.opacity = 1; }
-  var rows = _TREND_HOVER.rows[idx] || [];
+  var rows = (_TREND_HOVER.rows[idx] || []).slice().sort(function(a,b){
+    /* v3.10.0：使用者反映「都有數據了為什麼不 rank」──小卡改成依這一週
+       的實際數值由高到低排序，滑鼠移到不同週會跟著重新排，直接看得出
+       「這一週誰第一」，不用再瞇眼睛比對圖例顏色湊數字 */
+    var av = a.val==null ? -Infinity : a.val, bv = b.val==null ? -Infinity : b.val;
+    return bv - av;
+  });
   var tip = wrap.querySelector('.trend-tooltip');
   if(!tip){ tip = document.createElement('div'); tip.className = 'trend-tooltip'; wrap.appendChild(tip); }
   tip.innerHTML = '<div class="trend-tooltip-title">'+esc(_TREND_HOVER.labels[idx]||'')+'</div>' + rows.map(function(r){
