@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 3.8.2 ｜ 最後更新：2026-08-14
+  版本：Ver. 3.8.3 ｜ 最後更新：2026-08-14
 ════════════════════════════════════════════════════════════
 
 
@@ -49,6 +49,39 @@
 
 
 【版本紀錄】
+  3.8.3  2026-08-14  修正 3.8.2 沒修完整的比對漏洞＋趨勢圖改整頁呈現：
+                      1) 比對邏輯二度修正──3.8.2 只切選項文字冒號前的
+                        「標籤」去比對桶欄位名稱，這個做法本身就不夠周全：
+                        同一個大題底下互斥的一組選項，桶名稱字眼不一定
+                        出現在標籤（冒號前），也可能出現在補充說明（冒號
+                        後）。這個專案剛好三選項各異：「完售催訂：⋯」
+                        「已撤架：⋯」桶名稱在標籤，比對得到；但「正常
+                        在架：有價牌、架上有貨」桶名稱「架上有貨」其實
+                        在冒號後面，標籤是「正常在架」，3.8.2 比不到，
+                        「架上有貨」桶因此還是恆為 0%（3.8.2 只修好
+                        「完售催訂」一半）。改成兩層比對：先比標籤（窄），
+                        比不到才退回比對「整段選項文字」（寬，v3.8.3 新增
+                        _covBestContain／_covPlainCols 共用函式）。因為
+                        寬比對只在窄比對真的比不到時才會用到，同一個選項
+                        若標籤本身就命中（如「完售催訂」），不會再進寬
+                        比對階段，不會被選項後段夾帶的其他桶名稱字眼
+                        （如「⋯架上有貨」）誤判成別的桶，兩層比對彼此
+                        不衝突。用 node 腳本重跑三個選項＋既有 hyphen
+                        命名專案（開瓶海報-店外大門口及外牆）＋單一旗標
+                        專案（已商化）四種情境驗證，全數比對正確、原有
+                        專案不受影響。
+                      2)「📈 趨勢圖」改成整頁呈現，不再是蓋在原畫面上方的
+                        彈窗：拿掉半透明背景遮罩與點外側關閉，改成鋪滿
+                        整個視窗、背景不透明，左上角新增「← 返回」按鈕
+                        （沿用主畫面同一顆 .back-btn 樣式），行為上等同
+                        切到另一頁，離開時回到原本畫面（drillStack／
+                        selectedGrades／chips 篩選狀態不受影響，因為
+                        本來就是靠 CSS 顯示/隱藏同一個容器，沒有真的
+                        跳轉頁面，篩選狀態本來就會留著）。id 沿用
+                        trend-dialog 只是歷史命名，內部結構（dlg-header／
+                        trend-mode-tabs／dlg-body）不變，四種模式與所有
+                        既有功能（週數選單／範圍選單／各處所排行榜）
+                        都原樣保留，只換了外層容器的視覺呈現方式。
   3.8.2  2026-08-14  修正 3.8.1「已有（整體）」恆為 0% 的真正根因（3.8.1
                       當時只做出診斷警示，誤判成「這是問卷表頭命名問題，
                       需要去 Google Sheet 端確認」，實際上是比對邏輯本身
@@ -442,17 +475,27 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .cwn-label { font-size:12.5px; font-weight:900; min-width:76px; text-align:center; white-space:nowrap; }
 
 
-/* ── 趨勢圖 dialog（v3.6.3）：外層 overlay 自己包辦定位/背景，不依賴
-   shared/dashboard-common.css 對 #detail-dialog 這個特定 id 的規則（那支
-   檔案內容不在本檔可見範圍，無法確認是否為通用 class；.dlg-box 以下的
-   內層沿用既有 class，跟 #detail-dialog 共用、已知能正常顯示） ── */
-#trend-dialog {
+/* ── 趨勢圖（v3.6.3 modal → v3.8.3 改整頁呈現）：id 仍叫 trend-dialog 是
+   歷史命名，實際上已經不是彈窗——鋪滿整個視窗、背景不透明（不是半透明
+   遮罩）、沒有點外側關閉，行為上等同切到另一頁，用左上角「← 返回」
+   （跟主畫面同一顆 .back-btn 樣式）離開，不依賴 shared/dashboard-common.css
+   對 #detail-dialog 這個特定 id 的規則（那支檔案內容不在本檔可見範圍，
+   無法確認是否為通用 class；.dlg-body 沿用既有 class，跟 #detail-dialog
+   共用、已知能正常顯示）。 ── */
+#trend-dialog.trend-page {
   position:fixed; inset:0; z-index:200;
-  background:rgba(0,0,0,.45);
-  align-items:center; justify-content:center;
-  padding:16px;
+  background:#fff;
+  display:flex; align-items:stretch; justify-content:stretch;
+  padding:0;
 }
-#trend-dialog .dlg-box { max-width:920px; width:100%; max-height:88vh; margin:0 auto; }
+#trend-dialog.trend-page .dlg-box {
+  max-width:none; width:100%; height:100dvh; max-height:100dvh;
+  margin:0; border-radius:0; display:flex; flex-direction:column;
+}
+#trend-dialog.trend-page .dlg-header { flex-shrink:0; gap:10px; }
+#trend-dialog.trend-page .dlg-header .back-btn { flex-shrink:0; }
+#trend-dialog.trend-page .trend-mode-tabs { flex-shrink:0; }
+#trend-dialog.trend-page .dlg-body { flex:1; min-height:0; }
 .trend-chart-wrap { padding:6px 4px 10px; }
 .trend-legend { display:flex; flex-wrap:wrap; gap:10px; padding:2px 14px 10px; font-size:12px; }
 .trend-legend-item { display:inline-flex; align-items:center; gap:5px; color:var(--sub,#888); }
@@ -517,8 +560,6 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .trend-rank-val { width:108px; flex-shrink:0; text-align:right; font-size:12px; font-weight:800; color:var(--text); }
 .trend-rank-sub { font-size:10.5px; font-weight:600; color:var(--sub,#888); }
 @media (max-width:640px) {
-  #trend-dialog { padding:0; }
-  #trend-dialog .dlg-box { max-width:100vw; width:100vw; height:100dvh; max-height:100dvh; border-radius:0; }
   .trend-mode-btn { font-size:11px; padding:5px 9px; }
   .trend-scope-sel { max-width:110px; font-size:11px; }
   .trend-rank-label { width:64px; font-size:11px; }
@@ -1343,15 +1384,19 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 </div>
 
 
-<!-- v3.6.3 趨勢圖：獨立自成一個 dialog（不掛在 shared/pivot-dialog.js 的分頁
+<!-- v3.6.3 趨勢圖：獨立自成一個容器（不掛在 shared/pivot-dialog.js 的分頁
      系統下——那支檔案的內部結構不在本檔可見範圍內，怕改壞，改用已經確定
-     能正常運作的 #detail-dialog 同一套 dlg-box/dlg-header/dlg-action-btn/
-     dlg-close/dlg-body class 自己再開一個）。範圍＝目前畫面的組織/通路/
-     等級鑽層＋等級篩選＋燈號開關（跟卡片、彙整看板同一口徑），只是額外
-     在最近 N 週的每一週都各算一次。 -->
-<div id="trend-dialog" style="display:none" onclick="if(event.target===this)closeTrendDialog()">
+     能正常運作的 #detail-dialog 同一套 dlg-header/dlg-action-btn/dlg-body
+     class 自己再開一個）。範圍＝目前畫面的組織/通路/等級鑽層＋等級篩選＋
+     燈號開關（跟卡片、彙整看板同一口徑），只是額外在最近 N 週的每一週
+     都各算一次。v3.8.3 起改成「整頁」呈現（id 沿用 trend-dialog 只是
+     歷史命名，實際上已經不是 modal）：拿掉半透明背景遮罩與點外側關閉，
+     改成鋪滿整個畫面、用跟主畫面同一顆「← 返回」樣式的按鈕離開，行為上
+     跟切到另一頁一樣，不是疊在原畫面上方的彈窗。 -->
+<div id="trend-dialog" class="trend-page" style="display:none">
   <div class="dlg-box">
     <div class="dlg-header">
+      <button class="back-btn" onclick="closeTrendDialog()">← 返回</button>
       <span id="trend-title" style="font-size:13px;line-height:1.5;flex:1;min-width:0;">📈 趨勢圖</span>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
         <select id="trend-weeks-sel" onchange="_renderTrendDialog()" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:8px;background:#fff;">
@@ -1360,7 +1405,6 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
           <option value="12">近12週</option>
           <option value="26">近26週</option>
         </select>
-        <button class="dlg-close" onclick="closeTrendDialog()">✕</button>
       </div>
     </div>
     <div class="trend-mode-tabs" id="trend-mode-tabs">
@@ -1372,6 +1416,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <div class="dlg-body" id="trend-body" style="overflow-y:auto;overflow-x:hidden;"></div>
   </div>
 </div>
+
 
 
 <script src="shared/core-utils.js"></script>
@@ -1548,22 +1593,38 @@ function _covPrefixMatchesSection(prefix, sectionText){
    2) 問卷資料用「大題_選項」的 quiz 命名，選項本身是「產品/物料-地點或
       原因」──先用欄名前綴跟大題名稱做字元重疊比對鎖定分組，再用選項
       文字比對欄名後綴（地點/原因）。
-   3)（v3.8.2 新增）問卷資料用「大題_選項」的 quiz 命名，但大題只是通用
-      問法（如「巡查情況」），真正決定該歸哪個 B/C 桶的字眼在「選項」
-      文字本身──例如選項「完售催訂：有價牌、架上有貨(催訂商品)」，桶
-      欄位「完售催訂」的名稱整個出現在選項文字裡，這種情況桶欄位比對
-      的對象應該是「選項文字」，不是「大題名稱」（大題名稱只是問法，
-      不帶狀態資訊，套用第 2 種比對方式一定比不到）。做法：取選項文字
-      「：」或「:」之前的片段當作主要標籤（大題底下常見「標籤：補充
-      說明」的寫法，補充說明常會夾帶其他桶欄位的名稱字眼，例如本例的
-      「完售催訂：有價牌、架上有貨」同時含有「架上有貨」，若不先切開
-      只看標籤片段，會誤判成「架上有貨」而非「完售催訂」；沒有冒號的
-      選項則整段當標籤），再跟沒有「-」後綴的桶欄位（單一旗標欄）做
-      雙向文字包含比對，比對到多個候選時取名稱最長（最具體）的那個。
-      這一步排在第 2 種之後、原本「鎖定分組後單一候選才指派」的保底
-      規則之前──比對到選項文字本身比比對到大題名稱更直接可靠，原本的
-      保底規則留著給選項文字裡也找不到桶名稱字眼的情況（如「已商化」
-      這種純肯定用語）用。 */
+   3)（v3.8.2 新增／v3.8.3 修正）問卷資料用「大題_選項」的 quiz 命名，但
+      大題只是通用問法（如「巡查情況」），真正決定該歸哪個 B/C 桶的字眼
+      在「選項」文字本身──分兩層比對，不能只看冒號前的標籤：
+      第一層：選項文字「：/:」之前的片段（沒冒號則整段）跟桶欄位名稱
+      做雙向文字包含比對——大部分情況桶欄位名稱就是標籤本身，例如
+      「完售催訂：有價牌、架上有貨(催訂商品)」的標籤「完售催訂」直接
+      對到同名桶欄位；這一層優先，因為標籤本身就是最直接的狀態宣告。
+      第二層（v3.8.3 新增）：第一層沒比到時，退回比對「整段選項文字」
+      （不切標籤）──因為 v3.8.2 只切標籤這件事本身就是這次要修的漏洞：
+      同一個大題底下、選項彼此互斥的一組欄位，桶欄位名稱不一定出現在
+      冒號前的標籤，也可能藏在冒號後的補充說明裡，例如「正常在架：
+      有價牌、架上有貨」，標籤是「正常在架」，桶欄位名稱「架上有貨」
+      其實在冒號後面，第一層比不到、要靠第二層整段包含比對才抓得到。
+      第二層只在第一層真的比不到時才用（先窄後寬），且只在還沒被其他
+      桶欄位命中時才比對候選，同一筆紀錄同一個選項不會因為整段文字
+      同時含有兩個桶名稱字眼而誤判——因為誤判的那種情況（例如「完售
+      催訂：⋯架上有貨」同時含兩個桶名稱）本來就會被第一層的標籤比對
+      先攔下來，走不到第二層。兩層都比對不到（如純肯定用語「已商化」
+      這種真的沒有桶名稱字眼可比對的情況），才會往下走原本鎖定分組後
+      單一候選才指派的保底規則。 */
+function _covPlainCols(colNames, hit){
+  return colNames.filter(function(c){
+    if(!c || hit.indexOf(c)!==-1) return false;
+    return !_covColParts(c).suffix; /* 只考慮沒有「-」後綴的單一旗標欄 */
+  });
+}
+function _covBestContain(text, pool){
+  var cands = pool.filter(function(c){ return text.indexOf(c)!==-1 || c.indexOf(text)!==-1; });
+  if(!cands.length) return null;
+  cands.sort(function(a,b){ return b.length - a.length; }); /* 名稱越長越具體，優先取用 */
+  return cands[0];
+}
 function _covRecordMatchedCols(record, colNames){
   var hit = [];
   colNames.forEach(function(c){
@@ -1586,16 +1647,9 @@ function _covRecordMatchedCols(record, colNames){
       });
       if(!matched && opt){
         var label = opt.split(/[:：]/)[0]; /* 冒號前的標籤片段；沒冒號則整段都是標籤 */
-        var directCands = colNames.filter(function(c){
-          if(!c || hit.indexOf(c)!==-1) return false;
-          var parts = _covColParts(c);
-          if(parts.suffix) return false; /* 有「-」後綴的欄位走第 2 種比對，這裡不重複比對 */
-          return label.indexOf(c)!==-1 || c.indexOf(label)!==-1;
-        });
-        if(directCands.length){
-          directCands.sort(function(a,b){ return b.length - a.length; }); /* 名稱越長越具體，優先取用 */
-          matched = directCands[0];
-        }
+        var pool = _covPlainCols(colNames, hit);
+        matched = _covBestContain(label, pool);
+        if(!matched) matched = _covBestContain(opt, pool); /* v3.8.3：標籤比不到時，退回比對整段選項文字 */
       }
       if(!matched){
         var plainCands = colNames.filter(function(c){
