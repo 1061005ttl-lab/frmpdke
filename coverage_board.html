@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 3.6.0 ｜ 最後更新：2026-08-14
+  版本：Ver. 3.6.1 ｜ 最後更新：2026-08-14
 ════════════════════════════════════════════════════════════
 
 
@@ -33,6 +33,15 @@
 
 
 【版本紀錄】
+  3.6.1  2026-08-14  修正週檢視 B/C 桶命中率 0 的問題：「餐飲開瓶有獎&
+                      黃董廣宣」實測發現已調查家數有算到，但沒有任何一家
+                      分進 B/C 桶。根因是 _covRecordMatchedCols 原本只掃
+                      record.sections（quiz「大題_選項」命名的欄位），
+                      但這個專案的問卷資料表頭跟主表格欄名「完全相同」
+                      （沒有底線），這種欄位在 _fetchQuestionnaireSheet()
+                      裡會歸進 record.base，根本沒被掃到。改成兩種來源
+                      都比對：record.base 精確欄名比對＋record.sections
+                      選項文字包含比對，兩者不互斥。
   3.6.0  2026-08-14  新增「週檢視」：toolbar 加「📅 週檢視」切換鈕＋
                       ◄/► 週導航列（lamp-row 與 quicknav 之間，v3.6.0
                       cov-week-nav），開啟後以「問卷資料」裡每家店在選定
@@ -1224,18 +1233,26 @@ function _covBucketColNames(){
   if(!isSum()) BUCKETS_C.forEach(function(g){ g.cols.forEach(function(c){ if(c && cols.indexOf(c)===-1) cols.push(c); }); });
   return cols;
 }
-/* 一筆問卷紀錄命中哪些 B/C 欄位：掃描該筆所有已填選項文字，若選項文字
-   「包含」某個欄位名稱就算命中（config-driven 比對，不寫死任何專案的
-   個別欄位名稱——目前「高鐵CVS雲泡」等專案的問卷選項文字本身就包含對應
-   的欄位名稱，如「巡查情況_已撤架：…」包含欄位名「已撤架」）。
-   若之後有專案的問卷選項文字跟欄位名稱對不起來，這裡會比對不到、該店
-   在週檢視下會被視為「本期未巡」，屆時需要請管理表另外補一份對照設定。 */
+/* 一筆問卷紀錄命中哪些 B/C 欄位，兩種問卷資料表頭命名方式都要涵蓋：
+   1) 問卷資料欄名跟主表格欄名「完全相同」（例如兩邊都直接叫「開瓶海報-
+      店外大門口及外牆」）──這種情況 _fetchQuestionnaireSheet() 會把它
+      歸進 record.base（沒有底線的欄位都進 baseColNames），要用「精確欄
+      名」去 record.base 裡查值是否有填。
+   2) 問卷資料用「大題_選項」的 quiz 命名（例如「巡查情況_已撤架」）──
+      這種欄位進 record.sections，選項文字（如「已撤架」）通常「包含」
+      主表格的欄位名稱，用包含比對。
+   兩種都做，不互斥，一筆紀錄可能同時命中兩種來源。 */
 function _covRecordMatchedCols(record, colNames){
   var hit = [];
+  colNames.forEach(function(c){
+    if(!c || hit.indexOf(c)!==-1) return;
+    var v = record.base ? record.base[c] : undefined;
+    if(v!==undefined && v!==null && String(v).trim()!=='') hit.push(c);
+  });
   (record.sections||[]).forEach(function(sec){
     (sec.picks||[]).forEach(function(p){
       var opt = String(p.option||'');
-      colNames.forEach(function(c){ if(c && opt.indexOf(c)!==-1 && hit.indexOf(c)===-1) hit.push(c); });
+      colNames.forEach(function(c){ if(c && hit.indexOf(c)===-1 && opt.indexOf(c)!==-1) hit.push(c); });
     });
   });
   return hit;
