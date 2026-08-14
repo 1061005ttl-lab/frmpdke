@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 3.9.0 ｜ 最後更新：2026-08-14
+  版本：Ver. 3.10.0 ｜ 最後更新：2026-08-14
 ════════════════════════════════════════════════════════════
 
 
@@ -49,6 +49,44 @@
 
 
 【版本紀錄】
+  3.10.0 2026-08-14  使用者回報趨勢圖畫面「太多資料一種吃一整列、空間浪費」
+                      ＋「線太多分不出哪條是哪個單位、也看不到滑鼠停留位置
+                      的數值」，兩點優化：
+                      1) 控制列改成「能並列就並列」：mode-desc 壓成單行、
+                        用 title 屬性放完整說明（滑鼠停留看得到，不用整段
+                        文字常駐佔位）；「🔎 只看」「🎯 單看」「🔀 比較」
+                        三組控制項合併進同一個 .trend-toolbar（flex-wrap
+                        容器＋直線分隔各組），有空間同排、位子不夠才換行，
+                        不再各自佔一整寬列；「範圍：」說明文字跟圖例合併
+                        進同一個 .trend-meta-row，左右並排。CSS 早於本版
+                        寫好（.trend-toolbar／.trend-toolbar-group／
+                        .trend-meta-row），這次補上 _buildTrendScopeBar／
+                        _buildTrendFocusChips／_buildTrendCompareBar／
+                        _renderTrendDialog 對應的 HTML 組裝，讓畫面實際套用
+                        新版面（之前這幾支函式還在吐舊的 .trend-scope-bar／
+                        .trend-focus-bar／.trend-compare-bar，這三個 class
+                        沒有對應 CSS，等於沒套版面、退回瀏覽器預設 block
+                        一行一個，就是使用者看到的「浪費空間」）。
+                      2) 圖表新增 hover／觸控浮動小卡：折線圖與長條圖各自
+                        在 SVG 內多畫一層透明的 .trend-hover-capture 矩形
+                        蓋住整個繪圖區接收 pointer 事件（不綁在個別資料點
+                        圓圈上——多條線同一週常疊在幾乎同一像素，圓圈太小
+                        很難精準點到），同時把當下這張圖的查表資料（每週
+                        x 座標、標籤、每條線的顏色/名稱/數值文字）寫進全域
+                        _TREND_HOVER。#trend-body 監聽 pointermove/pointerdown
+                        （事件代理，因為圖表每次重繪整段 innerHTML 都會被
+                        換掉，不能直接把監聽器綁在圖表本身），算出最接近
+                        的一週，畫出垂直參考線＋在滑鼠/手指旁顯示浮動小卡
+                        （深底白字，跟畫面上其餘淺色調對比明顯），逐行列出
+                        該週每條線的顏色點、名稱、數值，一次看清楚滑鼠停在
+                        哪一週、每條線各是多少，不用再瞇眼睛比對圖例顏色。
+                        小卡定位有做右側/下緣溢出保護（超出容器寬度就翻到
+                        游標左側）。用 jsdom 載入本檔實際程式碼＋合成資料，
+                        驗證四種模式（rate/cumulative/delta/rank）與跨分支
+                        比較模式下 _TREND_HOVER 資料筆數、標籤、數值皆正確、
+                        toolbar 各控制項在合併後仍可正常互動（切換範圍/單看/
+                        比較不受影響），node --check 語法通過，0 runtime
+                        error。
   3.9.0  2026-08-14  使用者回報「趨勢圖畫面撐爆、單一畫面看不完」＋想針對
                       單一線型檢視＋想一次看各分支進度，三點優化：
                       1) 響應式修正：#trend-dialog 整頁強制 box-sizing:
@@ -1975,7 +2013,7 @@ function _buildTrendScopeBar(){
   var officeHtml = '<option value="">（全部營業所/課）</option>' + officeOpts.map(function(o){
     return '<option value="'+esc(o)+'"'+(TREND_SCOPE.office===o?' selected':'')+'>'+esc(o)+'</option>';
   }).join('');
-  return '<div class="trend-scope-bar">'
+  return '<div class="trend-toolbar-group">'
     + '<span class="trend-scope-tag">🔎 只看</span>'
     + '<select class="trend-scope-sel" onchange="_setTrendScope(this.value,\'\')">'+areaHtml+'</select>'
     + '<select class="trend-scope-sel" onchange="_setTrendScope(TREND_SCOPE.area,this.value)"'+(TREND_SCOPE.area?'':' disabled')+'>'+officeHtml+'</select>'
@@ -2131,9 +2169,26 @@ function _buildTrendSVG(series, defs){
       linesHtml += '<circle cx="'+xAt(i)+'" cy="'+yAt(v)+'" r="'+(d.bold?3.2:2.4)+'" fill="'+d.color+'"><title>'+esc(pt.label)+'　'+esc(d.label)+'：'+(d.isPercent?Math.round(v)+'%':Math.round(v))+'</title></circle>';
     });
   });
+  /* v3.10.0：滑鼠/觸控 hover 用的資料——每一週一筆，記錄每條線在該週的
+     顏色/名稱/數值文字，供 _onTrendHoverMove 直接查表組浮動小卡內容，
+     不用在 DOM 屬性裡塞 JSON（屬性轉義麻煩，用全域變數簡單很多） */
+  _TREND_HOVER = {
+    W:W,
+    xs: series.map(function(pt,i){ return xAt(i); }),
+    labels: series.map(function(pt){ return pt.label; }),
+    rows: series.map(function(pt){
+      return defs.map(function(d){
+        var v = d.getVal(pt.stat);
+        return { label:d.label, color:d.color, txt: v==null ? '—' : (d.isPercent?Math.round(v)+'%':Math.round(v)) };
+      });
+    })
+  };
+  var hoverHtml = '<line class="trend-hover-line" id="trend-hover-line" x1="'+padL+'" y1="'+padT+'" x2="'+padL+'" y2="'+(H-padB)+'"/>'
+    + '<rect class="trend-hover-capture" x="'+padL+'" y="'+padT+'" width="'+plotW+'" height="'+plotH+'" fill="transparent"/>';
   return '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;display:block" xmlns="http://www.w3.org/2000/svg">'
     + gridHtml + xHtml + linesHtml
-    + '<line x1="'+padL+'" y1="'+(H-padB)+'" x2="'+(W-padR)+'" y2="'+(H-padB)+'" stroke="rgba(0,0,0,.15)" stroke-width="1"/></svg>';
+    + '<line x1="'+padL+'" y1="'+(H-padB)+'" x2="'+(W-padR)+'" y2="'+(H-padB)+'" stroke="rgba(0,0,0,.15)" stroke-width="1"/>'
+    + hoverHtml + '</svg>';
 }
 /* v3.8.0：「每週新增家數」長條圖──跟 _buildTrendSVG 同一個 viewBox 尺寸，
    方便切換模式時畫面高度不跳動；正值長條畫在基準線上方、負值（代表這週
@@ -2180,9 +2235,24 @@ function _buildTrendBarSVG(deltaSeries, defs){
       barsHtml += '<rect x="'+(x+0.5)+'" y="'+y+'" width="'+Math.max(1,barW-1)+'" height="'+Math.max(0,h)+'" fill="'+d.color+'" opacity="'+(v>=0?0.88:0.55)+'"><title>'+esc(pt.label)+'　'+esc(d.label)+'：'+(v>0?'+':'')+v+'</title></rect>';
     });
   });
+  /* v3.10.0：hover 資料——長條圖每組（每週）中心點當作命中位置 */
+  _TREND_HOVER = {
+    W:W,
+    xs: deltaSeries.map(function(pt,i){ return xGroupStart(i)+groupW/2; }),
+    labels: deltaSeries.map(function(pt){ return pt.label; }),
+    rows: deltaSeries.map(function(pt){
+      return defs.map(function(d, j){
+        var v = pt.deltaVals[j];
+        return { label:d.label, color:d.color, txt:(v>0?'+':'')+v };
+      });
+    })
+  };
+  var hoverHtml = '<line class="trend-hover-line" id="trend-hover-line" x1="'+padL+'" y1="'+padT+'" x2="'+padL+'" y2="'+(H-padB)+'"/>'
+    + '<rect class="trend-hover-capture" x="'+padL+'" y="'+padT+'" width="'+plotW+'" height="'+plotH+'" fill="transparent"/>';
   return '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;display:block" xmlns="http://www.w3.org/2000/svg">'
     + gridHtml + xHtml + barsHtml
-    + '<line x1="'+padL+'" y1="'+yZero+'" x2="'+(W-padR)+'" y2="'+yZero+'" stroke="rgba(0,0,0,.25)" stroke-width="1"/></svg>';
+    + '<line x1="'+padL+'" y1="'+yZero+'" x2="'+(W-padR)+'" y2="'+yZero+'" stroke="rgba(0,0,0,.25)" stroke-width="1"/>'
+    + hoverHtml + '</svg>';
 }
 /* 明細表：跟折線圖同一份資料，逐週逐項列數字，滑鼠停在點上看得到、
    手機上滑不到 tooltip 時也能直接查表，順便就是「期間比較」──挑任兩欄
@@ -2240,6 +2310,10 @@ function _buildTrendMatchFailBanner(series){
 /* v3.8.0：趨勢圖四種模式——rate=週執行率／cumulative=累計達成進度／
    delta=每週新增家數／rank=各營業處(所)比較。切換模式不影響已選的
    週數（trend-weeks-sel）與 TREND_SCOPE 範圍，只換算法跟畫法。 */
+/* v3.10.0：目前這張圖表的 hover 查表資料，由 _buildTrendSVG／_buildTrendBarSVG
+   在產生 SVG 字串的同時當作副作用寫入（每次重繪都會覆蓋），
+   _onTrendHoverMove 直接讀這個全域變數組浮動小卡內容，不用在 DOM 屬性裡塞 JSON。 */
+var _TREND_HOVER = null;
 var TREND_MODE = 'rate';
 var TREND_MODE_DESC = {
   rate:       '每一週「各自獨立」計算，只看落在該週範圍內的巡查紀錄——回答「這一週做了多少」，數字本來就會忽高忽低，不是累加的。',
@@ -2296,7 +2370,7 @@ function _buildTrendFocusChips(defs){
     return '<button type="button" class="trend-focus-chip'+(active?' active':'')+'" style="'+style+'" data-focus="'+esc(d.label)+'" onclick="_toggleTrendFocus(this.dataset.focus)">'
       + '<span class="trend-focus-dot" style="background:'+dotBg+'"></span>'+esc(d.label)+'</button>';
   }).join('');
-  return '<div class="trend-focus-bar"><span class="trend-scope-tag">🎯 單看</span>' + chipsHtml
+  return '<div class="trend-toolbar-group"><span class="trend-scope-tag">🎯 單看</span>' + chipsHtml
     + (TREND_FOCUS ? '<button type="button" class="trend-scope-clear" onclick="_toggleTrendFocus(null)">✕ 全部顯示</button>' : '')
     + '</div>';
 }
@@ -2305,7 +2379,7 @@ function _buildTrendFocusChips(defs){
 function _buildTrendCompareBar(focusDef, level){
   if(!focusDef || !level) return '';
   var scopeDesc = level.drillKey==='area' ? '各營業處' : ('「'+esc(TREND_SCOPE.area)+'」底下各營業所/課');
-  return '<div class="trend-compare-bar"><label class="trend-compare-toggle">'
+  return '<div class="trend-toolbar-group"><label class="trend-compare-toggle">'
     + '<input type="checkbox" '+(TREND_COMPARE?'checked':'')+' onchange="_toggleTrendCompare()">'
     + '🔀 同時比較'+scopeDesc+'（都顯示「'+esc(focusDef.label)+'」這條線）'
     + '</label></div>';
@@ -2416,21 +2490,23 @@ function _renderTrendDialog(){
   var body = document.getElementById('trend-body');
   if(!body) return;
   _renderTrendModeTabs();
-  var descHtml = '<div class="trend-mode-desc">'+esc(TREND_MODE_DESC[TREND_MODE]||'')+'</div>';
+  var descText = esc(TREND_MODE_DESC[TREND_MODE]||'');
+  var descHtml = '<div class="trend-mode-desc" title="'+descText+'">'+descText+'</div>';
   var scopeBarHtml = _buildTrendScopeBar();
 
   if(TREND_MODE === 'rank'){
-    body.innerHTML = descHtml + scopeBarHtml + _buildTrendRankBody();
+    body.innerHTML = descHtml + '<div class="trend-toolbar">'+scopeBarHtml+'</div>' + _buildTrendRankBody();
+    _initTrendHoverOnce();
     return;
   }
 
   if(!_qSheetCache){
-    body.innerHTML = descHtml + scopeBarHtml + '<div class="trend-empty">⏳ 讀取拜訪紀錄中…</div>';
+    body.innerHTML = descHtml + '<div class="trend-toolbar">'+scopeBarHtml+'</div>' + '<div class="trend-empty">⏳ 讀取拜訪紀錄中…</div>';
     _fetchQuestionnaireSheet(function(){ _renderTrendDialog(); });
     return;
   }
   if(_qSheetCache.error){
-    body.innerHTML = descHtml + scopeBarHtml + '<div class="trend-empty">⚠️ 拜訪紀錄讀取失敗：'+esc(_qSheetCache.error)+'</div>';
+    body.innerHTML = descHtml + '<div class="trend-toolbar">'+scopeBarHtml+'</div>' + '<div class="trend-empty">⚠️ 拜訪紀錄讀取失敗：'+esc(_qSheetCache.error)+'</div>';
     return;
   }
   var selEl = document.getElementById('trend-weeks-sel');
@@ -2446,37 +2522,40 @@ function _renderTrendDialog(){
   var defs = comparing ? _covBranchCompareDefs(level, focusDef) : (focusDef ? [focusDef] : allDefs);
   var focusChipsHtml = _buildTrendFocusChips(allDefs);
   var compareBarHtml = _buildTrendCompareBar(focusDef, level);
+  var toolbarHtml = '<div class="trend-toolbar">' + scopeBarHtml + focusChipsHtml + compareBarHtml + '</div>';
   var scopeLabel = esc(_covTrendScopeLabel()) + (comparing ? '　｜　🔀 比較模式：' + (level.drillKey==='area'?'各營業處':'各營業所/課') : '');
-  var scopeHtml = '<div style="padding:6px 14px 0;font-size:11.5px;color:var(--sub,#888)">範圍：'+scopeLabel+'　（跟目前畫面篩選連動）</div>';
+  var scopeFull = '範圍：'+scopeLabel+'　（跟目前畫面篩選連動）';
   var legendHtml = '<div class="trend-legend">' + defs.map(function(d){
     return '<span class="trend-legend-item"><span class="trend-legend-dot" style="background:'+d.color+'"></span>'+esc(d.label)+'</span>';
   }).join('') + '</div>';
+  var metaRowHtml = '<div class="trend-meta-row"><span class="trend-meta-scope" title="'+scopeFull+'">'+scopeFull+'</span>' + legendHtml + '</div>';
   var tableToggleHtml = '<div class="trend-table-toggle-bar"><button type="button" class="trend-table-toggle-btn" onclick="_toggleTrendTable()">'
     + (TREND_TABLE_OPEN ? '▲ 收合明細表' : '▼ 展開明細表（逐週數字對照）') + '</button></div>';
 
   if(TREND_MODE === 'delta'){
     var cumSeries = comparing ? _covBranchSeries(nWeeks, level, true) : _covCumulativeSeries(nWeeks);
     if(!cumSeries.length || !defs.length){
-      body.innerHTML = descHtml + scopeBarHtml + focusChipsHtml + compareBarHtml + '<div class="trend-empty">目前範圍沒有可畫的資料（可能是燈號都關掉了，或問卷資料還沒有任何一筆落在這段期間）。</div>';
+      body.innerHTML = descHtml + toolbarHtml + '<div class="trend-empty">目前範圍沒有可畫的資料（可能是燈號都關掉了，或問卷資料還沒有任何一筆落在這段期間）。</div>';
       return;
     }
     var deltaSeries = _covDeltaSeries(cumSeries, defs);
-    body.innerHTML = descHtml + scopeBarHtml + focusChipsHtml + compareBarHtml + _buildTrendMatchFailBanner(cumSeries) + scopeHtml + legendHtml
+    body.innerHTML = descHtml + toolbarHtml + _buildTrendMatchFailBanner(cumSeries) + metaRowHtml
       + '<div class="trend-chart-wrap">' + _buildTrendBarSVG(deltaSeries, defs) + '</div>'
       + tableToggleHtml + (TREND_TABLE_OPEN ? _buildTrendDeltaTable(deltaSeries, defs) : '');
+    _initTrendHoverOnce();
     return;
   }
 
   var series = comparing ? _covBranchSeries(nWeeks, level, TREND_MODE==='cumulative')
     : ((TREND_MODE === 'cumulative') ? _covCumulativeSeries(nWeeks) : _covWeeklySeries(nWeeks));
   if(!series.length || !defs.length){
-    body.innerHTML = descHtml + scopeBarHtml + focusChipsHtml + compareBarHtml + '<div class="trend-empty">目前範圍沒有可畫的資料（可能是燈號都關掉了，或問卷資料還沒有任何一筆落在這段期間）。</div>';
+    body.innerHTML = descHtml + toolbarHtml + '<div class="trend-empty">目前範圍沒有可畫的資料（可能是燈號都關掉了，或問卷資料還沒有任何一筆落在這段期間）。</div>';
     return;
   }
-  body.innerHTML = descHtml + scopeBarHtml + focusChipsHtml + compareBarHtml + _buildTrendMatchFailBanner(series) + scopeHtml
-    + legendHtml
+  body.innerHTML = descHtml + toolbarHtml + _buildTrendMatchFailBanner(series) + metaRowHtml
     + '<div class="trend-chart-wrap">' + _buildTrendSVG(series, defs) + '</div>'
     + tableToggleHtml + (TREND_TABLE_OPEN ? _buildTrendTable(series, defs) : '');
+  _initTrendHoverOnce();
 }
 function openTrendDialog(){
   var dlg = document.getElementById('trend-dialog');
@@ -2492,6 +2571,57 @@ function openTrendDialog(){
 function closeTrendDialog(){
   var dlg = document.getElementById('trend-dialog');
   if(dlg) dlg.style.display = 'none';
+  _hideTrendTooltip();
+}
+/* ══════════════ v3.10.0：圖表 hover/觸控浮動小卡 ══════════════
+   #trend-body 整個容器每次 _renderTrendDialog() 都會被 innerHTML 整段
+   換掉，事件不能綁在圖表本身（綁了也會被換掉），改用「事件代理」──
+   監聽固定不變的 #trend-body，判斷事件來源元素是不是命中
+   .trend-hover-capture（蓋在整個繪圖區上的透明矩形），是的話才處理，
+   這樣不管圖表重繪幾次都不用重新綁定。查表資料來自全域 _TREND_HOVER
+   （_buildTrendSVG／_buildTrendBarSVG 產生 SVG 字串時當副作用寫入）。 */
+function _initTrendHoverOnce(){
+  var body = document.getElementById('trend-body');
+  if(!body || body._covHoverBound) return;
+  body._covHoverBound = true;
+  body.addEventListener('pointermove', _onTrendHoverMove);
+  body.addEventListener('pointerdown', _onTrendHoverMove);
+  body.addEventListener('pointerleave', _hideTrendTooltip, true);
+  body.addEventListener('pointercancel', _hideTrendTooltip, true);
+}
+function _onTrendHoverMove(e){
+  if(!_TREND_HOVER) return;
+  var capture = e.target && e.target.closest ? e.target.closest('.trend-hover-capture') : null;
+  if(!capture){ _hideTrendTooltip(); return; }
+  var svg = capture.closest('svg');
+  var wrap = capture.closest('.trend-chart-wrap');
+  if(!svg || !wrap) return;
+  var rect = svg.getBoundingClientRect();
+  if(!rect.width) return;
+  var relX = (e.clientX - rect.left) / rect.width * _TREND_HOVER.W;
+  var xs = _TREND_HOVER.xs, idx = 0, best = Infinity;
+  for(var i=0; i<xs.length; i++){ var diff = Math.abs(xs[i]-relX); if(diff<best){ best=diff; idx=i; } }
+  var line = svg.querySelector('#trend-hover-line');
+  if(line){ line.setAttribute('x1', xs[idx]); line.setAttribute('x2', xs[idx]); line.style.opacity = 1; }
+  var rows = _TREND_HOVER.rows[idx] || [];
+  var tip = wrap.querySelector('.trend-tooltip');
+  if(!tip){ tip = document.createElement('div'); tip.className = 'trend-tooltip'; wrap.appendChild(tip); }
+  tip.innerHTML = '<div class="trend-tooltip-title">'+esc(_TREND_HOVER.labels[idx]||'')+'</div>' + rows.map(function(r){
+    return '<div class="trend-tooltip-row"><span class="trend-tooltip-dot" style="background:'+r.color+'"></span>'
+      + '<span class="trend-tooltip-label">'+esc(r.label)+'</span><span class="trend-tooltip-val">'+esc(String(r.txt))+'</span></div>';
+  }).join('');
+  tip.style.display = 'block';
+  var wrapRect = wrap.getBoundingClientRect();
+  var left = e.clientX - wrapRect.left + 14;
+  var top  = e.clientY - wrapRect.top - 10;
+  var tipW = tip.offsetWidth || 180;
+  if(left + tipW > wrapRect.width) left = e.clientX - wrapRect.left - tipW - 14;
+  tip.style.left = Math.max(4, left) + 'px';
+  tip.style.top  = Math.max(4, top) + 'px';
+}
+function _hideTrendTooltip(){
+  document.querySelectorAll('#trend-body .trend-tooltip').forEach(function(t){ t.style.display = 'none'; });
+  document.querySelectorAll('#trend-body .trend-hover-line').forEach(function(l){ l.style.opacity = 0; });
 }
 
 
