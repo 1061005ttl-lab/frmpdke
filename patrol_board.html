@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.25.4 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-14
+  版本：Ver. 1.26.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-25
 
 【檔案定位】
   ‧ 單一 HTML 檔案，純前端 JS，透過 gviz API 讀同一份試算表兩分頁，
@@ -122,9 +122,15 @@
 
 【稽核用必訪日規則（常數 MUST_VISIT_RULES，值來自【必訪規則】區塊）】
   ‧ 每條規則指定「通路＋等級」＋「必訪星期清單」：符合的店，該檔期
-    每週對應星期視為必定必訪日——不管當週次數有沒有達標，只要規則
-    指定的星期中有任一天查無紀錄，即視為未達必訪規則（跟「週應達
-    次數」是兩套獨立判斷，符合一項不代表符合另一項）。
+    每週對應星期視為必定必訪日——只要規則指定的星期中有任一天查無
+    紀錄，即視為未達必訪規則。
+  ‧ 1.26.0 起：若同一個「通路＋等級」在【等級對照】也設有次數標準
+    （即兩個區塊有交集），兩套判斷改成 AND──次數達標「跟」必訪規則
+    都要達成，這家店在對應範圍內才算達標；只要其中一項沒達成（次數
+    不足，或必訪星期缺勤），就算「未達」，並計入營業處執行狀況表／
+    檔期卡片的「未達店數」。沒有必訪規則的等級，或有必訪規則但這個
+    通路＋等級對不到任何【等級對照】標準（次數視為 0／等級未知）的
+    店家，則不受影響，維持各自原本的判斷方式。
   ‧ 只在「規定日已過去」才判未達（比照 _isWeekPast），當天/未來的
     必訪日顯示「尚未到期」。
   ‧ 畫面：週次格子加註星期小徽章（✓已到店／✖已過期未到店／·尚未
@@ -204,6 +210,19 @@
     把 <head> 裡那段 <script> 拿掉即可。
 
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.26.0  【等級對照】×【必訪規則】交集時，「達標」判斷從「兩套獨立」
+          改成「AND」（兩者都要達成才算達標，任一項沒達成都算未達）：
+          ①render()：主表格單店 isUnmet 改成 freqUnmet || isMvMiss（原本
+            只看次數 rowExp>0 && rowStdDone<rowExp），影響「🔴巡次未達
+            標」chip 計數與 FILTER.onlyUnmet 篩選；②_officeStatsFor()：
+            「營業處執行狀況總覽表」／手機卡片的「未達店數」欄位同步納入
+            必訪缺（每個時間窗口 cols 內任一天違反必訪規則即算未達）；
+            ③_statsFor()：檔期卡片（迷你表格）每週「未達」與整體
+            unmetCount 同步納入必訪缺。沒有設必訪規則的通路＋等級，三處
+            的 isMvMiss／wkMvMiss／rowMvMiss 皆恆為 false，公式自動退化成
+            原本只看次數的判斷，不影響這些店的既有行為。同步更新檔頭
+            【稽核用必訪日規則】說明、MUST_VISIT_RULES 變數註解、「📖 使用
+            說明」面板文字，避免文件跟實際行為不一致。
   1.25.5  「看版設定」防呆與可觀測性強化，皆為零風險改動（原本填對的設定
           行為完全不變，只讓填錯的情況變成「自動修正」或「看得到原因」）：
           ①新增 CFG_DIAG／「⚙️ 設定診斷」Dialog：_applyBoardConfig() 解析
@@ -2367,8 +2386,11 @@ function _isWeekPast(periodKey, week){
 /* ════ 稽核用「必訪日」規則（1.9.6 新增，見檔頭【稽核用必訪日規則】說明；
    1.20.0 改成可多條規則，來源是「看版設定」分頁【必訪規則】區塊）════
    例：量販通路＋量販A店，每個檔期週次裡的星期五、星期六視為必定必訪日；
-   跟 GRADE_FREQ 的「週應達次數」比對邏輯完全獨立，互不影響、互不覆蓋——
-   一個管「去了幾次」，一個管「規定的那天有沒有去」。同一店最多只吃第一條
+   1.26.0 起：若同一個「通路+等級」在 GRADE_FREQ／CHANNEL_DEFAULT_FREQ
+   也查得到次數標準（即跟【等級對照】有交集），兩套判斷改成 AND──次數
+   達標「且」必訪規則達成，才算真正達標，任一項沒達成都算未達（見
+   render()／_officeStatsFor()／_statsFor() 裡的 isMvMiss 判斷）；沒有
+   必訪規則的等級則不受影響，仍只看「週應達次數」。同一店最多只吃第一條
    相符的規則（同一個通路+等級不應該在設定表裡重複出現兩條規則）。 */
 var MUST_VISIT_RULES = []; /* [{chanKey, grade, weekdays:[0-6,...]}, ...]，getUTCDay()：0=日...5=五,6=六 */
 /* 1.24.0：原本總覽表「🚨必訪缺」欄／手機必訪卡片都寫死只在 ck==='量販'
@@ -2876,7 +2898,7 @@ function _statsFor(storesSubset, cols){
     if(!byGrade[s.grade]) byGrade[s.grade] = { count:0, exp:0, stdDone:0, weeks:{}, unmetCount:0 };
     var g = byGrade[s.grade];
     g.count++;
-    var rowExp=0, rowStdDone=0;
+    var rowExp=0, rowStdDone=0, rowMvMiss=false;
     cols.forEach(function(c){
       var actual = _actualCount(s.code, c.period, c.week);
       var colStd = _stdForCol(c.period, c.week, std); /* 1.22.0：非整週檔期最後一週折算應達次數 */
@@ -2884,11 +2906,17 @@ function _statsFor(storesSubset, cols){
       g.exp += exp; g.stdDone += stdDone;
       if(!g.weeks[c.week]) g.weeks[c.week] = { exp:0, stdDone:0, unmet:0 };
       g.weeks[c.week].exp += exp; g.weeks[c.week].stdDone += stdDone;
-      if(exp>0 && stdDone<exp) g.weeks[c.week].unmet++;
+      /* 1.26.0：【等級對照】次數標準 × 【必訪規則】交集時改採 AND 判斷──
+         這週次數沒達標，或這週剛好是必訪日卻沒到店，都算這週未達；沒有
+         必訪規則的店 mvSt 恆為 null，公式退化成原本只看次數的行為。 */
+      var mvSt = _mvWeekStatus(s, c.period, c.week);
+      var wkMvMiss = !!(mvSt && mvSt.violated);
+      if((exp>0 && stdDone<exp) || wkMvMiss) g.weeks[c.week].unmet++;
+      if(wkMvMiss) rowMvMiss = true;
       totalExp += exp; totalStdDone += stdDone;
       rowExp += exp; rowStdDone += stdDone;
     });
-    if(rowExp>0 && rowStdDone<rowExp) g.unmetCount++;
+    if((rowExp>0 && rowStdDone<rowExp) || rowMvMiss) g.unmetCount++;
   });
   return { rate: totalExp>0 ? (totalStdDone/totalExp*100) : 0, totalExp:totalExp, byGrade:byGrade };
 }
@@ -2925,7 +2953,11 @@ function _officeStatsFor(area, chanKey){
       exp += colStd; stdDone += stdDoneC; extra += Math.max(0, actual-colStd);
       rowExp += colStd; rowStdDone += stdDoneC;
     });
-    if(rowExp>0 && rowStdDone<rowExp) unmetCount++;
+    /* 1.26.0：【等級對照】次數標準 × 【必訪規則】交集時改採 AND 判斷──
+       任一項沒達成都算未達；沒有必訪規則的店 isMvMiss 恆為 false，公式
+       自動退化成原本只看次數的行為，不影響這些店的判斷。 */
+    var isMvMiss = cols.some(function(c){ var st=_mvWeekStatus(s,c.period,c.week); return st && st.violated; });
+    if((rowExp>0 && rowStdDone<rowExp) || isMvMiss) unmetCount++;
   });
   return { area:area, chanKey:chanKey||'', count:subset.length, exp:exp, stdDone:stdDone, extra:extra,
     unknownGrade:unknownGrade, unmetCount:unmetCount, rate: exp>0 ? (stdDone/exp*100) : 0 };
@@ -4042,8 +4074,13 @@ function render(){
       if(mv) mvMissTotal += mv.filter(function(d){ return !d.visited && d.isPast; }).length;
       colStats.push({ col:c, actual:actual, std:stdN, extra:extra, mv:mv });
     });
-    var isUnmet = rowExp>0 && rowStdDone<rowExp;
+    var freqUnmet = rowExp>0 && rowStdDone<rowExp;
     var isMvMiss = mvMissTotal>0;
+    /* 1.26.0：【等級對照】次數標準 × 【必訪規則】交集時改採 AND 判斷──
+       兩者都要達成才算達標，次數達標但必訪缺、或必訪達標但次數不足，都算
+       「未達」。沒有必訪規則的店 isMvMiss 恆為 false，公式自動退化成原本
+       只看次數的行為，不影響這些店的判斷。 */
+    var isUnmet = freqUnmet || isMvMiss;
     return { s:s, std:std, gradeLabel:gradeLabel, colStats:colStats, rowExp:rowExp, rowStdDone:rowStdDone, rowExtra:rowExtra, isUnmet:isUnmet,
       mvMissTotal:mvMissTotal, isMvMiss:isMvMiss,
       groupKey: s.area+'␟'+s.office+'␟'+s.staff };
@@ -5063,6 +5100,10 @@ function _buildManualContent(){
     + '提醒。次數合計欄與手機店卡不分視角都會多一顆「🚨 必訪缺」提示。'
     + '篩選列的「🚨 必訪未達」開關可以直接'
     + '篩出所有未符合標準店家，用法跟「🔴 巡次未達標」一樣，兩顆開關也能同時開。'
+    + '<b>有必訪規則的通路＋等級，「達標」現在需要次數跟必訪規則同時達成'
+    + '（AND）</b>：只要必訪日缺勤，即使這週次數已經衝到達標，這家店仍會'
+    + '被算進「🔴 巡次未達標」與「未達店數」；反過來，次數沒達到但必訪日'
+    + '都有到店，一樣算未達。沒有設必訪規則的等級不受影響，仍然只看次數。'
     + '不用點進明細也看得到：「營業處執行狀況總覽表」裡有設必訪規則的'
     + '通路欄位群組會多一欄「🚨必訪缺」（可點擊直接下鑽），旁邊「⚠️今日待完成」是'
     + '今天剛好是必訪日、還沒到店的預警（還不算未符合標準，先catch住不用等'
