@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.30.2 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
+  版本：Ver. 1.31.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
 
 【檔案定位】
   ‧ 單一 HTML 檔案，純前端 JS，透過 gviz API 讀同一份試算表兩分頁，
@@ -210,6 +210,31 @@
     把 <head> 裡那段 <script> 拿掉即可。
 ────────────────────────────────────────────────────────────
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.31.0  純內部重構，不改任何對外行為／數字／畫面（純代碼優化，非業務
+          需求）：「不足整週折算週．分組門檻」這段邏輯先前分別在
+          _statsFor()／_officeStatsFor()／_filteredUnmetSummary()／
+          _cellGroupMet() 四個函式裡，各自重寫一遍「用 _lastWeekQuota()
+          判斷是否觸發 → 數分組已達家數 → min/max 算出還缺幾家」的兩段式
+          流程——這正是 1.28.3～1.28.5、1.29.3～1.29.4 那一長串修 bug的
+          共同病灶：四份幾乎一樣的邏輯分開維護，改一處忘了改另一處，
+          數字就會對不起來。
+          這版抽出共用函式 _quotaUnitProgress(chanKey, grade, periodKey,
+          week, baseStd, storesPool)，把「觸發判斷＋算已達家數＋算還缺
+          幾家」收斂成單一入口，四個呼叫端改成呼叫同一份邏輯，各自只保留
+          自己需要的「分組粒度」（全國一次 / 逐營業處各自 / 篩選範圍內
+          各自 / 單店單組）與「輸出格式」（巢狀 byGrade.weeks / 扁平總計 /
+          groupRemain 查表 / 布林值）。往後這段算法只要改一次，四張表
+          保證同步，不會再有本輪重構前那種「三張表對不起來」的 bug 類別。
+          ‧ 驗證方式：寫了一組合成測試資料（涵蓋整週／折算檔期、會觸發
+            保底卡死機制與不會觸發的等級、多營業處、分組已達標但單店
+            未達標、等級未知店家等邊界情境），把四個函式在重構前／後
+            分別跑過同一組情境，逐欄位比對輸出，31 組情境全部逐位元組
+            相同，確認純重構、無行為變化。
+          ‧ 沒有動到的部分：_lastWeekQuota()／_gradeGroupAchievedCount()／
+            _stdGroupKey()／_stdForCol() 本身簽章與行為完全不變；四個
+            函式的外部呼叫方式（render()／renderOverview()／明細頁統計
+            卡／手機卡片）簽章不變、呼叫處不用跟著改；必訪規則
+            （_mvWeekStatus 等）不在這次重構範圍內，維持原樣。
   1.30.2  business 反映：主管切到單一週次（例如只勾 W3）看某家「分組已
           達標」的店，畫面上唯一顯眼的數字就是最左邊「次數合計」欄的
           「0/1 0.0%」——1.30.0/1.30.1 加的「🤝組已達標」說明只貼在右邊
@@ -2683,16 +2708,12 @@ function _filteredUnmetSummary(storesInScope, cols){
       var colStd = _stdForCol(c.period, c.week, baseStd);
       var poolMiss = grp.stores.filter(function(s){ return _actualCount(s.code, c.period, c.week) < colStd; }).length;
       poolUnmet += poolMiss;
-      var trigger = _lastWeekQuota(grp.chanKey, grp.grade, c.period, c.week, baseStd, grp.stores);
+      var progress = _quotaUnitProgress(grp.chanKey, grp.grade, c.period, c.week, baseStd, grp.stores);
       var colKey = gk+'␟'+c.period+'␟'+c.week;
-      if(trigger){
+      if(progress){
         quotaApplied = true;
-        var achieved = 0;
-        grp.stores.forEach(function(s){ if(_actualCount(s.code, c.period, c.week) >= colStd) achieved++; });
-        achieved = Math.min(achieved, trigger.quota);
-        var remain = Math.max(0, trigger.quota-achieved);
-        totalExp += trigger.quota; totalStdDone += achieved; totalUnmet += remain;
-        groupRemain[colKey] = { triggered:true, remaining:remain };
+        totalExp += progress.quota; totalStdDone += progress.stdDone; totalUnmet += progress.remaining;
+        groupRemain[colKey] = { triggered:true, remaining:progress.remaining };
       } else {
         var exp=0, done=0;
         grp.stores.forEach(function(s){
@@ -2715,6 +2736,31 @@ function _gradeGroupAchievedCount(quotaInfo, periodKey, week){
   quotaInfo.stores.forEach(function(s){ if(_actualCount(s.code, periodKey, week) >= stdN) n++; });
   return n;
 }
+/* ════ 1.31.0：分組門檻「一段完整查詢」，取代四個呼叫端（_statsFor／
+   _officeStatsFor／_filteredUnmetSummary／_cellGroupMet）原本各自手刻的
+   同一段「_lastWeekQuota 觸發判斷 → 數已達家數 → min/max 算還缺幾家」
+   邏輯（1.28.3～1.28.5、1.29.3～1.29.4 那一連串 bug，起因都是這段邏輯
+   被複製了四份，改一處忘了改另一處）。往後這段算法只在這裡改一次，四邊
+   同步生效，不會再因為手動同步漏掉而對不起來。
+   回傳 null＝這個（通路＋等級）這一週在 storesPool 這個範圍內不觸發分組
+   門檻機制，呼叫端應維持原本 _stdForCol() 逐店誠實邏輯；否則回傳：
+   { quota,            縮減後應達家數
+     rawAchieved,      這個範圍內「實際」達標家數，未封頂，可能比 quota 大
+                        （純顯示「目前真的有幾家去」用，例如 _statsFor 的
+                        wd.achieved 就是直接拿這個數字給使用者看，不能因為
+                        封頂而縮小，見該處呼叫端註解）
+     stdDone,           min(rawAchieved, quota)——彙總 exp/stdDone 用，
+                        避免這個範圍表現超標時把達成率衝過 100%
+     remaining,         max(0, quota-stdDone)，恆等於 max(0, quota-rawAchieved)
+     met }              remaining<=0 的布林捷徑，呼叫端不用再自己算一次 */
+function _quotaUnitProgress(chanKey, grade, periodKey, week, baseStd, storesPool){
+  var trigger = _lastWeekQuota(chanKey, grade, periodKey, week, baseStd, storesPool);
+  if(!trigger) return null;
+  var rawAchieved = _gradeGroupAchievedCount(trigger, periodKey, week);
+  var stdDone = Math.min(rawAchieved, trigger.quota);
+  var remaining = Math.max(0, trigger.quota-stdDone);
+  return { quota:trigger.quota, rawAchieved:rawAchieved, stdDone:stdDone, remaining:remaining, met:remaining<=0 };
+}
 /* 1.30.0：單店單欄「所屬分組是否已達縮減後家數門檻」的獨立查詢版——給
    手機卡片用。手機一次只看 MOBILE_SEL 這一週，跟桌機篩選列的檔期/週次
    chip（決定 cols／_filteredUnmetSummary 的計算範圍）是各自獨立的狀態
@@ -2730,10 +2776,8 @@ function _cellGroupMet(s, period, week, baseStd, stdN, actual){
   var gk = _stdGroupKey(s.chanKey, s.grade);
   if(!gk) return false;
   var pool = STORE_ROWS.filter(function(x){ return x.area===s.area && _stdGroupKey(x.chanKey, x.grade)===gk; });
-  var trigger = _lastWeekQuota(s.chanKey, s.grade, period, week, baseStd, pool);
-  if(!trigger) return false;
-  var achieved = Math.min(_gradeGroupAchievedCount(trigger, period, week), trigger.quota);
-  return Math.max(0, trigger.quota-achieved) <= 0;
+  var progress = _quotaUnitProgress(s.chanKey, s.grade, period, week, baseStd, pool);
+  return !!(progress && progress.met);
 }
 function _classifyParts(parts){
   if(!parts) return null;
@@ -3351,18 +3395,15 @@ function _statsFor(storesSubset, cols, chanKey){
       if(!trigger) return;
       var wk = g.weeks[c.week];
       if(!wk) return;
-      var stdN = _stdForCol(c.period, c.week, trigger.std);
       var areas = {};
       gradeStores.forEach(function(s){ areas[s.area] = true; });
       var totalQuota = 0, totalAchieved = 0;
       Object.keys(areas).forEach(function(area){
         var officeStores = gradeStores.filter(function(s){ return s.area===area; });
-        var q2 = _lastWeekQuota(chanKey, gradeKey, c.period, c.week, baseStd, officeStores);
-        if(!q2) return;
-        var achieved = 0;
-        officeStores.forEach(function(s){ if(_actualCount(s.code, c.period, c.week) >= stdN) achieved++; });
-        totalQuota += q2.quota;
-        totalAchieved += Math.min(achieved, q2.quota);
+        var progress = _quotaUnitProgress(chanKey, gradeKey, c.period, c.week, baseStd, officeStores);
+        if(!progress) return;
+        totalQuota += progress.quota;
+        totalAchieved += progress.stdDone;
       });
       var newExp = totalQuota, newStdDone = totalAchieved, newUnmet = Math.max(0, totalQuota-totalAchieved);
       g.exp += (newExp - wk.exp); g.stdDone += (newStdDone - wk.stdDone);
@@ -3444,17 +3485,13 @@ function _officeStatsFor(area, chanKey){
        不受影響，跟 _statsFor 同一套判斷。每一週各自獨立判斷是否觸發，
        單週檢視／多週彙總套的是同一段邏輯，不因為選取範圍改變算法。 */
     cols.forEach(function(c){
-      var q = _lastWeekQuota(chanKey, gradeKey, c.period, c.week, baseStd, stores);
-      if(!q) return;
+      var progress = _quotaUnitProgress(chanKey, gradeKey, c.period, c.week, baseStd, stores);
+      if(!progress) return;
       var wk = weeks[c.week];
-      var stdN = _stdForCol(c.period, c.week, q.std);
-      var achieved = 0;
-      stores.forEach(function(s){ if(_actualCount(s.code, c.period, c.week) >= stdN) achieved++; });
-      var newExp = q.quota, newStdDone = Math.min(achieved, q.quota);
-      exp += (newExp - wk.exp); stdDone += (newStdDone - wk.stdDone);
-      wk.exp = newExp; wk.stdDone = newStdDone;
-      wk.quotaApplied = true; wk.achieved = achieved; wk.quota = q.quota;
-      wk.unmet = Math.max(0, q.quota - achieved);
+      exp += (progress.quota - wk.exp); stdDone += (progress.stdDone - wk.stdDone);
+      wk.exp = progress.quota; wk.stdDone = progress.stdDone;
+      wk.quotaApplied = true; wk.achieved = progress.rawAchieved; wk.quota = progress.quota;
+      wk.unmet = progress.remaining;
       quotaApplied = true;
     });
 
