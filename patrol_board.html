@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.29.1 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
+  版本：Ver. 1.29.2 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
 
 【檔案定位】
   ‧ 單一 HTML 檔案，純前端 JS，透過 gviz API 讀同一份試算表兩分頁，
@@ -210,6 +210,27 @@
     把 <head> 裡那段 <script> 拿掉即可。
 ────────────────────────────────────────────────────────────
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.29.2  business 六次確認：1.29.1 的 ⓘ 提示沒有解決問題——業務主管
+          沒空研究「逐店誠實比對」跟「縮減後家數」兩套算法為什麼不同，
+          畫面上的數字就應該直接等於「還缺多少」，不該叫人 hover 看
+          說明。這版不再解釋兩套算法，而是把明細頁（chip／統計卡／
+          CSV·LINE 匯出摘要）的「未達／應達／達成率」headline 數字，
+          直接改用跟總覽頁同一套「這個範圍還缺幾家」算法（新增
+          _filteredUnmetSummary()，範圍＝目前篩選出的這批店，不是
+          總覽頁的全國範圍，但套用同一套「觸發折算週→改用縮減後家數」
+          判斷）：
+          ‧ 🔴 chip：觸發時文字改成「還缺N家達標（可從M家中補）」，
+            N＝縮減後家數版本的未達家數（跟總覽頁同一套算法），M＝
+            逐店誠實比對下的家數（開關展開後表格仍列出這 M 家，方便
+            現場直接挑人補訪，不受影響）；未觸發時退化回原本「巡次
+            未達標（N）」，跟總覽頁本來就不會對不起來。
+          ‧ 統計卡「應達總次數」「目標達成率」比照同一套判斷切換。
+          ‧ CSV 下載／LINE 複製摘要（_summaryForShare()）的 headline
+            數字（應達／達成率）比照同一套邏輯調整，避免匯出檔案上的
+            數字又跟畫面對不起來（CSV 逐店明細列不受影響，仍誠實逐店
+            顯示）。
+          個別店家格子（0/1、超額+N）、CSV 逐店明細列維持照實顯示，
+          不受影響——這部分本來就沒問題，是拿來看「誰做了誰沒做」用的。
   1.29.1  business 反映：切到不足整週折算週時，明細頁「🔴巡次未達標」
           篩選 chip 顯示的家數（逐店誠實比對）跟總覽頁「營業處執行狀況」
           未達店數欄（縮減後家數版本）對不起來，一個169一個30，看起來
@@ -5470,9 +5491,19 @@ function _summaryForShare(){
     if(std!==undefined){ totalExp+=exp; totalStdDone+=stdDone; totalExtra+=extra; }
     return { store:s, exp:exp, stdDone:stdDone, extra:extra, mvMissTotal:mvMissTotal, rate: exp>0?(stdDone/exp*100):0 };
   });
-  return { stores:perStore, totalExp:totalExp, totalStdDone:totalStdDone, totalExtra:totalExtra,
+  /* 1.29.2：CSV／LINE 匯出摘要的「應達／達成率」headline 數字，改跟畫面
+     上 chip／統計卡用同一套 _filteredUnmetSummary()（見 render()），否則
+     匯出的檔案會跟畫面看到的數字對不起來——這正是這一版原本要解決的
+     「兩個數字對不上」問題，只是換了個地方重演。逐店明細（CSV 每一列
+     的應達/達標/超額）仍然維持誠實逐店顯示，不受影響，只有摘要行的
+     加總數字換算法。 */
+  var unmetSummary = _filteredUnmetSummary(stores, cols);
+  var expOut = unmetSummary.quotaApplied ? unmetSummary.totalExp : totalExp;
+  var doneOut = unmetSummary.quotaApplied ? unmetSummary.totalStdDone : totalStdDone;
+  var rateOut = expOut>0 ? (doneOut/expOut*100).toFixed(1) : '0.0';
+  return { stores:perStore, totalExp:expOut, totalStdDone:doneOut, totalExtra:totalExtra,
     totalMvMiss: perStore.reduce(function(sum,it){ return sum+it.mvMissTotal; }, 0),
-    rate: totalExp>0 ? (totalStdDone/totalExp*100).toFixed(1) : '0.0' };
+    rate: rateOut };
 }
 function buildCsvContent(){
   var data = _summaryForShare();
