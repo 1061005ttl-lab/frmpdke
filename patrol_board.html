@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.34.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
+  版本：Ver. 1.35.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
 
 【檔案定位】
   ‧ 單一 HTML 檔案，純前端 JS，透過 gviz API 讀同一份試算表兩分頁，
@@ -210,6 +210,26 @@
     把 <head> 裡那段 <script> 拿掉即可。
 ────────────────────────────────────────────────────────────
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.35.0  business 反映：1.34.0「👥 分組貢獻度」排行 Dialog 三個問題——
+          ①沒辦法只看單一檔期，中元／中秋全部訪員混在一起排；②只顯示
+          「營業處」沒有「營業所」；③同一位訪員名下不同（通路＋等級）
+          分組的 met/ride/stillShort 被合併成一筆數字，反而看不出「是
+          哪個分組在搭便車」，跟「明知道是分組統計」自相矛盾。
+          改法：
+          ‧ _buildStaffContribution() 新增 periodFilter 參數（null＝整體
+            全部檔期合併，或指定某個檔期 key）；彙總鍵改成「營業處＋
+            營業所＋訪員＋所屬分組」，一位訪員名下有幾個分組就拆成幾列，
+            不再合併，配合新增的「通路」「等級」兩欄直接看得出來。
+          ‧ Dialog 內新增「檔期」分頁（整體＋逐個檔期，跟主表篩選列的
+            檔期 chip 各自獨立狀態）跟「營業處」分頁（比照總覽頁其他
+            地方的 AREA_ORDER 排序，只列這個檔期分頁底下真的有資料的
+            處），切檔期會重新彙總（不同檔期觸發縮減機制的組合不同，
+            不能只篩既有清單），切營業處純篩選、不重算。
+          ‧ 表格欄位加「營業所」「通路」「等級」，展開明細維持逐店逐週
+            清單，CSV／複製文字同步補上這幾欄與目前選定的檔期/營業處
+            範圍標註。
+          影響範圍：只改 1.34.0 新增的這批函式（_buildStaffContribution／
+          Dialog 建構／CSV／LINE 匯出），不影響其他既有計算或畫面。
   1.34.0  business 反映：「不足整週」折算週分組門檻（見上方 1.28.2 系列
           說明）刻意「不點名哪一家店」——分組（同營業處＋通路＋等級）
           縮減後家數一旦達標，底下沒去的店只會友善顯示「🤝組已達標，
@@ -1321,6 +1341,8 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
 .contrib-sort-btn { padding:3px 10px; border:1px solid var(--border); border-radius:12px; font-size:12px; font-weight:700; cursor:pointer; color:var(--sub); background:#fff; font-family:inherit; }
 .contrib-sort-btn:hover { background:var(--bg); }
 .contrib-sort-btn.active { background:var(--info); border-color:var(--info); color:#fff; }
+.contrib-tab-row { margin-bottom:8px; }
+.contrib-tab-label { font-size:12px; font-weight:700; color:var(--sub); align-self:center; padding:0 2px; }
 .contrib-row { cursor:pointer; }
 .contrib-row:hover { background:var(--bg); }
 .contrib-detail-row td { background:#FAFAF7; padding:8px 10px 12px; }
@@ -2911,8 +2933,8 @@ function _cellGroupMet(s, period, week, baseStd, stdN, actual){
   var progress = _quotaUnitProgress(s.chanKey, s.grade, period, week, baseStd, pool);
   return !!(progress && progress.met);
 }
-/* ════ 1.34.0：👥 分組貢獻度──把「不足整週」折算週分組門檻（見上方
-   1.28.2 系列）已經達標這件事，從「分組」再往上拆到「訪員」這一層。
+/* ════ 1.34.0／1.35.0：👥 分組貢獻度──把「不足整週」折算週分組門檻（見
+   上方 1.28.2 系列）已經達標這件事，從「分組」再往上拆到「訪員」這一層。
    分組層級的「🤝已達標，免驚」設計是刻意不點名哪一家店（見 1.30.0 說明：
    分組門檻本來就只知道「還缺幾家」，答不出「具體是哪一家」），這裡不
    推翻那個原則、也不改任何店家格子/明細的顯示或計算——單純針對「訪員」
@@ -2926,13 +2948,24 @@ function _cellGroupMet(s, period, week, baseStd, stdN, actual){
      次數分三種：met（自己這格已達標）／ride（自己未達標，但所屬分組
      已達縮減後門檻，等於搭了同組其他店的便車）／stillShort（自己未
      達標，分組也還沒達標，大家都還在缺，不算搭便車）。
-   ‧ 依（營業處＋訪員）彙總，只有「出現過至少一個算入範圍實例」的訪員
-     才會列入，避免排行塞滿一堆「0/0」沒有意義的人名。
+   ‧ 1.35.0 business 反映：原版把同一位訪員名下所有（通路＋等級）分組
+     混成一筆數字，「這位訪員到底是哪個分組在搭便車」反而看不出來；
+     且只顯示「營業處」沒有「營業所」，也沒辦法只看單一檔期（中元／
+     中秋）。改法：
+     ①彙總鍵改成（營業處＋營業所＋訪員＋所屬分組），一位訪員名下有
+       幾個分組，就會拆成幾列，不再合併——「各組資料混在一起」的問題
+       從根本上解決，不用再點開明細才看得出來是哪個分組；
+     ②新增 periodFilter 參數（null＝整體所有檔期合併，或指定某個檔期
+       key＝只算那個檔期），呼叫端（Dialog 的檔期分頁）決定要看哪個
+       範圍，本函式不自己選；
+     ③Dialog 另外提供「營業處」分頁（比照 renderOfficeOverview 手機版
+       ◄／► 切換器的手感，這裡用橫向 tab），一次只看一個處，不用在
+       一張長表裡自己找。
    ‧ 刻意不對「有沒有躺分」下死板門檻——met/ride/stillShort 三個原始
      計數跟 contributionPct（met/total）都攤開給使用者自己判斷，不用
      系統幫忙貼「躺分」這種評價性標籤，跟本檔一貫「數字誠實顯示」原則
      一致。 */
-function _buildStaffContribution(){
+function _buildStaffContribution(periodFilter){
   var groups = {};
   STORE_ROWS.forEach(function(s){
     var std = _stdFreq(s);
@@ -2942,10 +2975,17 @@ function _buildStaffContribution(){
     var key = s.area+'␟'+gk;
     (groups[key] = groups[key] || { area:s.area, chanKey:s.chanKey, grade:s.grade, baseStd:std, stores:[] }).stores.push(s);
   });
-  var byStaff = {}; /* key: area␟staff -> { area, staff, met, ride, stillShort, detail:[] } */
-  Object.keys(groups).forEach(function(gkKey){
-    var grp = groups[gkKey];
+  /* 1.35.0：彙總鍵加回「營業所」＋「所屬分組」（gk）——一位訪員在同一個
+     營業處底下，名下可能同時有量販A、量販B、全聯…等不同分組的店，這裡
+     刻意不合併，讓每個分組各自成一列，配合上方「通路／等級」欄位直接
+     看得出「是哪個分組在搭便車」，不用點開明細才知道。 */
+  var byRow = {}; /* key: area␟office␟staff␟gk -> row */
+  Object.keys(groups).forEach(function(gkKeyOuter){
+    var grp = groups[gkKeyOuter];
+    var gk = _stdGroupKey(grp.chanKey, grp.grade);
+    var gradeLabel = _labelForGradeKey(grp.chanKey, grp.grade);
     PERIODS.forEach(function(p){
+      if(periodFilter && p.key!==periodFilter) return; /* 1.35.0：只算指定檔期，null 則不篩、全部檔期都算 */
       var periodLabel = (p.label||p.key).replace('專案','');
       for(var week=1; week<=p.weeks; week++){
         var progress = _quotaUnitProgress(grp.chanKey, grp.grade, p.key, week, grp.baseStd, grp.stores);
@@ -2954,16 +2994,19 @@ function _buildStaffContribution(){
         grp.stores.forEach(function(s){
           var actual = _actualCount(s.code, p.key, week);
           var status = actual>=stdN ? 'met' : (progress.met ? 'ride' : 'stillShort');
-          var bk = s.area+'␟'+(s.staff||'（未填訪員）');
-          var b = byStaff[bk] = byStaff[bk] || { area:s.area, staff:(s.staff||'（未填訪員）'), met:0, ride:0, stillShort:0, detail:[] };
-          b[status]++;
-          b.detail.push({ storeName:s.storeName, code:s.code, chanKey:s.chanKey, gradeLabel:_gradeLabel(s),
-            period:p.key, periodLabel:periodLabel, week:week, actual:actual, std:stdN, status:status });
+          var staffName = s.staff || '（未填訪員）';
+          var officeName = s.office || '（未填營業所）';
+          var rk = s.area+'␟'+officeName+'␟'+staffName+'␟'+gk;
+          var row = byRow[rk] = byRow[rk] || { area:s.area, office:officeName, staff:staffName,
+            chanKey:grp.chanKey, gradeLabel:gradeLabel, met:0, ride:0, stillShort:0, detail:[] };
+          row[status]++;
+          row.detail.push({ storeName:s.storeName, code:s.code, period:p.key, periodLabel:periodLabel,
+            week:week, actual:actual, std:stdN, status:status });
         });
       }
     });
   });
-  var list = Object.keys(byStaff).map(function(k){ return byStaff[k]; });
+  var list = Object.keys(byRow).map(function(k){ return byRow[k]; });
   list.forEach(function(b){
     b.total = b.met + b.ride + b.stillShort;
     b.contributionPct = b.total>0 ? (b.met/b.total*100) : 0;
@@ -2971,10 +3014,16 @@ function _buildStaffContribution(){
   return list;
 }
 var _contribSortKey = 'ride'; /* 'ride' | 'contribution' | 'met' | 'total' */
-var _contribExpandedSet = {}; /* key: area␟staff -> true（展開狀態，跨排序保留） */
-var _contribCache = null;
+var _contribExpandedSet = {}; /* key: area␟office␟staff␟chanKey␟gradeLabel -> true（展開狀態，跨排序/切換分頁保留） */
+var _contribCache = null;      /* 目前檔期分頁算出來的完整清單（未套用營業處分頁篩選） */
+var _contribPeriodSel = null;  /* null＝整體（全部檔期合併）；或某個 PERIODS key，只看該檔期 */
+var _contribAreaSel = '全部';  /* '全部' 或某個營業處名稱，Dialog 內的營業處分頁狀態 */
+function _contribRecompute(){
+  _contribCache = _buildStaffContribution(_contribPeriodSel);
+}
 function _contribSortedList(){
-  var list = (_contribCache || (_contribCache = _buildStaffContribution())).slice();
+  if(!_contribCache) _contribRecompute();
+  var list = _contribAreaSel==='全部' ? _contribCache.slice() : _contribCache.filter(function(b){ return b.area===_contribAreaSel; });
   var key = _contribSortKey;
   list.sort(function(a,b){
     if(key==='contribution') return a.contributionPct-b.contributionPct;
@@ -2990,11 +3039,15 @@ function toggleContribSummary(){
   renderOfficeOverview();
 }
 /* 總覽頁「營業處執行狀況」表格上方的摘要列，樣式跟手感比照既有的
-   「🚨 必訪稽核」摘要列（.ov-mv-summary／收合成一行的乾淨態）。 */
+   「🚨 必訪稽核」摘要列（.ov-mv-summary／收合成一行的乾淨態）。摘要列
+   本身維持「整體、不分檔期」的全域提醒，不分檔期／營業處分頁是 Dialog
+   點開之後才選的細節，這裡只負責「有沒有這回事、要不要點進去看」。 */
 function _buildContribSummaryHtml(){
-  var list = _buildStaffContribution();
+  var list = _buildStaffContribution(null);
   var totalRide = list.reduce(function(sum,b){ return sum+b.ride; }, 0);
-  var rideStaffCount = list.filter(function(b){ return b.ride>0; }).length;
+  var rideStaffSet = {};
+  list.forEach(function(b){ if(b.ride>0) rideStaffSet[b.area+'␟'+b.office+'␟'+b.staff]=true; });
+  var rideStaffCount = Object.keys(rideStaffSet).length;
   var clean = totalRide===0;
   if(clean && !CONTRIB_SUMMARY_EXPANDED){
     return '<div class="ov-mv-summary ov-mv-summary-clean" onclick="toggleContribSummary()" role="button" tabindex="0">'
@@ -3014,12 +3067,14 @@ function _buildContribSummaryHtml(){
     + '</div>';
 }
 /* 訪員貢獻度排行 Dialog：沿用店家明細／訪員總覽共用的 #detail-dialog
-   骨架（dlg-title／dlg-header-actions／dlg-body），點開當下重新計算一次
-   （_contribCache 只在同一次開啟內的排序/展開操作間快取，避免每次排序
-   都重掃全部店家）。 */
+   骨架（dlg-title／dlg-header-actions／dlg-body）。點開時重設成「整體＋
+   全部營業處」，之後切換檔期／營業處分頁都只重繪 dlg-body，不重開整個
+   Dialog。 */
 function openStaffContribution(){
   _detailCode = null;
-  _contribCache = _buildStaffContribution();
+  _contribPeriodSel = null;
+  _contribAreaSel = '全部';
+  _contribRecompute();
   document.getElementById('dlg-title').textContent = '👥 訪員分組貢獻度排行（不足整週折算週）';
   document.getElementById('dlg-header-actions').innerHTML = _contribCache.length
     ? '<button class="dlg-action-btn" id="contrib-csv-btn" onclick="_contribDownloadCsv(event)"><span>📥</span><span class="btn-txt"> CSV</span></button>'
@@ -3030,6 +3085,22 @@ function openStaffContribution(){
   dlg.style.display = 'flex';
   setTimeout(function(){ dlg.classList.add('open'); }, 10);
 }
+/* 1.35.0：切檔期分頁要重新彙總（不同檔期觸發縮減機制的組合不一樣，
+   不能只靠篩選既有清單），切營業處分頁純粹是篩選同一份清單，不用重算。 */
+function _contribSetPeriod(p){
+  _contribPeriodSel = p || null;
+  _contribAreaSel = '全部'; /* 換檔期後營業處分頁重置回「全部」，避免切到某個處剛好在新檔期沒資料，畫面看起來像壞掉 */
+  _contribRecompute();
+  document.getElementById('dlg-header-actions').innerHTML = _contribCache.length
+    ? '<button class="dlg-action-btn" id="contrib-csv-btn" onclick="_contribDownloadCsv(event)"><span>📥</span><span class="btn-txt"> CSV</span></button>'
+      + '<button class="dlg-action-btn" id="contrib-line-btn" onclick="_contribCopyLine(event)"><span>💬</span><span class="btn-txt"> 複製文字</span></button>'
+    : '';
+  document.getElementById('dlg-body').innerHTML = _buildContribDialogHtml();
+}
+function _contribSetArea(a){
+  _contribAreaSel = a;
+  document.getElementById('dlg-body').innerHTML = _buildContribDialogHtml();
+}
 function _contribSetSort(key){
   _contribSortKey = key;
   document.getElementById('dlg-body').innerHTML = _buildContribDialogHtml();
@@ -3039,9 +3110,37 @@ function _contribToggleExpand(key){
   document.getElementById('dlg-body').innerHTML = _buildContribDialogHtml();
 }
 function _buildContribDialogHtml(){
+  /* 檔期分頁：整體（全部檔期合併）＋ PERIODS 逐一列出，跟主表篩選列
+     的檔期 chip 是各自獨立的狀態，互不影響。 */
+  var periodTabs = '<span class="contrib-tab-label">檔期：</span>'
+    + '<div class="chip'+(_contribPeriodSel===null?' active':'')+'" onclick="_contribSetPeriod(null)">整體</div>'
+    + PERIODS.map(function(p){
+        var icon = p.icon || DEFAULT_PERIOD_ICON;
+        var label = (p.label||p.key).replace('專案','');
+        return '<div class="chip'+(_contribPeriodSel===p.key?' active':'')+'" onclick="_contribSetPeriod(\''+p.key+'\')">'+icon+' '+esc(label)+'</div>';
+      }).join('');
+  /* 營業處分頁：只列目前這個檔期分頁底下「真的有資料」的處，依 AREA_ORDER
+     排序、AREA_ORDER 沒列到的處排在後面，跟總覽頁其他地方的處排序一致。 */
+  var areasPresent = [];
+  (_contribCache||[]).forEach(function(b){ if(areasPresent.indexOf(b.area)===-1) areasPresent.push(b.area); });
+  areasPresent.sort(function(a,b){
+    var ia = AREA_ORDER.indexOf(a), ib = AREA_ORDER.indexOf(b);
+    if(ia===-1) ia = 999; if(ib===-1) ib = 999;
+    return ia!==ib ? ia-ib : (a<b?-1:(a>b?1:0));
+  });
+  var areaTabs = areasPresent.length
+    ? '<span class="contrib-tab-label">營業處：</span>'
+      + '<div class="chip'+(_contribAreaSel==='全部'?' active':'')+'" onclick="_contribSetArea(\'全部\')">全部（'+areasPresent.length+'處）</div>'
+      + areasPresent.map(function(a){
+          return '<div class="chip'+(_contribAreaSel===a?' active':'')+'" onclick="_contribSetArea(\''+esc(a).replace(/'/g,"\\'")+'\')">'+esc(a)+'</div>';
+        }).join('')
+    : '';
   var list = _contribSortedList();
   if(!list.length){
-    return '<div class="visit-timeline"><div class="empty">目前沒有觸發「不足整週」分組門檻機制的資料——可能是所有檔期都還沒進到不足整週的最後一週，或所有等級折算後的次數本身還降得動、沒有卡在保底1次，尚未觸發分組門檻。</div></div>';
+    return '<div class="visit-timeline">'
+      + '<div class="chip-group contrib-tab-row">'+periodTabs+'</div>'
+      + (areaTabs ? '<div class="chip-group contrib-tab-row">'+areaTabs+'</div>' : '')
+      + '<div class="empty">目前這個範圍沒有觸發「不足整週」分組門檻機制的資料——可能是所選檔期都還沒進到不足整週的最後一週，或所有等級折算後的次數本身還降得動、沒有卡在保底1次，尚未觸發分組門檻。</div></div>';
   }
   var totalMet=0, totalRide=0, totalShort=0;
   list.forEach(function(b){ totalMet+=b.met; totalRide+=b.ride; totalShort+=b.stillShort; });
@@ -3050,7 +3149,7 @@ function _buildContribDialogHtml(){
     return '<button class="contrib-sort-btn'+(_contribSortKey===d[0]?' active':'')+'" onclick="_contribSetSort(\''+d[0]+'\')">'+d[1]+'</button>';
   }).join('');
   var rowsHtml = list.map(function(b){
-    var key = b.area+'␟'+b.staff;
+    var key = b.area+'␟'+b.office+'␟'+b.staff+'␟'+b.chanKey+'␟'+b.gradeLabel;
     var expanded = !!_contribExpandedSet[key];
     var safeKey = key.replace(/'/g,"\\'");
     var detailRows = b.detail.slice().sort(function(x,y){
@@ -3064,8 +3163,6 @@ function _buildContribDialogHtml(){
           ? '<span class="contrib-tag contrib-tag-ride">🤝 靠分組過關</span>'
           : '<span class="contrib-tag contrib-tag-short">⏳ 分組也還沒過關</span>';
       return '<tr><td class="td-left">'+esc(d.storeName)+'<div class="td-code">'+esc(d.code)+'</div></td>'
-        + '<td>'+esc(d.chanKey||'—')+'</td>'
-        + '<td>'+esc(d.gradeLabel)+'</td>'
         + '<td>'+esc(d.periodLabel)+' W'+d.week+'</td>'
         + '<td>'+d.actual+'/'+d.std+'</td>'
         + '<td>'+statusHtml+'</td></tr>';
@@ -3073,6 +3170,9 @@ function _buildContribDialogHtml(){
     return '<tr class="contrib-row" onclick="_contribToggleExpand(\''+safeKey+'\')">'
       + '<td class="td-left">'+(expanded?'▾':'▸')+' '+esc(b.staff)+'</td>'
       + '<td>'+esc(b.area)+'</td>'
+      + '<td>'+esc(b.office)+'</td>'
+      + '<td>'+esc(b.chanKey||'—')+'</td>'
+      + '<td>'+esc(b.gradeLabel)+'</td>'
       + '<td style="color:var(--green);font-weight:700;">'+b.met+'</td>'
       + '<td style="color:var(--info);font-weight:700;">'+b.ride+'</td>'
       + '<td style="color:var(--sub);">'+b.stillShort+'</td>'
@@ -3080,47 +3180,51 @@ function _buildContribDialogHtml(){
       + '<td style="font-weight:700;">'+b.contributionPct.toFixed(0)+'%</td>'
       + '</tr>'
       + (expanded
-          ? '<tr class="contrib-detail-row"><td colspan="7"><table class="ov-mini contrib-detail-tbl"><tr><th class="td-left">店家</th><th>通路</th><th>等級</th><th>檔期週次</th><th>次數</th><th>狀態</th></tr>'+detailRows+'</table></td></tr>'
+          ? '<tr class="contrib-detail-row"><td colspan="10"><table class="ov-mini contrib-detail-tbl"><tr><th class="td-left">店家</th><th>檔期週次</th><th>次數</th><th>狀態</th></tr>'+detailRows+'</table></td></tr>'
           : '');
   }).join('');
   return '<div class="visit-timeline">'
-    + '<p style="font-size:12.5px;color:var(--sub);line-height:1.6;margin:0 0 10px;">只統計「不足整週」折算週、且分組已觸發縮減後家數門檻的範圍，平常整週的欄位不影響這份排行。「🤝 靠分組過關」代表這位訪員名下有店這週還沒去，但所屬分組（同營業處＋通路＋等級）已經靠其他店達到縮減後門檻；「分組也還沒過關」代表這組這週還沒到門檻，大家都還在缺，不算搭便車。這裡只攤開原始次數，不代替你判斷「算不算躺分」——點一列訪員可以展開看名下逐店明細。</p>'
+    + '<p style="font-size:12.5px;color:var(--sub);line-height:1.6;margin:0 0 10px;">只統計「不足整週」折算週、且分組已觸發縮減後家數門檻的範圍，平常整週的欄位不影響這份排行。同一位訪員名下不同（通路＋等級）分組會分開各成一列，不合併。「🤝 靠分組過關」代表這位訪員名下這個分組這週還沒去，但所屬分組（同營業處＋通路＋等級）已經靠其他店達到縮減後門檻；「分組也還沒過關」代表這組這週還沒到門檻，大家都還在缺，不算搭便車。這裡只攤開原始次數，不代替你判斷「算不算躺分」——點一列可以展開看逐店明細。</p>'
+    + '<div class="chip-group contrib-tab-row">'+periodTabs+'</div>'
+    + (areaTabs ? '<div class="chip-group contrib-tab-row">'+areaTabs+'</div>' : '')
     + '<div class="visit-summary">'
     + '<div class="vs-item">自己達標實例<br><b style="color:var(--green)">'+totalMet+'</b></div>'
     + '<div class="vs-item">靠分組過關實例<br><b style="color:var(--info)">'+totalRide+'</b></div>'
     + '<div class="vs-item">分組尚未過關實例<br><b>'+totalShort+'</b></div>'
     + '</div>'
     + '<div class="contrib-sort-bar">排序：'+sortBtns+'</div>'
-    + '<div class="oo-tbl-scroll"><table class="ov-mini" style="width:100%;"><tr><th class="td-left">訪員</th><th>營業處</th><th>自己達標</th><th>🤝靠分組過關</th><th>分組尚未過關</th><th>合計實例</th><th>貢獻度%</th></tr>'+rowsHtml+'</table></div>'
+    + '<div class="oo-tbl-scroll"><table class="ov-mini" style="width:100%;"><tr><th class="td-left">訪員</th><th>營業處</th><th>營業所</th><th>通路</th><th>等級</th><th>自己達標</th><th>🤝靠分組過關</th><th>分組尚未過關</th><th>合計實例</th><th>貢獻度%</th></tr>'+rowsHtml+'</table></div>'
     + '</div>';
 }
 function _contribDownloadCsv(evt){
   var btn = evt ? evt.currentTarget : document.getElementById('contrib-csv-btn');
   var list = _contribSortedList();
   if(!list.length){ _flashBtn(btn,'⚠️ 無資料'); return; }
-  var headers = ['訪員','營業處','自己達標實例','靠分組過關實例','分組尚未過關實例','合計實例','貢獻度%'];
+  var headers = ['訪員','營業處','營業所','通路','等級','自己達標實例','靠分組過關實例','分組尚未過關實例','合計實例','貢獻度%'];
   var rows = [headers];
   list.forEach(function(b){
-    rows.push([b.staff, b.area, b.met, b.ride, b.stillShort, b.total, b.contributionPct.toFixed(1)]);
+    rows.push([b.staff, b.area, b.office, b.chanKey||'', b.gradeLabel, b.met, b.ride, b.stillShort, b.total, b.contributionPct.toFixed(1)]);
   });
+  var scopeLabel = (_contribPeriodSel ? _contribPeriodSel : '整體(全部檔期)') + (_contribAreaSel!=='全部' ? '_'+_contribAreaSel : '');
   var csv = '\uFEFF'+rows.map(function(r){
     return r.map(function(c){ var s=String(c==null?'':c); return /[,"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join(',');
   }).join('\n');
-  _triggerCsvDownload(csv, PROJ_NAME+'_訪員分組貢獻度排行');
+  _triggerCsvDownload(csv, PROJ_NAME+'_訪員分組貢獻度排行_'+scopeLabel);
   _flashBtn(btn,'✅ 已下載');
 }
 function _contribCopyLine(evt){
   var btn = evt ? evt.currentTarget : document.getElementById('contrib-line-btn');
   var list = _contribSortedList();
   if(!list.length){ _flashBtn(btn,'⚠️ 無資料'); return; }
-  var lines = ['👥 訪員分組貢獻度排行（不足整週折算週）', ''];
+  var scopeLabel = (_contribPeriodSel ? _contribPeriodSel : '整體(全部檔期)') + '　營業處：'+_contribAreaSel;
+  var lines = ['👥 訪員分組貢獻度排行（不足整週折算週）', '範圍：'+scopeLabel, ''];
   var rideList = list.filter(function(b){ return b.ride>0; });
   if(rideList.length){
     rideList.forEach(function(b){
-      lines.push('🤝 '+b.staff+'（'+b.area+'）　靠分組過關 '+b.ride+' 次　自己達標 '+b.met+'/'+b.total+'（貢獻度 '+b.contributionPct.toFixed(0)+'%）');
+      lines.push('🤝 '+b.staff+'（'+b.area+' '+b.office+'／'+b.chanKey+' '+b.gradeLabel+'）　靠分組過關 '+b.ride+' 次　自己達標 '+b.met+'/'+b.total+'（貢獻度 '+b.contributionPct.toFixed(0)+'%）');
     });
   } else {
-    lines.push('目前沒有「靠分組過關」的實例。');
+    lines.push('目前這個範圍沒有「靠分組過關」的實例。');
   }
   lines.push('');
   lines.push('📅 '+new Date().toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}));
