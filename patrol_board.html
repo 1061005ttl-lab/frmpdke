@@ -210,6 +210,19 @@
     把 <head> 裡那段 <script> 拿掉即可。
 ────────────────────────────────────────────────────────────
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.33.2  business 反映：1.33.1 拆出來的兩顆 chip 文字太長——「⚠️ 已逾期
+          未達標」「🔴 進行中未達標（尚缺N家，可從M家中補）」，尤其後者
+          遇到大數字（例如「尚缺1164家，可從721家中補」）整排 chip 被撐
+          得很長，不好一眼掃過。
+          改法：拿掉「已」「標」這類贅字，跟「🚨必訪未達」「🟠超額達成」
+          同樣「動詞＋（數字）」的簡短格式看齊——「⚠️逾期未達（N）」
+          「🔴進行中未達（N）」。折算週分組門檻觸發時，「還缺N家」跟
+          「可從M家中補」是兩個不同意義的數字（前者是縮減後門檻算出來
+          的還缺家數，後者是誠實逐店比對算出來的候選家數），chip 文字
+          只留最關鍵的「缺N」，M 的說明改放進 title，滑鼠移過去／手機
+          長按才看到，不再兩個數字一起塞進 chip 本身。
+          影響範圍：只改 chip 文字與 title，篩選邏輯、數字計算方式完全
+          不變。
   1.33.1  business 反映：1.33.0 把「已逾期」跟「進行中」塞進同一顆 chip、
           用「・」接起來顯示（例如「⚠️已逾期4家・🔴進行中8家」），現場
           看起來像一句話，實際上是兩件獨立的事混在一起，容易誤讀成單一
@@ -3277,8 +3290,8 @@ function buildFilterUI(){
      同時開（例如同時只看「超額達成」且「必訪未達」的店，理論上會是
      空集合但不特別擋，交給資料自己說話）。 */
   document.getElementById('chip-special').innerHTML =
-    '<div class="chip'+(FILTER.onlyUnmetOverdue?' active':'')+'" id="chip-unmet-overdue-toggle" onclick="toggleUnmetOverdueChip(this)">⚠️ 已逾期未達標</div>'
-    + '<div class="chip'+(FILTER.onlyUnmetOngoing?' active':'')+'" id="chip-unmet-ongoing-toggle" onclick="toggleUnmetOngoingChip(this)">🔴 進行中未達標</div>'
+    '<div class="chip'+(FILTER.onlyUnmetOverdue?' active':'')+'" id="chip-unmet-overdue-toggle" onclick="toggleUnmetOverdueChip(this)">⚠️逾期未達</div>'
+    + '<div class="chip'+(FILTER.onlyUnmetOngoing?' active':'')+'" id="chip-unmet-ongoing-toggle" onclick="toggleUnmetOngoingChip(this)">🔴進行中未達</div>'
     + '<div class="chip'+(FILTER.onlyMvMiss?' active':'')+'" id="chip-mv-toggle" onclick="toggleMvMissChip(this)">🚨 必訪未達</div>'
     + '<div class="chip'+(FILTER.onlyExtra?' active':'')+'" id="chip-extra-toggle" onclick="toggleExtraChip(this)">🟠 超額達成</div>';
 
@@ -4501,8 +4514,8 @@ function _updateFilterToggleSummary(){
   if(FILTER.area!=='全部') parts.push(FILTER.area);
   if(FILTER.office!=='全部') parts.push(FILTER.office);
   if(FILTER.staff!=='全部') parts.push(FILTER.staff);
-  if(FILTER.onlyUnmetOverdue) parts.push('⚠️已逾期未達標');
-  if(FILTER.onlyUnmetOngoing) parts.push('🔴進行中未達標');
+  if(FILTER.onlyUnmetOverdue) parts.push('⚠️逾期未達');
+  if(FILTER.onlyUnmetOngoing) parts.push('🔴進行中未達');
   if(FILTER.onlyMvMiss) parts.push('🚨必訪未達');
   if(FILTER.onlyExtra) parts.push('🟠超額達成');
   el.textContent = parts.length ? parts.join('・') : '全部';
@@ -4900,27 +4913,31 @@ function render(){
   var activeSummary = activeCols.length ? _filteredUnmetSummary(stores, activeCols) : null;
   var pastN = pastSummary && pastSummary.quotaApplied ? pastSummary.totalUnmet : unmetCountPast;
   var activeN = activeSummary && activeSummary.quotaApplied ? activeSummary.totalUnmet : unmetCountActive;
-  /* 1.33.1：業務反映「已逾期」跟「進行中」是兩件獨立的事，用「・」接在
-     同一顆 chip 裡的文字（例如「⚠️已逾期4家・🔴進行中8家」）會讓人搞不
-     清楚這是一個篩選還是兩個。改成各自獨立的 chip（見 buildFilterUI／
-     toggleUnmetOverdueChip／toggleUnmetOngoingChip），這裡只需要各自
-     更新自己的文字跟 title，不用再判斷「兩者都有」的混合情境。 */
+  /* 1.33.2：業務反映「⚠️ 已逾期未達標」「🔴 進行中未達標（尚缺N家，可從
+     M家中補）」文字太長，chip 上放不下、也不好一眼掃過。精簡原則：
+     ‧ 拿掉「已」「標」這類贅字，跟其他 chip（🚨必訪未達／🟠超額達成）
+       同樣「動詞＋（數字）」的簡短格式看齊。
+     ‧ 折算週分組門檻觸發時，「還缺N家（縮減後門檻）」跟「可從M家中補
+       （誠實逐店候選家數）」是兩個不同意義的數字，chip 本身只留最關鍵
+       的「還缺N家」，M的說明改放進 title，滑鼠移過去或手機長按才看到，
+       不再兩個數字一起塞進 chip 文字裡。 */
   var unmetOverdueToggleEl = document.getElementById('chip-unmet-overdue-toggle');
   if(unmetOverdueToggleEl){
-    unmetOverdueToggleEl.textContent = pastN>0 ? ('⚠️ 已逾期未達標（'+pastN+'）') : '⚠️ 已逾期未達標（0）';
+    unmetOverdueToggleEl.textContent = '⚠️逾期未達（'+pastN+'）';
     unmetOverdueToggleEl.title = pastN>0
       ? '選取範圍內的週次皆已結束，仍有'+pastN+'家未達應達次數；期限已過，次數無法再補，屬既定事實，建議列入稽核追蹤，而非視為可搶救事項。'
       : '選取範圍內已結束的週次目前皆已達標。';
   }
   var unmetOngoingToggleEl = document.getElementById('chip-unmet-ongoing-toggle');
   if(unmetOngoingToggleEl){
-    unmetOngoingToggleEl.textContent = activeN>0
-      ? (activeSummary && activeSummary.quotaApplied
-          ? ('🔴 進行中未達標（尚缺'+activeN+'家，可從'+unmetCountActive+'家中補）')
-          : ('🔴 進行中未達標（'+unmetCountActive+'）'))
-      : '🔴 進行中未達標（0）';
+    var ongoingQuotaApplied = activeSummary && activeSummary.quotaApplied;
+    unmetOngoingToggleEl.textContent = ongoingQuotaApplied
+      ? ('🔴進行中未達（缺'+activeN+'）')
+      : ('🔴進行中未達（'+unmetCountActive+'）');
     unmetOngoingToggleEl.title = activeN>0
-      ? '選取範圍內的週次尚未結束，這些店家仍在效期內，後續巡補仍可補足次數達標。'
+      ? (ongoingQuotaApplied
+          ? '選取範圍內的週次尚未結束，依縮減後家數門檻還缺'+activeN+'家達標；可從目前尚未達標的'+unmetCountActive+'家候選店家中挑選補足次數，後續巡補仍來得及。'
+          : '選取範圍內的週次尚未結束，這些店家仍在效期內，後續巡補仍可補足次數達標。')
       : '選取範圍內尚未結束的週次目前皆已達標，或選取範圍內沒有尚未結束的週次。';
   }
 
