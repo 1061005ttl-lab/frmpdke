@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.29.2 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
+  版本：Ver. 1.29.3 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
 
 【檔案定位】
   ‧ 單一 HTML 檔案，純前端 JS，透過 gviz API 讀同一份試算表兩分頁，
@@ -210,6 +210,25 @@
     把 <head> 裡那段 <script> 拿掉即可。
 ────────────────────────────────────────────────────────────
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.29.3  business 七次確認：1.29.2 上版後，明細頁跟總覽頁的「未達店數」
+          還是對不起來（一次還從30對成0，比原本169 vs 30更離譜）。查出
+          來是 _filteredUnmetSummary() 的分組鍵只有「通路＋等級」，把
+          全部營業處的店混成一組，一次套一個全國縮減後門檻——但總覽頁
+          「營業處執行狀況」table（_officeStatsFor()，1.28.3 起）是逐
+          營業處各自算 quota、各自把自己的達標數 cap 在自己的 quota
+          以內，再把 7 個處的 quota／達標分別加總。這兩種算法在有
+          floor()/max(1,...) 保底的情況下不是同一件事：混單一組算，
+          表現超過「自己這個處」門檻的部分，會被拿去墊高全國合計的
+          達標數（明明這個處自己早就done，這批「多做的」在逐處各自
+          保底時本來就該被自己處的 quota 卡住、對整體無貢獻），才會
+          算出「全聯社 626 家還缺0家」這種脫離現實的數字。
+          這版把分組鍵加回「營業處」（每個等級底下再依 s.area 分組），
+          _lastWeekQuota() 的 storesPool 也只傳這個營業處自己的店，跟
+          _officeStatsFor() 完全同一顆積木、同一個分組粒度。同一份
+          篩選範圍下，兩邊數字現在會完全一致（不再有「進位差」），因為
+          本來就是同一套算法算兩次而已，不是兩套算法湊近似。
+          chip／統計卡／CSV·LINE 匯出摘要都吃同一個 _filteredUnmetSummary()
+          回傳值，這處改完三處同步生效，不用個別再修。
   1.29.2  business 六次確認：1.29.1 的 ⓘ 提示沒有解決問題——業務主管
           沒空研究「逐店誠實比對」跟「縮減後家數」兩套算法為什麼不同，
           畫面上的數字就應該直接等於「還缺多少」，不該叫人 hover 看
@@ -2643,13 +2662,28 @@ function _lastWeekQuota(chanKey, grade, periodKey, week, baseStd, storesPool){
      poolUnmet 是「逐店誠實比對」下的家數（給畫面標「可從 N 家中挑」
      用，不是隱藏起來，只是不再拿來當主要的「未達」數字）。 */
 function _filteredUnmetSummary(storesInScope, cols){
+  /* 1.29.3：分組鍵加回「營業處」（s.area）——縮減後家數的門檻／達標必須
+     逐營業處各自獨立算再加總，不能把全部營業處的店混成一組算一個全國
+     門檻。原因：這份門檻換算本來就有 floor()/max(1,...) 保底，「逐營業
+     處各自保底再加總」跟「全部店混在一起保底一次」在數學上不是同一件
+     事——後者會讓表現好的營業處「補」到表現差的營業處头上（A處已達
+     次數超過A處自己的門檻的部分，理論上該被A處自己的保底捨去，卻被
+     拿去墊高全國合計的已達數），算出來的「已達」會比逐處各自加總明顯
+     偏高（甚至衝到 100%），跟總覽頁「營業處執行狀況」table（_officeStatsFor，
+     逐營業處分別算 quota/achieved 再加總）對不起來。這版把分組鍵從
+     「通路＋等級」改成「營業處＋通路＋等級」，_lastWeekQuota() 傳入的
+     storesPool 也跟著只涵蓋這個營業處自己的店，跟 _officeStatsFor()
+     完全同一套算法、同一個分組粒度，同樣的篩選範圍下兩邊數字保證一致
+     （超額次數、必訪缺本來就是逐營業處獨立算，這裡補齊「未達」也比照
+     辦理，不再是本頁唯一一個「全國一次算」的例外）。 */
   var groups = {};
   storesInScope.forEach(function(s){
     var std = _stdFreq(s);
     if(std===undefined) return;
     var gk = _stdGroupKey(s.chanKey, s.grade);
     if(!gk) return;
-    (groups[gk] = groups[gk] || { chanKey:s.chanKey, grade:s.grade, stores:[] }).stores.push(s);
+    var key = s.area+'␟'+gk;
+    (groups[key] = groups[key] || { area:s.area, chanKey:s.chanKey, grade:s.grade, stores:[] }).stores.push(s);
   });
   var totalExp=0, totalStdDone=0, totalUnmet=0, poolUnmet=0, quotaApplied=false;
   Object.keys(groups).forEach(function(gk){
