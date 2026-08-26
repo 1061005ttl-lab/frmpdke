@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.38.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
+  版本：Ver. 1.39.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
 
 【檔案定位】
   ‧ 單一 HTML 檔案，純前端 JS，透過 gviz API 讀同一份試算表兩分頁，
@@ -210,6 +210,29 @@
     把 <head> 裡那段 <script> 拿掉即可。
 ────────────────────────────────────────────────────────────
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.39.0  business 反映：業務要看「公平」的貢獻——有的人名下家數本來就
+          少（例如只有 2 家），2 家都做完等於把自己能貢獻的全部額度都
+          交出來了，不該因為絕對數字小就被忽略；另外也要能回答「這個人
+          佔整個營業所／整個營業處的貢獻量比重多少」，才能兼顧「個人有
+          沒有盡份」跟「對團隊貢獻的份量」兩個角度。
+          改法（_buildStaffContribution() 內）：
+          ‧ 新增 storeSet／storeCount：逐店記錄這個人在這個分組底下
+            「實際負責的店」並去重，不會因為同一家店橫跨中元＋中秋兩個
+            檔期都觸發而重複計入，取代原本容易被多檔期灌水的「合計
+            實例」當「負責家數」用。
+          ‧ 新增 officeSharePct／areaSharePct：以「自己已達標（met，僅
+            計已定案週次）」當貢獻量基準，逐營業所（area+office）、
+            逐營業處（area）分別加總，再算出每個人在該範圍裡的佔比——
+            不限定同通路/等級比較，直接回答「這個人的產出佔整個所/處
+            總完成量的比重」。
+          ‧ 排行 Dialog 表格新增「負責家數」「佔營業所比重」「佔營業處
+            比重」三欄，排序選單新增「佔營業所比重」「佔營業處比重」
+            兩個選項；CSV 匯出同步補上這幾欄。
+          ‧ 說明文字改寫，直接點出「貢獻度%」（自己有沒有盡份，家數少
+            不吃虧）跟「佔營業所/處比重%」（對團隊貢獻的份量）是兩個
+            不同角度，建議一起看。
+          影響範圍：只新增欄位與呈現，met/ride/stillShort/contributionPct
+          既有計算邏輯不變；店家格子、mv 稽核、既有匯出功能不受影響。
   1.38.0  business 反映：1.37.0 把「進行中還沒到期」的週次整個排除在畫面
           之外，業務反映這樣看不到「現在誰做了什麼、誰還沒做」，主管平時
           就是要即時追進度、提醒還沒動的人，不能等週次過期才看得到資料。
@@ -3066,7 +3089,15 @@ function _buildStaffContribution(periodFilter){
           var rk = s.area+'␟'+officeName+'␟'+staffName+'␟'+gk;
           var row = byRow[rk] = byRow[rk] || { area:s.area, office:officeName, staff:staffName,
             chanKey:grp.chanKey, gradeLabel:gradeLabel, met:0, ride:0, stillShort:0,
-            pending:0, pendingMet:0, pendingRide:0, pendingStillShort:0, detail:[] };
+            pending:0, pendingMet:0, pendingRide:0, pendingStillShort:0, storeSet:{}, detail:[] };
+          /* 1.39.0 business 反映：業務要看「公平」的貢獻——有的人名下只有
+             2 家店，但 2 家都做完，等於把自己「能貢獻的全部額度」都貢獻
+             出來了，這種人不該因為絕對數字小就被忽略；同時也要能回答
+             「這個人佔整個營業所／整個營業處貢獻量的比重多少」。改法：
+             storeSet 記錄這個人在這個分組底下「實際負責的店」（去重，
+             不因為同一家店橫跨多個檔期都觸發而重複計入），算出真正的
+             「負責家數」，不是原本容易被多檔期灌水的「合計實例」。 */
+          row.storeSet[s.code] = 1;
           /* 1.38.0 business 反映：光排除進行中週次不夠——主管要的是「現在
              進行式」的即時進度（誰現在做了、誰現在還沒做），不是只給「已
              經定案」的結案排行。改法：進行中週次一樣照 met/ride/stillShort
@@ -3087,10 +3118,30 @@ function _buildStaffContribution(periodFilter){
   list.forEach(function(b){
     b.total = b.met + b.ride + b.stillShort;
     b.contributionPct = b.total>0 ? (b.met/b.total*100) : 0;
+    b.storeCount = Object.keys(b.storeSet).length; /* 這個人在這個分組底下真正負責的家數，去重過 */
+  });
+  /* 1.39.0：算「佔營業所／營業處貢獻比重」——用「自己已達標（met，僅計
+     已定案週次）」當貢獻量的基準，逐營業所（area+office）、逐營業處
+     （area）各自加總，再回頭算每一列在該範圍裡的佔比。刻意不分通路／
+     等級混在一起算（業務要看的是「這個人在整個所/處的貢獻量佔比」，
+     不是限定同組比較），數字才會跟「整所」「整處」這種業務講法對得
+     起來；若這個人這個分組完全沒有已定案的 met，佔比顯示 0%，不會
+     除以 0 出錯。 */
+  var officeMetSum = {}, areaMetSum = {};
+  list.forEach(function(b){
+    var ok = b.area+'␟'+b.office;
+    officeMetSum[ok] = (officeMetSum[ok]||0) + b.met;
+    areaMetSum[b.area] = (areaMetSum[b.area]||0) + b.met;
+  });
+  list.forEach(function(b){
+    var ok = b.area+'␟'+b.office;
+    b.officeSharePct = officeMetSum[ok]>0 ? (b.met/officeMetSum[ok]*100) : 0;
+    b.areaSharePct = areaMetSum[b.area]>0 ? (b.met/areaMetSum[b.area]*100) : 0;
+    delete b.storeSet;
   });
   return list;
 }
-var _contribSortKey = 'ride'; /* 'ride' | 'contribution' | 'met' | 'total' | 'pendingBehind' */
+var _contribSortKey = 'ride'; /* 'ride' | 'contribution' | 'met' | 'total' | 'pendingBehind' | 'officeShare' | 'areaShare' */
 var _contribExpandedSet = {}; /* key: area␟office␟staff␟chanKey␟gradeLabel -> true（展開狀態，跨排序/切換分頁保留） */
 var _contribCache = null;      /* 目前檔期分頁算出來的完整清單（未套用營業處分頁篩選） */
 var _contribPeriodSel = null;  /* null＝整體（全部檔期合併）；或某個 PERIODS key，只看該檔期 */
@@ -3107,6 +3158,8 @@ function _contribSortedList(){
     if(key==='met') return b.met-a.met;
     if(key==='total') return b.total-a.total;
     if(key==='pendingBehind') return (b.pendingRide+b.pendingStillShort)-(a.pendingRide+a.pendingStillShort);
+    if(key==='officeShare') return b.officeSharePct-a.officeSharePct;
+    if(key==='areaShare') return b.areaSharePct-a.areaSharePct;
     return b.ride-a.ride; /* 預設：靠分組過關次數多的排前面 */
   });
   return list;
@@ -3225,7 +3278,7 @@ function _buildContribDialogHtml(){
     totalMet+=b.met; totalRide+=b.ride; totalShort+=b.stillShort; totalPending+=b.pending;
     totalPendingMet+=b.pendingMet; totalPendingBehind+=(b.pendingRide+b.pendingStillShort);
   });
-  var sortDefs = [['ride','🤝靠分組過關'],['contribution','貢獻度%'],['met','自己達標數'],['total','合計實例'],['pendingBehind','進行中還沒做']];
+  var sortDefs = [['ride','🤝靠分組過關'],['contribution','貢獻度%'],['met','自己達標數'],['total','合計實例'],['pendingBehind','進行中還沒做'],['officeShare','佔營業所比重'],['areaShare','佔營業處比重']];
   var sortBtns = sortDefs.map(function(d){
     return '<button class="contrib-sort-btn'+(_contribSortKey===d[0]?' active':'')+'" onclick="_contribSetSort(\''+d[0]+'\')">'+d[1]+'</button>';
   }).join('');
@@ -3273,20 +3326,23 @@ function _buildContribDialogHtml(){
       + '<td>'+esc(b.office)+'</td>'
       + '<td>'+esc(b.chanKey||'—')+'</td>'
       + '<td>'+esc(b.gradeLabel)+'</td>'
+      + '<td style="font-weight:700;">'+b.storeCount+'</td>'
       + '<td style="color:var(--green);font-weight:700;">'+b.met+'</td>'
       + '<td style="color:var(--info);font-weight:700;">'+b.ride+(b.ride>=2?' 🚩':'')+'</td>'
       + '<td style="color:var(--sub);">'+b.stillShort+'</td>'
       + '<td>'+b.total+(b.total<2?' <span class="contrib-lowsample" title="合計實例數太少（少於2次），單次巧合的可能性高，建議先別急著認定，累積更多次再看">⚠️樣本少</span>':'')+'</td>'
       + '<td style="font-weight:700;'+(b.total<2?'color:var(--sub);':'')+'">'+b.contributionPct.toFixed(0)+'%</td>'
+      + '<td>'+b.officeSharePct.toFixed(0)+'%</td>'
+      + '<td>'+b.areaSharePct.toFixed(0)+'%</td>'
       + '<td>'+pendingCellHtml+'</td>'
       + '</tr>'
       + (expanded
-          ? '<tr class="contrib-detail-row"><td colspan="11"><table class="ov-mini contrib-detail-tbl"><tr><th class="td-left">店家</th><th>檔期週次</th><th>次數</th><th>狀態</th></tr>'+detailRows+'</table></td></tr>'
+          ? '<tr class="contrib-detail-row"><td colspan="14"><table class="ov-mini contrib-detail-tbl"><tr><th class="td-left">店家</th><th>檔期週次</th><th>次數</th><th>狀態</th></tr>'+detailRows+'</table></td></tr>'
           : '');
   }).join('');
   return '<div class="visit-timeline">'
     + '<p style="font-size:12.5px;color:var(--sub);line-height:1.6;margin:0 0 10px;">只統計「不足整週」折算週、且分組已觸發縮減後家數門檻的範圍，平常整週的欄位不影響這份排行。同一位訪員名下不同（通路＋等級）分組會分開各成一列，不合併。「🤝 靠分組過關」代表這位訪員名下這個分組這週還沒去，但所屬分組（同營業處＋通路＋等級）已經靠其他店達到縮減後門檻；「分組也還沒過關」代表這組這週還沒到門檻，大家都還在缺，不算搭便車。這裡只攤開原始次數，不代替你判斷「算不算躺分」——點一列可以展開看逐店明細。</p>'
-    + '<p style="font-size:12.5px;color:var(--info);line-height:1.6;margin:0 0 10px;background:var(--info-bg,#eef4ff);border-radius:8px;padding:8px 10px;">👉 不確定怎麼看的話：左邊「自己達標／🤝靠分組過關／分組尚未過關」這幾欄，只算「這週已經完全過去」的結果——已經定案，可以放心拿去問責，預設排序（🤝靠分組過關，由高到低）就是「誰躺最多次」。最右邊「進行中（即時）」欄位，是「這週還沒過完」的當下狀況，會隨時間變動、還不能拿來問責，但可以拿來看「現在誰做了、誰還沒做」，方便你隨時追進度、提醒還沒動的人。「🚩」代表已經靠分組過關 2 次以上；「⚠️樣本少」代表合計實例不到 2 次，建議先別急著認定。</p>'
+    + '<p style="font-size:12.5px;color:var(--info);line-height:1.6;margin:0 0 10px;background:var(--info-bg,#eef4ff);border-radius:8px;padding:8px 10px;">👉 這裡怎麼看最公平：「負責家數」是這個人在這個分組底下真正配到的店（已去重，不會因為橫跨中元＋中秋兩個檔期而灌水）；「貢獻度%」＝自己達標數÷負責家數，只看這個人有沒有把自己那份做完，名下只有 2 家、2 家都做完一樣是 100%，不會因為家數少就被看輕。「佔營業所比重％」「佔營業處比重％」則是換一個角度：這個人自己完成的家數，占整個營業所／整個營業處「大家總共完成家數」的比例，用來看「這個人的產出，在整個團隊裡分量多重」——兩個指標一個看「自己有沒有盡份」，一個看「對團隊貢獻的份量」，建議一起看，不要只看其中一個。左邊「自己達標／🤝靠分組過關／分組尚未過關」只算「這週已經完全過去」的結果，已經定案；最右邊「🕒進行中（即時）」則是這週還沒過完的當下狀況，會變動，只供追進度用，不算進上述任何百分比。</p>'
     + '<div class="chip-group contrib-tab-row">'+periodTabs+'</div>'
     + (areaTabs ? '<div class="chip-group contrib-tab-row">'+areaTabs+'</div>' : '')
     + '<div class="visit-summary">'
@@ -3297,17 +3353,17 @@ function _buildContribDialogHtml(){
     + (totalPending>0 ? '<div class="vs-item">進行中・還沒做<br><b style="color:#B8860B">'+totalPendingBehind+'</b></div>' : '')
     + '</div>'
     + '<div class="contrib-sort-bar">排序：'+sortBtns+'</div>'
-    + '<div class="oo-tbl-scroll"><table class="ov-mini" style="width:100%;"><tr><th class="td-left">訪員</th><th>營業處</th><th>營業所</th><th>通路</th><th>等級</th><th>自己達標</th><th>🤝靠分組過關</th><th>分組尚未過關</th><th>合計實例</th><th>貢獻度%</th><th>🕒進行中（即時）</th></tr>'+rowsHtml+'</table></div>'
+    + '<div class="oo-tbl-scroll"><table class="ov-mini" style="width:100%;"><tr><th class="td-left">訪員</th><th>營業處</th><th>營業所</th><th>通路</th><th>等級</th><th>負責家數</th><th>自己達標</th><th>🤝靠分組過關</th><th>分組尚未過關</th><th>合計實例</th><th>貢獻度%</th><th>佔營業所比重</th><th>佔營業處比重</th><th>🕒進行中（即時）</th></tr>'+rowsHtml+'</table></div>'
     + '</div>';
 }
 function _contribDownloadCsv(evt){
   var btn = evt ? evt.currentTarget : document.getElementById('contrib-csv-btn');
   var list = _contribSortedList();
   if(!list.length){ _flashBtn(btn,'⚠️ 無資料'); return; }
-  var headers = ['訪員','營業處','營業所','通路','等級','自己達標實例(已定案)','靠分組過關實例(已定案)','分組尚未過關實例(已定案)','合計實例(已定案)','貢獻度%(已定案)','進行中・已達標(即時，不列入貢獻度%)','進行中・還沒做(即時，不列入貢獻度%)'];
+  var headers = ['訪員','營業處','營業所','通路','等級','負責家數(去重)','自己達標實例(已定案)','靠分組過關實例(已定案)','分組尚未過關實例(已定案)','合計實例(已定案)','貢獻度%(已定案)','佔營業所比重%','佔營業處比重%','進行中・已達標(即時，不列入以上百分比)','進行中・還沒做(即時，不列入以上百分比)'];
   var rows = [headers];
   list.forEach(function(b){
-    rows.push([b.staff, b.area, b.office, b.chanKey||'', b.gradeLabel, b.met, b.ride, b.stillShort, b.total, b.contributionPct.toFixed(1), b.pendingMet, b.pendingRide+b.pendingStillShort]);
+    rows.push([b.staff, b.area, b.office, b.chanKey||'', b.gradeLabel, b.storeCount, b.met, b.ride, b.stillShort, b.total, b.contributionPct.toFixed(1), b.officeSharePct.toFixed(1), b.areaSharePct.toFixed(1), b.pendingMet, b.pendingRide+b.pendingStillShort]);
   });
   var scopeLabel = (_contribPeriodSel ? _contribPeriodSel : '整體(全部檔期)') + (_contribAreaSel!=='全部' ? '_'+_contribAreaSel : '');
   var csv = '\uFEFF'+rows.map(function(r){
