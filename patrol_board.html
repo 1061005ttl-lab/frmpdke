@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.28.1 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
+  版本：Ver. 1.28.3 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
 
 【檔案定位】
   ‧ 單一 HTML 檔案，純前端 JS，透過 gviz API 讀同一份試算表兩分頁，
@@ -210,6 +210,55 @@
     把 <head> 裡那段 <script> 拿掉即可。
 ────────────────────────────────────────────────────────────
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.28.3  business 三次確認：1.28.2「營業處執行狀況總覽表」刻意不套用
+          縮減後家數（理由：全國門檻會被別的營業處拖累/沾光），現場的
+          真實需求不是「完全不縮減」，而是「縮減範圍縮小成自己這個
+          營業處自己的店，不要管其他處」——每個處只在乎自己還要做多少。
+          這版把主表（_officeStatsFor()）改成：依【等級對照】分組（同一
+          營業處＋通路裡的同一個等級），套用跟「中元/中秋專案」迷你卡片
+          （_statsFor()，見 1.28.2）同一套「不足整週最後一週改用縮減後
+          家數」機制，差別只在 _lastWeekQuota() 新增的 storesPool 參數
+          傳「這個營業處自己的店」而不是全國 STORE_ROWS——門檻家數、
+          達標判斷都只看自己這批店，不受其他營業處影響。
+          ‧ 觸發時「應達次數／達標次數」兩欄的單位會從「次數」切換成
+            「家數」（跟迷你卡片一樣），儲存格加 title 提示＋🔽記號，
+            避免現場誤讀成統計錯誤。
+          ‧ 「未達店數」欄：只在切到「單一週」檢視（例如中元 W3 那個
+            chip，OFFICE_WEEK_SEL.week 有值）時才用縮減後數字；切到
+            「整檔期彙總」或「整體」（橫跨多週）時維持原本「範圍內累計
+            後才誠實判斷」邏輯不變，避免同一家店某週達標、某週沒達標
+            時被單週的縮減邏輯覆蓋掉。
+          ‧ 「超額次數」不受影響，仍是逐店逐週誠實加總。
+          ‧ _lastWeekQuota() 簽名新增第 6 個參數 storesPool（選填，預設
+            STORE_ROWS）；_statsFor() 呼叫處同步顯式傳入 storesSubset
+            （對迷你卡片而言等同原本的全國分組，行為不變，純粹讓兩個
+            呼叫端共用同一份函式、範圍各自決定）。
+          刻意仍不觸碰：①單店格子／單店明細——沒辦法回答「具體是哪一家
+          店」被算進縮減後門檻，維持誠實顯示自己這週去了幾次；②明細頁
+          篩選後的統計卡／CSV·LINE 匯出摘要——同樣是「自訂範圍」的概念，
+          之後如有需要再個別評估是否套用同一套機制。
+  1.28.2  1.28.1 拿掉徽章後，現場回報：不是徽章的擺放位置有問題，而是
+          「已達/未達」這兩個數字本身在「不足整週」的最後一週（例如中元
+          W3）就是誤導的——像超市A每週固定1次，折算到剩5天的最後一週，
+          因為有 max(1,...) 保底，個別門市的應達次數還是卡在1次、完全
+          降不下來，626家只去了332家就會顯示「未達294家」，但這週全國
+          其實只要縮減後的447家達標即可，換算下來只差115家，跟畫面上的
+          294差了一大截，現場看了不知道到底要追294家還是115家。
+          這版把「中元/中秋專案」迷你表格（renderOverview()／_statsFor()）
+          的「已達/未達」在這種情況下直接改成算出來的縮減後數字（已達＝
+          全國目前真正達標家數、未達＝全國縮減後家數門檻還差幾家），不是
+          再加一顆徽章旁註，是「已達/未達」這兩欄本身就顯示這組數字，
+          達成率%（同一張卡片）也跟著用縮減後的分母算，三個數字兜得起來。
+          刻意不擴大範圍到：①單店格子／單店明細——沒辦法回答「具體是哪
+          一家店」被算進縮減後的門檻，只有全國分組的「還缺幾家」這件事
+          有明確答案，單店只能維持誠實顯示自己這週去了幾次；②「營業處
+          執行狀況總覽表」——分營業處看時，若也套全國縮減門檻，會變成
+          「別的營業處有沒有去」影響「我這個營業處未達店數」，比原本的
+          294更難懂「自己這個營業處還要做多少」，故維持不動；③明細頁
+          篩選後的統計卡——跟營業處同理，篩選範圍越小、套全國門檻越不
+          合理，維持原本各自誠實加總。「未達店數(整檔期)」欄位也不受影響，
+          仍然是每家店自己的巡補紀錄，因為那欄本來就是給現場列出「該追
+          哪些店」的清單依據，跟「這一週全國分組還差多少」是兩個不同問題。
   1.28.1  現場回報「中元/中秋專案」迷你表格「已達」欄位後面的 🔽 徽章
           （例：「332 🔽缺115家達標 294」）看不懂——115／294 兩個數字都
           長得像「還要做多少」，分不出哪個才是自己這個範圍實際要補的量。
@@ -2417,16 +2466,67 @@ function _stdForCol(periodKey, week, baseStd){
   var prorated = Math.floor(_weekDayCount(p, week)/7*baseStd);
   return Math.max(1, prorated);
 }
-/* 1.28.1：拿掉「彈性家數（縮減後應達家數）」的全部殘留——_stdGroupKey()／
-   _lastWeekQuota()／_gradeGroupAchievedCount()／_weekQuotaBadgeHtml()，
-   連同「中元/中秋專案」迷你表格裡的 🔽 徽章一併移除。這組機制早在 1.28.0
-   就已經確認不影響任何應達／達標「計算」，只剩畫面上一顆徽章顯示「這個
-   等級全國還缺幾家達標」；但那是跟現場執行人員完全無關的「全國分組」
-   數字，硬擠在「已達」欄位數字後面（例如「332 🔽缺115家達標」），會讓人
-   誤以為 115 或 294 是自己還要做的量、分不清楚兩個數字的差異，違背 1.28.0
-   訂下的方向：「全站一律看自己這個範圍還差多少，這樣現場才看得懂」。
-   應達／已達／未達次數本身不受影響——這些數字原本就是各自範圍（單店／
-   營業處／全體）誠實的 _stdForCol() 折算結果，不因本次拿掉徽章而改變。 */
+/* ════ 1.28.2：現場回報「不足整週」的最後一週，這樣的等級（例如全聯
+   每週固定 1 次，折算後不管剩幾天都還是卡在 1 次、完全看不出遞減）看到
+   的「已達／未達」數字沒意義——626 家店只去了332家，未達店數顯示294家，
+   但其實這週全國只是「天數不夠、沒必要每家都去」，294 這個數字沒有反映
+   出「其實只要再多115家去，這個等級這週就算過關」這個現場真正在意的
+   進度。1.28.0／1.28.1 拿掉的是「單店個別豁免」（誰的格子被畫成豁免、
+   算不算未達）——這件事本來就沒有明確答案（無法回答「具體是哪一家店」
+   被豁免，只知道「這個組還缺幾家」），所以單店格子／單店明細維持誠實
+   顯示，這點不變。這裡恢復的是「這個【等級對照】分組（全國，同一通路＋
+   等級）這一週的整體進度」這件事本身——用縮減後的家數當「應達」，而不是
+   拿全部家數當「應達」硬套在天數不足的最後一週。只影響「中元/中秋專案」
+   迷你表格（renderOverview() 產出的每週已達／未達彙總，以及那顆彙總算
+   出來的達成率%），不影響：①單店格子／單店明細（openStoreDetail）—— 
+   仍然只看這家店自己去了幾次；②「營業處執行狀況總覽表」（_officeStatsFor()）
+   ——分營業處看時，套全國分組門檻會變成「別的營業處去不去，會影響我這
+   營業處的未達店數」，這樣反而更看不懂自己這個營業處還差多少，所以維持
+   1.28.0 的方向不變；③明細頁篩選後的統計卡——同樣是「篩選範圍」的概念，
+   跟營業處一樣不套用全國分組門檻。 */
+/* 一家店在【等級對照】裡「所屬分組」的識別鍵：①店家等級文字精確對到
+   GRADE_FREQ 指名規則，分組＝「這個通路＋這個指名等級」；②對不到但通路
+   有【等級對照】留白列（不分等級預設），分組＝「這個通路的不分等級
+   預設」；③兩者都對不到（等級未知）→ 回傳 null。 */
+function _stdGroupKey(chanKey, grade){
+  if(grade && GRADE_FREQ.hasOwnProperty(grade)) return 'G|'+chanKey+'|'+grade;
+  if(CHANNEL_DEFAULT_FREQ.hasOwnProperty(chanKey)) return 'D|'+chanKey;
+  return null;
+}
+/* 縮減後應達家數：{ total, quota, stores, std }；以下情況回傳 null，代表
+   這個等級這一週不適用「分組進度」重新表述、呼叫端應維持原始 _stdForCol()
+   邏輯：①非折算最後一週；②這個等級折算後的次數本身還降得動（例如量販A
+   5次→折算後變1次，數字已經有明顯遞減，不需要再換算成家數）——只有次數
+   被 max(1,...) 保底卡死、根本降不下去的等級（例如全聯1次）才會回傳
+   非 null。 */
+/* 1.28.3：新增第 6 個參數 storesPool（選填，預設 STORE_ROWS）——決定
+   「分組」要在哪個範圍裡數家數／算門檻。呼叫端傳「全國店家」（_statsFor
+   給迷你卡片用）就是原本的全國分組；傳「某營業處自己的店」（_officeStatsFor
+   給主表用）就變成只在該營業處內部縮減，不受其他營業處影響。因為底下
+   還是會用 _stdGroupKey 再篩一次（確保通路+等級吻合），傳全域 STORE_ROWS
+   進來的舊呼叫端結果不受影響（篩出來的子集合本來就等於原本的全國分組）。 */
+function _lastWeekQuota(chanKey, grade, periodKey, week, baseStd, storesPool){
+  if(!baseStd) return null;
+  var p = PERIODS.filter(function(pp){ return pp.key===periodKey; })[0];
+  if(!p || p.lastWeekDays==null || week!==p.weeks) return null;
+  var dayRatio = _weekDayCount(p, week)/7;
+  if(dayRatio>=1) return null;
+  if(Math.floor(dayRatio*baseStd) >= 1) return null;
+  var groupKey = _stdGroupKey(chanKey, grade);
+  if(!groupKey) return null;
+  var pool = storesPool || STORE_ROWS;
+  var stores = pool.filter(function(s){ return _stdGroupKey(s.chanKey, s.grade)===groupKey; });
+  if(!stores.length) return null;
+  return { total:stores.length, quota:Math.max(1, Math.floor(stores.length*dayRatio)), stores:stores, std:baseStd };
+}
+/* 這個分組在指定檔期週次，全國已經有幾家店「達到原始（未經家數重新表述）
+   次數標準」，用 _stdForCol 的原始折算結果判斷。 */
+function _gradeGroupAchievedCount(quotaInfo, periodKey, week){
+  var stdN = _stdForCol(periodKey, week, quotaInfo.std);
+  var n = 0;
+  quotaInfo.stores.forEach(function(s){ if(_actualCount(s.code, periodKey, week) >= stdN) n++; });
+  return n;
+}
 function _classifyParts(parts){
   if(!parts) return null;
   var day = _toEpochDay(parts.y, parts.mo, parts.d);
@@ -2983,8 +3083,18 @@ function _periodColumns(periodKey){
    達標」——unmetCount 是整個 cols 範圍（可能橫跨多週）合計，混在一起看
    不出是哪一週出問題。改成 weeks[w] 多存 unmet：這週「應達>0 且未達標」
    的店數，跟主表 isUnmet 同一套邏輯（只是把範圍縮到單一週），同一輪
-   迴圈就近算好。 */
-function _statsFor(storesSubset, cols){
+   迴圈就近算好。
+   1.28.2：新增 chanKey 參數（呼叫端傳，storesSubset 本身同一批必為同一
+   通路）——第一輪先照舊算出每個等級每一週的「誠實原始數字」；第二輪
+   （見下方 _applyGroupQuotaReframing）只在「這一週是不足整週檔期的最後
+   一週，且這個等級的次數折算已經被 max(1,...) 保底卡死」時，把該週的
+   g.weeks[w]（連同累計進 g.exp/g.stdDone、totalExp/totalStdDone 的部分）
+   換成「這個等級全國分組」的縮減後家數進度，其餘一切不變。g.unmetCount
+   （未達店數(整檔期) 欄位，答的是「哪些店還需要人去追」）刻意不受影響，
+   繼續用每家店自己的誠實紀錄判斷，兩個問題（分組進度／該追哪些店）本來
+   就是不同用途，不合併成同一套數字。 */
+function _statsFor(storesSubset, cols, chanKey){
+  if(!chanKey && storesSubset.length) chanKey = storesSubset[0].chanKey;
   var totalExp=0, totalStdDone=0;
   var byGrade = {}; /* grade → {count, exp, stdDone, weeks:{week:{exp,stdDone,unmet}}, unmetCount} */
   storesSubset.forEach(function(s){
@@ -2996,7 +3106,7 @@ function _statsFor(storesSubset, cols){
     var rowExp=0, rowStdDone=0, rowMvMiss=false;
     cols.forEach(function(c){
       var actual = _actualCount(s.code, c.period, c.week);
-      var colStd = _stdForCol(c.period, c.week, std); /* 1.28.0：改回原始折算次數，跟單店格子一致——分支單位（區域/訪員/檔期彙總）只要看得出「自己這個範圍還差多少」，不需要套全國性的縮減家數換算。 */
+      var colStd = _stdForCol(c.period, c.week, std);
       var exp = colStd, stdDone = Math.min(actual, colStd);
       g.exp += exp; g.stdDone += stdDone;
       if(!g.weeks[c.week]) g.weeks[c.week] = { exp:0, stdDone:0, unmet:0 };
@@ -3013,6 +3123,24 @@ function _statsFor(storesSubset, cols){
     });
     if((rowExp>0 && rowStdDone<rowExp) || rowMvMiss) g.unmetCount++;
   });
+  /* 第二輪：把「不足整週檔期最後一週」且套用得到分組家數機制的等級，
+     該週的 exp/stdDone/unmet 換成分組縮減後家數的版本（見上方說明）。 */
+  Object.keys(byGrade).forEach(function(gradeKey){
+    var g = byGrade[gradeKey];
+    var baseStd = _freqForGradeKey(chanKey, gradeKey);
+    cols.forEach(function(c){
+      var q = _lastWeekQuota(chanKey, gradeKey, c.period, c.week, baseStd, storesSubset);
+      if(!q) return;
+      var wk = g.weeks[c.week];
+      if(!wk) return;
+      var achieved = _gradeGroupAchievedCount(q, c.period, c.week);
+      var newExp = q.quota, newStdDone = Math.min(achieved, q.quota), newUnmet = Math.max(0, q.quota-achieved);
+      g.exp += (newExp - wk.exp); g.stdDone += (newStdDone - wk.stdDone);
+      totalExp += (newExp - wk.exp); totalStdDone += (newStdDone - wk.stdDone);
+      wk.exp = newExp; wk.stdDone = newStdDone; wk.unmet = newUnmet;
+      wk.quotaApplied = true; wk.achieved = achieved; wk.quota = q.quota; /* 給畫面「已達」欄位用：顯示真實已達家數，不因封頂在 quota 而縮小 */
+    });
+  });
   return { rate: totalExp>0 ? (totalStdDone/totalExp*100) : 0, totalExp:totalExp, byGrade:byGrade };
 }
 /* ════ 依營業處的執行狀況總覽（不分檔期／通路，合計整體表現） ════ */
@@ -3024,6 +3152,20 @@ function _allPeriodColumns(){
 /* 1.3.1：量販／全聯應達次數標準不同（見 GRADE_FREQ），混在一起算「達成率」
    會互相稀釋，看不出兩個通路各自的執行狀況，改成依「營業處＋通路」分開
    統計，chanKey 傳 null／不傳則維持舊的「不分通路」合計（保留給總計列用） */
+/* 1.28.3：business 三次確認方向——1.28.0/1.28.2 認為「營業處總覽套全國
+   縮減門檻，會被別的營業處拖累/沾光」而刻意不套用，但現場實際要的是
+   「縮減範圍縮小成自己這個營業處＋通路自己的店，不要管全國」，不是
+   完全不縮減。改成：依【等級對照】分組（同一個營業處＋通路裡的同一個
+   等級），套用跟迷你卡片（_statsFor）同一套「不足整週最後一週改用
+   縮減後家數」機制，差別只在 _lastWeekQuota() 的 storesPool 參數傳這個
+   營業處自己的店，門檻／達標判斷都只看自己這批店，不受其他營業處影響。
+   應達次數／達標次數兩欄在觸發縮減的那一週，會從「次數」單位切換成
+   「家數」單位（跟迷你卡片一樣），畫面加上 title 提示避免誤讀。
+   「未達店數」欄：只在「單一週」檢視（cols.length===1，例如切到中元 W3
+   那個 chip）時才用縮減後數字，因為那是唯一能跟迷你卡片對得上的情境；
+   「整檔期彙總」/「整體」這種橫跨多週的檢視，維持原本「範圍內累計還是
+   誠實加總」的判斷，同一家店在其中一週達標、另一週沒達標時不應該被
+   單一週的縮減邏輯覆蓋掉。 */
 function _officeStatsFor(area, chanKey){
   var subset = STORE_ROWS.filter(function(s){
     if(s.area!==area) return false;
@@ -3036,26 +3178,71 @@ function _officeStatsFor(area, chanKey){
      複製一份加總邏輯 */
   var cols = !OFFICE_WEEK_SEL ? _allPeriodColumns()
     : (OFFICE_WEEK_SEL.week ? [{ period:OFFICE_WEEK_SEL.period, week:OFFICE_WEEK_SEL.week }] : _periodColumns(OFFICE_WEEK_SEL.period));
-  var exp=0, stdDone=0, extra=0, unknownGrade=0, unmetCount=0;
+  var exp=0, stdDone=0, extra=0, unknownGrade=0, unmetCount=0, quotaApplied=false;
+
+  var byGrade = {};
   subset.forEach(function(s){
     var std = _stdFreq(s);
     if(std===undefined){ unknownGrade++; return; }
-    var rowExp=0, rowStdDone=0;
-    cols.forEach(function(c){
-      var actual = _actualCount(s.code, c.period, c.week);
-      var colStd = _stdForCol(c.period, c.week, std); /* 1.28.0：改回原始折算次數，跟單店格子一致——分支單位（區域/訪員/檔期彙總）只要看得出「自己這個範圍還差多少」，不需要套全國性的縮減家數換算。 */
-      var stdDoneC = Math.min(actual, colStd);
-      exp += colStd; stdDone += stdDoneC; extra += Math.max(0, actual-colStd);
-      rowExp += colStd; rowStdDone += stdDoneC;
-    });
-    /* 1.26.0：【等級對照】次數標準 × 【必訪規則】交集時改採 AND 判斷──
-       任一項沒達成都算未達；沒有必訪規則的店 isMvMiss 恆為 false，公式
-       自動退化成原本只看次數的行為，不影響這些店的判斷。 */
-    var isMvMiss = cols.some(function(c){ var st=_mvWeekStatus(s,c.period,c.week); return st && st.violated; });
-    if((rowExp>0 && rowStdDone<rowExp) || isMvMiss) unmetCount++;
+    (byGrade[s.grade] = byGrade[s.grade] || []).push(s);
   });
+
+  Object.keys(byGrade).forEach(function(gradeKey){
+    var stores = byGrade[gradeKey];
+    var baseStd = _freqForGradeKey(chanKey, gradeKey);
+    var weeks = {}; /* week -> {exp,stdDone,unmetSet:{storeIdx:true}} 誠實原始數字，第二輪才視情況覆寫 */
+    stores.forEach(function(s, idx){
+      var rowExp=0, rowStdDone=0, rowMvMiss=false;
+      cols.forEach(function(c){
+        var actual = _actualCount(s.code, c.period, c.week);
+        var colStd = _stdForCol(c.period, c.week, baseStd);
+        var stdDoneC = Math.min(actual, colStd);
+        if(!weeks[c.week]) weeks[c.week] = { exp:0, stdDone:0, unmetSet:{} };
+        weeks[c.week].exp += colStd; weeks[c.week].stdDone += stdDoneC;
+        exp += colStd; stdDone += stdDoneC; extra += Math.max(0, actual-colStd);
+        rowExp += colStd; rowStdDone += stdDoneC;
+        /* 1.26.0：【等級對照】次數標準 × 【必訪規則】交集時改採 AND 判斷──
+           任一項沒達成都算未達；沒有必訪規則的店 mvSt 恆為 null，公式
+           自動退化成原本只看次數的行為，不影響這些店的判斷。 */
+        var mvSt = _mvWeekStatus(s, c.period, c.week);
+        var wkMvMiss = !!(mvSt && mvSt.violated);
+        if((colStd>0 && actual<colStd) || wkMvMiss) weeks[c.week].unmetSet[idx] = true;
+        if(wkMvMiss) rowMvMiss = true;
+      });
+      /* 多週彙總（整檔期／整體）：維持原本「範圍內累計後才誠實判斷」的
+         舊邏輯，不受下面的家數縮減影響——理由同 _statsFor 的
+         「未達店數(整檔期)」欄，橫跨多週時哪一家店該追是誠實問題，不是
+         「這一週分組還差多少」的問題。 */
+      if(cols.length>1 && ((rowExp>0 && rowStdDone<rowExp) || rowMvMiss)) unmetCount++;
+    });
+
+    /* 第二輪：縮減範圍＝這個營業處＋這個通路自己的店（storesPool 傳
+       stores，不是 STORE_ROWS），只在「不足整週檔期最後一週、且這個
+       等級折算次數已被 max(1,...) 保底卡死」時才觸發，其餘週次/等級
+       不受影響，跟 _statsFor 同一套判斷。 */
+    cols.forEach(function(c){
+      var q = _lastWeekQuota(chanKey, gradeKey, c.period, c.week, baseStd, stores);
+      if(!q) return;
+      var wk = weeks[c.week];
+      var stdN = _stdForCol(c.period, c.week, q.std);
+      var achieved = 0;
+      stores.forEach(function(s){ if(_actualCount(s.code, c.period, c.week) >= stdN) achieved++; });
+      var newExp = q.quota, newStdDone = Math.min(achieved, q.quota);
+      exp += (newExp - wk.exp); stdDone += (newStdDone - wk.stdDone);
+      wk.exp = newExp; wk.stdDone = newStdDone;
+      wk.quotaApplied = true; wk.achieved = achieved; wk.quota = q.quota;
+      wk.unmet = Math.max(0, q.quota - achieved);
+      quotaApplied = true;
+    });
+
+    if(cols.length===1){
+      var wkOnly = weeks[cols[0].week];
+      if(wkOnly) unmetCount += wkOnly.quotaApplied ? wkOnly.unmet : Object.keys(wkOnly.unmetSet).length;
+    }
+  });
+
   return { area:area, chanKey:chanKey||'', count:subset.length, exp:exp, stdDone:stdDone, extra:extra,
-    unknownGrade:unknownGrade, unmetCount:unmetCount, rate: exp>0 ? (stdDone/exp*100) : 0 };
+    unknownGrade:unknownGrade, unmetCount:unmetCount, rate: exp>0 ? (stdDone/exp*100) : 0, quotaApplied:quotaApplied };
 }
 /* 營業處執行狀況表的「檔期／週次」選單：null(整體) + 每個檔期的整檔期彙總
    (1.5.0 新增，week:null) + 每個檔期底下的每一週，讓現場能切到「當週」
@@ -3218,11 +3405,18 @@ function renderOfficeOverview(){
       var r = c.r;
       var click = ' class="oo-clickable" onclick="openDetailFromOffice(\''+area+'\',\''+ck+'\')"';
       var unmetClick = ' class="oo-clickable oo-unmet" onclick="openDetailFromOffice(\''+area+'\',\''+ck+'\',true,event)"';
+      /* 1.28.3：這個處＋通路裡，只要有任一等級這週觸發了「縮減後家數」
+         機制，應達／達標／未達三欄就不再是誠實次數／店數加總，而是混入
+         縮減後的家數版本——加 title 提示，避免現場誤以為又是統計錯誤。 */
+      var quotaTitle = r.quotaApplied
+        ? '本處這個通路裡有等級遇到「不足整週」的最後一週，應達/達標/未達已改成縮減後的家數版本（只算本處自己的店，不受其他處影響），非原始次數加總'
+        : '';
+      var quotaAttr = quotaTitle ? ' title="'+esc(quotaTitle)+'"' : '';
       return '<td'+click+'>'+r.count+'</td>'
-        + '<td'+click+'>'+r.exp+'</td>'
-        + '<td'+click+'>'+r.stdDone+'</td>'
+        + '<td'+click+quotaAttr+'>'+r.exp+(r.quotaApplied?' 🔽':'')+'</td>'
+        + '<td'+click+quotaAttr+'>'+r.stdDone+'</td>'
         + '<td'+click+' class="oo-rate">'+r.rate.toFixed(1)+'%</td>'
-        + '<td'+unmetClick+' title="點擊查看未達標門市">'+r.unmetCount+'</td>'
+        + '<td'+unmetClick+' title="'+(r.quotaApplied?esc(quotaTitle):'點擊查看未達標門市')+'">'+r.unmetCount+'</td>'
         + '<td'+click+' class="oo-extra">'+(r.extra>0?'+'+r.extra:'0')+'</td>';
     })();
     if(!_channelHasMustVisit(ck)) return base;
@@ -3246,7 +3440,7 @@ function renderOfficeOverview(){
       + subs + '</td>';
   }
   var chanTotals = {};
-  chans.forEach(function(ck){ chanTotals[ck] = {exp:0,stdDone:0,extra:0,count:0,unmet:0}; });
+  chans.forEach(function(ck){ chanTotals[ck] = {exp:0,stdDone:0,extra:0,count:0,unmet:0,quotaApplied:false}; });
   var mvTotals = { total:0, pendingToday:0, repeat:0 };
   var bodyRows = areasPresent.map(function(area){
     var row = '<tr><td class="oo-name">'+esc(area)+'</td>';
@@ -3255,6 +3449,7 @@ function renderOfficeOverview(){
       if(c.hasData){
         var r = c.r;
         chanTotals[ck].exp += r.exp; chanTotals[ck].stdDone += r.stdDone; chanTotals[ck].extra += r.extra; chanTotals[ck].count += r.count; chanTotals[ck].unmet += r.unmetCount;
+        if(r.quotaApplied) chanTotals[ck].quotaApplied = true;
       }
       row += _statCells(area, ck);
     });
@@ -3278,9 +3473,11 @@ function renderOfficeOverview(){
   var totalRow = '<tr class="oo-total"><td class="oo-name">全部合計</td>' + chans.map(function(ck){
     var t = chanTotals[ck];
     var rate = t.exp>0 ? (t.stdDone/t.exp*100) : 0;
-    var cells = '<td>'+t.count+'</td><td>'+t.exp+'</td><td>'+t.stdDone+'</td>'
+    var tQuotaTitle = t.quotaApplied ? '合計裡有營業處遇到「不足整週」的最後一週，應達/達標/未達已混入縮減後的家數版本' : '';
+    var tQuotaAttr = tQuotaTitle ? ' title="'+esc(tQuotaTitle)+'"' : '';
+    var cells = '<td>'+t.count+'</td><td'+tQuotaAttr+'>'+t.exp+(t.quotaApplied?' 🔽':'')+'</td><td'+tQuotaAttr+'>'+t.stdDone+'</td>'
       + '<td class="oo-rate">'+rate.toFixed(1)+'%</td>'
-      + '<td class="oo-unmet">'+t.unmet+'</td>'
+      + '<td class="oo-unmet"'+tQuotaAttr+'>'+t.unmet+'</td>'
       + '<td class="oo-extra">'+(t.extra>0?'+'+t.extra:'0')+'</td>';
     if(_channelHasMustVisit(ck)){
       var mt = mvTotalsByChan[ck];
@@ -3749,7 +3946,7 @@ function renderOverview(){
        不再有「未達欄例外、其餘點哪都觸發整列篩選」的不一致行為。 */
     var allGrades = CHANS().reduce(function(acc, chanKey){
       var subset = chanSubsets[chanKey];
-      var stat = _statsFor(subset, cols);
+      var stat = _statsFor(subset, cols, chanKey);
       var gradeKeys = Object.keys(stat.byGrade).sort(function(a,b){
         return (_freqForGradeKey(chanKey,b)||0) - (_freqForGradeKey(chanKey,a)||0);
       });
@@ -3777,12 +3974,15 @@ function renderOverview(){
           var label = _labelForGradeKey(chanKey,g) + '（' + _freqForGradeKey(chanKey,g) + '）';
           var clickAttrs = ' onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event)" title="點擊查看這個等級整個檔期的門市明細"';
           var wd = gd.weeks[curWeek] || { exp:0, stdDone:0, unmet:0 };
-          var met = gd.count - wd.unmet;
+          var met = wd.quotaApplied ? wd.achieved : (gd.count - wd.unmet);
+          var unmetTitle = wd.quotaApplied
+            ? '這個等級這週（天數不足）全國縮減後只要 '+wd.quota+' 家達標即可，目前 '+wd.achieved+' 家，換算後還缺這麼多家；點擊可看目前個別還沒完成這週次數的門市名單'
+            : '點擊查看這一週的未達標門市';
           return '<tr>'
             + '<td class="ov-mini-clickable"'+clickAttrs+'>'+esc(label)+'</td>'
             + '<td class="ov-mini-clickable"'+clickAttrs+'>'+gd.count+'</td>'
             + '<td class="ov-mini-met ov-mini-clickable"'+clickAttrs+'>'+met+'</td>'
-            + '<td class="ov-mini-wk ov-mini-clickable'+(wd.unmet>0?' ov-mini-wk-has-unmet':'')+'" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,true,'+curWeek+')" title="點擊查看這一週的未達標門市">'+wd.unmet+'</td>'
+            + '<td class="ov-mini-wk ov-mini-clickable'+(wd.unmet>0?' ov-mini-wk-has-unmet':'')+'" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,true,'+curWeek+')" title="'+esc(unmetTitle)+'">'+wd.unmet+'</td>'
             + '<td class="ov-mini-clickable" style="color:var(--green);font-weight:700;"'+clickAttrs+'>'+r+'%</td>'
             + '<td class="ov-mini-unmet ov-mini-clickable" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,true)" title="點擊查看整個檔期範圍內、至少有一週沒達標的門市">'+(gd.unmetCount||0)+'</td>'
             + '</tr>';
@@ -3810,9 +4010,12 @@ function renderOverview(){
           var clickAttrs = ' onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event)" title="點擊查看這個等級整個檔期的門市明細"';
           var weekCells = weekNums.map(function(w){
             var wd = gd.weeks[w] || { exp:0, stdDone:0, unmet:0 };
-            var met = gd.count - wd.unmet;
+            var met = wd.quotaApplied ? wd.achieved : (gd.count - wd.unmet);
+            var unmetTitle = wd.quotaApplied
+              ? '這個等級這週（天數不足）全國縮減後只要 '+wd.quota+' 家達標即可，目前 '+wd.achieved+' 家，換算後還缺這麼多家；點擊可看目前個別還沒完成這週次數的門市名單'
+              : '點擊查看這一週的未達標門市';
             return '<td class="ov-mini-met ov-mini-clickable"'+clickAttrs+'>'+met+'</td>'
-              + '<td class="ov-mini-wk ov-mini-clickable'+(wd.unmet>0?' ov-mini-wk-has-unmet':'')+'" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,true,'+w+')" title="點擊查看這一週的未達標門市">'+wd.unmet+'</td>';
+              + '<td class="ov-mini-wk ov-mini-clickable'+(wd.unmet>0?' ov-mini-wk-has-unmet':'')+'" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,true,'+w+')" title="'+esc(unmetTitle)+'">'+wd.unmet+'</td>';
           }).join('');
           return '<tr>'
             + '<td class="ov-mini-clickable"'+clickAttrs+'>'+esc(label)+'</td>'
