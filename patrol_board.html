@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.26.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-25
+  版本：Ver. 1.27.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
 
 【檔案定位】
   ‧ 單一 HTML 檔案，純前端 JS，透過 gviz API 讀同一份試算表兩分頁，
@@ -210,6 +210,35 @@
     把 <head> 裡那段 <script> 拿掉即可。
 
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.27.0  新增「彈性家數（縮減後應達家數）」機制，解決非整週檔期最後一週
+          折算時，「整週應達次數本來就是1」的等級（例如全聯每週1次）套用
+          max(1, prorated) 保底規則後，不管當週剩幾天都固定顯示1次、看起來
+          完全沒有隨天數遞減的問題。
+          ‧ 新規則：改成看「這個【等級對照】分組整體」這週要有多少家店
+            達標即可，不用每家都去──縮減後應達家數 = 該分組總家數 ×
+            (該週實際天數/7)，無條件捨去，但至少保留1家。分組內累計達到
+            這個縮減後家數之後，同分組其餘還沒達標的店，這週視為豁免
+            （不用再去、也不算未達）；門檻沒到之前，每家店仍照原本標準
+            判斷，不受影響。
+          ‧ 新增核心函式：_stdGroupKey()（比照 _freqForGradeKey() 判斷
+            一家店所屬【等級對照】分組）、_lastWeekQuota()（算縮減後應達
+            家數）、_gradeGroupAchievedCount()（分組已達標家數，用原始
+            _stdForCol() 判斷，不受豁免影響、避免循環判斷）、
+            _quotaExcuseInfo()（單店是否豁免＋明細）、_effStdForCol()
+            （取代 _stdForCol() 的統一入口，豁免時回傳0）。
+          ‧ 全站「這家店這週要算幾次應達」的地方統一改呼叫 _effStdForCol()：
+            _statsFor()、_officeStatsFor()、render() 主表格（桌機格子＋
+            手機卡片共用同一份 colStats）、openStoreDetail()（單店明細）、
+            _staffStatsData()（訪員個人總覽）、_summaryForShare()（CSV／
+            LINE／截圖彙整分享）。刻意排除 mpBuildData()（人次估算工具）：
+            那邊算的是排班需求估算，不該被「還沒發生的豁免」低估。
+          ‧ 順手修正手機卡片舊 bug：mStd 原本直接讀 rd.std（整週原始應達
+            次數），完全沒套用最後一週折算，跟桌機表格數字對不上；改成
+            跟桌機一致呼叫 _effStdForCol()。
+          ‧ 畫面新增可視化標示，讓豁免狀態「統計上看得出來」：等級欄／
+            手機卡片等級文字加註 🔽 彈性家數徽章（hover 顯示已達家數／應達
+            家數／原始家數明細）；「依日期」格子視角豁免格的提示文字加註
+            豁免原因，不會誤讀成「沒去、算未達」。
   1.26.0  【等級對照】×【必訪規則】交集時，「達標」判斷從「兩套獨立」
           改成「AND」（兩者都要達成才算達標，任一項沒達成都算未達）：
           ①render()：主表格單店 isUnmet 改成 freqUnmet || isMvMiss（原本
@@ -484,6 +513,9 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
   50% { box-shadow:0 0 7px 3px rgba(255,122,0,.55); }
 }
 .unknown-grade { color:var(--red); font-size:13px; font-weight:700; }
+/* 1.27.0：彈性家數豁免徽章——刻意用中性藍而非紅／橘，這是「規則生效、
+   不用去」的正常狀態，不是異常警示，跟未達標的紅色系要能一眼區分開 */
+.quota-badge { display:inline-block; font-size:11px; font-weight:700; color:#2A6DB0; background:#E7F1FA; border:1px solid #BBD9F0; border-radius:8px; padding:1px 6px; cursor:help; }
 .miss-mark { display:inline-flex; align-items:center; justify-content:center; width:17px; height:17px; border-radius:3px; background:var(--red-bg); border:1px solid rgba(163,32,32,.4); color:var(--red); font-size:12px; font-weight:800; line-height:1; }
 /* 1.5.0：非應達格的「幽靈格」佔位，近似透明，若有似無——只佔版面、不搶視覺焦點，
    一旦實際次數蓋過這格才會被換成 .extra-check（見 render() 的 7 格迴圈） */
@@ -2332,6 +2364,79 @@ function _stdForCol(periodKey, week, baseStd){
   var prorated = Math.floor(_weekDayCount(p, week)/7*baseStd);
   return Math.max(1, prorated);
 }
+/* ════ 1.27.0：最後一週天數不足時的「彈性家數（縮減後應達家數）」機制 ════
+   問題背景：_stdForCol() 把「整週應達次數」折算成最後一週的次數時，套用
+   max(1, prorated) 保底，確保每家店這週至少要跑 1 次——但「整週應達次數
+   本來就是 1」的等級（例如全聯每週1次），折算後不管這週剩幾天，算出來
+   一定介在 0～1 之間，保底規則會把它拉回 1，看起來完全沒有隨天數遞減，
+   跟「整週應達5次」的量販A折算後明顯降到1次的觀感不一致。
+   business 決議：改成不是看「單一店這週要不要去」，而是看「這個【等級
+   對照】分組整體」這週要有多少「家數」達標即可、不用每家都去——縮減後
+   應達家數 = 該等級分組總家數 × (該週實際天數/7)，無條件捨去，但至少
+   保留 1 家。分組內只要已經有「縮減後應達家數」那麼多家店這週達到原始
+   應達次數標準，同一分組其餘還沒達標的店，這週就視為豁免（不用再去，
+   也不算未達）；門檻沒到之前，每家店仍照原本標準判斷，不受影響。 */
+/* 一家店在【等級對照】裡「所屬分組」的識別鍵——比照 _freqForGradeKey()
+   同一套優先序：①店家等級文字能精確對到 GRADE_FREQ 的指名等級規則，分組
+   ＝「這個通路＋這個指名等級」；②對不到但通路有【等級對照】留白列（不分
+   等級預設），分組＝「這個通路的不分等級預設」；③兩者都對不到（等級未知）
+   → 回傳 null，不參與彈性家數機制（沒有標準可言，維持原本 undefined 行為）。 */
+function _stdGroupKey(chanKey, grade){
+  if(grade && GRADE_FREQ.hasOwnProperty(grade)) return 'G|'+chanKey+'|'+grade;
+  if(CHANNEL_DEFAULT_FREQ.hasOwnProperty(chanKey)) return 'D|'+chanKey;
+  return null;
+}
+/* 縮減後應達家數：{ total, quota, stores, std }；非折算最後一週（整週或
+   baseStd 為 0／未知）一律回傳 null，代表這個機制不適用、呼叫端應該退回
+   原本的 _stdForCol() 判斷。 */
+function _lastWeekQuota(chanKey, grade, periodKey, week, baseStd){
+  if(!baseStd) return null;
+  var p = PERIODS.filter(function(pp){ return pp.key===periodKey; })[0];
+  if(!p || p.lastWeekDays==null || week!==p.weeks) return null; /* 不是非整週檔期的最後一週，不適用 */
+  var dayRatio = _weekDayCount(p, week)/7;
+  if(dayRatio>=1) return null;
+  var groupKey = _stdGroupKey(chanKey, grade);
+  if(!groupKey) return null;
+  var stores = STORE_ROWS.filter(function(s){ return _stdGroupKey(s.chanKey, s.grade)===groupKey; });
+  if(!stores.length) return null;
+  return { total:stores.length, quota:Math.max(1, Math.floor(stores.length*dayRatio)), stores:stores, std:baseStd };
+}
+/* 這個【等級對照】分組在指定檔期週次，已經有幾家店「達到原始（未套彈性豁免）
+   次數」，用 _stdForCol 的原始折算結果判斷，不套用彈性豁免——避免「豁免
+   本身反過來影響誰算已達標」的循環判斷。 */
+function _gradeGroupAchievedCount(quotaInfo, periodKey, week){
+  var stdN = _stdForCol(periodKey, week, quotaInfo.std);
+  var n = 0;
+  quotaInfo.stores.forEach(function(s){ if(_actualCount(s.code, periodKey, week) >= stdN) n++; });
+  return n;
+}
+/* 給單一店家＋單一檔期週次用：這家店這週是否被「彈性家數」機制豁免。
+   ‧ 不適用（非折算最後一週、等級未知）→ null。
+   ‧ 適用但分組還沒達到縮減後家數門檻 → null（這家店維持原本標準判斷）。
+   ‧ 適用且分組已達門檻 → 回傳 { total, quota, achieved } 明細，方便呼叫端
+   顯示統計提示，不用再自己重算一次。 */
+function _quotaExcuseInfo(s, periodKey, week){
+  var baseStd = _stdFreq(s);
+  var quotaInfo = _lastWeekQuota(s.chanKey, s.grade, periodKey, week, baseStd);
+  if(!quotaInfo) return null;
+  var achieved = _gradeGroupAchievedCount(quotaInfo, periodKey, week);
+  if(achieved < quotaInfo.quota) return null; /* 整組還沒達到縮減後家數，維持原本判斷 */
+  return { total:quotaInfo.total, quota:quotaInfo.quota, achieved:achieved };
+}
+/* 取得某家店在指定檔期週次「實際生效」的應達次數──把 _stdForCol() 算出
+   來的個別折算次數，套用彈性家數豁免（豁免時歸零，這欄不計入應達／
+   不算未達）。全站所有「這家店這週要算幾次應達」的地方，一律呼叫這支
+   函式取代直接呼叫 _stdForCol()，確保統計總表／單店明細／訪員總覽／CSV
+   匯出等所有畫面的數字互相兜得起來。
+   例外：mpBuildData()（人次估算工具）刻意維持直接呼叫 _stdForCol()、不套
+   彈性豁免——那邊算的是「要完美覆蓋這個範圍，整季需要安排多少人次」的
+   排班需求估算，跟「豁免、不用去」是兩個不同性質的問題，不應該讓還沒
+   發生的豁免去低估排班需求。 */
+function _effStdForCol(s, periodKey, week, baseStd){
+  var stdN = baseStd===undefined ? 0 : _stdForCol(periodKey, week, baseStd);
+  if(stdN>0 && _quotaExcuseInfo(s, periodKey, week)) return 0;
+  return stdN;
+}
 function _classifyParts(parts){
   if(!parts) return null;
   var day = _toEpochDay(parts.y, parts.mo, parts.d);
@@ -2901,7 +3006,7 @@ function _statsFor(storesSubset, cols){
     var rowExp=0, rowStdDone=0, rowMvMiss=false;
     cols.forEach(function(c){
       var actual = _actualCount(s.code, c.period, c.week);
-      var colStd = _stdForCol(c.period, c.week, std); /* 1.22.0：非整週檔期最後一週折算應達次數 */
+      var colStd = _effStdForCol(s, c.period, c.week, std); /* 1.27.0：套用彈性家數豁免後的實際生效應達次數 */
       var exp = colStd, stdDone = Math.min(actual, colStd);
       g.exp += exp; g.stdDone += stdDone;
       if(!g.weeks[c.week]) g.weeks[c.week] = { exp:0, stdDone:0, unmet:0 };
@@ -2948,7 +3053,7 @@ function _officeStatsFor(area, chanKey){
     var rowExp=0, rowStdDone=0;
     cols.forEach(function(c){
       var actual = _actualCount(s.code, c.period, c.week);
-      var colStd = _stdForCol(c.period, c.week, std); /* 1.22.0：非整週檔期最後一週折算應達次數 */
+      var colStd = _effStdForCol(s, c.period, c.week, std); /* 1.27.0：套用彈性家數豁免後的實際生效應達次數 */
       var stdDoneC = Math.min(actual, colStd);
       exp += colStd; stdDone += stdDoneC; extra += Math.max(0, actual-colStd);
       rowExp += colStd; rowStdDone += stdDoneC;
@@ -3931,7 +4036,7 @@ function _buildBoxCells(actual, stdN, isPastWeek){
      ／mv-badge 徽章。
    ‧ 週六／週日星期幾標籤固定紅色（.dow-weekend），方便辨識假日。 */
 var DOW_LABELS = ['日','一','二','三','四','五','六'];
-function _buildDayBoxCells(s, period, week, stdN, actual){
+function _buildDayBoxCells(s, period, week, stdN, actual, excuseInfo){
   var p = PERIODS.filter(function(pp){ return pp.key===period; })[0];
   if(!p) return '';
   var startDay = _toEpochDay(p.y,p.mo,p.d) + (week-1)*7;
@@ -3962,6 +4067,10 @@ function _buildDayBoxCells(s, period, week, stdN, actual){
   var forcedCount = days.filter(function(d){ return d.isForceWhite; }).length;
   var dynamicBudget = Math.max(0, neededWhite - forcedCount);
   var visitedRank=0, openAssigned=0;
+  /* 1.27.0：這家店這個週次若被彈性家數機制豁免，尚未到店的格子（不論
+     已過期或本週還沒結束）都要在提示文字加註原因，不然畫面上看起來
+     跟「真的沒去、算未達」的灰格沒有兩樣，稽核時容易被誤讀。 */
+  var quotaNote = excuseInfo ? '（🔽彈性家數已達門檻：已達'+excuseInfo.achieved+'／應達'+excuseInfo.quota+'家，原始'+excuseInfo.total+'家，本店本週豁免）' : '';
   var html = '';
   days.forEach(function(d){
     var dp = _epochDayToParts(d.day);
@@ -3978,7 +4087,7 @@ function _buildDayBoxCells(s, period, week, stdN, actual){
       else { inner = '<input type="checkbox" class="extra-check" checked>'; title = dateLbl+'（週'+dowLbl+'）：已完成，超額次數'; }
     } else if(d.isPastDay){
       inner = '<span class="box-ghost" aria-hidden="true"></span>';
-      title = dateLbl+'（週'+dowLbl+'）：已過期未到店';
+      title = excuseInfo ? dateLbl+'（週'+dowLbl+'）：已豁免，不算未達'+quotaNote : dateLbl+'（週'+dowLbl+'）：已過期未到店';
     } else if(d.isForceWhite){
       inner = '<input type="checkbox" class="std-check">';
       title = dateLbl+'（週'+dowLbl+'）：必訪日，尚未到店';
@@ -3987,7 +4096,7 @@ function _buildDayBoxCells(s, period, week, stdN, actual){
       title = dateLbl+'（週'+dowLbl+'）：本週尚未結束，還沒完成';
     } else {
       inner = '<span class="box-ghost" aria-hidden="true"></span>';
-      title = dateLbl+'（週'+dowLbl+'）：非必要格';
+      title = excuseInfo ? dateLbl+'（週'+dowLbl+'）：已豁免，不需要再去'+quotaNote : dateLbl+'（週'+dowLbl+'）：非必要格';
     }
     html += '<div class="day-box-cell'+(d.isForceWhite?' mv-force':'')+'" title="'+esc(title)+'"><span class="day-box-lbl'+(isWeekendLbl?' dow-weekend':'')+'">'+dowLbl+'</span>'+inner+'</div>';
   });
@@ -4061,10 +4170,15 @@ function render(){
     var gradeLabel = _gradeLabel(s);
 
     var colStats = [];
-    var rowExp=0, rowStdDone=0, rowExtra=0, mvMissTotal=0;
+    var rowExp=0, rowStdDone=0, rowExtra=0, mvMissTotal=0, hasQuotaExcuse=false;
     cols.forEach(function(c){
       var actual = _actualCount(s.code, c.period, c.week);
-      var stdN = std===undefined ? 0 : _stdForCol(c.period, c.week, std); /* 1.22.0：非整週檔期最後一週折算應達次數 */
+      /* 1.27.0：先算出這欄是否被「彈性家數」機制豁免（見上方 _quotaExcuseInfo
+         說明），豁免時這欄應達次數歸零，行為比照「等級未知」不計入應達／
+         不算未達，但保留 excuse 明細供格子提示文字／等級徽章使用。 */
+      var excuse = std===undefined ? null : _quotaExcuseInfo(s, c.period, c.week);
+      var stdN = std===undefined ? 0 : (excuse ? 0 : _stdForCol(c.period, c.week, std));
+      if(excuse) hasQuotaExcuse = true;
       var stdDone = Math.min(actual, stdN);
       var extra = Math.max(0, actual - stdN);
       rowExp += stdN; rowStdDone += stdDone; rowExtra += extra;
@@ -4072,7 +4186,7 @@ function render(){
          【稽核用必訪日規則】），非量販A店 mv 為 null，格子照舊不受影響 */
       var mv = _mustVisitStatusForCol(s, c.period, c.week);
       if(mv) mvMissTotal += mv.filter(function(d){ return !d.visited && d.isPast; }).length;
-      colStats.push({ col:c, actual:actual, std:stdN, extra:extra, mv:mv });
+      colStats.push({ col:c, actual:actual, std:stdN, extra:extra, mv:mv, excuse:excuse });
     });
     var freqUnmet = rowExp>0 && rowStdDone<rowExp;
     var isMvMiss = mvMissTotal>0;
@@ -4082,7 +4196,7 @@ function render(){
        只看次數的行為，不影響這些店的判斷。 */
     var isUnmet = freqUnmet || isMvMiss;
     return { s:s, std:std, gradeLabel:gradeLabel, colStats:colStats, rowExp:rowExp, rowStdDone:rowStdDone, rowExtra:rowExtra, isUnmet:isUnmet,
-      mvMissTotal:mvMissTotal, isMvMiss:isMvMiss,
+      mvMissTotal:mvMissTotal, isMvMiss:isMvMiss, hasQuotaExcuse:hasQuotaExcuse,
       groupKey: s.area+'␟'+s.office+'␟'+s.staff };
   });
 
@@ -4143,7 +4257,7 @@ function render(){
       var m = colMeta[idx];
       var dividerCls = m.isGroupDivider ? ' pg-divider' : (m.isWeekDivider ? ' wk-divider' : '');
       var boxesHtml = CELL_VIEW==='day'
-        ? _buildDayBoxCells(rd.s, cs.col.period, cs.col.week, cs.std, cs.actual)
+        ? _buildDayBoxCells(rd.s, cs.col.period, cs.col.week, cs.std, cs.actual, cs.excuse)
         : _buildBoxCells(cs.actual, cs.std, m.isPastWeek);
       /* 1.9.6：量販A店才有 cs.mv，組出五、六兩個必訪日小徽章（✓已到店／
          ✖已過期未到店／·尚未到期）；任一天「已過期仍未到店」，整格加
@@ -4190,7 +4304,8 @@ function render(){
       + '<td class="td-left">'+esc(rd.s.area)+' '+esc(rd.s.office)+'</td>'
       + '<td class="td-left"><div class="td-name">'+esc(rd.s.storeName)+'</div><div class="td-code">'+esc(rd.s.code)+'</div></td>'
       + '<td>'+esc(rd.s.storeType||'—')+'</td>'
-      + '<td class="grade-tag">'+(rd.std===undefined?'<span class="unknown-grade">'+esc(rd.s.grade||'未設定')+' ⚠️</span>':esc(rd.gradeLabel))+'</td>'
+      + '<td class="grade-tag">'+(rd.std===undefined?'<span class="unknown-grade">'+esc(rd.s.grade||'未設定')+' ⚠️</span>':esc(rd.gradeLabel))
+      + (rd.hasQuotaExcuse?' <span class="quota-badge" title="最後一週天數不足，這個等級已達彈性家數門檻，這家店本週次數已豁免、不計入未達">🔽彈性</span>':'')+'</td>'
       + '<td class="sum-col">'+sumHtml+'</td>'
       + colsHtml
       + '</tr>';
@@ -4200,7 +4315,14 @@ function render(){
        單次僅針對現行資料進行渲染與處理」的要求——不會因為切了 desktop 篩選
        的檔期／週次範圍，手機這邊就跟著多算一堆看不到的欄位。 */
     var mCol = MOBILE_SEL;
-    var mStd = rd.std===undefined ? 0 : rd.std;
+    /* 1.27.0 修正：這裡原本直接用 rd.std（整週原始應達次數），沒有套用最後
+       一週折算／彈性家數豁免，跟桌機表格的 cs.std 對不起來——改成一致呼叫
+       _effStdForCol()，非整週檔期最後一週手機卡片才會跟桌機顯示同一個數字。 */
+    /* 1.27.0：這一週是否被彈性家數機制豁免，跟桌機格子的 cs.excuse 是同一份
+       判斷（只是手機這邊只看 MOBILE_SEL 這單一週）；要先算出來才能同時給
+       mStd（顯示用應達次數）和 _buildDayBoxCells() 的格子提示文字使用。 */
+    var mExcuse = (mCol && rd.std!==undefined) ? _quotaExcuseInfo(rd.s, mCol.period, mCol.week) : null;
+    var mStd = (rd.std===undefined || !mCol) ? 0 : _effStdForCol(rd.s, mCol.period, mCol.week, rd.std);
     var mActual = mCol ? _actualCount(rd.s.code, mCol.period, mCol.week) : 0;
     var mDone = Math.min(mActual, mStd);
     var mExtra = Math.max(0, mActual-mStd);
@@ -4209,7 +4331,7 @@ function render(){
     var mMv = mCol ? _mustVisitStatusForCol(rd.s, mCol.period, mCol.week) : null;
     var mMvMiss = !!(mMv && mMv.some(function(d){ return !d.visited && d.isPast; }));
     var mBoxesHtml = !mCol ? '' : (CELL_VIEW==='day'
-      ? _buildDayBoxCells(rd.s, mCol.period, mCol.week, mStd, mActual)
+      ? _buildDayBoxCells(rd.s, mCol.period, mCol.week, mStd, mActual, mExcuse)
       : _buildBoxCells(mActual, mStd, mIsPastWeek));
     var mMvHtml = '';
     if(mMv && CELL_VIEW!=='day'){
@@ -4223,6 +4345,7 @@ function render(){
     }
     var mRateClass = mStd===0 ? 'm-rate-none' : (mDone>=mStd ? 'm-rate-full' : (mDone>0 ? 'm-rate-part' : 'm-rate-zero'));
     var gradeLineHtml = rd.std===undefined ? '<span class="unknown-grade">'+esc(rd.s.grade||'未設定')+' ⚠️</span>' : esc(rd.gradeLabel);
+    if(mExcuse) gradeLineHtml += ' <span class="quota-badge" title="最後一週天數不足，這個等級已達彈性家數門檻，本週次數已豁免">🔽</span>';
     group.cardsHtml += '<div class="m-store-card'+(rd.std===undefined?' unknown-grade-card':'')+'" onclick="openStoreDetail(\''+esc(rd.s.code)+'\''+(mCol?',\''+mCol.period+'\','+mCol.week:'')+')">'
       + '<div class="m-store-top">'
       +   '<div class="m-store-line">'
@@ -4419,7 +4542,7 @@ function openStoreDetail(code, scopePeriod, scopeWeek, evt){
   var expTotal=0, stdDoneTotal=0, extraTotal=0;
   cols.forEach(function(c){
     var actual = _actualCount(code, c.period, c.week);
-    var stdN = std===undefined?0:_stdForCol(c.period, c.week, std); /* 1.22.0：非整週檔期最後一週折算應達次數 */
+    var stdN = std===undefined?0:_effStdForCol(store, c.period, c.week, std); /* 1.27.0：套用彈性家數豁免後的實際生效應達次數 */
     expTotal += stdN;
     stdDoneTotal += Math.min(actual, stdN);
     extraTotal += Math.max(0, actual-stdN);
@@ -4516,7 +4639,7 @@ function _staffStatsData(staffName){
     var exp=0, stdDone=0, extra=0, mvMissTotal=0;
     cols.forEach(function(c){
       var actual = _actualCount(s.code, c.period, c.week);
-      var stdN = std===undefined?0:_stdForCol(c.period, c.week, std); /* 1.22.0：非整週檔期最後一週折算應達次數 */
+      var stdN = std===undefined?0:_effStdForCol(s, c.period, c.week, std); /* 1.27.0：套用彈性家數豁免後的實際生效應達次數 */
       exp += stdN; stdDone += Math.min(actual,stdN); extra += Math.max(0,actual-stdN);
       var mv = _mustVisitStatusForCol(s, c.period, c.week);
       if(mv) mvMissTotal += mv.filter(function(d){ return !d.visited && d.isPast; }).length;
@@ -4952,7 +5075,7 @@ function _summaryForShare(){
     var exp=0, stdDone=0, extra=0, mvMissTotal=0;
     cols.forEach(function(c){
       var actual = _actualCount(s.code, c.period, c.week);
-      var stdN = std===undefined?0:_stdForCol(c.period, c.week, std); /* 1.22.0：非整週檔期最後一週折算應達次數 */
+      var stdN = std===undefined?0:_effStdForCol(s, c.period, c.week, std); /* 1.27.0：套用彈性家數豁免後的實際生效應達次數 */
       exp += stdN; stdDone += Math.min(actual,stdN); extra += Math.max(0,actual-stdN);
       var mv = _mustVisitStatusForCol(s, c.period, c.week);
       if(mv) mvMissTotal += mv.filter(function(d){ return !d.visited && d.isPast; }).length;
