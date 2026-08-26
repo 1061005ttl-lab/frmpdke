@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.28.4 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
+  版本：Ver. 1.28.5 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
 
 【檔案定位】
   ‧ 單一 HTML 檔案，純前端 JS，透過 gviz API 讀同一份試算表兩分頁，
@@ -210,6 +210,19 @@
     把 <head> 裡那段 <script> 拿掉即可。
 ────────────────────────────────────────────────────────────
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.28.5  business 五次確認：發現「營業處執行狀況」總表跟「中元/中秋
+          專案」迷你卡片，同一個通路+等級+週次的「未達」數字對不起來
+          （例：總表全聯社合計未達店數=40，迷你卡片超市A那一週的未達卻
+          是另一個數字）。原因是兩張表雖然都套了「不足整週最後一週改用
+          縮減後家數」，但縮減的「範圍」算法不同：總表（1.28.3 起）是
+          逐營業處各自用「自己這個處的店數」分別套 quota 再加總；迷你
+          卡片（_statsFor()）卻是對「全國這個通路+等級」一次性套 quota。
+          floor()/max(1,...) 保底在不同分母下各自進位，兩種算法加總起來
+          本來就不保證相等。改成：迷你卡片的縮減也一併改成「逐營業處分別
+          算出各自的 quota/achieved 再加總回全國」，跟總表用同一顆積木
+          （每個處自己的店數分別套 quota）疊出來，只是疊法不同——總表是
+          「同一個處，跨等級加總」，迷你卡片是「同一個等級，跨處加總」，
+          疊到全國/全部合計那一格，兩邊數字保證一致。
   1.28.4  business 四次確認：1.28.3 讓「未達店數」欄在「單一週」跟「整檔期
           彙總/整體」用兩套不同算法（單週用縮減後家數；跨週維持舊的「範圍
           內累計後才誠實判斷、同一家店去重」），結果現場發現同一個檔期，
@@ -3136,21 +3149,43 @@ function _statsFor(storesSubset, cols, chanKey){
     if((rowExp>0 && rowStdDone<rowExp) || rowMvMiss) g.unmetCount++;
   });
   /* 第二輪：把「不足整週檔期最後一週」且套用得到分組家數機制的等級，
-     該週的 exp/stdDone/unmet 換成分組縮減後家數的版本（見上方說明）。 */
+     該週的 exp/stdDone/unmet 換成分組縮減後家數的版本（見上方說明）。
+     1.28.5：business 要求跨表數字要對得起來——原本這裡是對整個
+     storesSubset（全國這個通路+等級）一次性套 quota，跟「營業處執行
+     狀況」總表（1.28.3 起改成逐營業處各自用自己的店數分別套 quota，
+     見 _officeStatsFor()）不是同一套算法，兩邊 floor()/max(1,...) 保底
+     在不同分母下各自進位，加總結果不一定相等，導致「全聯社在營業處總表
+     的未達店數」跟「中元專案卡片同一週的未達」對不起來。改成這裡也
+     逐營業處分別算 quota/achieved 再加總回全國，用同一顆積木（每個處
+     自己的店數分別套 quota）疊出兩張表，疊法只差在「同一個處跨等級
+     加總」vs「同一個等級跨處加總」，數字保證一致。 */
   Object.keys(byGrade).forEach(function(gradeKey){
     var g = byGrade[gradeKey];
     var baseStd = _freqForGradeKey(chanKey, gradeKey);
+    var gradeStores = storesSubset.filter(function(s){ return s.grade===gradeKey; });
     cols.forEach(function(c){
-      var q = _lastWeekQuota(chanKey, gradeKey, c.period, c.week, baseStd, storesSubset);
-      if(!q) return;
+      var trigger = _lastWeekQuota(chanKey, gradeKey, c.period, c.week, baseStd, gradeStores);
+      if(!trigger) return;
       var wk = g.weeks[c.week];
       if(!wk) return;
-      var achieved = _gradeGroupAchievedCount(q, c.period, c.week);
-      var newExp = q.quota, newStdDone = Math.min(achieved, q.quota), newUnmet = Math.max(0, q.quota-achieved);
+      var stdN = _stdForCol(c.period, c.week, trigger.std);
+      var areas = {};
+      gradeStores.forEach(function(s){ areas[s.area] = true; });
+      var totalQuota = 0, totalAchieved = 0;
+      Object.keys(areas).forEach(function(area){
+        var officeStores = gradeStores.filter(function(s){ return s.area===area; });
+        var q2 = _lastWeekQuota(chanKey, gradeKey, c.period, c.week, baseStd, officeStores);
+        if(!q2) return;
+        var achieved = 0;
+        officeStores.forEach(function(s){ if(_actualCount(s.code, c.period, c.week) >= stdN) achieved++; });
+        totalQuota += q2.quota;
+        totalAchieved += Math.min(achieved, q2.quota);
+      });
+      var newExp = totalQuota, newStdDone = totalAchieved, newUnmet = Math.max(0, totalQuota-totalAchieved);
       g.exp += (newExp - wk.exp); g.stdDone += (newStdDone - wk.stdDone);
       totalExp += (newExp - wk.exp); totalStdDone += (newStdDone - wk.stdDone);
       wk.exp = newExp; wk.stdDone = newStdDone; wk.unmet = newUnmet;
-      wk.quotaApplied = true; wk.achieved = achieved; wk.quota = q.quota; /* 給畫面「已達」欄位用：顯示真實已達家數，不因封頂在 quota 而縮小 */
+      wk.quotaApplied = true; wk.achieved = totalAchieved; wk.quota = totalQuota; /* 給畫面「已達」欄位用：顯示真實已達家數加總，不因封頂在 quota 而縮小 */
     });
   });
   return { rate: totalExp>0 ? (totalStdDone/totalExp*100) : 0, totalExp:totalExp, byGrade:byGrade };
