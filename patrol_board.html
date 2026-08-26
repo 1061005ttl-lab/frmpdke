@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.40.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
+  版本：Ver. 1.41.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
 
 【檔案定位】
   ‧ 單一 HTML 檔案，純前端 JS，透過 gviz API 讀同一份試算表兩分頁，
@@ -210,6 +210,28 @@
     把 <head> 裡那段 <script> 拿掉即可。
 ────────────────────────────────────────────────────────────
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.41.0  business 反映：「🤝靠分組過關」「分組也還沒過關」這組字眼帶有
+          評價意味（暗示「沒去卻算過關」是搭便車、躺分），業務認為這樣
+          容易讓訪員覺得被貼標籤，希望改成中性的描述詞，只講「發生了
+          什麼」，不預設「這樣好不好」。改法（只改文字，不動任何計算
+          邏輯／欄位/資料結構）：
+          ‧ 「🤝靠分組過關」→「🤝分組協力達標」：一樣代表「這位訪員名下
+            這家店自己這次沒達標，但所屬分組已經達到縮減後門檻」，只是
+            不再用「過關╱靠」這種帶有僥倖意味的字，改用「協力」強調
+            這是團隊共同結果，不特別點名個人。
+          ‧ 「分組也還沒過關」／「分組尚未過關」→ 統一改成「分組尚未
+            達標」：拿掉「也還沒」的比較語氣，跟前面「分組協力達標」
+            用同一組「達標／尚未達標」動詞，口徑一致。
+          ‧ 同步更新的地方：排行 Dialog 表格欄名／排序選單／明細標籤／
+            說明文字、總覽頁「👥 分組貢獻度」摘要卡（pill 文字＋收合態
+            文字）、CSV 匯出欄名、「複製文字」輸出的文案。
+          ‧ 說明文字順手拿掉「不算搭便車」「算不算躺分」這兩句評價性
+            敘述，改成「這裡只攤開原始次數，讓你自己判斷這份貢獻的
+            意義」，只講事實不下判斷。
+          影響範圍：純文字置換，met/ride/stillShort 三態的判定邏輯、
+          contributionPct／officeSharePct／areaSharePct 算法、CSV 欄位
+          順序、排序 key（'ride'/'total'…等程式內部變數名）完全不變；
+          舊版 CSV／複製文字若有存檔比對，只有欄名文字跟著變。
   1.40.0  business 反映：主管認為 1.37.0／1.38.0 那套「已過期才正式計入
           統計、進行中週次另存 pending 只供參考」的設計沒必要——各分組
           的縮減後門檻本來就很明確，KPI 的用意就是要一直算、一直累積，
@@ -3186,7 +3208,7 @@ function _contribSortedList(){
     if(key==='total') return b.total-a.total;
     if(key==='officeShare') return b.officeSharePct-a.officeSharePct;
     if(key==='areaShare') return b.areaSharePct-a.areaSharePct;
-    return b.ride-a.ride; /* 預設：靠分組過關次數多的排前面 */
+    return b.ride-a.ride; /* 預設：分組協力達標次數多的排前面 */
   });
   return list;
 }
@@ -3209,14 +3231,14 @@ function _buildContribSummaryHtml(){
   if(clean && !CONTRIB_SUMMARY_EXPANDED){
     return '<div class="ov-mv-summary ov-mv-summary-clean" onclick="toggleContribSummary()" role="button" tabindex="0">'
       + '<span class="ov-mv-clean-icon">👥</span>'
-      + '<span class="ov-mv-clean-text">分組貢獻度：目前沒有「靠分組過關」的實例</span>'
+      + '<span class="ov-mv-clean-text">分組貢獻度：目前沒有「分組協力達標」的實例</span>'
       + '<span class="ov-mv-clean-expand">展開 ▾</span>'
       + '</div>';
   }
   return '<div class="ov-mv-summary">'
     + '<div class="ov-mv-summary-title">👥 分組貢獻度</div>'
     + '<div class="ov-mv-summary-pills">'
-    + '<span class="ov-mv-pill'+(totalRide>0?' info':'')+'">🤝 靠分組過關 '+totalRide+' 實例</span>'
+    + '<span class="ov-mv-pill'+(totalRide>0?' info':'')+'">🤝 分組協力達標 '+totalRide+' 實例</span>'
     + '<span class="ov-mv-pill">涉及 '+rideStaffCount+' 位訪員</span>'
     + '</div>'
     + '<button class="ov-mv-copy-btn" onclick="openStaffContribution()">📋 查看訪員排行</button>'
@@ -3303,7 +3325,7 @@ function _buildContribDialogHtml(){
   list.forEach(function(b){
     totalMet+=b.met; totalRide+=b.ride; totalShort+=b.stillShort;
   });
-  var sortDefs = [['ride','🤝靠分組過關'],['contribution','貢獻度%'],['met','自己達標數'],['total','合計實例'],['officeShare','佔營業所比重'],['areaShare','佔營業處比重']];
+  var sortDefs = [['ride','🤝分組協力達標'],['contribution','貢獻度%'],['met','自己達標數'],['total','合計實例'],['officeShare','佔營業所比重'],['areaShare','佔營業處比重']];
   var sortBtns = sortDefs.map(function(d){
     return '<button class="contrib-sort-btn'+(_contribSortKey===d[0]?' active':'')+'" onclick="_contribSetSort(\''+d[0]+'\')">'+d[1]+'</button>';
   }).join('');
@@ -3323,8 +3345,8 @@ function _buildContribDialogHtml(){
       var statusHtml = d.status==='met'
         ? '<span class="contrib-tag contrib-tag-met">✓ 自己達標</span>'
         : d.status==='ride'
-          ? '<span class="contrib-tag contrib-tag-ride">🤝 靠分組過關</span>'
-          : '<span class="contrib-tag contrib-tag-short">⏳ 分組也還沒過關</span>';
+          ? '<span class="contrib-tag contrib-tag-ride">🤝 分組協力達標</span>'
+          : '<span class="contrib-tag contrib-tag-short">⏳ 分組尚未達標</span>';
       if(!d.isPast) statusHtml += ' <span class="contrib-tag contrib-tag-pending" title="這一週還沒走完，此刻狀態隨時可能因為訪員晚點補去而變化，但已計入左側即時累積統計">🕒 本週進行中</span>';
       return '<tr><td class="td-left">'+esc(d.storeName)+'<div class="td-code">'+esc(d.code)+'</div></td>'
         + '<td>'+esc(d.periodLabel)+' W'+d.week+'</td>'
@@ -3351,24 +3373,24 @@ function _buildContribDialogHtml(){
           : '');
   }).join('');
   return '<div class="visit-timeline">'
-    + '<p style="font-size:12.5px;color:var(--sub);line-height:1.6;margin:0 0 10px;">只統計「不足整週」折算週、且分組已觸發縮減後家數門檻的範圍，平常整週的欄位不影響這份排行。同一位訪員名下不同（通路＋等級）分組會分開各成一列，不合併。「🤝 靠分組過關」代表這位訪員名下這個分組這週還沒去，但所屬分組（同營業處＋通路＋等級）已經靠其他店達到縮減後門檻；「分組也還沒過關」代表這組這週還沒到門檻，大家都還在缺，不算搭便車。這裡只攤開原始次數，不代替你判斷「算不算躺分」——點一列可以展開看逐店明細。</p>'
-    + '<p style="font-size:12.5px;color:var(--info);line-height:1.6;margin:0 0 10px;background:var(--info-bg,#eef4ff);border-radius:8px;padding:8px 10px;">👉 這裡怎麼看最公平：「負責家數」是這個人在這個分組底下真正配到的店（已去重，不會因為橫跨中元＋中秋兩個檔期而灌水）；「貢獻度%」＝自己達標數÷負責家數，只看這個人有沒有把自己那份做完，名下只有 2 家、2 家都做完一樣是 100%，不會因為家數少就被看輕。「佔營業所比重％」「佔營業處比重％」則是換一個角度：這個人自己完成的家數，占整個營業所／整個營業處「大家總共完成家數」的比例，用來看「這個人的產出，在整個團隊裡分量多重」——兩個指標一個看「自己有沒有盡份」，一個看「對團隊貢獻的份量」，建議一起看，不要只看其中一個。以下所有數字都是即時運算：不管這一週走完了沒，只要分組門檻觸發就立刻算進「自己達標／🤝靠分組過關／分組尚未過關」跟所有百分比，隨訪員後續補去持續累積、重新整理畫面就會跟著更新，不分「已定案」跟「進行中」兩套口徑。</p>'
+    + '<p style="font-size:12.5px;color:var(--sub);line-height:1.6;margin:0 0 10px;">只統計「不足整週」折算週、且分組已觸發縮減後家數門檻的範圍，平常整週的欄位不影響這份排行。同一位訪員名下不同（通路＋等級）分組會分開各成一列，不合併。「🤝 分組協力達標」代表這位訪員名下這個分組這週還沒去，但所屬分組（同營業處＋通路＋等級）已經達到縮減後門檻；「分組尚未達標」代表這組這週還沒到門檻，大家都還在缺。這裡只攤開原始次數，讓你自己判斷這份貢獻的意義——點一列可以展開看逐店明細。</p>'
+    + '<p style="font-size:12.5px;color:var(--info);line-height:1.6;margin:0 0 10px;background:var(--info-bg,#eef4ff);border-radius:8px;padding:8px 10px;">👉 這裡怎麼看最公平：「負責家數」是這個人在這個分組底下真正配到的店（已去重，不會因為橫跨中元＋中秋兩個檔期而灌水）；「貢獻度%」＝自己達標數÷負責家數，只看這個人有沒有把自己那份做完，名下只有 2 家、2 家都做完一樣是 100%，不會因為家數少就被看輕。「佔營業所比重％」「佔營業處比重％」則是換一個角度：這個人自己完成的家數，占整個營業所／整個營業處「大家總共完成家數」的比例，用來看「這個人的產出，在整個團隊裡分量多重」——兩個指標一個看「自己有沒有盡份」，一個看「對團隊貢獻的份量」，建議一起看，不要只看其中一個。以下所有數字都是即時運算：不管這一週走完了沒，只要分組門檻觸發就立刻算進「自己達標／🤝分組協力達標／分組尚未達標」跟所有百分比，隨訪員後續補去持續累積、重新整理畫面就會跟著更新，不分「已定案」跟「進行中」兩套口徑。</p>'
     + '<div class="chip-group contrib-tab-row">'+periodTabs+'</div>'
     + (areaTabs ? '<div class="chip-group contrib-tab-row">'+areaTabs+'</div>' : '')
     + '<div class="visit-summary">'
     + '<div class="vs-item">自己達標實例<br><b style="color:var(--green)">'+totalMet+'</b></div>'
-    + '<div class="vs-item">靠分組過關實例<br><b style="color:var(--info)">'+totalRide+'</b></div>'
-    + '<div class="vs-item">分組尚未過關實例<br><b>'+totalShort+'</b></div>'
+    + '<div class="vs-item">分組協力達標實例<br><b style="color:var(--info)">'+totalRide+'</b></div>'
+    + '<div class="vs-item">分組尚未達標實例<br><b>'+totalShort+'</b></div>'
     + '</div>'
     + '<div class="contrib-sort-bar">排序：'+sortBtns+'</div>'
-    + '<div class="oo-tbl-scroll"><table class="ov-mini" style="width:100%;"><tr><th class="td-left">訪員</th><th>營業處</th><th>營業所</th><th>通路</th><th>等級</th><th>負責家數</th><th>自己達標</th><th>🤝靠分組過關</th><th>分組尚未過關</th><th>合計實例</th><th>貢獻度%</th><th>佔營業所比重</th><th>佔營業處比重</th></tr>'+rowsHtml+'</table></div>'
+    + '<div class="oo-tbl-scroll"><table class="ov-mini" style="width:100%;"><tr><th class="td-left">訪員</th><th>營業處</th><th>營業所</th><th>通路</th><th>等級</th><th>負責家數</th><th>自己達標</th><th>🤝分組協力達標</th><th>分組尚未達標</th><th>合計實例</th><th>貢獻度%</th><th>佔營業所比重</th><th>佔營業處比重</th></tr>'+rowsHtml+'</table></div>'
     + '</div>';
 }
 function _contribDownloadCsv(evt){
   var btn = evt ? evt.currentTarget : document.getElementById('contrib-csv-btn');
   var list = _contribSortedList();
   if(!list.length){ _flashBtn(btn,'⚠️ 無資料'); return; }
-  var headers = ['訪員','營業處','營業所','通路','等級','負責家數(去重)','自己達標實例(即時累積)','靠分組過關實例(即時累積)','分組尚未過關實例(即時累積)','合計實例(即時累積)','貢獻度%(即時累積)','佔營業所比重%','佔營業處比重%'];
+  var headers = ['訪員','營業處','營業所','通路','等級','負責家數(去重)','自己達標實例(即時累積)','分組協力達標實例(即時累積)','分組尚未達標實例(即時累積)','合計實例(即時累積)','貢獻度%(即時累積)','佔營業所比重%','佔營業處比重%'];
   var rows = [headers];
   list.forEach(function(b){
     rows.push([b.staff, b.area, b.office, b.chanKey||'', b.gradeLabel, b.storeCount, b.met, b.ride, b.stillShort, b.total, b.contributionPct.toFixed(1), b.officeSharePct.toFixed(1), b.areaSharePct.toFixed(1)]);
@@ -3389,10 +3411,10 @@ function _contribCopyLine(evt){
   var rideList = list.filter(function(b){ return b.ride>0; });
   if(rideList.length){
     rideList.forEach(function(b){
-      lines.push('🤝 '+b.staff+'（'+b.area+' '+b.office+'／'+b.chanKey+' '+b.gradeLabel+'）　靠分組過關 '+b.ride+' 次　自己達標 '+b.met+'/'+b.total+'（貢獻度 '+b.contributionPct.toFixed(0)+'%）');
+      lines.push('🤝 '+b.staff+'（'+b.area+' '+b.office+'／'+b.chanKey+' '+b.gradeLabel+'）　分組協力達標 '+b.ride+' 次　自己達標 '+b.met+'/'+b.total+'（貢獻度 '+b.contributionPct.toFixed(0)+'%）');
     });
   } else {
-    lines.push('目前這個範圍沒有「靠分組過關」的實例。');
+    lines.push('目前這個範圍沒有「分組協力達標」的實例。');
   }
   lines.push('');
   lines.push('📅 '+new Date().toLocaleString('zh-TW',{timeZone:'Asia/Taipei'}));
