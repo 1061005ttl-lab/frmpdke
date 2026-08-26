@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.28.5 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
+  版本：Ver. 1.29.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
 
 【檔案定位】
   ‧ 單一 HTML 檔案，純前端 JS，透過 gviz API 讀同一份試算表兩分頁，
@@ -210,6 +210,29 @@
     把 <head> 裡那段 <script> 拿掉即可。
 ────────────────────────────────────────────────────────────
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.29.0  business 反映：明細頁（表格／統計卡／手機卡片）完全沒有任何
+          「這一週是不足整週折算週」的視覺線索——表頭只顯示日期區間，
+          儲存格跟其他整週欄位長得一模一樣，統計卡也是純誠實加總，使用者
+          看到某欄應達次數忽然變小、或統計卡跟總覽頁「中元/中秋」迷你
+          卡片（1.28.2 起套用縮減後家數）數字對不上，容易誤以為系統算錯。
+          （這裡刻意不動任何計算邏輯——單店/明細頁維持誠實顯示是先前已
+          定案的方向，見 1.28.0/1.28.2 說明——只補視覺提示。）
+          新增四層提示，同一套判斷（cp.lastWeekDays!=null && week===
+          cp.weeks）、同一套紫色系（新增 --info／--info-bg，跟未達紅／
+          超額橘／達標綠都不同色，避免使用者把「折算」誤讀成「未達」或
+          「超額」）：
+          ‧ 桌機表頭：折算欄多一個「⚠️折算週」徽章，title 直接寫出折算
+            算法（本週天數/7×整週應達次數，無條件捨去、最低1次）。
+          ‧ 表格儲存格：折算欄整欄（表頭＋所有店家列）疊紫色左邊框，
+            掃視整張表就能分辨，不用逐欄讀表頭文字。
+          ‧ 手機版：週次切換器（pager）跟店卡的次數徽章都同步標記，一次
+            只看一週時也不會漏看（跟桌機 colMeta.isProrated 各自獨立算，
+            邏輯相同）。
+          ‧ 統計卡：「應達總次數」卡片旁的 ⓘ 只在篩選範圍含折算週時才
+            顯示，說明「這裡是逐店誠實加總，非縮減後家數版本，跟總覽頁
+            中元/中秋卡片用途/算法不同」，解決兩張表對不上時被誤會成
+            bug 的問題。
+          ‧ 頁尾 footnote 補一句對應說明。
   1.28.5  business 五次確認：發現「營業處執行狀況」總表跟「中元/中秋
           專案」迷你卡片，同一個通路+等級+週次的「未達」數字對不起來
           （例：總表全聯社合計未達店數=40，迷你卡片超市A那一週的未達卻
@@ -486,6 +509,11 @@ if (localStorage.getItem('ttl_auth_v1') !== '1') {
   --red-bg: #FBEAEA;
   --bonus: #E65100;
   --bonus-bg: #FFF3E0;
+  /* 1.29.0：「折算週／縮減後家數」這類提示專用色——刻意跟未達(紅)／
+     超額(橘)／達標(綠)都不同，避免使用者把「這欄應達次數比較小是因為
+     天數不足折算」誤讀成「未達標」或「超額」。 */
+  --info: #5B4B8A;
+  --info-bg: #EEE9F7;
   --r: 12px;
   --dur: .32s;
   --ease: cubic-bezier(.34,1.05,.64,1);
@@ -551,6 +579,11 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .sum-card.rate .sc-val { color:var(--primary); }
 .sum-card.extra .sc-val { color:var(--bonus); }
 .sum-card .sc-val-note { flex-basis:100%; font-size:11px; color:var(--bonus); }
+/* 1.29.0：統計卡「應達總次數」旁的 ⓘ 提示——只在目前篩選範圍含「不足
+   整週」的最後一週時才顯示（render() 裡動態切換），hover/tap 說明這裡
+   是逐店誠實加總，跟概況總覽頁縮減後家數版本是不同用途的數字，避免
+   使用者切換頁面看到數字對不上就以為系統算錯。 */
+.sc-info-icon { display:inline-block; margin-left:3px; font-size:12px; font-weight:800; color:var(--info); cursor:help; }
 
 /* ── stage / table ── */
 .stage { padding:16px clamp(12px,2.5vw,20px) 40px; }
@@ -629,6 +662,12 @@ td.staff-group-cell { padding:8px 14px !important; text-align:left !important; b
 .th-date-range { font-size:13px; font-weight:600; color:var(--sub); }
 .wk-divider { border-left:1px solid var(--border); }
 .pg-divider { border-left:3px solid var(--text) !important; }
+/* 1.29.0：「不足整週」折算週——整欄（表頭＋每一列儲存格）都疊一條紫色
+   左邊框，讓使用者掃視整張表格就能分辨哪一欄應達次數的基準不一樣，
+   不用逐欄讀表頭文字才發現。表頭再疊一個「⚠️折算週」徽章＋title 提示，
+   說明折算算法／為何比其他整週欄位小。只加視覺標示，不影響任何計算。 */
+.main-tbl th.wk-prorated, .main-tbl td.wk-prorated { border-left:3px solid var(--info) !important; }
+.th-prorated-badge { display:block; margin-top:3px; font-size:9.5px; font-weight:800; color:#fff; background:var(--info); border-radius:8px; padding:1px 7px; cursor:help; white-space:nowrap; }
 
 .box-container { display:flex; align-items:center; justify-content:flex-start; gap:4px; flex-wrap:wrap; min-height:22px; padding-left:6px; }
 /* 1.9.1：週次格子可點擊縮限單週明細，游標＋hover 提示跟整列點擊區隔開 */
@@ -706,6 +745,11 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
   .m-week-nav:disabled { color:#c8ccd2; border-color:#eee; cursor:default; background:#fff; }
   .m-week-pager-label { flex:1; text-align:center; font-size:14px; font-weight:800; color:var(--text); min-width:0; }
   .m-week-pager-label small { display:block; font-size:11px; font-weight:600; color:var(--sub); margin-top:1px; }
+  /* 1.29.0：手機週次切換器/店卡的「折算週」提示，跟桌機表頭徽章同一套
+     視覺語言（紫色系），手機使用者一次只看一週，這個提示要放在最顯眼的
+     位置（pager 列本身），不用點開店卡才看得到。 */
+  .wk-pager-prorated-tag { display:inline-block; margin-left:5px; font-size:10.5px; font-weight:800; color:#fff; background:var(--info); border-radius:8px; padding:1px 7px; vertical-align:middle; cursor:help; }
+  .m-prorated-flag { color:var(--info) !important; }
 }
 /* 1.15.0：「營業處執行狀況」手機版一次只看一個處的 ◄／► 切換列，樣式比照
    .m-week-pager／.m-week-nav。
@@ -1506,7 +1550,7 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
 
   <div class="summary-row">
     <div class="sum-card"><div class="sc-label">篩選店數</div><div class="sc-val" id="stat-store-count">0</div></div>
-    <div class="sum-card"><div class="sc-label">應達總次數</div><div class="sc-val" id="stat-exp-visits">0</div></div>
+    <div class="sum-card"><div class="sc-label">應達總次數<span class="sc-info-icon" id="exp-info-icon" style="display:none">ⓘ</span></div><div class="sc-val" id="stat-exp-visits">0</div></div>
     <div class="sum-card rate"><div class="sc-label">目標達成率</div><div class="sc-val" id="stat-rate">0.0%</div></div>
     <div class="sum-card extra"><div class="sc-label">超額次數</div><div class="sc-val" id="stat-extra">0</div>
       <div class="sc-val sc-val-note" style="display:none"></div>
@@ -1530,7 +1574,9 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
     <div class="footnote">
       💡 藍色格代表標準應達次數；若實際巡補次數超過標準，系統自動顯示並勾選橘色格子（超額），
       橘色次數只計入「超額次數」，不列入達成率 %，超額也不會外溢補足其他店家的未達成。
-      同一家店同一天不管填了幾筆問卷，都只算 1 次巡補。點「📖 說明」看完整操作說明。
+      同一家店同一天不管填了幾筆問卷，都只算 1 次巡補。
+      <br>⚠️ 表頭標「折算週」的欄位（紫色邊框）代表該週是不足整週檔期的最後一週，應達次數已依實際天數比例縮減（最低1次），比其他整週欄位小是正常現象。
+      點「📖 說明」看完整操作說明。
     </div>
   </div>
 </div>
@@ -1862,7 +1908,13 @@ function _updateMobileWeekPager(){
   var pLabel = (p ? p.label.replace('專案','') : MOBILE_SEL.period);
   var icon = _periodIcon(MOBILE_SEL.period); /* 1.22.0：改讀 PERIODS 設定的圖示，不再寫死中元/中秋 */
   var dateRange = _weekDateRange(MOBILE_SEL.period, MOBILE_SEL.week);
-  labelEl.innerHTML = icon+' '+esc(pLabel)+' W'+MOBILE_SEL.week+'<small>'+esc(dateRange)+'</small>';
+  /* 1.29.0：手機一次只看一週，「折算週」提示放在 pager 列本身最顯眼，
+     不用點開任何一張店卡才看得到（跟桌機表頭徽章同一套判斷邏輯）。 */
+  var isProratedWeek = !!(p && p.lastWeekDays!=null && MOBILE_SEL.week===p.weeks);
+  var proratedTag = isProratedWeek
+    ? '<span class="wk-pager-prorated-tag" title="本週為不足整週的最後一週，應達次數已依比例折算（最低1次），比其他整週小是正常現象">⚠️折算週</span>'
+    : '';
+  labelEl.innerHTML = icon+' '+esc(pLabel)+' W'+MOBILE_SEL.week+proratedTag+'<small>'+esc(dateRange)+'</small>';
   if(prevBtn) prevBtn.disabled = (idx<=0);
   if(nextBtn) nextBtn.disabled = (idx===-1 || idx>=all.length-1);
 }
@@ -4361,12 +4413,21 @@ function render(){
     else { last.count++; }
     var isGroupDivider = isNewGroup && colGroups.length>1; /* 檔期交界：粗分隔線，表格最左欄不畫 */
     var isWeekDivider = idx>0 && !isGroupDivider; /* 同檔期內週與週交界：細分隔線 */
+    /* 1.29.0：這一欄是不是「不足整週檔期」的最後一週（依終止日折算），
+       這種欄位的應達次數是「本週實際天數/7 × 整週應達次數」折算＋
+       max(1,...)保底，跟其他整週欄位不是同一個基準，數字忽然變小是
+       預期行為，不是系統少算。isProrated/dayCount 純粹給表頭徽章／
+       整欄視覺標示用（見下方 headHtml／colsHtml），不影響任何計算。 */
+    var cp = PERIODS.filter(function(pp){ return pp.key===c.period; })[0];
+    var isProrated = !!(cp && cp.lastWeekDays!=null && c.week===cp.weeks);
     colMeta.push({
       isGroupDivider: isGroupDivider,
       isWeekDivider: isWeekDivider,
       periodCls: 'pg-'+((colGroups.length-1)%2), /* 1.23.0：改依「第幾組檔期欄」交替配色，不再寫死 zhong/mid key（見上方 .pg-0／.pg-1 CSS 註解） */
       dateRange: _weekDateRange(c.period, c.week),
-      isPastWeek: _isWeekPast(c.period, c.week)
+      isPastWeek: _isWeekPast(c.period, c.week),
+      isProrated: isProrated,
+      dayCount: isProrated ? _weekDayCount(cp, c.week) : 7
     });
   });
 
@@ -4380,11 +4441,18 @@ function render(){
   cols.forEach(function(c, idx){
     var m = colMeta[idx];
     var dividerCls = m.isGroupDivider ? ' pg-divider' : (m.isWeekDivider ? ' wk-divider' : '');
-    headHtml += '<th class="'+m.periodCls+dividerCls+'"><div class="th-wk-flex">'
+    var proratedCls = m.isProrated ? ' wk-prorated' : '';
+    /* 1.29.0：折算週表頭徽章——title 提示直接寫出這一欄的折算算法
+       （天數＋比例＋保底），使用者不用另外去問「為什麼這欄比較小」。 */
+    var proratedBadge = m.isProrated
+      ? '<span class="th-prorated-badge" title="本週僅'+m.dayCount+'天（不足整週的最後一週），應達次數已依「本週天數÷7×整週應達次數」比例折算並無條件捨去，最低仍保留1次；同一等級在其他整週欄位看到的應達次數比這欄大是正常現象，不是系統少算。">⚠️折算週</span>'
+      : '';
+    headHtml += '<th class="'+m.periodCls+dividerCls+proratedCls+'"><div class="th-wk-flex">'
       + '<span class="th-period-emoji">'+(periodIconMap[c.period]||'')+'</span>'
       + '<span class="th-period-name">'+esc(periodLabelMap[c.period]||c.period)+'</span>'
       + '<span class="th-week-label">W'+c.week+'</span>'
       + '<span class="th-date-range">'+esc(m.dateRange)+'</span>'
+      + proratedBadge
       + '</div></th>';
   });
   headHtml += '</tr>';
@@ -4488,6 +4556,7 @@ function render(){
     rd.colStats.forEach(function(cs, idx){
       var m = colMeta[idx];
       var dividerCls = m.isGroupDivider ? ' pg-divider' : (m.isWeekDivider ? ' wk-divider' : '');
+      var proratedCls = m.isProrated ? ' wk-prorated' : ''; /* 1.29.0：整欄疊紫色邊框，見表頭同款徽章說明 */
       /* 1.28.0：單店格子不再有「本店已豁免」狀態，一律誠實顯示這家店
          自己的應達／已達，不套用任何分組層級的彈性豁免。 */
       var boxesHtml = CELL_VIEW==='day'
@@ -4520,7 +4589,7 @@ function render(){
          參數＋stopPropagation，避免同時觸發整列的 openStoreDetail 顯示全檔期）；
          其餘欄位（店名／區域…）點擊仍維持整列 <tr> 的 onclick，顯示目前篩選
          檔期範圍的完整明細，兩種入口並存不衝突。 */
-      colsHtml += '<td class="'+m.periodCls+dividerCls+mvCellCls+' wk-cell-click" onclick="openStoreDetail(\''+esc(rd.s.code)+'\',\''+cs.col.period+'\','+cs.col.week+',event)"><div class="box-container">'+boxesHtml+'</div>'+mvHtml+achievedHtml+'</td>';
+      colsHtml += '<td class="'+m.periodCls+dividerCls+proratedCls+mvCellCls+' wk-cell-click" onclick="openStoreDetail(\''+esc(rd.s.code)+'\',\''+cs.col.period+'\','+cs.col.week+',event)"><div class="box-container">'+boxesHtml+'</div>'+mvHtml+achievedHtml+'</td>';
     });
 
     var rowRate = rd.rowExp>0 ? (rd.rowStdDone/rd.rowExp*100) : 0;
@@ -4562,6 +4631,10 @@ function render(){
     var mUnmet = mStd>0 && mDone<mStd && mIsPastWeek;
     var mMv = mCol ? _mustVisitStatusForCol(rd.s, mCol.period, mCol.week) : null;
     var mMvMiss = !!(mMv && mMv.some(function(d){ return !d.visited && d.isPast; }));
+    /* 1.29.0：手機卡片同步標「折算週」——邏輯跟桌機 colMeta.isProrated 完全
+       一樣，只是手機一次只看 MOBILE_SEL 這一週，另外算一次即可。 */
+    var mCp = mCol ? PERIODS.filter(function(pp){ return pp.key===mCol.period; })[0] : null;
+    var mIsProrated = !!(mCp && mCp.lastWeekDays!=null && mCol && mCol.week===mCp.weeks);
     var mBoxesHtml = !mCol ? '' : (CELL_VIEW==='day'
       ? _buildDayBoxCells(rd.s, mCol.period, mCol.week, mStd, mActual)
       : _buildBoxCells(mActual, mStd, mIsPastWeek));
@@ -4585,7 +4658,7 @@ function render(){
       +     '<span class="m-line-sep">·</span><span class="m-line-type">'+esc(rd.s.storeType||'—')+'</span>'
       +     '<span class="m-line-sep">·</span><span class="m-line-grade">'+gradeLineHtml+'</span>'
       +   '</div>'
-      +   '<div class="m-store-badge '+mRateClass+'">'+mDone+'/'+mStd+(mExtra>0?'<small>+'+mExtra+'</small>':'')+(mUnmet?'<small class="m-unmet-flag">🔴</small>':'')+(mMvMiss?'<small class="m-mv-flag">🚨</small>':'')+'</div>'
+      +   '<div class="m-store-badge '+mRateClass+'">'+mDone+'/'+mStd+(mExtra>0?'<small>+'+mExtra+'</small>':'')+(mUnmet?'<small class="m-unmet-flag">🔴</small>':'')+(mMvMiss?'<small class="m-mv-flag">🚨</small>':'')+(mIsProrated?'<small class="m-prorated-flag" title="本週為不足整週的折算週，應達次數已依比例縮減，最低1次，比其他整週小是正常現象">⚠️</small>':'')+'</div>'
       + '</div>'
       + '<div class="box-container m-box-container">'+mBoxesHtml+'</div>'
       + mMvHtml
@@ -4601,6 +4674,18 @@ function render(){
 
   document.getElementById('stat-store-count').textContent = rowsData.length;
   document.getElementById('stat-exp-visits').textContent = totalExp;
+  /* 1.29.0：目前篩選範圍只要包含任何一欄「不足整週」折算週，就在「應達
+     總次數」卡片點出 ⓘ 提示——這裡是逐店誠實加總（跟總覽頁中元/中秋
+     卡片的「縮減後家數」版本是兩種不同用途的數字，算法本來就不同），
+     避免使用者切頁看到數字對不上就以為系統算錯。只加提示，不改算法。 */
+  var anyProrated = cols.some(function(c, idx){ return colMeta[idx] && colMeta[idx].isProrated; });
+  var expInfoIcon = document.getElementById('exp-info-icon');
+  if(expInfoIcon){
+    expInfoIcon.style.display = anyProrated ? 'inline-block' : 'none';
+    expInfoIcon.title = anyProrated
+      ? '目前範圍內含「不足整週」的最後一週：這裡（應達總次數／達成率）是逐店誠實加總，每家店的應達次數已依比例折算、最低1次。概況總覽頁「中元/中秋」卡片對同一週顯示的是縮減後家數版本（回答「這個等級整體還缺幾家」），跟這裡用途不同、算法也不同，兩邊數字對不上是正常現象，不代表系統算錯。'
+      : '';
+  }
   var rate = totalExp>0 ? (totalStdDone/totalExp*100).toFixed(1) : '0.0';
   document.getElementById('stat-rate').textContent = rate+'%';
   document.getElementById('stat-extra').textContent = totalExtra;
