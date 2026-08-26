@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.27.1 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
+  版本：Ver. 1.28.1 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
 
 【檔案定位】
   ‧ 單一 HTML 檔案，純前端 JS，透過 gviz API 讀同一份試算表兩分頁，
@@ -208,8 +208,24 @@
   ‧ 預設走跟 coverage_board.html 相同的 session 驗證（localStorage
     'ttl_auth_v1' !== '1' 導回 index.html），獨立部署不經登入頁時，
     把 <head> 裡那段 <script> 拿掉即可。
-  ‧ 【1.28.0 未完成事項】_statsFor()／_officeStatsFor()／_staffStatsData()／
+────────────────────────────────────────────────────────────
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.28.1  現場回報「中元/中秋專案」迷你表格「已達」欄位後面的 🔽 徽章
+          （例：「332 🔽缺115家達標 294」）看不懂——115／294 兩個數字都
+          長得像「還要做多少」，分不出哪個才是自己這個範圍實際要補的量。
+          追查後發現這顆徽章顯示的是 1.27.0 那套「分組整體動態達標」
+          機制殘留的「全國層級」資訊（跟畫面同一列的「已達」「未達」
+          完全是不同範圍的數字，硬擠在同一格），而這套機制本身在 1.28.0
+          就已經因為「現場看不懂、算不出自己要做多少」被拿掉、不再影響
+          任何計算，只是顯示徽章的程式碼沒有一併清掉。這版直接移除：
+          ‧ _weekQuotaBadgeHtml() 函式本身，以及桌機／手機兩份迷你表格
+            呼叫它的地方（renderOverview()）。
+          ‧ 只剩這顆徽章在用、拿掉後變成死碼的 _stdGroupKey()／
+            _lastWeekQuota()／_gradeGroupAchievedCount()，與對應的
+            .quota-badge CSS 規則。
+          移除後「已達」欄位只單純顯示這個等級這一週自己的已達店數，
+          不再混入任何跟本身範圍無關的門檻數字；應達／已達／未達次數的
+          計算本身完全不受影響（本來就沒被這套機制動過）。
   1.28.0  business 二次確認方向：不要用「分組整體動態達標後互相豁免」的
           複雜機制，全站一律看「自己這個範圍（一家店／一個營業處／一位
           訪員）還差多少」，這樣現場才看得懂、算得出自己還要做多少：
@@ -553,9 +569,6 @@ input.extra-check { accent-color:#FF7A00; outline:2px solid #FF7A00; outline-off
   50% { box-shadow:0 0 7px 3px rgba(255,122,0,.55); }
 }
 .unknown-grade { color:var(--red); font-size:13px; font-weight:700; }
-/* 1.27.0：彈性家數豁免徽章——刻意用中性藍而非紅／橘，這是「規則生效、
-   不用去」的正常狀態，不是異常警示，跟未達標的紅色系要能一眼區分開 */
-.quota-badge { display:inline-block; font-size:11px; font-weight:700; color:#2A6DB0; background:#E7F1FA; border:1px solid #BBD9F0; border-radius:8px; padding:1px 6px; cursor:help; }
 .miss-mark { display:inline-flex; align-items:center; justify-content:center; width:17px; height:17px; border-radius:3px; background:var(--red-bg); border:1px solid rgba(163,32,32,.4); color:var(--red); font-size:12px; font-weight:800; line-height:1; }
 /* 1.5.0：非應達格的「幽靈格」佔位，近似透明，若有似無——只佔版面、不搶視覺焦點，
    一旦實際次數蓋過這格才會被換成 .extra-check（見 render() 的 7 格迴圈） */
@@ -2404,70 +2417,16 @@ function _stdForCol(periodKey, week, baseStd){
   var prorated = Math.floor(_weekDayCount(p, week)/7*baseStd);
   return Math.max(1, prorated);
 }
-/* ════ 1.27.0：最後一週天數不足時的「彈性家數（縮減後應達家數）」機制 ════
-   問題背景：_stdForCol() 把「整週應達次數」折算成最後一週的次數時，套用
-   max(1, prorated) 保底，確保每家店這週至少要跑 1 次——但「整週應達次數
-   本來就是 1」的等級（例如全聯每週1次），折算後不管這週剩幾天，算出來
-   一定介在 0～1 之間，保底規則會把它拉回 1，看起來完全沒有隨天數遞減，
-   跟「整週應達5次」的量販A折算後明顯降到1次的觀感不一致。
-   business 決議（兩套機制二選一，依「這個等級折算後次數還能不能往下降」
-   分流，不是每個等級都疊加套用）：
-   ‧ 折算後次數本身還降得動（Math.floor(dayRatio×baseStd) >= 1，例如量販A
-     5次→折算後變1次，數字有明顯遞減）→ 維持用「次數」機制（_stdForCol
-     的 max(1,...)），不觸發家數機制，這種等級不受本次改動影響。
-   ‧ 折算後次數已經被 max(1,...) 保底卡死、算出來 < 1、次數本身完全降不
-     下去（例如全聯 1次，折算後數學上界於0~1之間）→ 改用「家數」機制頂替
-     次數機制：不再看「單一店這週要不要去」，而是看「這個【等級對照】
-     分組整體」這週要有多少「家數」達標即可、不用每家都去——縮減後
-     應達家數 = 該等級分組總家數 × (該週實際天數/7)，無條件捨去，但至少
-     保留 1 家。分組內只要已經有「縮減後應達家數」那麼多家店這週達到原始
-     應達次數標準，同一分組其餘還沒達標的店，這週就視為豁免（不用再去，
-     也不算未達）；門檻沒到之前，每家店仍照原本標準判斷，不受影響。 */
-/* 一家店在【等級對照】裡「所屬分組」的識別鍵——比照 _freqForGradeKey()
-   同一套優先序：①店家等級文字能精確對到 GRADE_FREQ 的指名等級規則，分組
-   ＝「這個通路＋這個指名等級」；②對不到但通路有【等級對照】留白列（不分
-   等級預設），分組＝「這個通路的不分等級預設」；③兩者都對不到（等級未知）
-   → 回傳 null，不參與彈性家數機制（沒有標準可言，維持原本 undefined 行為）。 */
-function _stdGroupKey(chanKey, grade){
-  if(grade && GRADE_FREQ.hasOwnProperty(grade)) return 'G|'+chanKey+'|'+grade;
-  if(CHANNEL_DEFAULT_FREQ.hasOwnProperty(chanKey)) return 'D|'+chanKey;
-  return null;
-}
-/* 縮減後應達家數：{ total, quota, stores, std }；以下情況一律回傳 null，
-   代表「家數」機制不適用、呼叫端應該退回原本的「次數」_stdForCol() 判斷：
-   ①非折算最後一週（整週或 baseStd 為 0／未知）；②【關鍵分流】這個等級
-   折算後的次數本身還降得動（Math.floor(dayRatio×baseStd) >= 1，例如量販A
-   baseStd=5、天數剩2天 → floor(2/7×5)=1，次數已經從5降到1，看得出明顯
-   遞減）──這種情況維持用「次數」機制就好，不疊加家數機制。只有算出來
-   < 1（次數機制被 max(1,...) 保底卡死、根本降不下去，例如全聯 baseStd=1
-   →floor(2/7×1)=0）的等級，才切換去用「家數」機制頂替次數機制。 */
-function _lastWeekQuota(chanKey, grade, periodKey, week, baseStd){
-  if(!baseStd) return null;
-  var p = PERIODS.filter(function(pp){ return pp.key===periodKey; })[0];
-  if(!p || p.lastWeekDays==null || week!==p.weeks) return null; /* 不是非整週檔期的最後一週，不適用 */
-  var dayRatio = _weekDayCount(p, week)/7;
-  if(dayRatio>=1) return null;
-  if(Math.floor(dayRatio*baseStd) >= 1) return null; /* 次數機制本身還降得動，不切換去家數機制 */
-  var groupKey = _stdGroupKey(chanKey, grade);
-  if(!groupKey) return null;
-  var stores = STORE_ROWS.filter(function(s){ return _stdGroupKey(s.chanKey, s.grade)===groupKey; });
-  if(!stores.length) return null;
-  return { total:stores.length, quota:Math.max(1, Math.floor(stores.length*dayRatio)), stores:stores, std:baseStd };
-}
-/* 這個【等級對照】分組在指定檔期週次，已經有幾家店「達到原始（未套彈性豁免）
-   次數」，用 _stdForCol 的原始折算結果判斷，不套用彈性豁免——避免「豁免
-   本身反過來影響誰算已達標」的循環判斷。 */
-function _gradeGroupAchievedCount(quotaInfo, periodKey, week){
-  var stdN = _stdForCol(periodKey, week, quotaInfo.std);
-  var n = 0;
-  quotaInfo.stores.forEach(function(s){ if(_actualCount(s.code, periodKey, week) >= stdN) n++; });
-  return n;
-}
-/* 1.28.0：拿掉 _quotaExcuseInfo()／_effStdForCol()——全站已經沒有任何地方
-   需要「這家店/這個統計範圍被豁免、歸零」的判斷，一律用 _stdForCol() 的
-   原始折算次數，誠實顯示。縮減後家數（_lastWeekQuota）改成純粹的「這個
-   等級全國還缺幾家達標」資訊，只在 _weekQuotaBadgeHtml() 顯示，不影響
-   任何應達／達標次數的計算。 */
+/* 1.28.1：拿掉「彈性家數（縮減後應達家數）」的全部殘留——_stdGroupKey()／
+   _lastWeekQuota()／_gradeGroupAchievedCount()／_weekQuotaBadgeHtml()，
+   連同「中元/中秋專案」迷你表格裡的 🔽 徽章一併移除。這組機制早在 1.28.0
+   就已經確認不影響任何應達／達標「計算」，只剩畫面上一顆徽章顯示「這個
+   等級全國還缺幾家達標」；但那是跟現場執行人員完全無關的「全國分組」
+   數字，硬擠在「已達」欄位數字後面（例如「332 🔽缺115家達標」），會讓人
+   誤以為 115 或 294 是自己還要做的量、分不清楚兩個數字的差異，違背 1.28.0
+   訂下的方向：「全站一律看自己這個範圍還差多少，這樣現場才看得懂」。
+   應達／已達／未達次數本身不受影響——這些數字原本就是各自範圍（單店／
+   營業處／全體）誠實的 _stdForCol() 折算結果，不因本次拿掉徽章而改變。 */
 function _classifyParts(parts){
   if(!parts) return null;
   var day = _toEpochDay(parts.y, parts.mo, parts.d);
@@ -3761,18 +3720,6 @@ function openMvAuditFromOffice(area, chanKey, evt){
   FILTER.onlyMvMiss = true;
   _enterDetail();
 }
-/* 1.28.0：簡化文字——只回答「還缺幾家」這個現場最在意的問題，其餘機制
-   說明移到 title 提示，畫面上不堆數字。 */
-function _weekQuotaBadgeHtml(chanKey, grade, periodKey, week){
-  var baseStd = _freqForGradeKey(chanKey, grade);
-  var q = _lastWeekQuota(chanKey, grade, periodKey, week, baseStd);
-  if(!q) return '';
-  var achieved = _gradeGroupAchievedCount(q, periodKey, week);
-  var remain = Math.max(0, q.quota - achieved);
-  if(remain<=0) return ' <span class="quota-badge" title="最後一週天數不足，全國達標門檻已達成">🔽已達標</span>';
-  var title = '最後一週天數不足，全國只要'+q.quota+'家達標即可（目前'+achieved+'家）';
-  return ' <span class="quota-badge" title="'+esc(title)+'">🔽缺'+remain+'家達標</span>';
-}
 function renderOverview(){
   var wrap = document.getElementById('ov-cards');
   if(!wrap) return;
@@ -3831,11 +3778,10 @@ function renderOverview(){
           var clickAttrs = ' onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event)" title="點擊查看這個等級整個檔期的門市明細"';
           var wd = gd.weeks[curWeek] || { exp:0, stdDone:0, unmet:0 };
           var met = gd.count - wd.unmet;
-          var quotaBadge = _weekQuotaBadgeHtml(chanKey, g, p.key, curWeek);
           return '<tr>'
             + '<td class="ov-mini-clickable"'+clickAttrs+'>'+esc(label)+'</td>'
             + '<td class="ov-mini-clickable"'+clickAttrs+'>'+gd.count+'</td>'
-            + '<td class="ov-mini-met ov-mini-clickable"'+clickAttrs+'>'+met+quotaBadge+'</td>'
+            + '<td class="ov-mini-met ov-mini-clickable"'+clickAttrs+'>'+met+'</td>'
             + '<td class="ov-mini-wk ov-mini-clickable'+(wd.unmet>0?' ov-mini-wk-has-unmet':'')+'" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,true,'+curWeek+')" title="點擊查看這一週的未達標門市">'+wd.unmet+'</td>'
             + '<td class="ov-mini-clickable" style="color:var(--green);font-weight:700;"'+clickAttrs+'>'+r+'%</td>'
             + '<td class="ov-mini-unmet ov-mini-clickable" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,true)" title="點擊查看整個檔期範圍內、至少有一週沒達標的門市">'+(gd.unmetCount||0)+'</td>'
@@ -3865,8 +3811,7 @@ function renderOverview(){
           var weekCells = weekNums.map(function(w){
             var wd = gd.weeks[w] || { exp:0, stdDone:0, unmet:0 };
             var met = gd.count - wd.unmet;
-            var quotaBadge = _weekQuotaBadgeHtml(chanKey, g, p.key, w);
-            return '<td class="ov-mini-met ov-mini-clickable"'+clickAttrs+'>'+met+quotaBadge+'</td>'
+            return '<td class="ov-mini-met ov-mini-clickable"'+clickAttrs+'>'+met+'</td>'
               + '<td class="ov-mini-wk ov-mini-clickable'+(wd.unmet>0?' ov-mini-wk-has-unmet':'')+'" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,true,'+w+')" title="點擊查看這一週的未達標門市">'+wd.unmet+'</td>';
           }).join('');
           return '<tr>'
