@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.30.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
+  版本：Ver. 1.30.1 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
 
 【檔案定位】
   ‧ 單一 HTML 檔案，純前端 JS，透過 gviz API 讀同一份試算表兩分頁，
@@ -210,6 +210,23 @@
     把 <head> 裡那段 <script> 拿掉即可。
 ────────────────────────────────────────────────────────────
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.30.1  business 反映：1.30.0 補的「🤝組已達標」標籤只解決了「分組已
+          達標」這一種情況，回報時發現同一張表格裡，W1／W2 因為本店自己
+          達標而有清楚的綠色「✓已達成」，但 W3 這種「本店沒達標、分組也
+          還沒達標」的一般情況，格子還是一片空白、什麼字都沒有——看的人
+          分不出「這週其實還沒結束、還有時間去」還是「這週已經過了、真
+          的漏掉了」，兩種完全不同的情況長得一模一樣，逼人自己心算日期
+          才能判斷，等於只修好一種情境、留了另外兩種沒補。
+          這版把「未達標」進一步拆成「已過期未達成」（這週已經結束，
+          真的漏掉了，需要留意跟進——紅色）跟「本週進行中」（這週還沒
+          結束，還有機會補，白格是正常現象——灰色虛線，非警示語彙），
+          跟既有的「✓已達成」（綠）「🤝組已達標」（紫）湊成完整四態：
+          只要這格「有應達次數」，底下一定會出現四顆標籤其中一顆，不會
+          再有「什麼都不寫」的格子；四顆互斥，不會同時出現。桌機格子／
+          手機店卡（原本只有顏色沒有文字說明）都同步補齊，兩邊看到的
+          文案完全一致。篩選列 footnote／「📖 說明」都補上四態對照表。
+          ‧ 純視覺標示，不改任何計算：達成率／應達／達標／超額、單店
+            明細、CSV 逐店明細維持誠實顯示，不受影響。
   1.30.0  business 反映：1.29.4 修完「還缺0家」跟店家名冊互相矛盾的問題
           後，數字本身已經一致，但畫面上還是留著一個會嚇人的視覺缺口——
           某個等級整個分組（同營業處＋通路＋等級）在「不足整週」折算週
@@ -720,6 +737,15 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
    「這格留白」誤讀成異常或未達標。桌機格子＋手機店卡共用同一顆 class。 */
 .wk-groupmet-badge { display:inline-block; margin-top:3px; padding:1px 7px; border-radius:9px; background:#EFEAF7; color:var(--info); font-size:10.5px; font-weight:700; white-space:nowrap; letter-spacing:.2px; cursor:help; }
 .m-groupmet-flag { margin-left:3px; }
+/* 1.30.1：「已過期未達成」／「本週進行中」——跟已達成(綠)／組已達標(紫)
+   湊成完整四態，格子底下永遠有一顆文字標籤可看，不再有「什麼都不寫」
+   的空白格逼人猜測。已過期未達成沿用既有紅色語彙（跟 --red／--red-bg
+   一致，但不加 pulse 動畫——這是摘要用的靜態說明，不是需要立刻處理的
+   稽核警示，跟必訪缺 .mv-miss 的動態閃爍區隔開，避免同一種顏色卻用了
+   兩種不同的緊急程度語彙）；本週進行中刻意用最不搶眼的虛線灰框（比照
+   .mv-pending 既有語彙），純粹告知「還沒結束、還有時間」，不是警示。 */
+.wk-pastunmet-badge { display:inline-block; margin-top:3px; padding:1px 7px; border-radius:9px; background:var(--red-bg); color:var(--red); font-size:10.5px; font-weight:700; white-space:nowrap; letter-spacing:.2px; cursor:help; }
+.wk-pending-badge { display:inline-block; margin-top:3px; padding:1px 7px; border-radius:9px; background:var(--bg); color:var(--sub); font-size:10.5px; font-weight:700; white-space:nowrap; letter-spacing:.2px; border:1px dashed rgba(0,0,0,.18); cursor:help; }
 
 /* ── 訪員分組標題列（1.8.0：同一訪員的店家排序後連續排列，段落交界插入
    這一列，一眼看到「換人了」＋這個人轄區的小計，不用逐列比對訪員欄——
@@ -1686,6 +1712,7 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
       同一家店同一天不管填了幾筆問卷，都只算 1 次巡補。
       <br>⚠️ 表頭標「折算週」的欄位（紫色邊框）代表該週是不足整週檔期的最後一週，應達次數已依實際天數比例縮減（最低1次），比其他整週欄位小是正常現象。
       <br>🤝 格子上出現「組已達標，免驚」紫色標籤時，代表這家店雖然自己這週還沒到店（格子仍是白色），但所屬分組（同營業處＋通路＋等級）在這個折算週已經達到縮減後的家數門檻，整體不受影響，這格留白不是系統漏算、也不代表本店有問題。
+      <br>⏳／⚠️ 其餘還沒達標的格子一律會標出「⏳ 本週進行中」（這週還沒結束，還有機會補去）或「⚠️ 已過期未達成」（這週已經過完，真的漏掉了）其中一種，不會再有空白看不出狀態的格子。
       點「📖 說明」看完整操作說明。
     </div>
   </div>
@@ -4838,11 +4865,26 @@ function render(){
          沿用「折算週」紫色系（--info），視覺上跟表頭／整欄的紫色折算週
          提示連成一組語彙，讓人一看就知道「這是同一件事的延伸說明」。 */
       var groupMetHtml = cs.groupMet ? '<div class="wk-groupmet-badge" title="本店這一週雖然還沒到店，但所屬分組（同營業處＋'+esc(rd.s.chanKey||'')+'＋'+esc(rd.gradeLabel||'')+'）已經達到「不足整週」折算後的縮減家數門檻，整體已經達標，這一格留白是正常現象——不是系統漏算，也不代表本店有問題。">🤝 組已達標，免驚</div>' : '';
+      /* 1.30.1：業務反映——W1/W2 都有「✓已達成」清楚告知「這週做完了」，
+         但 W3（或其他還沒/剛好沒達標、也還沒被 1.30.0 那顆組已達標標籤
+         蓋到的週）格子只有一片白，沒有任何文字說明，看的人分不出「這週
+         其實還沒結束、還有時間去」還是「這週已經過了、真的漏掉了」，
+         兩種完全不同的情況卻長得一模一樣，逼人回頭心算日期。這裡把「未
+         達標且非組已達標」再拆成兩種明確狀態各自加一顆說明標籤，讓桌機
+         格子的四種狀態（已達成／組已達標／已過期未達成／本週進行中）
+         全部都看得到文字，不再有「什麼都不寫」的空白格：
+         ‧ 這週已經過完了（m.isPastWeek）卻還沒達標 → 紅色「⚠️已過期未達成」
+         ‧ 這週還沒結束（今天或未來還有機會補） → 灰色虛線「⏳本週進行中」
+         四顆標籤互斥，不會同時出現在同一格。 */
+      var wkPastUnmet = !wkAchieved && !cs.groupMet && cs.std>0 && m.isPastWeek;
+      var wkPending = !wkAchieved && !cs.groupMet && cs.std>0 && !m.isPastWeek;
+      var pastUnmetHtml = wkPastUnmet ? '<div class="wk-pastunmet-badge" title="這一週已經結束，但這家店這週的巡補次數還沒達到標準——是真的漏掉了，不是分組已達標可以忽略的情況。">⚠️ 已過期未達成</div>' : '';
+      var pendingHtml = wkPending ? '<div class="wk-pending-badge" title="這一週還沒結束（今天或未來），這家店這週還有機會補去，白格是正常現象，不代表已經漏掉。">⏳ 本週進行中</div>' : '';
       /* 1.9.1：週次格子點擊 → 帶入該週次範圍縮限明細 Dialog（帶 period/week
          參數＋stopPropagation，避免同時觸發整列的 openStoreDetail 顯示全檔期）；
          其餘欄位（店名／區域…）點擊仍維持整列 <tr> 的 onclick，顯示目前篩選
          檔期範圍的完整明細，兩種入口並存不衝突。 */
-      colsHtml += '<td class="'+m.periodCls+dividerCls+proratedCls+mvCellCls+' wk-cell-click" onclick="openStoreDetail(\''+esc(rd.s.code)+'\',\''+cs.col.period+'\','+cs.col.week+',event)"><div class="box-container">'+boxesHtml+'</div>'+mvHtml+achievedHtml+groupMetHtml+'</td>';
+      colsHtml += '<td class="'+m.periodCls+dividerCls+proratedCls+mvCellCls+' wk-cell-click" onclick="openStoreDetail(\''+esc(rd.s.code)+'\',\''+cs.col.period+'\','+cs.col.week+',event)"><div class="box-container">'+boxesHtml+'</div>'+mvHtml+achievedHtml+groupMetHtml+pastUnmetHtml+pendingHtml+'</td>';
     });
 
     var rowRate = rd.rowExp>0 ? (rd.rowStdDone/rd.rowExp*100) : 0;
@@ -4908,6 +4950,18 @@ function render(){
     }
     var mRateClass = mStd===0 ? 'm-rate-none' : (mDone>=mStd ? 'm-rate-full' : (mDone>0 ? 'm-rate-part' : 'm-rate-zero'));
     var gradeLineHtml = rd.std===undefined ? '<span class="unknown-grade">'+esc(rd.s.grade||'未設定')+' ⚠️</span>' : esc(rd.gradeLabel);
+    /* 1.30.1：手機卡片同步補齊四態文字標籤——桌機格子加了「⚠️已過期未
+       達成」「⏳本週進行中」後，手機這邊只靠 m-store-badge 顏色（綠/黃/
+       紅底）辨識，沒有文字說明，補上跟桌機同一組 class／文案，兩邊看到
+       的說明文字一致，不用各自猜一套。 */
+    var mWkAchieved = mStd>0 && mDone>=mStd;
+    var mPastUnmet = !mWkAchieved && !mGroupMet && mStd>0 && mIsPastWeek;
+    var mPending = !mWkAchieved && !mGroupMet && mStd>0 && !mIsPastWeek;
+    var mStatusHtml = mWkAchieved ? '<div class="wk-achieved-badge">✓ 已達成</div>'
+      : mGroupMet ? '<div class="wk-groupmet-badge" title="本店這一週雖然還沒到店，但所屬分組（整處同通路＋等級）已經達到不足整週折算後的縮減家數門檻，整體已達標，這格留白是正常現象">🤝 組已達標，免驚</div>'
+      : mPastUnmet ? '<div class="wk-pastunmet-badge" title="這一週已經結束，但這家店這週的巡補次數還沒達到標準——是真的漏掉了。">⚠️ 已過期未達成</div>'
+      : mPending ? '<div class="wk-pending-badge" title="這一週還沒結束，這家店還有機會補去，白格是正常現象。">⏳ 本週進行中</div>'
+      : '';
     group.cardsHtml += '<div class="m-store-card'+(rd.std===undefined?' unknown-grade-card':'')+'" onclick="openStoreDetail(\''+esc(rd.s.code)+'\''+(mCol?',\''+mCol.period+'\','+mCol.week:'')+')">'
       + '<div class="m-store-top">'
       +   '<div class="m-store-line">'
@@ -4919,7 +4973,7 @@ function render(){
       +   '<div class="m-store-badge '+mRateClass+'">'+mDone+'/'+mStd+(mExtra>0?'<small>+'+mExtra+'</small>':'')+(mUnmet?'<small class="m-unmet-flag">🔴</small>':'')+(mGroupMet?'<small class="m-groupmet-flag" title="本店這一週雖然還沒到店，但所屬分組（整處同通路＋等級）已經達到不足整週折算後的縮減家數門檻，整體已達標，這格留白是正常現象">🤝</small>':'')+(mMvMiss?'<small class="m-mv-flag">🚨</small>':'')+(mIsProrated?'<small class="m-prorated-flag" title="本週為不足整週的折算週，應達次數已依比例縮減，最低1次，比其他整週小是正常現象">⚠️</small>':'')+'</div>'
       + '</div>'
       + '<div class="box-container m-box-container">'+mBoxesHtml+'</div>'
-      + (mGroupMet ? '<div class="wk-groupmet-badge">🤝 組已達標，免驚</div>' : '')
+      + mStatusHtml
       + mMvHtml
       + '</div>';
   });
@@ -5792,6 +5846,17 @@ function _buildManualContent(){
     + '了」；手機店卡在同樣情況下，也會把原本的🔴未達標小旗標換成同一顆'
     + '🤝標籤。這兩顆標籤只影響「怎麼標示」，個別店家自己真實去了幾次'
     + '（格子顏色、單店明細、CSV 逐店明細）永遠誠實顯示，不受影響。</p>'
+    + '<p><b>【每週格子底下的文字標籤，總共有哪幾種？】</b>不管是不是折算週，'
+    + '每一個「有應達次數」的週次格子，只要不是空白就一定會出現底下四種'
+    + '文字標籤其中一種，不會再有「什麼都不寫、要自己猜」的格子：<br>'
+    + '<span style="display:inline-block;padding:1px 7px;border-radius:9px;background:#EAF3DE;color:#2e7d32;font-size:11px;font-weight:700;">✓ 已達成</span>'
+    + ' 這家店這一週自己已經達到標準次數<br>'
+    + '<span style="display:inline-block;padding:1px 7px;border-radius:9px;background:#EFEAF7;color:#5B4B8A;font-size:11px;font-weight:700;">🤝 組已達標，免驚</span>'
+    + ' 這家店這一週自己還沒去，但所屬分組（不足整週折算週）已經達標，不用緊張<br>'
+    + '<span style="display:inline-block;padding:1px 7px;border-radius:9px;background:#FBEAEA;color:#A32020;font-size:11px;font-weight:700;">⚠️ 已過期未達成</span>'
+    + ' 這一週已經結束，這家店真的沒達標，需要留意跟進<br>'
+    + '<span style="display:inline-block;padding:1px 7px;border-radius:9px;background:#f4f2ec;color:#666;font-size:11px;font-weight:700;border:1px dashed rgba(0,0,0,.25);">⏳ 本週進行中</span>'
+    + ' 這一週還沒結束，這家店還有時間可以補去，不用著急</p>'
     + '<p><b>【格子視角】</b>篩選列（🔍 篩選條件）最下面一排「格子視角」可以'
     + '切換格子的排列方式，「📅 依日期」在前、「🔢 依次數」在後，預設是'
     + '「依日期」：<br>'
