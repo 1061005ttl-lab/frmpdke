@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.29.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
+  版本：Ver. 1.29.1 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
 
 【檔案定位】
   ‧ 單一 HTML 檔案，純前端 JS，透過 gviz API 讀同一份試算表兩分頁，
@@ -210,6 +210,16 @@
     把 <head> 裡那段 <script> 拿掉即可。
 ────────────────────────────────────────────────────────────
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.29.1  business 反映：切到不足整週折算週時，明細頁「🔴巡次未達標」
+          篩選 chip 顯示的家數（逐店誠實比對）跟總覽頁「營業處執行狀況」
+          未達店數欄（縮減後家數版本）對不起來，一個169一個30，看起來
+          像 bug。這正是 1.28.0/1.28.2 就說明過的「兩個問題各自的答案」
+          （「哪些店還沒去」vs「整體還缺幾家」），本來就不會相等，但
+          1.29.0 只在「應達總次數」統計卡加了 ⓘ 提示，沒有蓋到使用者
+          實際在看的「🔴巡次未達標」chip 本身。這次把同一套 title 提示
+          補到這顆 chip 上（anyProrated 判斷收斂成 render() 裡算一次、
+          兩處共用，不再各自重算一份），滑鼠移到 chip 上就能看到「這裡
+          答哪些店還沒去、總覽頁答還缺幾家」的說明。
   1.29.0  business 反映：明細頁（表格／統計卡／手機卡片）完全沒有任何
           「這一週是不足整週折算週」的視覺線索——表頭只顯示日期區間，
           儲存格跟其他整週欄位長得一模一樣，統計卡也是純誠實加總，使用者
@@ -2596,6 +2606,58 @@ function _lastWeekQuota(chanKey, grade, periodKey, week, baseStd, storesPool){
   if(!stores.length) return null;
   return { total:stores.length, quota:Math.max(1, Math.floor(stores.length*dayRatio)), stores:stores, std:baseStd };
 }
+/* ════ 1.29.2：明細頁專用——「這個範圍還缺幾家」彙總，跟總覽頁
+   （_officeStatsFor／renderOverview 的迷你卡片）用同一套算法，只是
+   「範圍」換成明細頁目前篩選出來的這批店（storesInScope，已經套用
+   通路／等級／區域／營業所／訪員等 chip，還沒套用「🔴未達標」這個
+   開關本身）。目的：現場主管/業務不需要知道「逐店誠實比對」跟「縮減
+   後家數」是兩套算法，畫面上只有一個「還缺幾家」的數字，兩個畫面
+   看到的數字要一致，不用再靠 hover 說明去解釋為什麼對不起來。
+   ‧ 依（通路＋等級）分組（_stdGroupKey），每組各自判斷「這一週是否
+     為不足整週折算週且已被 max(1,...) 保底卡死」——是，就用縮減後
+     家數版本（quota/achieved）；不是，就是逐店誠實比對，兩種情況下
+     算出來的「未達」定義剛好一致（後者其實是前者在「不觸發」時的
+     退化版本），全站的「未達」在明細頁自此只有一個答案。
+   ‧ 回傳 { totalExp, totalStdDone, totalUnmet, quotaApplied, poolUnmet }：
+     poolUnmet 是「逐店誠實比對」下的家數（給畫面標「可從 N 家中挑」
+     用，不是隱藏起來，只是不再拿來當主要的「未達」數字）。 */
+function _filteredUnmetSummary(storesInScope, cols){
+  var groups = {};
+  storesInScope.forEach(function(s){
+    var std = _stdFreq(s);
+    if(std===undefined) return;
+    var gk = _stdGroupKey(s.chanKey, s.grade);
+    if(!gk) return;
+    (groups[gk] = groups[gk] || { chanKey:s.chanKey, grade:s.grade, stores:[] }).stores.push(s);
+  });
+  var totalExp=0, totalStdDone=0, totalUnmet=0, poolUnmet=0, quotaApplied=false;
+  Object.keys(groups).forEach(function(gk){
+    var grp = groups[gk];
+    var baseStd = _freqForGradeKey(grp.chanKey, grp.grade);
+    cols.forEach(function(c){
+      var colStd = _stdForCol(c.period, c.week, baseStd);
+      var poolMiss = grp.stores.filter(function(s){ return _actualCount(s.code, c.period, c.week) < colStd; }).length;
+      poolUnmet += poolMiss;
+      var trigger = _lastWeekQuota(grp.chanKey, grp.grade, c.period, c.week, baseStd, grp.stores);
+      if(trigger){
+        quotaApplied = true;
+        var achieved = 0;
+        grp.stores.forEach(function(s){ if(_actualCount(s.code, c.period, c.week) >= colStd) achieved++; });
+        achieved = Math.min(achieved, trigger.quota);
+        totalExp += trigger.quota; totalStdDone += achieved; totalUnmet += Math.max(0, trigger.quota-achieved);
+      } else {
+        var exp=0, done=0;
+        grp.stores.forEach(function(s){
+          var actual = _actualCount(s.code, c.period, c.week);
+          exp += colStd; done += Math.min(actual, colStd);
+        });
+        totalExp += exp; totalStdDone += done; totalUnmet += poolMiss;
+      }
+    });
+  });
+  return { totalExp:totalExp, totalStdDone:totalStdDone, totalUnmet:totalUnmet, poolUnmet:poolUnmet,
+    quotaApplied:quotaApplied, rate: totalExp>0 ? (totalStdDone/totalExp*100) : 0 };
+}
 /* 這個分組在指定檔期週次，全國已經有幾家店「達到原始（未經家數重新表述）
    次數標準」，用 _stdForCol 的原始折算結果判斷。 */
 function _gradeGroupAchievedCount(quotaInfo, periodKey, week){
@@ -4501,10 +4563,22 @@ function render(){
   });
 
   var unmetCount = rowsDataAll.filter(function(rd){ return rd.isUnmet; }).length;
-  /* 「巡次未達標」開關 chip 上直接標數字，收合狀態下也能一眼看出目前
-     篩選條件（不含這顆開關本身）底下有幾家店未達標，不用先點開才知道 */
+  /* 1.29.2：chip 上顯示的數字改成「這個範圍還缺幾家」（跟總覽頁同一套
+     算法，見 _filteredUnmetSummary），不再是逐店誠實比對的家數——現場
+     主管/業務要看的是「還要做多少」，不是兩套算法為什麼不一樣。範圍是
+     目前 chip 篩出的這批店（stores，還沒套用這顆開關本身），不受開關
+     開/關影響，因為「還缺幾家」是這個範圍當下的狀態，不是「篩選後還剩
+     幾筆」。開關本身的功能不變：點開後table仍然列出所有還沒達到自己
+     標準的店（unmetSummary.poolUnmet 那個較大的家數），方便直接去挑人
+     補訪，不規定一定要指名哪幾家。 */
+  var unmetSummary = _filteredUnmetSummary(stores, cols);
   var unmetToggleEl = document.getElementById('chip-unmet-toggle');
-  if(unmetToggleEl) unmetToggleEl.textContent = '🔴 巡次未達標（'+unmetCount+'）';
+  if(unmetToggleEl){
+    unmetToggleEl.textContent = unmetSummary.quotaApplied
+      ? '🔴 還缺'+unmetSummary.totalUnmet+'家達標（可從'+unmetCount+'家中補）'
+      : '🔴 巡次未達標（'+unmetCount+'）';
+    unmetToggleEl.title = '';
+  }
 
   /* 1.9.6：「量販A五六必訪未達」開關數字同理，兩顆開關各自獨立算，
      可以同時開（同時只看「未達標」且「必訪未達」的店） */
@@ -4673,22 +4747,17 @@ function render(){
   requestAnimationFrame(_autoFitStoreLines); /* 1.8.1：DOM 塞進去後量測寬度，超出卡寬的店名/店碼/通路/等級那一行才動態縮字級 */
 
   document.getElementById('stat-store-count').textContent = rowsData.length;
-  document.getElementById('stat-exp-visits').textContent = totalExp;
-  /* 1.29.0：目前篩選範圍只要包含任何一欄「不足整週」折算週，就在「應達
-     總次數」卡片點出 ⓘ 提示——這裡是逐店誠實加總（跟總覽頁中元/中秋
-     卡片的「縮減後家數」版本是兩種不同用途的數字，算法本來就不同），
-     避免使用者切頁看到數字對不上就以為系統算錯。只加提示，不改算法。 */
-  var anyProrated = cols.some(function(c, idx){ return colMeta[idx] && colMeta[idx].isProrated; });
-  var expInfoIcon = document.getElementById('exp-info-icon');
-  if(expInfoIcon){
-    expInfoIcon.style.display = anyProrated ? 'inline-block' : 'none';
-    expInfoIcon.title = anyProrated
-      ? '目前範圍內含「不足整週」的最後一週：這裡（應達總次數／達成率）是逐店誠實加總，每家店的應達次數已依比例折算、最低1次。概況總覽頁「中元/中秋」卡片對同一週顯示的是縮減後家數版本（回答「這個等級整體還缺幾家」），跟這裡用途不同、算法也不同，兩邊數字對不上是正常現象，不代表系統算錯。'
-      : '';
-  }
-  var rate = totalExp>0 ? (totalStdDone/totalExp*100).toFixed(1) : '0.0';
+  /* 1.29.2：「應達總次數」「目標達成率」改成跟 chip 同一份 unmetSummary
+     ——範圍含折算週時，直接顯示「還缺幾家」那套算法算出來的應達/達標，
+     跟總覽頁數字一致；不含折算週時 unmetSummary 會自然退化成跟原本逐店
+     加總一樣的數字，兩種情況共用同一顯示邏輯，不用再分兩套文字說明。 */
+  var expDisplay = unmetSummary.quotaApplied ? unmetSummary.totalExp : totalExp;
+  var doneDisplay = unmetSummary.quotaApplied ? unmetSummary.totalStdDone : totalStdDone;
+  document.getElementById('stat-exp-visits').textContent = expDisplay;
+  var rate = expDisplay>0 ? (doneDisplay/expDisplay*100).toFixed(1) : '0.0';
   document.getElementById('stat-rate').textContent = rate+'%';
   document.getElementById('stat-extra').textContent = totalExtra;
+
 
   var noteEl = document.querySelector('.sum-card.extra .sc-val-note');
   if(unknownGradeCount>0){
