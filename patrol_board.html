@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.35.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
+  版本：Ver. 1.36.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
 
 【檔案定位】
   ‧ 單一 HTML 檔案，純前端 JS，透過 gviz API 讀同一份試算表兩分頁，
@@ -210,6 +210,15 @@
     把 <head> 裡那段 <script> 拿掉即可。
 ────────────────────────────────────────────────────────────
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.36.0  business 反映：總覽頁「👥 分組貢獻度」摘要列不需要留，上面
+          「營業處執行狀況」表格已經夠用。改法：renderOfficeOverview()
+          不再把 _buildContribSummaryHtml() 的結果拼進 wrap.innerHTML，
+          畫面上不再出現這一列跟「📋 查看訪員排行」按鈕。統計函式
+          （_buildStaffContribution／openStaffContribution／訪員排行
+          Dialog／CSV／複製文字）全部原封不動保留在程式碼裡，只是暫時
+          沒有 UI 入口——之後想在別處（例如「營業處執行狀況」表格內）
+          加個連結，直接呼叫 openStaffContribution() 即可。
+          影響範圍：只刪一行 render() 裡的字串拼接，不動任何計算邏輯。
   1.35.0  business 反映：1.34.0「👥 分組貢獻度」排行 Dialog 三個問題——
           ①沒辦法只看單一檔期，中元／中秋全部訪員混在一起排；②只顯示
           「營業處」沒有「營業所」；③同一位訪員名下不同（通路＋等級）
@@ -4376,8 +4385,14 @@ function renderOfficeOverview(){
   if(pagerSlot) pagerSlot.outerHTML = pagerHtml;
   var mobileHtml = '<div class="oo-mobile-cards">' + curCardHtml + '</div>';
 
-  var contribSummaryHtml = _buildContribSummaryHtml();
-  wrap.innerHTML = mvSummaryHtml + contribSummaryHtml + tableHtml + mobileHtml;
+  /* 1.36.0 business 反映：「👥 分組貢獻度」摘要列跟上方「🚨 必訪稽核」
+     摘要列擠在同一塊、資訊量偏重複，業務覺得上面「營業處執行狀況」
+     表格已經夠用，不需要再一列。改法：總覽頁不再插入這個摘要列，
+     _buildStaffContribution()／openStaffContribution()／訪員排行
+     Dialog 本身保留（程式碼、CSV/複製匯出都還在），只是暫時沒有 UI
+     入口可以點進去；業務之後想在哪裡加個入口，再另外接 onclick 呼叫
+     openStaffContribution() 即可，不用重寫統計邏輯。 */
+  wrap.innerHTML = mvSummaryHtml + tableHtml + mobileHtml;
 }
 /* 1.9.7：頂端摘要列「📋複製稽核清單」——把目前未符合標準／今日待完成的量販A
    店家明細（含營業處、訪員、連續未符合標準週數）整理成文字複製到剪貼簿，方便
