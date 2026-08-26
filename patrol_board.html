@@ -210,6 +210,30 @@
     把 <head> 裡那段 <script> 拿掉即可。
 ────────────────────────────────────────────────────────────
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.33.0  business 反映：折算週分組門檻觸發時，「🔴巡次未達標」headline
+          chip 顯示「還缺N家達標（可從M家中補）」，但選取範圍若是「已經
+          結束的週次」（例如單獨篩某一個已過去的週），這句「可從M家中
+          補」會誤導成還能補救——已經結束的週次是既定事實，次數不會再
+          有人補進去，畫面卻暗示還能搶救，跟表格格子早就在用的「⚠️已
+          過期未達成」語彙自相矛盾（格子誠實說「已經結束」，headline
+          卻說「還能補」）。
+          改法：headline 比照格子既有的「⏳本週進行中／⚠️已過期未達成」
+          二分法，把選取範圍依 colMeta[].isPastWeek 拆成「已結束週次」
+          跟「尚未結束週次」兩個子集合，各自送進既有 _filteredUnmetSummary()
+          （不新增計算規則，折算週分組門檻/groupRemain 抑制邏輯完全沿
+          用），依三種情況分流文案：
+          ‧ 只有「已結束」部分未達 → 「⚠️已逾期未達標（N家）」，不再出
+            現「可補」字樣，title 提示屬既定事實、建議列入稽核追蹤。
+          ‧ 只有「尚未結束」部分未達 → 維持原本行動導向文案「🔴未達標中
+            （尚缺N家，可從M家中補）」（或非折算週的「🔴巡次未達標（N）」），
+            因為這部分後續巡補真的還能補回來。
+          ‧ 兩者都有（例如篩選範圍橫跨已結束＋未結束的週次）→ 「⚠️已逾期
+            N家・🔴進行中N家」分開列示，不合併成一個數字，避免「來不及」
+            跟「還來得及」混在一起看不出差異。
+          影響範圍：只改 render() 的 headline chip 文案／title（chip-unmet-toggle），
+          不影響 FILTER.onlyUnmet 篩選邏輯、表格格子顯示、CSV/LINE 匯出、
+          總覽頁彙整卡——這些既有行為/數字全部不變，rowsDataAll 新增的
+          isUnmetPast/isUnmetActive 只是給這段 headline 文案用的輔助旗標。
   1.32.0  「特殊」篩選 chip 群組新增第三顆獨立開關「🟠 超額達成」，跟既有
           「🔴 巡次未達標」「🚨 必訪未達」同一套寫法（toggleExtraChip()，
           三顆互不互斥、可同時開）——挑出目前範圍內「實際巡補次數已經
@@ -4712,7 +4736,11 @@ function render(){
 
     var colStats = [];
     var rowExp=0, rowStdDone=0, rowExtra=0, mvMissTotal=0, anyColStillUnmet=false;
-    cols.forEach(function(c){
+    /* 1.33.0：把「未達」拆成兩個時間狀態各自累計——見下方【1.33.0】說明。
+       anyPastColUnmet＝已經結束的週次裡有未達；anyActiveColUnmet＝尚未
+       結束（今天或未來）的週次裡有未達。兩者互斥判斷、互不影響對方。 */
+    var anyPastColUnmet=false, anyActiveColUnmet=false;
+    cols.forEach(function(c, ci){
       var actual = _actualCount(s.code, c.period, c.week);
       /* 1.28.0：單店格子一律用 _stdForCol() 的原始折算次數，誠實顯示這家
          店自己的應達／達標，不套用任何分組層級的彈性豁免。 */
@@ -4734,7 +4762,12 @@ function render(){
       var gr = incomplete && stdGroupKey ? unmetSummary.groupRemain[s.area+'␟'+stdGroupKey+'␟'+c.period+'␟'+c.week] : null;
       var groupMet = !!(gr && gr.triggered && gr.remaining<=0);
       colStats.push({ col:c, actual:actual, std:stdN, extra:extra, mv:mv, groupMet:groupMet });
-      if(incomplete && !groupMet) anyColStillUnmet = true;
+      if(incomplete && !groupMet){
+        anyColStillUnmet = true;
+        /* colMeta 跟 cols 同索引、同順序（見上方 colMeta 建立處），直接
+           查表拿這一欄是否已經結束，不重算一次 _isWeekPast。 */
+        if(colMeta[ci] && colMeta[ci].isPastWeek) anyPastColUnmet = true; else anyActiveColUnmet = true;
+      }
     });
     var freqUnmet = anyColStillUnmet;
     var isMvMiss = mvMissTotal>0;
@@ -4743,17 +4776,29 @@ function render(){
        「未達」。沒有必訪規則的店 isMvMiss 恆為 false，公式自動退化成原本
        只看次數的行為，不影響這些店的判斷。 */
     var isUnmet = freqUnmet || isMvMiss;
+    /* 1.33.0：isMvMiss 本身就只計「必訪日已過去仍未到店」（見上面
+       mv.filter 的 d.isPast 條件），性質上一定是既定事實、不可能是「還沒
+       到期」，所以併入「已逾期」桶；「進行中」桶只看次數判斷裡尚未結束
+       的週次。這兩個旗標只用於 headline chip 文案分流，不影響 isUnmet
+       本身（篩選/表格顯示邏輯完全不動）。 */
+    var isUnmetPast = anyPastColUnmet || isMvMiss;
+    var isUnmetActive = anyActiveColUnmet;
     /* 1.32.0：isExtra＝這家店在目前時間窗口（cols）內，實際巡補次數已經
        超過應達次數（rowExtra>0）——跟表格格子橘色「超額」勾選、統計卡
        「超額次數」共用同一份 rowExtra，確保 chip 數字／篩選結果／格子
        標示三處一致，不另外算一次。 */
     var isExtra = rowExtra>0;
     return { s:s, std:std, gradeLabel:gradeLabel, colStats:colStats, rowExp:rowExp, rowStdDone:rowStdDone, rowExtra:rowExtra, isUnmet:isUnmet,
+      isUnmetPast:isUnmetPast, isUnmetActive:isUnmetActive,
       mvMissTotal:mvMissTotal, isMvMiss:isMvMiss, isExtra:isExtra,
       groupKey: s.area+'␟'+s.office+'␟'+s.staff };
   });
 
   var unmetCount = rowsDataAll.filter(function(rd){ return rd.isUnmet; }).length;
+  /* 1.33.0：分別統計「已逾期未達標」與「仍在期限內未達標」的家數，供下面
+     headline chip 文案分流用（見 unmetToggleEl 那段）。 */
+  var unmetCountPast = rowsDataAll.filter(function(rd){ return rd.isUnmetPast; }).length;
+  var unmetCountActive = rowsDataAll.filter(function(rd){ return rd.isUnmetActive; }).length;
   /* 1.29.2：chip 上顯示的數字改成「這個範圍還缺幾家」（跟總覽頁同一套
      算法，見 _filteredUnmetSummary），不再是逐店誠實比對的家數——現場
      主管/業務要看的是「還要做多少」，不是兩套算法為什麼不一樣。範圍是
@@ -4765,15 +4810,63 @@ function render(){
      開關展開後列出的清單、headline 的「還缺M家」三處保證同步：M=0 時
      N 也一定是0，篩選/清單會清空，不會再有「還缺0家卻能點出20家名單」
      這種自相矛盾。totalUnmet=0 時文案也改乾淨（已達標），不留一句
-     看起來還能再挑幾家、其實不用挑的提示。 */
+     看起來還能再挑幾家、其實不用挑的提示。
+     ════ 1.33.0：headline chip 文案改以「週次是否已結束」分流 ════
+     business 反映：折算週分組門檻觸發時，chip 文案「還缺N家達標（可從M
+     家中補）」在選取範圍「全部都是已經結束的週次」時會誤導——「已經結束」
+     代表這是既定事實，不會再有人補次數進去，「可從M家中補」這句話讓人
+     以為還能搶救，等於系統暗示一件不可能發生的事。
+     原因：舊版只用 unmetSummary（吃全部 cols 混算）判斷文案，沒有分辨
+     這批 cols 是「還沒結束」還是「已經結束」，兩種時間狀態套同一句
+     「可補」文案。
+     修法：比照桌機/手機格子已經在用的「⏳ 本週進行中」／「⚠️ 已過期未
+     達成」二分法（見 1.30.1、_buildBoxCells），headline 也拆成兩個獨立
+     的「時間狀態」分別计算、分別給文案：
+       ‧ 已逾期未達標（pastSummary／unmetCountPast）：選取範圍內「已經
+         結束」的週次仍未達標，這是無法回溯補救的既定事實，文案只陳述
+         結果、不再暗示「可補」，改用跟格子一致的「已逾期」用語，並在
+         title 提示這屬於稽核追蹤範疇。
+       ‧ 進行中未達標（activeSummary／unmetCountActive）：選取範圍內
+         「尚未結束」（今天或未來）的週次還沒達標，這才是真正還能靠
+         後續巡補動作補足的部分，維持原本「可從M家中補」的行動導向文案。
+       ‧ 若選取範圍橫跨兩種時間狀態（例如「全部週」同時包含已結束與未
+         結束的週次），兩個數字分開顯示，不合併成一個數字，避免看的人
+         把「已經來不及」跟「還來得及」混為一談。
+     計算範圍：pastCols／activeCols 只是把現有 cols 依 colMeta[].isPastWeek
+     拆成兩個子集合，分別餵給既有的 _filteredUnmetSummary()，不新增任何
+     計算規則，折算週分組門檻、groupRemain 抑制邏輯完全沿用，兩個子集合
+     算出來的 totalUnmet 加總即等於原本 unmetSummary.totalUnmet，數字不會
+     對不起來。 */
+  var pastCols = cols.filter(function(c, ci){ return colMeta[ci] && colMeta[ci].isPastWeek; });
+  var activeCols = cols.filter(function(c, ci){ return !(colMeta[ci] && colMeta[ci].isPastWeek); });
+  var pastSummary = pastCols.length ? _filteredUnmetSummary(stores, pastCols) : null;
+  var activeSummary = activeCols.length ? _filteredUnmetSummary(stores, activeCols) : null;
+  var pastN = pastSummary && pastSummary.quotaApplied ? pastSummary.totalUnmet : unmetCountPast;
+  var activeN = activeSummary && activeSummary.quotaApplied ? activeSummary.totalUnmet : unmetCountActive;
   var unmetToggleEl = document.getElementById('chip-unmet-toggle');
   if(unmetToggleEl){
-    unmetToggleEl.textContent = !unmetSummary.quotaApplied
-      ? '🔴 巡次未達標（'+unmetCount+'）'
-      : (unmetSummary.totalUnmet>0
-          ? '🔴 還缺'+unmetSummary.totalUnmet+'家達標（可從'+unmetCount+'家中補）'
-          : '✅ 已達標（0）');
-    unmetToggleEl.title = '';
+    var label, title;
+    if(pastN<=0 && activeN<=0){
+      label = '✅ 已達標（0）';
+      title = '';
+    } else if(pastN>0 && activeN<=0){
+      /* 選取範圍內的週次已經全部結束，這是無法回溯補救的既定事實。 */
+      label = '⚠️ 已逾期未達標（'+pastN+'家）';
+      title = '選取範圍內的週次皆已結束，仍有'+pastN+'家未達應達次數；期限已過，次數無法再補，屬既定事實，建議列入稽核追蹤，而非視為可搶救事項。';
+    } else if(activeN>0 && pastN<=0){
+      /* 選取範圍內的週次都還沒結束，仍是可以透過後續巡補動作補足的狀態。 */
+      label = activeSummary && activeSummary.quotaApplied
+        ? '🔴 未達標中（尚缺'+activeN+'家，可從'+unmetCountActive+'家中補）'
+        : '🔴 巡次未達標（'+unmetCountActive+'）';
+      title = '選取範圍內的週次尚未結束，這些店家仍在效期內，後續巡補仍可補足次數達標。';
+    } else {
+      /* 選取範圍同時橫跨已結束與未結束的週次（例如「全部週」），兩種
+         時間狀態的家數分開顯示，避免混為一談。 */
+      label = '⚠️已逾期'+pastN+'家・🔴進行中'+activeN+'家';
+      title = '「已逾期」＝選取範圍內已結束的週次仍未達標，屬既定事實、次數無法再補；「進行中」＝選取範圍內尚未結束的週次未達標，後續巡補仍可補足。';
+    }
+    unmetToggleEl.textContent = label;
+    unmetToggleEl.title = title;
   }
 
   /* 1.9.6：「量販A五六必訪未達」開關數字同理，兩顆開關各自獨立算，
