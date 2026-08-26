@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.28.3 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
+  版本：Ver. 1.28.4 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
 
 【檔案定位】
   ‧ 單一 HTML 檔案，純前端 JS，透過 gviz API 讀同一份試算表兩分頁，
@@ -210,6 +210,18 @@
     把 <head> 裡那段 <script> 拿掉即可。
 ────────────────────────────────────────────────────────────
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.28.4  business 四次確認：1.28.3 讓「未達店數」欄在「單一週」跟「整檔期
+          彙總/整體」用兩套不同算法（單週用縮減後家數；跨週維持舊的「範圍
+          內累計後才誠實判斷、同一家店去重」），結果現場發現同一個檔期，
+          切單週看是「達標」，切到整體/整檔期彙總卻變成「未達」（或反過
+          來），兩種畫面互相矛盾，容易究責究錯人。這版把兩套算法合併成
+          一套：不分單週/多週，每一週都各自獨立判斷是否觸發「不足整週最
+          後一週改用縮減後家數」，「未達店數」永遠是「選取範圍內每一週
+          的未達數字（觸發縮減的週用縮減後數字，其餘週用當週誠實店數）
+          加總」，不再有跨週去重的另一套邏輯。代價：一家店連續兩週都沒
+          達標時，多週彙總的「未達店數」會把它算兩次而不是去重成一次；
+          這是刻意選擇，用「單週/整體算法完全一致、看哪個範圍都兜得起
+          來」換取「數字不會因為選取範圍不同而互相矛盾」。
   1.28.3  business 三次確認：1.28.2「營業處執行狀況總覽表」刻意不套用
           縮減後家數（理由：全國門檻會被別的營業處拖累/沾光），現場的
           真實需求不是「完全不縮減」，而是「縮減範圍縮小成自己這個
@@ -3152,20 +3164,20 @@ function _allPeriodColumns(){
 /* 1.3.1：量販／全聯應達次數標準不同（見 GRADE_FREQ），混在一起算「達成率」
    會互相稀釋，看不出兩個通路各自的執行狀況，改成依「營業處＋通路」分開
    統計，chanKey 傳 null／不傳則維持舊的「不分通路」合計（保留給總計列用） */
-/* 1.28.3：business 三次確認方向——1.28.0/1.28.2 認為「營業處總覽套全國
-   縮減門檻，會被別的營業處拖累/沾光」而刻意不套用，但現場實際要的是
-   「縮減範圍縮小成自己這個營業處＋通路自己的店，不要管全國」，不是
-   完全不縮減。改成：依【等級對照】分組（同一個營業處＋通路裡的同一個
-   等級），套用跟迷你卡片（_statsFor）同一套「不足整週最後一週改用
-   縮減後家數」機制，差別只在 _lastWeekQuota() 的 storesPool 參數傳這個
-   營業處自己的店，門檻／達標判斷都只看自己這批店，不受其他營業處影響。
-   應達次數／達標次數兩欄在觸發縮減的那一週，會從「次數」單位切換成
-   「家數」單位（跟迷你卡片一樣），畫面加上 title 提示避免誤讀。
-   「未達店數」欄：只在「單一週」檢視（cols.length===1，例如切到中元 W3
-   那個 chip）時才用縮減後數字，因為那是唯一能跟迷你卡片對得上的情境；
-   「整檔期彙總」/「整體」這種橫跨多週的檢視，維持原本「範圍內累計還是
-   誠實加總」的判斷，同一家店在其中一週達標、另一週沒達標時不應該被
-   單一週的縮減邏輯覆蓋掉。 */
+/* 1.28.4：business 四次確認方向——1.28.3 讓「單一週」跟「整檔期彙總/
+   整體」用兩套不同算法算「未達店數」（單週用縮減後家數，跨週維持舊的
+   「範圍內累計才誠實判斷」），現場反映：這樣同一個檔期，看單週結論是
+   「達標」、看整體/整檔期彙總卻變成「未達」（或反過來），兩種畫面互相
+   矛盾，容易究責究錯人。改成只有一套算法，不分單週/多週：每一週都各自
+   先套用「不足整週最後一週改用縮減後家數」判斷（跟迷你卡片、1.28.3
+   同一套機制，範圍縮小成自己這個營業處＋通路自己的店），「未達店數」
+   一律是「選取範圍內每一週的未達數字加總」——單一週檢視時就是那一週
+   自己的數字，多週檢視時就是逐週相加，不再有「跨週對同一家店去重」的
+   另一套邏輯。也就是說：同一週在單獨看、或被包在「整體」範圍裡一起看，
+   數字算法完全相同，只是加總範圍不同，不會再有「單週達標、整體卻未達」
+   的矛盾。代價：一家店如果連續兩週都沒達標，會在跨週彙總的「未達店數」
+   裡被算兩次（不是去重成一次）——這是刻意選擇，換取「單週/整體算法
+   一致」，比「數字比較小但看哪一種範圍會兜不起來」更重要。 */
 function _officeStatsFor(area, chanKey){
   var subset = STORE_ROWS.filter(function(s){
     if(s.area!==area) return false;
@@ -3192,7 +3204,6 @@ function _officeStatsFor(area, chanKey){
     var baseStd = _freqForGradeKey(chanKey, gradeKey);
     var weeks = {}; /* week -> {exp,stdDone,unmetSet:{storeIdx:true}} 誠實原始數字，第二輪才視情況覆寫 */
     stores.forEach(function(s, idx){
-      var rowExp=0, rowStdDone=0, rowMvMiss=false;
       cols.forEach(function(c){
         var actual = _actualCount(s.code, c.period, c.week);
         var colStd = _stdForCol(c.period, c.week, baseStd);
@@ -3200,26 +3211,20 @@ function _officeStatsFor(area, chanKey){
         if(!weeks[c.week]) weeks[c.week] = { exp:0, stdDone:0, unmetSet:{} };
         weeks[c.week].exp += colStd; weeks[c.week].stdDone += stdDoneC;
         exp += colStd; stdDone += stdDoneC; extra += Math.max(0, actual-colStd);
-        rowExp += colStd; rowStdDone += stdDoneC;
         /* 1.26.0：【等級對照】次數標準 × 【必訪規則】交集時改採 AND 判斷──
            任一項沒達成都算未達；沒有必訪規則的店 mvSt 恆為 null，公式
            自動退化成原本只看次數的行為，不影響這些店的判斷。 */
         var mvSt = _mvWeekStatus(s, c.period, c.week);
         var wkMvMiss = !!(mvSt && mvSt.violated);
         if((colStd>0 && actual<colStd) || wkMvMiss) weeks[c.week].unmetSet[idx] = true;
-        if(wkMvMiss) rowMvMiss = true;
       });
-      /* 多週彙總（整檔期／整體）：維持原本「範圍內累計後才誠實判斷」的
-         舊邏輯，不受下面的家數縮減影響——理由同 _statsFor 的
-         「未達店數(整檔期)」欄，橫跨多週時哪一家店該追是誠實問題，不是
-         「這一週分組還差多少」的問題。 */
-      if(cols.length>1 && ((rowExp>0 && rowStdDone<rowExp) || rowMvMiss)) unmetCount++;
     });
 
     /* 第二輪：縮減範圍＝這個營業處＋這個通路自己的店（storesPool 傳
        stores，不是 STORE_ROWS），只在「不足整週檔期最後一週、且這個
        等級折算次數已被 max(1,...) 保底卡死」時才觸發，其餘週次/等級
-       不受影響，跟 _statsFor 同一套判斷。 */
+       不受影響，跟 _statsFor 同一套判斷。每一週各自獨立判斷是否觸發，
+       單週檢視／多週彙總套的是同一段邏輯，不因為選取範圍改變算法。 */
     cols.forEach(function(c){
       var q = _lastWeekQuota(chanKey, gradeKey, c.period, c.week, baseStd, stores);
       if(!q) return;
@@ -3235,10 +3240,12 @@ function _officeStatsFor(area, chanKey){
       quotaApplied = true;
     });
 
-    if(cols.length===1){
-      var wkOnly = weeks[cols[0].week];
-      if(wkOnly) unmetCount += wkOnly.quotaApplied ? wkOnly.unmet : Object.keys(wkOnly.unmetSet).length;
-    }
+    /* 「未達店數」＝選取範圍內每一週各自的未達數字加總（觸發縮減的週用
+       wk.unmet，沒觸發的週用當週誠實店數），單週/多週共用同一條路徑。 */
+    Object.keys(weeks).forEach(function(w){
+      var wk = weeks[w];
+      unmetCount += wk.quotaApplied ? wk.unmet : Object.keys(wk.unmetSet).length;
+    });
   });
 
   return { area:area, chanKey:chanKey||'', count:subset.length, exp:exp, stdDone:stdDone, extra:extra,
