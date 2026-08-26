@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.31.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
+  版本：Ver. 1.32.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
 
 【檔案定位】
   ‧ 單一 HTML 檔案，純前端 JS，透過 gviz API 讀同一份試算表兩分頁，
@@ -210,6 +210,26 @@
     把 <head> 裡那段 <script> 拿掉即可。
 ────────────────────────────────────────────────────────────
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.32.0  「特殊」篩選 chip 群組新增第三顆獨立開關「🟠 超額達成」，跟既有
+          「🔴 巡次未達標」「🚨 必訪未達」同一套寫法（toggleExtraChip()，
+          三顆互不互斥、可同時開）——挑出目前範圍內「實際巡補次數已經
+          超過應達次數」的店（isExtra，直接重用逐店本來就有算的 rowExtra，
+          不另開一套計算），給主管看哪些店特別認真、超額完成。
+          總覽↔明細互動：總覽頁「營業處執行狀況」表格的「超額次數」欄位
+          （桌機表格逐處列＋全部合計列、手機卡片逐處＋全部合計兩種版面，
+          共 4 個進入點）全部改成可點擊，帶 onlyExtra=true 直接下鑽到
+          明細頁只看超額達成的店，跟「未達店數」欄位既有的下鑽行為對稱
+          （openDetailFromOffice() 新增第 5 個參數 onlyExtra）。
+          ‧ 驗證方式：jsdom headless，繞過 gviz 網路請求直接灌入合成
+            STORE_ROWS／ACTUAL_INDEX（6店，2家超額、2家剛好達標、2家
+            未達），對真實檔案（未修改任何邏輯，僅補 shared/*.js 樁函式
+            如 esc／gvizParse 因沙盒無該檔案）跑 28 項檢查：chip 計數／
+            篩選結果店家名單／開關互斥性／總覽 4 個進入點下鑽後 FILTER
+            狀態／filter-toggle-summary／syncChipsToFilter 全部通過，
+            0 window error；另外故意把 isExtra 改壞（恆為 false）重跑
+            同一份測試，確認會精準抓到 3 項失效（chip 計數變 0、S1/S4
+            從篩選結果消失），排除測試本身寫假通過的可能。node --check
+            通過。
   1.31.0  純內部重構，不改任何對外行為／數字／畫面（純代碼優化，非業務
           需求）：「不足整週折算週．分組門檻」這段邏輯先前分別在
           _statsFor()／_officeStatsFor()／_filteredUnmetSummary()／
@@ -1133,6 +1153,10 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
 .oo-mstat .v.unmet { color:var(--red); }
 .oo-mstat-unmet { cursor:pointer; border-radius:6px; transition:background .12s; }
 .oo-mstat-unmet:active, .oo-mstat-unmet:hover { background:var(--red-bg); }
+/* 1.32.0：手機卡片「超額」小格比照「未達」小格，可點擊下鑽到明細頁的
+   超額達成篩選，用 --bonus 系配色跟未達的紅色區隔。 */
+.oo-mstat-extra { cursor:pointer; border-radius:6px; transition:background .12s; }
+.oo-mstat-extra:active, .oo-mstat-extra:hover { background:var(--bonus-bg); }
 .oo-mcard-total { background:#f6f4ef; }
 .oo-mcard-total .oo-mcard-head { background:#efece4; }
 @media (max-width:640px){
@@ -1181,6 +1205,9 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
 /* ── 1.9.7：量販A必訪稽核（總覽表新增欄位＋摘要列）── */
 .ov-office-tbl td.oo-mv { font-weight:700; white-space:nowrap; }
 .ov-office-tbl td.oo-mv.oo-clickable:hover { background:var(--red-bg); }
+/* 1.32.0：「超額」欄可點擊 hover 用 --bonus-bg（橘），跟「未達」欄的紅色
+   系（沿用 .oo-clickable 預設 --primary-bg，未特別覆寫）區隔開。 */
+.ov-office-tbl td.oo-extra.oo-clickable:hover { background:var(--bonus-bg); }
 .oo-mv-num { color:var(--sub); }
 .oo-mv-num.has { color:var(--red); font-weight:800; }
 .oo-mv-sub { display:inline-block; margin-left:5px; font-size:10.5px; font-weight:700; padding:1px 5px; border-radius:8px; }
@@ -1888,7 +1915,7 @@ var _qSheetCache = {};
 var _qSheetLoading = {};
 var _qSheetWaiters = {};
 
-var FILTER = { period:'全部', channel:'全部', grade:'全部', area:'全部', office:'全部', staff:'全部', keyword:'', onlyUnmet:false, onlyMvMiss:false, week:null };
+var FILTER = { period:'全部', channel:'全部', grade:'全部', area:'全部', office:'全部', staff:'全部', keyword:'', onlyUnmet:false, onlyMvMiss:false, onlyExtra:false, week:null };
 /* 1.11.0：主表格週次格子的顯示視角。1.13.0 起手機版也共用同一套（見
    .main-mobile-cards／MOBILE_SEL），同時影響桌機表格與手機卡片。
    ‧ 'count'：原始視角，格子代表「第幾次」抽象順位（跟哪天去無關）。
@@ -2191,7 +2218,7 @@ function mobileGateEnter(){
   }
   FILTER.period = '全部'; FILTER.channel = '全部'; FILTER.grade = '全部';
   FILTER.area = MOBILE_GATE.area; FILTER.office = MOBILE_GATE.office; FILTER.staff = MOBILE_GATE.staff;
-  FILTER.keyword = ''; FILTER.onlyUnmet = false; FILTER.onlyMvMiss = false; FILTER.week = null;
+  FILTER.keyword = ''; FILTER.onlyUnmet = false; FILTER.onlyMvMiss = false; FILTER.onlyExtra = false; FILTER.week = null;
   _enterDetail();
 }
 
@@ -3182,10 +3209,17 @@ function buildFilterUI(){
   /* 1.9.6：「量販A五六必訪未達」比照「巡次未達標」，也是獨立開關 chip，
      跟 toggleUnmetChip 對稱寫一支 toggleMvMissChip；文字裡的數字同樣在
      每次 render() 結尾更新，顯示目前篩選條件下（不含這顆開關本身）有
-     幾家店違反必訪規則。 */
+     幾家店違反必訪規則。
+     1.32.0：新增「超額達成」開關 chip，跟前兩顆同一套獨立布林值寫法
+     （toggleExtraChip），篩「這個範圍內、實際巡補次數已經超過應達次數
+     的店」（rowExtra>0，即 rowsDataAll 逐店算超額次數時順便標記的
+     isExtra），給主管挑出巡補特別認真的店家看。三顆開關互不互斥，可以
+     同時開（例如同時只看「超額達成」且「必訪未達」的店，理論上會是
+     空集合但不特別擋，交給資料自己說話）。 */
   document.getElementById('chip-special').innerHTML =
     '<div class="chip'+(FILTER.onlyUnmet?' active':'')+'" id="chip-unmet-toggle" onclick="toggleUnmetChip(this)">🔴 巡次未達標</div>'
-    + '<div class="chip'+(FILTER.onlyMvMiss?' active':'')+'" id="chip-mv-toggle" onclick="toggleMvMissChip(this)">🚨 必訪未達</div>';
+    + '<div class="chip'+(FILTER.onlyMvMiss?' active':'')+'" id="chip-mv-toggle" onclick="toggleMvMissChip(this)">🚨 必訪未達</div>'
+    + '<div class="chip'+(FILTER.onlyExtra?' active':'')+'" id="chip-extra-toggle" onclick="toggleExtraChip(this)">🟠 超額達成</div>';
 
   var areaOpts = ['全部'].concat(AREA_ORDER);
   document.getElementById('chip-area').innerHTML = areaOpts.map(function(v,i){
@@ -3317,6 +3351,12 @@ function toggleUnmetChip(el){
 function toggleMvMissChip(el){
   FILTER.onlyMvMiss = !FILTER.onlyMvMiss;
   el.classList.toggle('active', FILTER.onlyMvMiss);
+  onFilterChange();
+}
+/* 1.32.0：「超額達成」開關，邏輯跟前兩顆對稱、各自獨立，可以同時開。 */
+function toggleExtraChip(el){
+  FILTER.onlyExtra = !FILTER.onlyExtra;
+  el.classList.toggle('active', FILTER.onlyExtra);
   onFilterChange();
 }
 function onFilterChange(){
@@ -3660,13 +3700,19 @@ function renderOfficeOverview(){
      1.9.2：「未達店數」欄位插在「達成率%」跟「超額次數」之間，點擊會額外
      帶上 onlyUnmet=true（其餘四格維持原本「整批」點擊行為不變）。
      1.9.7：ck==='量販' 時額外補一格「🚨必訪缺」（不是每個通路都有，
-     全聯沒有這條規則，欄位數不同，故獨立處理不塞進共用的 6 格模板）。 */
+     全聯沒有這條規則，欄位數不同，故獨立處理不塞進共用的 6 格模板）。
+     1.32.0：「超額次數」欄比照「未達店數」欄，改成獨立可點擊格，帶上
+     onlyExtra=true 下鑽到明細頁只看「超額達成」的店（讓主管一眼挑出
+     巡補特別認真的店家），跟總覽這格顯示的 r.extra 數字同一份資料
+     （rowsDataAll.rowExtra 加總），不是另外算的。r.extra===0 時仍可點
+     （進去會是空篩選結果，不特別擋，跟「未達」欄 0 時的行為一致）。 */
   function _statCells(area, ck){
     var c = statCache[area+'␟'+ck];
     var base = !c.hasData ? '<td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td>' : (function(){
       var r = c.r;
       var click = ' class="oo-clickable" onclick="openDetailFromOffice(\''+area+'\',\''+ck+'\')"';
       var unmetClick = ' class="oo-clickable oo-unmet" onclick="openDetailFromOffice(\''+area+'\',\''+ck+'\',true,event)"';
+      var extraClick = ' class="oo-clickable oo-extra" onclick="openDetailFromOffice(\''+area+'\',\''+ck+'\',false,event,true)"';
       /* 1.28.3：這個處＋通路裡，只要有任一等級這週觸發了「縮減後家數」
          機制，應達／達標／未達三欄就不再是誠實次數／店數加總，而是混入
          縮減後的家數版本——加 title 提示，避免現場誤以為又是統計錯誤。 */
@@ -3679,7 +3725,7 @@ function renderOfficeOverview(){
         + '<td'+click+quotaAttr+'>'+r.stdDone+'</td>'
         + '<td'+click+' class="oo-rate">'+r.rate.toFixed(1)+'%</td>'
         + '<td'+unmetClick+' title="'+(r.quotaApplied?esc(quotaTitle):'點擊查看未達標門市')+'">'+r.unmetCount+'</td>'
-        + '<td'+click+' class="oo-extra">'+(r.extra>0?'+'+r.extra:'0')+'</td>';
+        + '<td'+extraClick+' title="點擊查看超額達成的門市">'+(r.extra>0?'+'+r.extra:'0')+'</td>';
     })();
     if(!_channelHasMustVisit(ck)) return base;
     return base + _mvCellHtml(area, ck);
@@ -3740,7 +3786,7 @@ function renderOfficeOverview(){
     var cells = '<td>'+t.count+'</td><td'+tQuotaAttr+'>'+t.exp+(t.quotaApplied?' 🔽':'')+'</td><td'+tQuotaAttr+'>'+t.stdDone+'</td>'
       + '<td class="oo-rate">'+rate.toFixed(1)+'%</td>'
       + '<td class="oo-unmet"'+tQuotaAttr+'>'+t.unmet+'</td>'
-      + '<td class="oo-extra">'+(t.extra>0?'+'+t.extra:'0')+'</td>';
+      + '<td class="oo-extra oo-clickable" onclick="openDetailFromOffice(\'全部\',\''+ck+'\',false,event,true)" title="點擊查看超額達成的門市（全部處合計）">'+(t.extra>0?'+'+t.extra:'0')+'</td>';
     if(_channelHasMustVisit(ck)){
       var mt = mvTotalsByChan[ck];
       cells += '<td class="oo-mv">'
@@ -3834,7 +3880,7 @@ function renderOfficeOverview(){
       + '<div class="oo-mstat"><span class="k">達標</span><span class="v">'+r.stdDone+'</span></div>'
       + '<div class="oo-mstat"><span class="k">達成率</span><span class="v rate">'+r.rate.toFixed(1)+'%</span></div>'
       + '<div class="oo-mstat oo-mstat-unmet" onclick="openDetailFromOffice(\''+area+'\',\''+ck+'\',true,event)"><span class="k">未達</span><span class="v unmet">'+r.unmetCount+'</span></div>'
-      + '<div class="oo-mstat"><span class="k">超額</span><span class="v extra">'+(r.extra>0?'+'+r.extra:'0')+'</span></div>'
+      + '<div class="oo-mstat oo-mstat-extra" onclick="openDetailFromOffice(\''+area+'\',\''+ck+'\',false,event,true)"><span class="k">超額</span><span class="v extra">'+(r.extra>0?'+'+r.extra:'0')+'</span></div>'
       + mvStat
       + '</div></div>';
   }
@@ -3860,7 +3906,7 @@ function renderOfficeOverview(){
       + '<div class="oo-mstat"><span class="k">達標</span><span class="v">'+t.stdDone+'</span></div>'
       + '<div class="oo-mstat"><span class="k">達成率</span><span class="v rate">'+rate.toFixed(1)+'%</span></div>'
       + '<div class="oo-mstat"><span class="k">未達</span><span class="v unmet">'+t.unmet+'</span></div>'
-      + '<div class="oo-mstat"><span class="k">超額</span><span class="v extra">'+(t.extra>0?'+'+t.extra:'0')+'</span></div>'
+      + '<div class="oo-mstat oo-mstat-extra" onclick="openDetailFromOffice(\'全部\',\''+ck+'\',false,event,true)"><span class="k">超額</span><span class="v extra">'+(t.extra>0?'+'+t.extra:'0')+'</span></div>'
       + mvStat
       + '</div></div>';
   }).join('');
@@ -4141,9 +4187,14 @@ function closeManpower(){
    1.9.2：檔期／週次改成跟隨「營業處執行狀況」表目前選的頁籤（OFFICE_WEEK_SEL），
    而不是寫死回「全部」——這樣不管現場人員切到哪個頁籤（整體／中元／中元
    W1…）點進去，都跟表格上看到的數字對得起來；onlyUnmet 給 true 時（從
-   「未達」欄位點進來）額外套上「🔴 巡次未達標」篩選。 */
-function openDetailFromOffice(area, chanKey, onlyUnmet, evt){
-  if(evt){ evt.stopPropagation(); } /* 手機版「未達」小格嵌在整張可點卡片裡，避免同時觸發外層卡片的 onclick */
+   「未達」欄位點進來）額外套上「🔴 巡次未達標」篩選。
+   1.32.0：新增 onlyExtra 參數，跟 onlyUnmet 對稱——從總覽表「超額次數」
+   欄位／手機卡片「超額」小格點進來時給 true，額外套上「🟠 超額達成」
+   篩選；一次只會有一個 only* 為 true（點擊當下決定要看哪一種），這樣
+   總覽頁看到的「超額 +N」跟明細頁篩出來的店家名單保證是同一份數字算出來
+   的，不是兩套獨立邏輯各自兜出剛好一樣的結果。 */
+function openDetailFromOffice(area, chanKey, onlyUnmet, evt, onlyExtra){
+  if(evt){ evt.stopPropagation(); } /* 手機版「未達」「超額」小格嵌在整張可點卡片裡，避免同時觸發外層卡片的 onclick */
   if(OFFICE_WEEK_SEL && OFFICE_WEEK_SEL.period){
     FILTER.period = OFFICE_WEEK_SEL.period;
     FILTER.week = OFFICE_WEEK_SEL.week || null;
@@ -4155,6 +4206,7 @@ function openDetailFromOffice(area, chanKey, onlyUnmet, evt){
   FILTER.area = area; FILTER.office = '全部'; FILTER.staff = '全部'; FILTER.keyword = '';
   FILTER.onlyUnmet = !!onlyUnmet;
   FILTER.onlyMvMiss = false;
+  FILTER.onlyExtra = !!onlyExtra;
   _enterDetail();
 }
 /* 1.9.7：點總覽表「🚨必訪缺」欄 → 直接帶進明細頁並鎖定「該通路＋🚨必訪
@@ -4177,6 +4229,7 @@ function openMvAuditFromOffice(area, chanKey, evt){
   FILTER.area = area; FILTER.office = '全部'; FILTER.staff = '全部'; FILTER.keyword = '';
   FILTER.onlyUnmet = false;
   FILTER.onlyMvMiss = true;
+  FILTER.onlyExtra = false;
   _enterDetail();
 }
 function renderOverview(){
@@ -4311,6 +4364,7 @@ function openDetailFromOverview(periodKey, chanKey, grade, evt, onlyUnmet, week)
   FILTER.period = periodKey; FILTER.channel = chanKey; FILTER.grade = grade||'全部'; FILTER.area = '全部'; FILTER.staff = '全部'; FILTER.keyword = '';
   FILTER.onlyUnmet = !!onlyUnmet;
   FILTER.onlyMvMiss = false;
+  FILTER.onlyExtra = false;
   FILTER.week = week || null;
   _enterDetail();
 }
@@ -4318,6 +4372,7 @@ function openDetailAll(){
   FILTER.period = '全部'; FILTER.channel = '全部'; FILTER.grade = '全部'; FILTER.area = '全部'; FILTER.staff = '全部'; FILTER.keyword = '';
   FILTER.onlyUnmet = false;
   FILTER.onlyMvMiss = false;
+  FILTER.onlyExtra = false;
   FILTER.week = null;
   _enterDetail();
 }
@@ -4345,6 +4400,8 @@ function syncChipsToFilter(){
   if(unmetToggle) unmetToggle.classList.toggle('active', FILTER.onlyUnmet);
   var mvToggle = document.getElementById('chip-mv-toggle');
   if(mvToggle) mvToggle.classList.toggle('active', FILTER.onlyMvMiss);
+  var extraToggle = document.getElementById('chip-extra-toggle');
+  if(extraToggle) extraToggle.classList.toggle('active', FILTER.onlyExtra);
   _updateFilterToggleSummary();
 }
 /* 1.6.2：手機版篩選條件收合按鈕上的一行小字摘要——收合時仍能一眼看出
@@ -4366,6 +4423,7 @@ function _updateFilterToggleSummary(){
   if(FILTER.staff!=='全部') parts.push(FILTER.staff);
   if(FILTER.onlyUnmet) parts.push('🔴未達標');
   if(FILTER.onlyMvMiss) parts.push('🚨必訪未達');
+  if(FILTER.onlyExtra) parts.push('🟠超額達成');
   el.textContent = parts.length ? parts.join('・') : '全部';
 }
 /* 手機版：篩選 chip 列預設收合，避免固定工具列＋篩選列一次佔掉大半螢幕，
@@ -4685,8 +4743,13 @@ function render(){
        「未達」。沒有必訪規則的店 isMvMiss 恆為 false，公式自動退化成原本
        只看次數的行為，不影響這些店的判斷。 */
     var isUnmet = freqUnmet || isMvMiss;
+    /* 1.32.0：isExtra＝這家店在目前時間窗口（cols）內，實際巡補次數已經
+       超過應達次數（rowExtra>0）——跟表格格子橘色「超額」勾選、統計卡
+       「超額次數」共用同一份 rowExtra，確保 chip 數字／篩選結果／格子
+       標示三處一致，不另外算一次。 */
+    var isExtra = rowExtra>0;
     return { s:s, std:std, gradeLabel:gradeLabel, colStats:colStats, rowExp:rowExp, rowStdDone:rowStdDone, rowExtra:rowExtra, isUnmet:isUnmet,
-      mvMissTotal:mvMissTotal, isMvMiss:isMvMiss,
+      mvMissTotal:mvMissTotal, isMvMiss:isMvMiss, isExtra:isExtra,
       groupKey: s.area+'␟'+s.office+'␟'+s.staff };
   });
 
@@ -4719,9 +4782,16 @@ function render(){
   var mvToggleEl = document.getElementById('chip-mv-toggle');
   if(mvToggleEl) mvToggleEl.textContent = '🚨 必訪未達（'+mvMissCount+'）';
 
+  /* 1.32.0：「超額達成」開關數字，跟前兩顆同一套寫法——算的是目前 chip
+     篩出的這批店（stores，不受這顆開關本身開/關影響）裡有幾家超額。 */
+  var extraCount = rowsDataAll.filter(function(rd){ return rd.isExtra; }).length;
+  var extraToggleEl = document.getElementById('chip-extra-toggle');
+  if(extraToggleEl) extraToggleEl.textContent = '🟠 超額達成（'+extraCount+'）';
+
   var rowsData = rowsDataAll.filter(function(rd){
     if(FILTER.onlyUnmet && !rd.isUnmet) return false;
     if(FILTER.onlyMvMiss && !rd.isMvMiss) return false;
+    if(FILTER.onlyExtra && !rd.isExtra) return false;
     return true;
   });
 
