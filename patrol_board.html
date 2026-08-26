@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.27.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
+  版本：Ver. 1.27.1 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
 
 【檔案定位】
   ‧ 單一 HTML 檔案，純前端 JS，透過 gviz API 讀同一份試算表兩分頁，
@@ -208,8 +208,61 @@
   ‧ 預設走跟 coverage_board.html 相同的 session 驗證（localStorage
     'ttl_auth_v1' !== '1' 導回 index.html），獨立部署不經登入頁時，
     把 <head> 裡那段 <script> 拿掉即可。
+  ‧ 【1.28.0 未完成事項】_statsFor()／_officeStatsFor()／_staffStatsData()／
+    _summaryForShare() 這四個「加總層級」統計函式，目前仍是 1.27.0 的
+    「分組動態達標後豁免」邏輯，跟單店層級已改用的「誠實顯示＋分組整體
+    固定目標」方向不一致——需要 business 先確認「當統計範圍只涵蓋分組
+    一部分（單一區域／單一訪員／篩選子集合）時，縮減後應達家數要怎麼
+    按比例分攤」，才能動這四處。細節見版本紀錄 1.28.0。
 
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.28.0  business 二次確認方向：「原1訪」等級（如全聯）最後一週天數不足時
+          的縮減後應達家數，要「一開始就固定顯示」，不等分組實際達標才回頭
+          豁免——原本 1.27.0 的「動態達標後豁免」機制（分組累計到門檻才把
+          其餘店歸零）跟這個方向不一致，改動範圍：
+          ‧ 單店層級（主表格桌機格子／手機卡片／單店明細 openStoreDetail）
+            全部改回直接呼叫 _stdForCol()（原始折算次數），不再呼叫
+            _effStdForCol()／_quotaExcuseInfo() 做 per-store 動態歸零——
+            這三處畫面現在誠實顯示「這家店自己」的應達／達標，不會因為
+            分組裡別的店達標了，這家店自己的格子就突然變空白／算豁免。
+          ‧ 一併修正 1.27.0 遺留的桌機／手機不一致 bug：主表格桌機格子
+            當時已經不再套用豁免，但手機卡片舊碼還在呼叫 _quotaExcuseInfo()
+            算 mExcuse，會讓同一家店同一週在桌機/手機看到不同畫面（桌機
+            誠實顯示次數、手機卻可能顯示「已豁免」的空白格）；手機卡片
+            的等級徽章（mExcuse 判斷式）也一併修正，否則會因為變數已被
+            拿掉而直接噴錯。
+          ‧ 「等級欄🔽彈性徽章」語意跟著改：不再宣稱「本店已豁免」（單店
+            現在沒有豁免狀態），改成純資訊性提示「這個等級最後一週已切到
+            分組整體家數機制」，hover 顯示縮減後家數／原始家數，說明這是
+            分組整體的數字、不是這家店個別的次數（rd.familyQuotaCols／
+            mFamilyQuota）。_buildDayBoxCells() 拿掉 excuseInfo 參數與
+            對應「已豁免」文案。
+          ‧ 【待辦，尚未完成，見各呼叫點 1.28.0 註記】_statsFor()（檔期
+            迷你表格）、_officeStatsFor()（營業處總覽）、_staffStatsData()
+            （訪員總覽）、_summaryForShare()（CSV／LINE／截圖彙整）這四處
+            仍維持呼叫 _effStdForCol()／舊的「動態達標後豁免」邏輯，尚未
+            換成跟單店一致的「靜態縮減後家數目標」——這四處是「加總」
+            層級統計，範圍可能只涵蓋分組的一部分（單一區域、單一訪員、
+            篩選後的子集合），而縮減後應達家數是「全公司這個等級」整體
+            的概念，直接把整組的固定目標套到一個只佔分組一小部分的子
+            集合上，數字會失真；需要先跟 business 確認「這種子集合視角
+            下，縮減後家數目標要怎麼按比例分攤」才能動這四處，避免像
+            這次一樣改一半、兩邊數字對不起來。規劃中的統一入口
+            _groupedQuotaStats()（尚未實作）預計會是這四處的共用改法。
+  1.27.1  彈性家數機制（見下方 1.27.0）補上「數字要顯示出來」的可視化：
+          之前只有真的觸發豁免的單店格子／等級徽章看得到提示，「中元專案／
+          中秋專案」迷你表格（renderOverview() 產出，各等級 W1/W2/W3 已達／
+          未達彙總）完全沒有任何跡象，門檻沒達到之前使用者看到的都是跟舊版
+          一樣的原始數字，容易誤以為機制沒生效。
+          ‧ 新增 _weekQuotaBadgeHtml(chanKey, grade, periodKey, week)：只要
+            _lastWeekQuota() 判斷這個等級這一週有切換到家數機制（不論門檻
+            有沒有達到），就在該週「已達」欄位旁加一個 🔽 徽章，直接顯示
+            「應達 X／原 Y 家」，門檻已達到再加註 ✓；hover 可看到已達家數
+            明細。門檻沒到之前也看得到這個縮減後的家數是多少，不用等豁免
+            真的生效、也不用另外點進單店明細才找得到。
+          ‧ 桌機／手機兩份迷你表格（renderOverview() 的 body／mobileBody）
+            都同步加上這個徽章；只有真的是非整週檔期最後一週、且該等級
+            折算次數已經降不動時才會出現，其餘週次／等級不受影響。
   1.27.0  新增「彈性家數（縮減後應達家數）」機制，解決非整週檔期最後一週
           折算時，「整週應達次數本來就是1」的等級（例如全聯每週1次）套用
           max(1, prorated) 保底規則後，不管當週剩幾天都固定顯示1次、看起來
@@ -3027,7 +3080,7 @@ function _statsFor(storesSubset, cols){
     var rowExp=0, rowStdDone=0, rowMvMiss=false;
     cols.forEach(function(c){
       var actual = _actualCount(s.code, c.period, c.week);
-      var colStd = _effStdForCol(s, c.period, c.week, std); /* 1.27.0：套用彈性家數豁免後的實際生效應達次數 */
+      var colStd = _effStdForCol(s, c.period, c.week, std); /* 1.27.0：套用彈性家數豁免後的實際生效應達次數。1.28.0 待辦：這裡是「加總層級」統計，尚未換成 _groupedQuotaStats() 靜態家數目標——單店已改誠實顯示，這裡暫時維持舊「動態達標後豁免」邏輯，跟單店數字兜不起來是已知狀態，換掉前需先確認「這個統計範圍只涵蓋分組一部分（例如單一區域／訪員）時，縮減後家數目標要怎麼按比例分攤」，見檔頭 1.28.0 版本紀錄與待辦事項。 */
       var exp = colStd, stdDone = Math.min(actual, colStd);
       g.exp += exp; g.stdDone += stdDone;
       if(!g.weeks[c.week]) g.weeks[c.week] = { exp:0, stdDone:0, unmet:0 };
@@ -3074,7 +3127,7 @@ function _officeStatsFor(area, chanKey){
     var rowExp=0, rowStdDone=0;
     cols.forEach(function(c){
       var actual = _actualCount(s.code, c.period, c.week);
-      var colStd = _effStdForCol(s, c.period, c.week, std); /* 1.27.0：套用彈性家數豁免後的實際生效應達次數 */
+      var colStd = _effStdForCol(s, c.period, c.week, std); /* 1.27.0：套用彈性家數豁免後的實際生效應達次數。1.28.0 待辦：這裡是「加總層級」統計，尚未換成 _groupedQuotaStats() 靜態家數目標——單店已改誠實顯示，這裡暫時維持舊「動態達標後豁免」邏輯，跟單店數字兜不起來是已知狀態，換掉前需先確認「這個統計範圍只涵蓋分組一部分（例如單一區域／訪員）時，縮減後家數目標要怎麼按比例分攤」，見檔頭 1.28.0 版本紀錄與待辦事項。 */
       var stdDoneC = Math.min(actual, colStd);
       exp += colStd; stdDone += stdDoneC; extra += Math.max(0, actual-colStd);
       rowExp += colStd; rowStdDone += stdDoneC;
@@ -3751,6 +3804,25 @@ function openMvAuditFromOffice(area, chanKey, evt){
   FILTER.onlyMvMiss = true;
   _enterDetail();
 }
+/* 1.27.1：給「中元專案／中秋專案」迷你表格用──某個等級在指定檔期週次，
+   是否已經切換到「彈性家數」機制（見 _lastWeekQuota() 說明的二選一分流
+   規則），有的話回傳一個小徽章 HTML，把「縮減後應達家數」這個數字直接
+   顯示出來，不管門檻有沒有達到都先讓使用者看到，不用等豁免真的生效、
+   或跑去點開單店明細才找得到這個數字。
+   ‧ 門檻還沒達到：徽章只顯示「應達 X／原Y家」，提醒這週的實際門檻是
+     縮減後的 X 家，不是原始 Y 家。
+   ‧ 門檻已經達到：徽章加註 ✓，並在提示文字說明其餘未達標的店本週已
+     豁免、不計入未達。 */
+function _weekQuotaBadgeHtml(chanKey, grade, periodKey, week){
+  var baseStd = _freqForGradeKey(chanKey, grade);
+  var q = _lastWeekQuota(chanKey, grade, periodKey, week, baseStd);
+  if(!q) return '';
+  var achieved = _gradeGroupAchievedCount(q, periodKey, week);
+  var reached = achieved >= q.quota;
+  var title = '彈性家數機制：這個等級整週應達次數本身已經降不動（被保底規則卡在1次），改用「家數」機制頂替──全體'+q.total+'家中，這週只要有'+q.quota+'家達到原始應達次數即可（目前已達'+achieved+'家）。'
+    + (reached ? '已達門檻，其餘還沒達標的店本週視為豁免、不計入未達。' : '門檻尚未達到，達到之前每家店仍照原始標準各自判斷。');
+  return ' <span class="quota-badge" title="'+esc(title)+'">🔽應達'+q.quota+'/'+q.total+'家'+(reached?'✓':'')+'</span>';
+}
 function renderOverview(){
   var wrap = document.getElementById('ov-cards');
   if(!wrap) return;
@@ -3809,10 +3881,11 @@ function renderOverview(){
           var clickAttrs = ' onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event)" title="點擊查看這個等級整個檔期的門市明細"';
           var wd = gd.weeks[curWeek] || { exp:0, stdDone:0, unmet:0 };
           var met = gd.count - wd.unmet;
+          var quotaBadge = _weekQuotaBadgeHtml(chanKey, g, p.key, curWeek);
           return '<tr>'
             + '<td class="ov-mini-clickable"'+clickAttrs+'>'+esc(label)+'</td>'
             + '<td class="ov-mini-clickable"'+clickAttrs+'>'+gd.count+'</td>'
-            + '<td class="ov-mini-met ov-mini-clickable"'+clickAttrs+'>'+met+'</td>'
+            + '<td class="ov-mini-met ov-mini-clickable"'+clickAttrs+'>'+met+quotaBadge+'</td>'
             + '<td class="ov-mini-wk ov-mini-clickable'+(wd.unmet>0?' ov-mini-wk-has-unmet':'')+'" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,true,'+curWeek+')" title="點擊查看這一週的未達標門市">'+wd.unmet+'</td>'
             + '<td class="ov-mini-clickable" style="color:var(--green);font-weight:700;"'+clickAttrs+'>'+r+'%</td>'
             + '<td class="ov-mini-unmet ov-mini-clickable" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,true)" title="點擊查看整個檔期範圍內、至少有一週沒達標的門市">'+(gd.unmetCount||0)+'</td>'
@@ -3842,7 +3915,8 @@ function renderOverview(){
           var weekCells = weekNums.map(function(w){
             var wd = gd.weeks[w] || { exp:0, stdDone:0, unmet:0 };
             var met = gd.count - wd.unmet;
-            return '<td class="ov-mini-met ov-mini-clickable"'+clickAttrs+'>'+met+'</td>'
+            var quotaBadge = _weekQuotaBadgeHtml(chanKey, g, p.key, w);
+            return '<td class="ov-mini-met ov-mini-clickable"'+clickAttrs+'>'+met+quotaBadge+'</td>'
               + '<td class="ov-mini-wk ov-mini-clickable'+(wd.unmet>0?' ov-mini-wk-has-unmet':'')+'" onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,true,'+w+')" title="點擊查看這一週的未達標門市">'+wd.unmet+'</td>';
           }).join('');
           return '<tr>'
@@ -4057,7 +4131,11 @@ function _buildBoxCells(actual, stdN, isPastWeek){
      ／mv-badge 徽章。
    ‧ 週六／週日星期幾標籤固定紅色（.dow-weekend），方便辨識假日。 */
 var DOW_LABELS = ['日','一','二','三','四','五','六'];
-function _buildDayBoxCells(s, period, week, stdN, actual, excuseInfo){
+/* 1.28.0：拿掉 excuseInfo 參數——單店格子不再有「本店已豁免」狀態（見
+   render() 內 rowsDataAll 組 stdN 那段說明），全部呼叫端（桌機格子／手機
+   卡片）都已改成不傳這個參數，這裡不用再處理「豁免」文案，格子提示文字
+   一律照實際狀況顯示。 */
+function _buildDayBoxCells(s, period, week, stdN, actual){
   var p = PERIODS.filter(function(pp){ return pp.key===period; })[0];
   if(!p) return '';
   var startDay = _toEpochDay(p.y,p.mo,p.d) + (week-1)*7;
@@ -4088,10 +4166,6 @@ function _buildDayBoxCells(s, period, week, stdN, actual, excuseInfo){
   var forcedCount = days.filter(function(d){ return d.isForceWhite; }).length;
   var dynamicBudget = Math.max(0, neededWhite - forcedCount);
   var visitedRank=0, openAssigned=0;
-  /* 1.27.0：這家店這個週次若被彈性家數機制豁免，尚未到店的格子（不論
-     已過期或本週還沒結束）都要在提示文字加註原因，不然畫面上看起來
-     跟「真的沒去、算未達」的灰格沒有兩樣，稽核時容易被誤讀。 */
-  var quotaNote = excuseInfo ? '（🔽彈性家數已達門檻：已達'+excuseInfo.achieved+'／應達'+excuseInfo.quota+'家，原始'+excuseInfo.total+'家，本店本週豁免）' : '';
   var html = '';
   days.forEach(function(d){
     var dp = _epochDayToParts(d.day);
@@ -4108,7 +4182,7 @@ function _buildDayBoxCells(s, period, week, stdN, actual, excuseInfo){
       else { inner = '<input type="checkbox" class="extra-check" checked>'; title = dateLbl+'（週'+dowLbl+'）：已完成，超額次數'; }
     } else if(d.isPastDay){
       inner = '<span class="box-ghost" aria-hidden="true"></span>';
-      title = excuseInfo ? dateLbl+'（週'+dowLbl+'）：已豁免，不算未達'+quotaNote : dateLbl+'（週'+dowLbl+'）：已過期未到店';
+      title = dateLbl+'（週'+dowLbl+'）：已過期未到店';
     } else if(d.isForceWhite){
       inner = '<input type="checkbox" class="std-check">';
       title = dateLbl+'（週'+dowLbl+'）：必訪日，尚未到店';
@@ -4117,7 +4191,7 @@ function _buildDayBoxCells(s, period, week, stdN, actual, excuseInfo){
       title = dateLbl+'（週'+dowLbl+'）：本週尚未結束，還沒完成';
     } else {
       inner = '<span class="box-ghost" aria-hidden="true"></span>';
-      title = excuseInfo ? dateLbl+'（週'+dowLbl+'）：已豁免，不需要再去'+quotaNote : dateLbl+'（週'+dowLbl+'）：非必要格';
+      title = dateLbl+'（週'+dowLbl+'）：非必要格';
     }
     html += '<div class="day-box-cell'+(d.isForceWhite?' mv-force':'')+'" title="'+esc(title)+'"><span class="day-box-lbl'+(isWeekendLbl?' dow-weekend':'')+'">'+dowLbl+'</span>'+inner+'</div>';
   });
@@ -4191,23 +4265,34 @@ function render(){
     var gradeLabel = _gradeLabel(s);
 
     var colStats = [];
-    var rowExp=0, rowStdDone=0, rowExtra=0, mvMissTotal=0, hasQuotaExcuse=false;
+    var rowExp=0, rowStdDone=0, rowExtra=0, mvMissTotal=0;
+    /* 1.28.0：這家店這幾欄裡，有哪幾欄的等級分組已切到「彈性家數」機制
+       （不論分組整體門檻有沒有達到都記錄，純資訊性——單店格子本身不再
+       因為分組達標而把自己歸零，見下面 stdN 的說明）。之後組成「🔽彈性」
+       提示徽章用，讓人知道「為什麼分組總表的應達家數看起來跟這裡加總的
+       次數兜不起來」，不是算錯。 */
+    var familyQuotaCols = [];
     cols.forEach(function(c){
       var actual = _actualCount(s.code, c.period, c.week);
-      /* 1.27.0：先算出這欄是否被「彈性家數」機制豁免（見上方 _quotaExcuseInfo
-         說明），豁免時這欄應達次數歸零，行為比照「等級未知」不計入應達／
-         不算未達，但保留 excuse 明細供格子提示文字／等級徽章使用。 */
-      var excuse = std===undefined ? null : _quotaExcuseInfo(s, c.period, c.week);
-      var stdN = std===undefined ? 0 : (excuse ? 0 : _stdForCol(c.period, c.week, std));
-      if(excuse) hasQuotaExcuse = true;
+      /* 1.28.0：單店格子一律用 _stdForCol() 的原始折算次數，不再套用彈性
+         家數豁免——「縮減後家數目標」是分組（處／所／人／全公司…）層級
+         的加總概念，跟「這家店自己這週有沒有去」是兩件事，改由總覽／
+         營業處表／訪員總覽等加總層級用 _groupedQuotaStats() 另外處理，
+         單店格子維持誠實顯示「這家店自己」的應達／達標，見檔頭 1.28.0
+         版本紀錄。 */
+      var stdN = std===undefined ? 0 : _stdForCol(c.period, c.week, std);
       var stdDone = Math.min(actual, stdN);
       var extra = Math.max(0, actual - stdN);
       rowExp += stdN; rowStdDone += stdDone; rowExtra += extra;
+      if(std!==undefined){
+        var lwq = _lastWeekQuota(s.chanKey, s.grade, c.period, c.week, std);
+        if(lwq) familyQuotaCols.push({ col:c, quota:lwq });
+      }
       /* 1.9.6：必訪日狀態跟「次數達標與否」是分開算的兩套判斷（見檔頭
          【稽核用必訪日規則】），非量販A店 mv 為 null，格子照舊不受影響 */
       var mv = _mustVisitStatusForCol(s, c.period, c.week);
       if(mv) mvMissTotal += mv.filter(function(d){ return !d.visited && d.isPast; }).length;
-      colStats.push({ col:c, actual:actual, std:stdN, extra:extra, mv:mv, excuse:excuse });
+      colStats.push({ col:c, actual:actual, std:stdN, extra:extra, mv:mv });
     });
     var freqUnmet = rowExp>0 && rowStdDone<rowExp;
     var isMvMiss = mvMissTotal>0;
@@ -4217,7 +4302,7 @@ function render(){
        只看次數的行為，不影響這些店的判斷。 */
     var isUnmet = freqUnmet || isMvMiss;
     return { s:s, std:std, gradeLabel:gradeLabel, colStats:colStats, rowExp:rowExp, rowStdDone:rowStdDone, rowExtra:rowExtra, isUnmet:isUnmet,
-      mvMissTotal:mvMissTotal, isMvMiss:isMvMiss, hasQuotaExcuse:hasQuotaExcuse,
+      mvMissTotal:mvMissTotal, isMvMiss:isMvMiss, familyQuotaCols:familyQuotaCols,
       groupKey: s.area+'␟'+s.office+'␟'+s.staff };
   });
 
@@ -4277,8 +4362,12 @@ function render(){
     rd.colStats.forEach(function(cs, idx){
       var m = colMeta[idx];
       var dividerCls = m.isGroupDivider ? ' pg-divider' : (m.isWeekDivider ? ' wk-divider' : '');
+      /* 1.28.0：單店格子不再有「本店已豁免」狀態（見上面 rowsDataAll 組
+         stdN 那段說明），故不再傳 excuseInfo 給 _buildDayBoxCells()——
+         格子一律誠實顯示這家店自己的應達／已達，「彈性家數」只在
+         等級欄的 🔽 徽章（rd.familyQuotaCols）以資訊性提示呈現。 */
       var boxesHtml = CELL_VIEW==='day'
-        ? _buildDayBoxCells(rd.s, cs.col.period, cs.col.week, cs.std, cs.actual, cs.excuse)
+        ? _buildDayBoxCells(rd.s, cs.col.period, cs.col.week, cs.std, cs.actual)
         : _buildBoxCells(cs.actual, cs.std, m.isPastWeek);
       /* 1.9.6：量販A店才有 cs.mv，組出五、六兩個必訪日小徽章（✓已到店／
          ✖已過期未到店／·尚未到期）；任一天「已過期仍未到店」，整格加
@@ -4326,7 +4415,13 @@ function render(){
       + '<td class="td-left"><div class="td-name">'+esc(rd.s.storeName)+'</div><div class="td-code">'+esc(rd.s.code)+'</div></td>'
       + '<td>'+esc(rd.s.storeType||'—')+'</td>'
       + '<td class="grade-tag">'+(rd.std===undefined?'<span class="unknown-grade">'+esc(rd.s.grade||'未設定')+' ⚠️</span>':esc(rd.gradeLabel))
-      + (rd.hasQuotaExcuse?' <span class="quota-badge" title="最後一週天數不足，這個等級已達彈性家數門檻，這家店本週次數已豁免、不計入未達">🔽彈性</span>':'')+'</td>'
+      /* 1.28.0：舊版「本店已豁免」徽章拿掉（單店不再有豁免狀態），改成
+         純資訊性「彈性家數機制生效中」提示——告知這個等級最後一週天數
+         不足、已改用「分組整體家數」計算縮減後目標，這格自己的應達／
+         達標數字仍是誠實的個別次數，不代表這家店被排除在外。 */
+      + (rd.familyQuotaCols.length ? ' <span class="quota-badge" title="'+esc('本店這個等級最後一週天數不足，已改採「分組整體家數」機制：'+rd.familyQuotaCols.map(function(fc){
+          return (periodLabelMap[fc.col.period]||fc.col.period)+' W'+fc.col.week+' 應達'+fc.quota.quota+'／原'+fc.quota.total+'家（分組整體，非本店個別次數，本格數字不受影響）';
+        }).join('；'))+'">🔽彈性</span>' : '')+'</td>'
       + '<td class="sum-col">'+sumHtml+'</td>'
       + colsHtml
       + '</tr>';
@@ -4336,14 +4431,13 @@ function render(){
        單次僅針對現行資料進行渲染與處理」的要求——不會因為切了 desktop 篩選
        的檔期／週次範圍，手機這邊就跟著多算一堆看不到的欄位。 */
     var mCol = MOBILE_SEL;
-    /* 1.27.0 修正：這裡原本直接用 rd.std（整週原始應達次數），沒有套用最後
-       一週折算／彈性家數豁免，跟桌機表格的 cs.std 對不起來——改成一致呼叫
-       _effStdForCol()，非整週檔期最後一週手機卡片才會跟桌機顯示同一個數字。 */
-    /* 1.27.0：這一週是否被彈性家數機制豁免，跟桌機格子的 cs.excuse 是同一份
-       判斷（只是手機這邊只看 MOBILE_SEL 這單一週）；要先算出來才能同時給
-       mStd（顯示用應達次數）和 _buildDayBoxCells() 的格子提示文字使用。 */
-    var mExcuse = (mCol && rd.std!==undefined) ? _quotaExcuseInfo(rd.s, mCol.period, mCol.week) : null;
-    var mStd = (rd.std===undefined || !mCol) ? 0 : _effStdForCol(rd.s, mCol.period, mCol.week, rd.std);
+    /* 1.28.0：手機卡片改成跟桌機格子同一套「單店誠實顯示」邏輯——直接呼叫
+       _stdForCol() 取原始折算次數，不再呼叫 _quotaExcuseInfo()／
+       _effStdForCol() 做per store彈性家數歸零。修正前這裡是全站唯一還在
+       用舊「已豁免」判斷的地方，跟桌機格子（cs.std／cs.excuse 已在同一次
+       改動拿掉）不一致，會讓同一家店同一週在桌機/手機看到不同的格子畫面
+       （桌機誠實顯示次數、手機卻可能顯示「已豁免」的空白格）。 */
+    var mStd = (rd.std===undefined || !mCol) ? 0 : _stdForCol(mCol.period, mCol.week, rd.std);
     var mActual = mCol ? _actualCount(rd.s.code, mCol.period, mCol.week) : 0;
     var mDone = Math.min(mActual, mStd);
     var mExtra = Math.max(0, mActual-mStd);
@@ -4352,7 +4446,7 @@ function render(){
     var mMv = mCol ? _mustVisitStatusForCol(rd.s, mCol.period, mCol.week) : null;
     var mMvMiss = !!(mMv && mMv.some(function(d){ return !d.visited && d.isPast; }));
     var mBoxesHtml = !mCol ? '' : (CELL_VIEW==='day'
-      ? _buildDayBoxCells(rd.s, mCol.period, mCol.week, mStd, mActual, mExcuse)
+      ? _buildDayBoxCells(rd.s, mCol.period, mCol.week, mStd, mActual)
       : _buildBoxCells(mActual, mStd, mIsPastWeek));
     var mMvHtml = '';
     if(mMv && CELL_VIEW!=='day'){
@@ -4366,7 +4460,11 @@ function render(){
     }
     var mRateClass = mStd===0 ? 'm-rate-none' : (mDone>=mStd ? 'm-rate-full' : (mDone>0 ? 'm-rate-part' : 'm-rate-zero'));
     var gradeLineHtml = rd.std===undefined ? '<span class="unknown-grade">'+esc(rd.s.grade||'未設定')+' ⚠️</span>' : esc(rd.gradeLabel);
-    if(mExcuse) gradeLineHtml += ' <span class="quota-badge" title="最後一週天數不足，這個等級已達彈性家數門檻，本週次數已豁免">🔽</span>';
+    /* 1.28.0：跟桌機同一份 rd.familyQuotaCols（純資訊性「彈性家數機制生效
+       中」提示，不再是「已豁免」），手機這裡只看 MOBILE_SEL 這一週有沒有
+       命中，維持「手機一次只看一週」的既有原則。 */
+    var mFamilyQuota = mCol ? rd.familyQuotaCols.filter(function(fc){ return fc.col.period===mCol.period && fc.col.week===mCol.week; })[0] : null;
+    if(mFamilyQuota) gradeLineHtml += ' <span class="quota-badge" title="'+esc('本店這個等級最後一週天數不足，已改採「分組整體家數」機制：應達'+mFamilyQuota.quota.quota+'／原'+mFamilyQuota.quota.total+'家（分組整體，非本店個別次數，本卡片數字不受影響）')+'">🔽</span>';
     group.cardsHtml += '<div class="m-store-card'+(rd.std===undefined?' unknown-grade-card':'')+'" onclick="openStoreDetail(\''+esc(rd.s.code)+'\''+(mCol?',\''+mCol.period+'\','+mCol.week:'')+')">'
       + '<div class="m-store-top">'
       +   '<div class="m-store-line">'
@@ -4563,7 +4661,9 @@ function openStoreDetail(code, scopePeriod, scopeWeek, evt){
   var expTotal=0, stdDoneTotal=0, extraTotal=0;
   cols.forEach(function(c){
     var actual = _actualCount(code, c.period, c.week);
-    var stdN = std===undefined?0:_effStdForCol(store, c.period, c.week, std); /* 1.27.0：套用彈性家數豁免後的實際生效應達次數 */
+    /* 1.28.0：單店明細跟主表格單店格子同一套「誠實顯示」邏輯——改回原始
+       _stdForCol() 折算次數，不再套用（已拿掉的）per-store 彈性家數豁免。 */
+    var stdN = std===undefined?0:_stdForCol(c.period, c.week, std);
     expTotal += stdN;
     stdDoneTotal += Math.min(actual, stdN);
     extraTotal += Math.max(0, actual-stdN);
@@ -4660,7 +4760,7 @@ function _staffStatsData(staffName){
     var exp=0, stdDone=0, extra=0, mvMissTotal=0;
     cols.forEach(function(c){
       var actual = _actualCount(s.code, c.period, c.week);
-      var stdN = std===undefined?0:_effStdForCol(s, c.period, c.week, std); /* 1.27.0：套用彈性家數豁免後的實際生效應達次數 */
+      var stdN = std===undefined?0:_effStdForCol(s, c.period, c.week, std); /* 1.27.0：套用彈性家數豁免後的實際生效應達次數。1.28.0 待辦：同上，尚未換成 _groupedQuotaStats() 靜態家數目標，換掉前需先確認分攤方式。 */
       exp += stdN; stdDone += Math.min(actual,stdN); extra += Math.max(0,actual-stdN);
       var mv = _mustVisitStatusForCol(s, c.period, c.week);
       if(mv) mvMissTotal += mv.filter(function(d){ return !d.visited && d.isPast; }).length;
@@ -5096,7 +5196,7 @@ function _summaryForShare(){
     var exp=0, stdDone=0, extra=0, mvMissTotal=0;
     cols.forEach(function(c){
       var actual = _actualCount(s.code, c.period, c.week);
-      var stdN = std===undefined?0:_effStdForCol(s, c.period, c.week, std); /* 1.27.0：套用彈性家數豁免後的實際生效應達次數 */
+      var stdN = std===undefined?0:_effStdForCol(s, c.period, c.week, std); /* 1.27.0：套用彈性家數豁免後的實際生效應達次數。1.28.0 待辦：同上，尚未換成 _groupedQuotaStats() 靜態家數目標，換掉前需先確認分攤方式。 */
       exp += stdN; stdDone += Math.min(actual,stdN); extra += Math.max(0,actual-stdN);
       var mv = _mustVisitStatusForCol(s, c.period, c.week);
       if(mv) mvMissTotal += mv.filter(function(d){ return !d.visited && d.isPast; }).length;
