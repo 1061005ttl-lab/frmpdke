@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.29.3 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
+  版本：Ver. 1.29.4 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
 
 【檔案定位】
   ‧ 單一 HTML 檔案，純前端 JS，透過 gviz API 讀同一份試算表兩分頁，
@@ -210,6 +210,28 @@
     把 <head> 裡那段 <script> 拿掉即可。
 ────────────────────────────────────────────────────────────
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.29.4  business 反映：1.29.3 修完「還缺幾家」headline 數字後，現場發現
+          headline 已經顯示「還缺0家達標」，但點開「🔴」開關，店家名冊
+          還是列出20家、不會清空，跟其他篩選 chip（篩到0筆會顯示「目前
+          篩選條件下沒有符合的店家」）的行為不一致——headline 說已經
+          達標，清單卻還在喊「可以從20家中補」，同一顆功能自己打自己。
+          原因：headline 的「還缺N家」是縮減後家數版本，但決定每一列
+          在「🔴未達標」開關底下算不算「未達」的 isUnmet，用的還是逐店
+          誠實比對（自己這週有沒有去），兩者沒有互通，門檻已經達標時，
+          逐店比對還是會把「自己還沒去」的店留在清單裡。
+          這版把 _filteredUnmetSummary() 改成額外回傳 groupRemain 查表
+          （每個「營業處＋通路＋等級＋週次」分組各自的縮減後家數還缺
+          多少），逐店判斷 isUnmet 時先查這張表：分組已經達標（remaining
+          <=0）就不再把這家店算進「未達」，即使它自己這週還沒去。三處
+          保證同步：headline「還缺N家」、chip 括號裡「可從M家中補」的
+          M、開關展開後的清單筆數，N=0 時 M 一定也是0，清單自然清空、
+          走到跟其他篩選 chip 相同的「目前篩選條件下沒有符合的店家」，
+          不用再另外特判。N=0 時 chip 文字也順便改乾淨，從「還缺0家
+          達標（可從0家中補）」簡化成「✅ 已達標（0）」，不留一句看起來
+          還能挑、其實不用挑的殘留提示。
+          個別店家格子（0/1、超額+N）、單週「✓已達成」小標籤維持照實
+          顯示，不受影響——這兩個本來就是拿來看「這家店自己去了幾次」
+          用的，跟「這個範圍還要不要再補」是兩個問題。
   1.29.3  business 七次確認：1.29.2 上版後，明細頁跟總覽頁的「未達店數」
           還是對不起來（一次還從30對成0，比原本169 vs 30更離譜）。查出
           來是 _filteredUnmetSummary() 的分組鍵只有「通路＋等級」，把
@@ -2653,14 +2675,19 @@ function _lastWeekQuota(chanKey, grade, periodKey, week, baseStd, storesPool){
    開關本身）。目的：現場主管/業務不需要知道「逐店誠實比對」跟「縮減
    後家數」是兩套算法，畫面上只有一個「還缺幾家」的數字，兩個畫面
    看到的數字要一致，不用再靠 hover 說明去解釋為什麼對不起來。
-   ‧ 依（通路＋等級）分組（_stdGroupKey），每組各自判斷「這一週是否
-     為不足整週折算週且已被 max(1,...) 保底卡死」——是，就用縮減後
-     家數版本（quota/achieved）；不是，就是逐店誠實比對，兩種情況下
-     算出來的「未達」定義剛好一致（後者其實是前者在「不觸發」時的
-     退化版本），全站的「未達」在明細頁自此只有一個答案。
-   ‧ 回傳 { totalExp, totalStdDone, totalUnmet, quotaApplied, poolUnmet }：
-     poolUnmet 是「逐店誠實比對」下的家數（給畫面標「可從 N 家中挑」
-     用，不是隱藏起來，只是不再拿來當主要的「未達」數字）。 */
+   ‧ 依（營業處＋通路＋等級）分組（見 1.29.3），每組每一欄各自判斷
+     「這一週是否為不足整週折算週且已被 max(1,...) 保底卡死」——是，
+     就用縮減後家數版本（quota/achieved）；不是，就是逐店誠實比對，
+     兩種情況下算出來的「未達」定義剛好一致（後者其實是前者在「不
+     觸發」時的退化版本），全站的「未達」在明細頁自此只有一個答案。
+   ‧ 回傳 { totalExp, totalStdDone, totalUnmet, quotaApplied, poolUnmet,
+     groupRemain }：poolUnmet 是「逐店誠實比對」下的家數（給畫面標
+     「可從 N 家中挑」用，不是隱藏起來，只是不再拿來當主要的「未達」
+     數字）；groupRemain 是給 render() 逐店判斷用的查表（見 1.29.4：
+     一個（營業處＋通路＋等級＋週次）分組一旦縮減後門檻已經達標
+     （remaining<=0），底下每一家店即使自己這週還沒去，也不再算進
+     「未達」名單——不然「還缺0家」卻還能點出20家名單，跟「還缺N家」
+     這個headline 數字自相矛盾。 */
 function _filteredUnmetSummary(storesInScope, cols){
   /* 1.29.3：分組鍵加回「營業處」（s.area）——縮減後家數的門檻／達標必須
      逐營業處各自獨立算再加總，不能把全部營業處的店混成一組算一個全國
@@ -2686,6 +2713,7 @@ function _filteredUnmetSummary(storesInScope, cols){
     (groups[key] = groups[key] || { area:s.area, chanKey:s.chanKey, grade:s.grade, stores:[] }).stores.push(s);
   });
   var totalExp=0, totalStdDone=0, totalUnmet=0, poolUnmet=0, quotaApplied=false;
+  var groupRemain = {}; /* key: area␟groupKey␟period␟week -> { triggered, remaining } */
   Object.keys(groups).forEach(function(gk){
     var grp = groups[gk];
     var baseStd = _freqForGradeKey(grp.chanKey, grp.grade);
@@ -2694,12 +2722,15 @@ function _filteredUnmetSummary(storesInScope, cols){
       var poolMiss = grp.stores.filter(function(s){ return _actualCount(s.code, c.period, c.week) < colStd; }).length;
       poolUnmet += poolMiss;
       var trigger = _lastWeekQuota(grp.chanKey, grp.grade, c.period, c.week, baseStd, grp.stores);
+      var colKey = gk+'␟'+c.period+'␟'+c.week;
       if(trigger){
         quotaApplied = true;
         var achieved = 0;
         grp.stores.forEach(function(s){ if(_actualCount(s.code, c.period, c.week) >= colStd) achieved++; });
         achieved = Math.min(achieved, trigger.quota);
-        totalExp += trigger.quota; totalStdDone += achieved; totalUnmet += Math.max(0, trigger.quota-achieved);
+        var remain = Math.max(0, trigger.quota-achieved);
+        totalExp += trigger.quota; totalStdDone += achieved; totalUnmet += remain;
+        groupRemain[colKey] = { triggered:true, remaining:remain };
       } else {
         var exp=0, done=0;
         grp.stores.forEach(function(s){
@@ -2707,11 +2738,12 @@ function _filteredUnmetSummary(storesInScope, cols){
           exp += colStd; done += Math.min(actual, colStd);
         });
         totalExp += exp; totalStdDone += done; totalUnmet += poolMiss;
+        groupRemain[colKey] = { triggered:false, remaining:poolMiss };
       }
     });
   });
   return { totalExp:totalExp, totalStdDone:totalStdDone, totalUnmet:totalUnmet, poolUnmet:poolUnmet,
-    quotaApplied:quotaApplied, rate: totalExp>0 ? (totalStdDone/totalExp*100) : 0 };
+    quotaApplied:quotaApplied, rate: totalExp>0 ? (totalStdDone/totalExp*100) : 0, groupRemain:groupRemain };
 }
 /* 這個分組在指定檔期週次，全國已經有幾家店「達到原始（未經家數重新表述）
    次數標準」，用 _stdForCol 的原始折算結果判斷。 */
@@ -4577,6 +4609,11 @@ function render(){
 
   var totalExp=0, totalStdDone=0, totalExtra=0, unknownGradeCount=0;
 
+  /* 1.29.4：先算好「這個範圍還缺幾家」彙總，逐店判斷「未達」時才能查表
+     知道自己所屬的（營業處＋通路＋等級＋週次）分組是否已經達到縮減後
+     門檻——搬到 rowsDataAll 前面算，讓下面每一列都能查表用。 */
+  var unmetSummary = _filteredUnmetSummary(stores, cols);
+
   /* 第一輪：逐店計算應達／達標／超額，同時存「同店逐週狀態」(colStats)
      供桌機 checkbox 格與手機週次徽章共用（同一份 actual/std，不必為兩種
      畫面各算一次 _actualCount）。groupKey 是這家店在分組排序下所屬的
@@ -4584,13 +4621,20 @@ function render(){
      鍵之後若調整，這裡要同步改）。
      1.9.1：isUnmet＝目前時間窗口（cols）內，這家店「應達>0 且達標次數還
      沒補滿應達次數」——跟「巡次未達標」篩選/欄位標示共用同一份判斷，確保
-     chip 數字／表格標籤／篩選結果三處一致。 */
+     chip 數字／表格標籤／篩選結果三處一致。
+     1.29.4：這個「未達」判斷現在會先查 unmetSummary.groupRemain——如果
+     這家店所屬的（營業處＋通路＋等級）這一週已經達到縮減後家數門檻
+     （remaining<=0），這家店即使自己這週還沒去，也不算進「未達」名單，
+     否則會出現「還缺0家」卻還能點出20家候補名單、跟headline數字自相
+     矛盾、篩選/清單也清不掉的狀況。checkbox 格子本身（colStats）不受
+     影響，仍誠實顯示這家店自己去了幾次。 */
   var rowsDataAll = stores.map(function(s){
     var std = _stdFreq(s);
     var gradeLabel = _gradeLabel(s);
+    var stdGroupKey = _stdGroupKey(s.chanKey, s.grade);
 
     var colStats = [];
-    var rowExp=0, rowStdDone=0, rowExtra=0, mvMissTotal=0;
+    var rowExp=0, rowStdDone=0, rowExtra=0, mvMissTotal=0, anyColStillUnmet=false;
     cols.forEach(function(c){
       var actual = _actualCount(s.code, c.period, c.week);
       /* 1.28.0：單店格子一律用 _stdForCol() 的原始折算次數，誠實顯示這家
@@ -4604,8 +4648,13 @@ function render(){
       var mv = _mustVisitStatusForCol(s, c.period, c.week);
       if(mv) mvMissTotal += mv.filter(function(d){ return !d.visited && d.isPast; }).length;
       colStats.push({ col:c, actual:actual, std:stdN, extra:extra, mv:mv });
+      if(stdN>0 && actual<stdN){
+        var gr = stdGroupKey ? unmetSummary.groupRemain[s.area+'␟'+stdGroupKey+'␟'+c.period+'␟'+c.week] : null;
+        var suppressed = !!(gr && gr.triggered && gr.remaining<=0);
+        if(!suppressed) anyColStillUnmet = true;
+      }
     });
-    var freqUnmet = rowExp>0 && rowStdDone<rowExp;
+    var freqUnmet = anyColStillUnmet;
     var isMvMiss = mvMissTotal>0;
     /* 1.26.0：【等級對照】次數標準 × 【必訪規則】交集時改採 AND 判斷──
        兩者都要達成才算達標，次數達標但必訪缺、或必訪達標但次數不足，都算
@@ -4623,15 +4672,20 @@ function render(){
      主管/業務要看的是「還要做多少」，不是兩套算法為什麼不一樣。範圍是
      目前 chip 篩出的這批店（stores，還沒套用這顆開關本身），不受開關
      開/關影響，因為「還缺幾家」是這個範圍當下的狀態，不是「篩選後還剩
-     幾筆」。開關本身的功能不變：點開後table仍然列出所有還沒達到自己
-     標準的店（unmetSummary.poolUnmet 那個較大的家數），方便直接去挑人
-     補訪，不規定一定要指名哪幾家。 */
-  var unmetSummary = _filteredUnmetSummary(stores, cols);
+     幾筆」。
+     1.29.4：unmetCount 現在已經套用 groupRemain 抑制（見上面 rowsDataAll），
+     已經達標分組底下的店不會再被算進「未達」──「可從N家中補」的N、
+     開關展開後列出的清單、headline 的「還缺M家」三處保證同步：M=0 時
+     N 也一定是0，篩選/清單會清空，不會再有「還缺0家卻能點出20家名單」
+     這種自相矛盾。totalUnmet=0 時文案也改乾淨（已達標），不留一句
+     看起來還能再挑幾家、其實不用挑的提示。 */
   var unmetToggleEl = document.getElementById('chip-unmet-toggle');
   if(unmetToggleEl){
-    unmetToggleEl.textContent = unmetSummary.quotaApplied
-      ? '🔴 還缺'+unmetSummary.totalUnmet+'家達標（可從'+unmetCount+'家中補）'
-      : '🔴 巡次未達標（'+unmetCount+'）';
+    unmetToggleEl.textContent = !unmetSummary.quotaApplied
+      ? '🔴 巡次未達標（'+unmetCount+'）'
+      : (unmetSummary.totalUnmet>0
+          ? '🔴 還缺'+unmetSummary.totalUnmet+'家達標（可從'+unmetCount+'家中補）'
+          : '✅ 已達標（0）');
     unmetToggleEl.title = '';
   }
 
