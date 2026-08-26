@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.29.4 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
+  版本：Ver. 1.30.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-26
 
 【檔案定位】
   ‧ 單一 HTML 檔案，純前端 JS，透過 gviz API 讀同一份試算表兩分頁，
@@ -210,6 +210,36 @@
     把 <head> 裡那段 <script> 拿掉即可。
 ────────────────────────────────────────────────────────────
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.30.0  business 反映：1.29.4 修完「還缺0家」跟店家名冊互相矛盾的問題
+          後，數字本身已經一致，但畫面上還是留著一個會嚇人的視覺缺口——
+          某個等級整個分組（同營業處＋通路＋等級）在「不足整週」折算週
+          已經達標，個別還沒去的店家格子仍然照舊顯示白格（誠實顯示這家
+          店自己還沒去，這點沒有錯，也不能改），問題是「看的人」不知道
+          「這是分組已經達標、這家店不去也沒差」還是「系統忘了處理、這
+          家店真的漏掉了」，兩種情況畫面長得一模一樣，只能靠人工回頭
+          翻 headline 數字才能確認，主管/業務盯著白格容易先緊張一下。
+          這版在「格子」層級補上友善標籤，不是只在 headline／chip 打
+          數字補丁：render() 逐店算 colStats 時，順手把「這一格是否
+          本店未達標但所屬分組已達縮減後家數門檻」（跟 1.29.4 判斷
+          isUnmet 用的是同一份 groupRemain 查表，本來就算過一次，這裡
+          只是多存起來給格子用，不重算）存進 cs.groupMet，桌機格子在
+          這一格底下多疊一顆「🤝 組已達標，免驚」紫色小標籤（沿用「折算
+          週」的紫色語彙，讓人一眼看出這是同一件事的延伸說明，不是新
+          狀態；跟本店自己達標的綠色「✓已達成」互斥，不會同時出現）。
+          手機店卡因為 MOBILE_SEL（目前看哪一週）跟桌機篩選 chip（決定
+          groupRemain 計算範圍）是各自獨立的狀態，不能直接借用桌機那份
+          查表，另外寫了 _cellGroupMet() 單店單欄獨立查詢版（範圍比照
+          1.29.3：整個營業處自己的店，不受其他營業處或桌機當下營業所／
+          訪員 chip 篩選窄化影響）；同樣邏輯下，手機卡片右上角原本的
+          🔴未達標小旗標會換成🤝標籤，不會兩個同時出現在同一家店、同一
+          週次上互相矛盾。篩選列下方footnote跟「📖 說明」都補上這顆標籤
+          的白話解釋，避免不同層級的人（現場訪員／督導／PM）各自猜這顆
+          新標籤的意思。
+          ‧ 只在畫面上加標籤，不改任何計算：達成率／應達／達標／超額、
+            單店明細、CSV 逐店明細全部維持誠實顯示，不受影響。
+          ‧ 這顆標籤只會出現在「不足整週」折算週的欄位（groupRemain 只有
+            這種週次才會 triggered），一般整週欄位不會出現，不會被誤用
+            在「單純還沒到店但週還沒結束」的一般情境。
   1.29.4  business 反映：1.29.3 修完「還缺幾家」headline 數字後，現場發現
           headline 已經顯示「還缺0家達標」，但點開「🔴」開關，店家名冊
           還是列出20家、不會清空，跟其他篩選 chip（篩到0筆會顯示「目前
@@ -683,6 +713,13 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
    跟手機卡片 .m-rate-full 同一套語彙，維持整份看板色彩一致。 */
 .wk-achieved-badge { display:inline-block; margin-top:3px; padding:1px 7px; border-radius:9px; background:var(--green-bg); color:var(--green); font-size:10.5px; font-weight:700; white-space:nowrap; letter-spacing:.2px; }
 .m-unmet-flag { margin-left:3px; }
+/* 1.30.0：「組已達標，免驚」友善標籤——只會出現在「不足整週」折算週
+   （跟表頭／整欄的紫色 --info 折算週提示同一組視覺語彙，讓人一眼認出
+   這是同一件事的延伸說明，不是另一種新狀態），刻意跟橘色超額 pulse／
+   紅色未達標／✖過去週未達區隔開，用平靜、非警示色系，避免使用者把
+   「這格留白」誤讀成異常或未達標。桌機格子＋手機店卡共用同一顆 class。 */
+.wk-groupmet-badge { display:inline-block; margin-top:3px; padding:1px 7px; border-radius:9px; background:#EFEAF7; color:var(--info); font-size:10.5px; font-weight:700; white-space:nowrap; letter-spacing:.2px; cursor:help; }
+.m-groupmet-flag { margin-left:3px; }
 
 /* ── 訪員分組標題列（1.8.0：同一訪員的店家排序後連續排列，段落交界插入
    這一列，一眼看到「換人了」＋這個人轄區的小計，不用逐列比對訪員欄——
@@ -1648,6 +1685,7 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
       橘色次數只計入「超額次數」，不列入達成率 %，超額也不會外溢補足其他店家的未達成。
       同一家店同一天不管填了幾筆問卷，都只算 1 次巡補。
       <br>⚠️ 表頭標「折算週」的欄位（紫色邊框）代表該週是不足整週檔期的最後一週，應達次數已依實際天數比例縮減（最低1次），比其他整週欄位小是正常現象。
+      <br>🤝 格子上出現「組已達標，免驚」紫色標籤時，代表這家店雖然自己這週還沒到店（格子仍是白色），但所屬分組（同營業處＋通路＋等級）在這個折算週已經達到縮減後的家數門檻，整體不受影響，這格留白不是系統漏算、也不代表本店有問題。
       點「📖 說明」看完整操作說明。
     </div>
   </div>
@@ -2752,6 +2790,26 @@ function _gradeGroupAchievedCount(quotaInfo, periodKey, week){
   var n = 0;
   quotaInfo.stores.forEach(function(s){ if(_actualCount(s.code, periodKey, week) >= stdN) n++; });
   return n;
+}
+/* 1.30.0：單店單欄「所屬分組是否已達縮減後家數門檻」的獨立查詢版——給
+   手機卡片用。手機一次只看 MOBILE_SEL 這一週，跟桌機篩選列的檔期/週次
+   chip（決定 cols／_filteredUnmetSummary 的計算範圍）是各自獨立的狀態
+   （見 MOBILE_SEL 說明），MOBILE_SEL 指到的週次不一定落在桌機目前的
+   cols 裡，所以不能直接查 render() 那份 unmetSummary.groupRemain，要
+   另外算一次。範圍比照 1.29.3：整個「營業處」（s.area）自己的店，不
+   受其他營業處影響，也不受桌機目前的營業所／訪員 chip 篩選窄化——這裡
+   要回答的是「這一格本店的分組（整個處），這一週真的已經達標了嗎」，
+   跟桌機篩選目前展示到什麼範圍是兩件事。 */
+function _cellGroupMet(s, period, week, baseStd, stdN, actual){
+  if(!(stdN>0 && actual<stdN)) return false;
+  if(baseStd===undefined) return false;
+  var gk = _stdGroupKey(s.chanKey, s.grade);
+  if(!gk) return false;
+  var pool = STORE_ROWS.filter(function(x){ return x.area===s.area && _stdGroupKey(x.chanKey, x.grade)===gk; });
+  var trigger = _lastWeekQuota(s.chanKey, s.grade, period, week, baseStd, pool);
+  if(!trigger) return false;
+  var achieved = Math.min(_gradeGroupAchievedCount(trigger, period, week), trigger.quota);
+  return Math.max(0, trigger.quota-achieved) <= 0;
 }
 function _classifyParts(parts){
   if(!parts) return null;
@@ -4647,12 +4705,17 @@ function render(){
          【稽核用必訪日規則】），非量販A店 mv 為 null，格子照舊不受影響 */
       var mv = _mustVisitStatusForCol(s, c.period, c.week);
       if(mv) mvMissTotal += mv.filter(function(d){ return !d.visited && d.isPast; }).length;
-      colStats.push({ col:c, actual:actual, std:stdN, extra:extra, mv:mv });
-      if(stdN>0 && actual<stdN){
-        var gr = stdGroupKey ? unmetSummary.groupRemain[s.area+'␟'+stdGroupKey+'␟'+c.period+'␟'+c.week] : null;
-        var suppressed = !!(gr && gr.triggered && gr.remaining<=0);
-        if(!suppressed) anyColStillUnmet = true;
-      }
+      /* 1.30.0：這一格是否「本店還沒達標，但所屬分組已經達到縮減後家數
+         門檻」——只會發生在「不足整週」折算週（groupRemain 只有這種週次
+         才會 triggered），是 anyColStillUnmet 判斷的鏡像（該不該算進「未達」
+         跟「該不該在格子上貼友善標籤」本來就是同一件事的兩面），一併存進
+         colStats 讓下面 render() 的桌機/手機格子渲染都能直接查表，不用
+         另外重算一次。 */
+      var incomplete = stdN>0 && actual<stdN;
+      var gr = incomplete && stdGroupKey ? unmetSummary.groupRemain[s.area+'␟'+stdGroupKey+'␟'+c.period+'␟'+c.week] : null;
+      var groupMet = !!(gr && gr.triggered && gr.remaining<=0);
+      colStats.push({ col:c, actual:actual, std:stdN, extra:extra, mv:mv, groupMet:groupMet });
+      if(incomplete && !groupMet) anyColStillUnmet = true;
     });
     var freqUnmet = anyColStillUnmet;
     var isMvMiss = mvMissTotal>0;
@@ -4768,11 +4831,18 @@ function render(){
          已經跑完的那幾週也能各自標出「✓ 已達成」，不會讓人誤以為系統算錯。 */
       var wkAchieved = cs.std>0 && cs.actual>=cs.std;
       var achievedHtml = wkAchieved ? '<div class="wk-achieved-badge">✓ 已達成</div>' : '';
+      /* 1.30.0：「組已達標，本店可安心留白」友善標籤——這一格本店自己還
+         沒達標（白格），但所屬分組（同營業處＋通路＋等級，這一週折算後
+         的縮減家數門檻）已經達標，白格是正常現象，不是系統漏算也不代表
+         本店有問題，跟 achievedHtml（本店自己達標）互斥，不會同時出現。
+         沿用「折算週」紫色系（--info），視覺上跟表頭／整欄的紫色折算週
+         提示連成一組語彙，讓人一看就知道「這是同一件事的延伸說明」。 */
+      var groupMetHtml = cs.groupMet ? '<div class="wk-groupmet-badge" title="本店這一週雖然還沒到店，但所屬分組（同營業處＋'+esc(rd.s.chanKey||'')+'＋'+esc(rd.gradeLabel||'')+'）已經達到「不足整週」折算後的縮減家數門檻，整體已經達標，這一格留白是正常現象——不是系統漏算，也不代表本店有問題。">🤝 組已達標，免驚</div>' : '';
       /* 1.9.1：週次格子點擊 → 帶入該週次範圍縮限明細 Dialog（帶 period/week
          參數＋stopPropagation，避免同時觸發整列的 openStoreDetail 顯示全檔期）；
          其餘欄位（店名／區域…）點擊仍維持整列 <tr> 的 onclick，顯示目前篩選
          檔期範圍的完整明細，兩種入口並存不衝突。 */
-      colsHtml += '<td class="'+m.periodCls+dividerCls+proratedCls+mvCellCls+' wk-cell-click" onclick="openStoreDetail(\''+esc(rd.s.code)+'\',\''+cs.col.period+'\','+cs.col.week+',event)"><div class="box-container">'+boxesHtml+'</div>'+mvHtml+achievedHtml+'</td>';
+      colsHtml += '<td class="'+m.periodCls+dividerCls+proratedCls+mvCellCls+' wk-cell-click" onclick="openStoreDetail(\''+esc(rd.s.code)+'\',\''+cs.col.period+'\','+cs.col.week+',event)"><div class="box-container">'+boxesHtml+'</div>'+mvHtml+achievedHtml+groupMetHtml+'</td>';
     });
 
     var rowRate = rd.rowExp>0 ? (rd.rowStdDone/rd.rowExp*100) : 0;
@@ -4811,7 +4881,12 @@ function render(){
     var mDone = Math.min(mActual, mStd);
     var mExtra = Math.max(0, mActual-mStd);
     var mIsPastWeek = mCol ? _isWeekPast(mCol.period, mCol.week) : false;
-    var mUnmet = mStd>0 && mDone<mStd && mIsPastWeek;
+    /* 1.30.0：紅色🔴未達標小旗標，先查這一格是否「本店還沒達標，但所屬
+       分組已經達到不足整週折算後的縮減家數門檻」——是的話不再顯示🔴
+       （改顯示下面 mGroupMet 那顆友善的🤝標籤），避免手機卡片單獨看
+       某一家店時，明明整處都已經達標，這家店卻還被亮紅色嚇一跳。 */
+    var mGroupMet = mCol ? _cellGroupMet(rd.s, mCol.period, mCol.week, rd.std, mStd, mActual) : false;
+    var mUnmet = mStd>0 && mDone<mStd && mIsPastWeek && !mGroupMet;
     var mMv = mCol ? _mustVisitStatusForCol(rd.s, mCol.period, mCol.week) : null;
     var mMvMiss = !!(mMv && mMv.some(function(d){ return !d.visited && d.isPast; }));
     /* 1.29.0：手機卡片同步標「折算週」——邏輯跟桌機 colMeta.isProrated 完全
@@ -4841,9 +4916,10 @@ function render(){
       +     '<span class="m-line-sep">·</span><span class="m-line-type">'+esc(rd.s.storeType||'—')+'</span>'
       +     '<span class="m-line-sep">·</span><span class="m-line-grade">'+gradeLineHtml+'</span>'
       +   '</div>'
-      +   '<div class="m-store-badge '+mRateClass+'">'+mDone+'/'+mStd+(mExtra>0?'<small>+'+mExtra+'</small>':'')+(mUnmet?'<small class="m-unmet-flag">🔴</small>':'')+(mMvMiss?'<small class="m-mv-flag">🚨</small>':'')+(mIsProrated?'<small class="m-prorated-flag" title="本週為不足整週的折算週，應達次數已依比例縮減，最低1次，比其他整週小是正常現象">⚠️</small>':'')+'</div>'
+      +   '<div class="m-store-badge '+mRateClass+'">'+mDone+'/'+mStd+(mExtra>0?'<small>+'+mExtra+'</small>':'')+(mUnmet?'<small class="m-unmet-flag">🔴</small>':'')+(mGroupMet?'<small class="m-groupmet-flag" title="本店這一週雖然還沒到店，但所屬分組（整處同通路＋等級）已經達到不足整週折算後的縮減家數門檻，整體已達標，這格留白是正常現象">🤝</small>':'')+(mMvMiss?'<small class="m-mv-flag">🚨</small>':'')+(mIsProrated?'<small class="m-prorated-flag" title="本週為不足整週的折算週，應達次數已依比例縮減，最低1次，比其他整週小是正常現象">⚠️</small>':'')+'</div>'
       + '</div>'
       + '<div class="box-container m-box-container">'+mBoxesHtml+'</div>'
+      + (mGroupMet ? '<div class="wk-groupmet-badge">🤝 組已達標，免驚</div>' : '')
       + mMvHtml
       + '</div>';
   });
@@ -5702,6 +5778,20 @@ function _buildManualContent(){
     + '<span style="display:inline-block;width:13px;height:13px;background:#FF7A00;border-radius:3px;vertical-align:middle;"></span>'
     + ' <b>橘色發光格（超額）</b>：實際去的次數超過標準，多出來的部分自動顯示；'
     + '超額次數不會拉高達成率，也不會拿去補其他店家的不足，純粹是額外的努力紀錄</p>'
+    + '<hr>'
+    + '<p><b>【⚠️折算週／🤝組已達標，這兩個紫色標籤是什麼？】</b>部分檔期'
+    + '最後一週天數不足整週（例如檔期跨 7 天但最後一週只剩 3 天），這種'
+    + '「折算週」的應達次數會依實際天數比例縮減（最低仍保留 1 次），表頭'
+    + '會用紫色邊框＋「⚠️折算週」徽章標出來，比其他整週欄位小是正常現象，'
+    + '不是系統少算。<br>某些等級（例如每週固定只需 1 次的等級）折算後'
+    + '不管剩幾天都還是卡在 1 次、看不出遞減，這種情況看的是「整個分組'
+    + '（同營業處＋通路＋等級）這一週總共還要幾家去」，而不是每家店都'
+    + '各自去 1 次——只要分組整體已經達到縮減後的家數門檻，個別還沒去的'
+    + '店家格子上會出現「🤝 組已達標，免驚」紫色小標籤，代表這格留白是'
+    + '正常現象、分組整體已經不受影響，不用緊張追問「這家店是不是漏掉'
+    + '了」；手機店卡在同樣情況下，也會把原本的🔴未達標小旗標換成同一顆'
+    + '🤝標籤。這兩顆標籤只影響「怎麼標示」，個別店家自己真實去了幾次'
+    + '（格子顏色、單店明細、CSV 逐店明細）永遠誠實顯示，不受影響。</p>'
     + '<p><b>【格子視角】</b>篩選列（🔍 篩選條件）最下面一排「格子視角」可以'
     + '切換格子的排列方式，「📅 依日期」在前、「🔢 依次數」在後，預設是'
     + '「依日期」：<br>'
