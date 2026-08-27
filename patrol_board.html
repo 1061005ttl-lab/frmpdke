@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.47.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-27
+  版本：Ver. 1.48.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-27
 
 【檔案定位】
   ‧ 單一 HTML 檔案，純前端 JS，透過 gviz API 讀同一份試算表兩分頁，
@@ -210,6 +210,20 @@
     把 <head> 裡那段 <script> 拿掉即可。
 ────────────────────────────────────────────────────────────
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.48.0  business 反映：完成度堆疊長條（1.45.0 設計：實色＝自己完成、
+          斜紋＝同組支援完成）畫面上幾乎看不出兩段的差異，整條長得像
+          純色實心，即使小字有寫「自己12・同組支援3」，長條本身沒有
+          對應呈現出來。改法：純 CSS bug，跟排序／資料完全無關——
+          .contrib-bar-risk／watch／ok 這三顆狀態色原本用 background
+          簡寫屬性設定顏色，簡寫語法會連帶把 background-image 重設成
+          none；因為它們在樣式表裡排在 .contrib-bar-team 的
+          background-image（斜紋圖樣）規則之後、CSS 優先權又相同，
+          就把斜紋整個蓋掉了，跟兩個 class 在 HTML 上的先後順序無關。
+          三顆狀態色改成只設定 background-color，不去動
+          background-image，斜紋才能疊在色塊上面正常顯示。
+          影響範圍：只改這三行 CSS 屬性寫法（background→
+          background-color），純視覺修正，長條寬度計算（selfW／teamW）、
+          資料、其他任何邏輯完全不變。
   1.47.0  business 反映：主管實際看畫面時發現，「這批來幫忙、自己在這組
           沒有負責店的訪員」（helpedOthers>0 但這組完全沒有觸發不足整週
           門檻的店）反而被排在排行最前面、燈號還亮紅色「需要盯」——原因
@@ -1635,9 +1649,17 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
 .contrib-bar-track { flex:1; height:8px; background:var(--bg); border-radius:4px; overflow:hidden; display:flex; }
 .contrib-bar-self, .contrib-bar-team { height:100%; }
 .contrib-bar-team { background-image:repeating-linear-gradient(45deg, rgba(255,255,255,.55) 0 3px, transparent 3px 6px); }
-.contrib-bar-risk { background:var(--red); }
-.contrib-bar-watch { background:var(--bonus); }
-.contrib-bar-ok { background:var(--green); }
+/* 1.48.0 business 反映：堆疊長條「自己完成（實色）／同組支援完成（斜紋）」
+   兩段疊出來卻幾乎看不到斜紋，肉眼看起來整條都是純色——原因是下面三顆
+   狀態色 .contrib-bar-risk/watch/ok 用的是 background 簡寫屬性，簡寫會
+   連帶把 background-image 重設成 none；因為在樣式表裡排在 .contrib-
+   bar-team 的 background-image 規則之後、優先權又相同，就把斜紋蓋掉了，
+   跟兩個 class 在 HTML 上的先後順序無關。改法：三顆狀態色改用
+   background-color，只設定顏色、不去動 background-image，斜紋才能疊
+   在色塊上面顯示出來。 */
+.contrib-bar-risk { background-color:var(--red); }
+.contrib-bar-watch { background-color:var(--bonus); }
+.contrib-bar-ok { background-color:var(--green); }
 .contrib-frac { font-size:12px; font-weight:700; min-width:38px; text-align:right; }
 .contrib-breakdown { font-size:10.5px; color:var(--sub); opacity:.7; margin-top:2px; }
 .contrib-status-badge { display:inline-block; padding:2px 9px; border-radius:10px; font-size:11.5px; font-weight:700; white-space:nowrap; }
