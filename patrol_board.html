@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.46.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-27
+  版本：Ver. 1.47.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-27
 
 【檔案定位】
   ‧ 單一 HTML 檔案，純前端 JS，透過 gviz API 讀同一份試算表兩分頁，
@@ -210,6 +210,40 @@
     把 <head> 裡那段 <script> 拿掉即可。
 ────────────────────────────────────────────────────────────
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.47.0  business 反映：主管實際看畫面時發現，「這批來幫忙、自己在這組
+          沒有負責店的訪員」（helpedOthers>0 但這組完全沒有觸發不足整週
+          門檻的店）反而被排在排行最前面、燈號還亮紅色「需要盯」——原因
+          是這批人 total（met+ride+stillShort）永遠是 0，completionPct
+          預設值也是 0，套用原本「完成度由低到高排序、＜70%＝需要盯」的
+          邏輯，剛好被誤判成「完成度最低、最需要盯」，但這批人根本沒有
+          負責店可以評分，這樣呈現對純支援的人不公平、也會誤導主管去
+          「盯」不該盯的人。改法（_buildStaffContribution()／Dialog／
+          CSV／複製文字）：
+          ‧ _buildStaffContribution() 新增 b.helperOnly = (b.total===0)
+            旗標，標記「這組完全靠 helpedOthers 那輪新增、沒有任何一家
+            自己名下的店觸發不足整週門檻」的列。
+          ‧ 排序（_contribSortedList）：helperOnly 一律排到最後面，不再
+            因為 completionPct=0 被排到最前面；helperOnly 內部、以及
+            其餘正常列各自仍依完成度／家數排序，核心「有負責店、沒做完
+            的人優先看到」用途不變。
+          ‧ 燈號／狀態：helperOnly 不套用紅黃綠三色，改成中性色「🤝 純
+            支援」標籤（新增 .contrib-status-neutral／.contrib-dot-
+            neutral／.contrib-sum-neutral 樣式）；完成度欄不再顯示
+            誤導的「0/0」空長條，改成文字說明「這組沒有負責店，純粹來
+            支援別人」；展開明細也同步替換成對應說明，不顯示「本期
+            （負責0家）」這種空欄位。
+          ‧ 統計／Legend／說明文字：summary 新增「🤝 純支援」計數（有
+            才顯示，維持「正常沒有東西」的一貫原則）；riskCount／
+            watchCount／okCount 三個既有計數排除 helperOnly，不再灌水
+            「需要盯」的數字；Legend 新增一條說明這個分類；CSV 新增
+            「純支援(無主責店)」欄位、複製文字的「🔴 需要盯」清單排除
+            helperOnly，避免業務把這批人誤讀成待處理事項。
+          影響範圍：只新增 b.helperOnly 這個旗標與其在排序／燈號／統計／
+          CSV／複製文字五處的使用；met/ride/stillShort／
+          selfCompleted/teamCompleted／completionPct／officeSharePct／
+          areaSharePct／helpedOthers／coveredByOthers 等既有欄位計算
+          方式完全不變，只是在「怎麼呈現」這一層排除 helperOnly、不讓
+          它們污染紅黃綠判斷。
   1.46.0  business 反映：1.36.0 把總覽頁「👥 分組貢獻度」摘要列從
           renderOfficeOverview() 拔掉之後，_buildContribSummaryHtml()／
           toggleContribSummary()／CONTRIB_SUMMARY_EXPANDED 這三個就沒有
@@ -1610,6 +1644,7 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
 .contrib-status-risk { background:var(--red-bg); color:var(--red); }
 .contrib-status-watch { background:var(--bonus-bg); color:var(--bonus); }
 .contrib-status-ok { background:var(--green-bg); color:var(--green); }
+.contrib-status-neutral { background:var(--bg); color:var(--sub); } /* 1.47.0：純支援（這組無主責店），中性色不套紅黃綠 */
 .contrib-help-wrap { display:flex; flex-direction:column; gap:3px; }
 .contrib-help-badge { font-size:10.5px; font-weight:700; white-space:nowrap; }
 .contrib-help-badge.give { color:var(--green); }
@@ -1620,9 +1655,11 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
 .contrib-dot-risk { background:var(--red); }
 .contrib-dot-watch { background:var(--bonus); }
 .contrib-dot-ok { background:var(--green); }
+.contrib-dot-neutral { background:var(--sub); opacity:.5; } /* 1.47.0 */
 .contrib-sum-risk b { color:var(--red); }
 .contrib-sum-watch b { color:var(--bonus); }
 .contrib-sum-ok b { color:var(--green); }
+.contrib-sum-neutral b { color:var(--sub); } /* 1.47.0 */
 .ov-mv-copy-btn { padding:5px 12px; border:1px solid var(--border); border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; color:var(--text); background:#fff; font-family:inherit; white-space:nowrap; flex-shrink:0; transition:background .12s; }
 .ov-mv-copy-btn:hover { background:var(--primary-bg); }
 .ov-mv-collapse-btn { padding:5px 12px; border:1px solid var(--border); border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; color:var(--sub); background:#fff; font-family:inherit; white-space:nowrap; flex-shrink:0; transition:background .12s; }
@@ -3408,6 +3445,15 @@ function _buildStaffContribution(periodFilter){
     b.completed = b.selfCompleted + b.teamCompleted; /* = met+ride，跟 selfCompleted/teamCompleted 拆分永遠對得起來 */
     b.completionPct = b.total>0 ? (b.completed/b.total*100) : 0; /* 1.45.0：新版「完成度」主指標，自己完成＋同組支援都算，判斷「這個人負責的店有沒有人去服務到」 */
     b.storeCount = Object.keys(b.storeSet).length; /* 這個人在這個分組底下真正負責的家數，去重過 */
+    /* 1.47.0 business 反映：這個分組底下如果有人是「純粹來幫忙、自己
+       名下在這組沒有任何店觸發不足整週門檻」（byRow 這一列完全是靠
+       helpedOthers 那輪新增的 hRow，met/ride/stillShort 從頭到尾都是
+       0），total 會是 0、completionPct 用預設值 0，結果被當成「完成度
+       最低」排到排行最前面、燈號還亮紅色「需要盯」——但這個人根本沒有
+       負責店可盯，這樣呈現對支援別人的人不公平也會誤導主管。改法：
+       total===0 時標記 b.helperOnly=true，供下方排序／燈號／統計三處
+       避開「需要盯」誤判，改成中性的「🤝 純支援」呈現，見下方使用處。 */
+    b.helperOnly = b.total===0;
   });
   /* 1.39.0：算「佔營業所／營業處貢獻比重」——用「自己已達標（met，1.40.0
      起為即時累積數字，見上方）」當貢獻量的基準，逐營業所（area+office）、
@@ -3442,8 +3488,15 @@ function _contribSortedList(){
   var list = _contribAreaSel==='全部' ? _contribCache.slice() : _contribCache.filter(function(b){ return b.area===_contribAreaSel; });
   /* 1.45.0 business 反映：主管要的是「一眼看到誰要盯」，不是自己在9種
      排序方式裡挑一種——固定用「完成度％由低到高」排序，沒完成的人自動
-     排最前面；同分則家數多的排前面（家數多、還沒完成的人優先級更高）。 */
+     排最前面；同分則家數多的排前面（家數多、還沒完成的人優先級更高）。
+     1.47.0 business 反映：helperOnly（純支援、這組沒有負責店）的人
+     completionPct 是預設值 0，照原本排序邏輯會被誤判成「完成度最低」
+     排到最前面——但這批人根本沒有負責店可盯，排最前面等於在說「這些
+     人最需要盯」，恰好講反了。改法：排序第一優先權改成「helperOnly
+     排最後面」，同樣是 helperOnly 或同樣不是的人之間才比完成度／家數，
+     維持「有負責店、沒做完的人優先看到」的核心用途。 */
   list.sort(function(a,b){
+    if(a.helperOnly!==b.helperOnly) return a.helperOnly ? 1 : -1;
     if(a.completionPct!==b.completionPct) return a.completionPct-b.completionPct;
     return b.total-a.total;
   });
@@ -3527,9 +3580,10 @@ function _buildContribDialogHtml(){
       + (areaTabs ? '<div class="chip-group contrib-tab-row">'+areaTabs+'</div>' : '')
       + '<div class="empty">目前這個範圍沒有觸發「不足整週」分組門檻機制的資料——可能是所選檔期都還沒進到不足整週的最後一週，或所有等級折算後的次數本身還降得動、沒有卡在保底1次，尚未觸發分組門檻。</div></div>';
   }
-  var riskCount=0, watchCount=0, okCount=0;
+  var riskCount=0, watchCount=0, okCount=0, helperOnlyCount=0;
   list.forEach(function(b){
-    if(b.completionPct<70) riskCount++; else if(b.completionPct<100) watchCount++; else okCount++;
+    if(b.helperOnly) helperOnlyCount++;
+    else if(b.completionPct<70) riskCount++; else if(b.completionPct<100) watchCount++; else okCount++;
   });
   var rowsHtml = list.map(function(b){
     var key = b.area+'␟'+b.office+'␟'+b.staff+'␟'+b.chanKey+'␟'+b.gradeLabel;
@@ -3556,9 +3610,12 @@ function _buildContribDialogHtml(){
         + '<td>'+statusHtml+'</td></tr>';
     }).join('');
     /* 1.45.0：狀態燈號改用「完成度」（自己完成＋同組支援都算，看這個人
-       負責的家有沒有人去服務到），不再用只算自己的「貢獻度%」。 */
-    var stCls = b.completionPct<70 ? 'risk' : (b.completionPct<100 ? 'watch' : 'ok');
-    var stLabel = b.completionPct<70 ? '🔴 需要盯' : (b.completionPct<100 ? '🟡 觀察中' : '🟢 已達標');
+       負責的家有沒有人去服務到），不再用只算自己的「貢獻度%」。
+       1.47.0：helperOnly（這組沒有負責店，純粹來支援別人）不套用紅黃綠
+       三色判斷——這批人沒有「負責的家」可以評分，套用「需要盯」等於
+       誤判，改成中性的「🤝 純支援」標籤。 */
+    var stCls = b.helperOnly ? 'neutral' : (b.completionPct<70 ? 'risk' : (b.completionPct<100 ? 'watch' : 'ok'));
+    var stLabel = b.helperOnly ? '🤝 純支援' : (b.completionPct<70 ? '🔴 需要盯' : (b.completionPct<100 ? '🟡 觀察中' : '🟢 已達標'));
     var selfW = b.total>0 ? (b.selfCompleted/b.total*100) : 0;
     var teamW = b.total>0 ? (b.teamCompleted/b.total*100) : 0;
     var breakdown = b.teamCompleted>0
@@ -3569,13 +3626,15 @@ function _buildContribDialogHtml(){
       + (b.helpedOthers===0 && b.coveredByOthers===0 ? '<span class="contrib-help-empty">—</span>' : '');
     return '<tr class="contrib-row" onclick="_contribToggleExpand(\''+safeKey+'\')">'
       + '<td class="td-left">'+(expanded?'▾':'▸')+' <b>'+esc(b.staff)+'</b><div class="contrib-loc">'+esc(b.area)+'・'+esc(b.office)+'／'+esc(b.chanKey||'—')+' '+esc(b.gradeLabel)+'</div></td>'
-      + '<td style="font-weight:700;text-align:right;">'+b.total+'</td>'
+      + '<td style="font-weight:700;text-align:right;">'+(b.helperOnly ? '—' : b.total)+'</td>'
       + '<td>'
-        + '<div class="contrib-bar-wrap"><div class="contrib-bar-track">'
-          + (selfW>0 ? '<div class="contrib-bar-self contrib-bar-'+stCls+'" style="width:'+selfW+'%;"></div>' : '')
-          + (teamW>0 ? '<div class="contrib-bar-team contrib-bar-'+stCls+'" style="width:'+teamW+'%;"></div>' : '')
-        + '</div><span class="contrib-frac">'+b.completed+'/'+b.total+'</span></div>'
-        + (breakdown ? '<div class="contrib-breakdown">'+breakdown+'</div>' : '')
+        + (b.helperOnly
+            ? '<span class="contrib-help-empty">這組沒有負責店，純粹來支援別人</span>'
+            : ('<div class="contrib-bar-wrap"><div class="contrib-bar-track">'
+                + (selfW>0 ? '<div class="contrib-bar-self contrib-bar-'+stCls+'" style="width:'+selfW+'%;"></div>' : '')
+                + (teamW>0 ? '<div class="contrib-bar-team contrib-bar-'+stCls+'" style="width:'+teamW+'%;"></div>' : '')
+              + '</div><span class="contrib-frac">'+b.completed+'/'+b.total+'</span></div>'
+              + (breakdown ? '<div class="contrib-breakdown">'+breakdown+'</div>' : '')))
       + '</td>'
       + '<td style="text-align:right;">'+b.officeSharePct.toFixed(0)+'%</td>'
       + '<td style="text-align:right;">'+b.areaSharePct.toFixed(0)+'%</td>'
@@ -3585,24 +3644,27 @@ function _buildContribDialogHtml(){
       + (expanded
           ? '<tr class="contrib-detail-row"><td colspan="7">'
             + '<div class="contrib-detail-grid">'
-              + '<div class="contrib-detail-section">本期（負責 '+b.total+' 家）</div>'
-              + '<div class="contrib-detail-item">自己完成<b>'+b.selfCompleted+'</b></div>'
-              + '<div class="contrib-detail-item">同組支援完成<b>'+b.teamCompleted+'</b></div>'
-              + '<div class="contrib-detail-item">尚未完成<b>'+b.stillShort+'</b></div>'
+              + (b.helperOnly
+                  ? '<div class="contrib-detail-section">本期</div><div class="contrib-detail-item" style="grid-column:1/-1;">這組本身沒有負責店（沒有觸發不足整週門檻的店），本期沒有可攤開的明細。</div>'
+                  : ('<div class="contrib-detail-section">本期（負責 '+b.total+' 家）</div>'
+                    + '<div class="contrib-detail-item">自己完成<b>'+b.selfCompleted+'</b></div>'
+                    + '<div class="contrib-detail-item">同組支援完成<b>'+b.teamCompleted+'</b></div>'
+                    + '<div class="contrib-detail-item">尚未完成<b>'+b.stillShort+'</b></div>'))
               + '<div class="contrib-detail-section" style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px;">整檔期累計</div>'
               + '<div class="contrib-detail-item">支援他店<b>'+(b.helpedOthers||'—')+'</b></div>'
               + '<div class="contrib-detail-item">被支援<b>'+(b.coveredByOthers||'—')+'</b></div>'
             + '</div>'
-            + '<table class="ov-mini contrib-detail-tbl"><tr><th class="td-left">店家</th><th>檔期週次</th><th>次數</th><th>狀態</th></tr>'+detailRows+'</table>'
+            + (detailRows ? '<table class="ov-mini contrib-detail-tbl"><tr><th class="td-left">店家</th><th>檔期週次</th><th>次數</th><th>狀態</th></tr>'+detailRows+'</table>' : '')
             + '</td></tr>'
           : '');
   }).join('');
   return '<div class="visit-timeline">'
-    + '<p style="font-size:12.5px;color:var(--sub);line-height:1.6;margin:0 0 10px;">預設依完成度由低到高排序，沒完成的人自動排最前面。點一列可展開細節；「支援情況」正常的人這欄是空的，只有真的有支援紀錄的人才會顯示。</p>'
+    + '<p style="font-size:12.5px;color:var(--sub);line-height:1.6;margin:0 0 10px;">預設依完成度由低到高排序，沒完成的人自動排最前面；純支援（這組沒有負責店）的人固定排最後面，不占用「需要盯」的版面。點一列可展開細節；「支援情況」正常的人這欄是空的，只有真的有支援紀錄的人才會顯示。</p>'
     + '<div class="contrib-legend">'
       + '<div><span class="contrib-dot contrib-dot-risk"></span><b>需要盯</b>　完成度 &lt; 70%</div>'
       + '<div><span class="contrib-dot contrib-dot-watch"></span><b>觀察中</b>　完成度 70%–99%</div>'
       + '<div><span class="contrib-dot contrib-dot-ok"></span><b>已達標</b>　完成度 100%（負責的家全部有人完成，不論自己或同組支援）</div>'
+      + '<div><span class="contrib-dot contrib-dot-neutral"></span><b>純支援</b>　這組本身沒有負責店（沒有觸發不足整週門檻的店），只是來幫別的訪員完成店，不套用紅黃綠評分、固定排在最後面</div>'
       + '<div style="margin-top:4px;">長條圖：實色＝自己完成、斜紋＝同組支援完成。「佔營業所／佔營業處」是這個人完成的家數，占整個所／處大家總共完成家數的比例——數字小不代表沒貢獻，可能只是分到的家數本來就少。</div>'
     + '</div>'
     + '<div class="chip-group contrib-tab-row">'+periodTabs+'</div>'
@@ -3611,6 +3673,7 @@ function _buildContribDialogHtml(){
     + '<div class="vs-item contrib-sum-risk">🔴 需要盯<br><b>'+riskCount+'</b></div>'
     + '<div class="vs-item contrib-sum-watch">🟡 觀察中<br><b>'+watchCount+'</b></div>'
     + '<div class="vs-item contrib-sum-ok">🟢 已達標<br><b>'+okCount+'</b></div>'
+    + (helperOnlyCount>0 ? '<div class="vs-item contrib-sum-neutral">🤝 純支援<br><b>'+helperOnlyCount+'</b></div>' : '')
     + '<div class="vs-item">本頁訪員數<br><b>'+list.length+'</b></div>'
     + '</div>'
     + '<div class="oo-tbl-scroll"><table class="ov-mini contrib-main-tbl" style="width:100%;"><tr><th class="td-left">訪員</th><th style="text-align:right;">家數</th><th>完成度</th><th style="text-align:right;">佔營業所</th><th style="text-align:right;">佔營業處</th><th>狀態</th><th>支援情況</th></tr>'+rowsHtml+'</table></div>'
@@ -3620,10 +3683,13 @@ function _contribDownloadCsv(evt){
   var btn = evt ? evt.currentTarget : document.getElementById('contrib-csv-btn');
   var list = _contribSortedList();
   if(!list.length){ _flashBtn(btn,'⚠️ 無資料'); return; }
-  var headers = ['訪員','營業處','營業所','通路','等級','家數','自己完成','同組支援完成','尚未完成','完成度%','佔營業所%','佔營業處%','支援他店(整檔期)','被支援(整檔期)'];
+  /* 1.47.0：加一欄「純支援(無主責店)」，helperOnly 的人家數/完成度%都是
+     0，不加註記容易被 CSV 讀者誤讀成「完成度0%、需要盯」，實際上是這組
+     沒有負責店、單純來支援別人。 */
+  var headers = ['訪員','營業處','營業所','通路','等級','家數','自己完成','同組支援完成','尚未完成','完成度%','佔營業所%','佔營業處%','支援他店(整檔期)','被支援(整檔期)','純支援(無主責店)'];
   var rows = [headers];
   list.forEach(function(b){
-    rows.push([b.staff, b.area, b.office, b.chanKey||'', b.gradeLabel, b.total, b.selfCompleted, b.teamCompleted, b.stillShort, b.completionPct.toFixed(1), b.officeSharePct.toFixed(1), b.areaSharePct.toFixed(1), b.helpedOthers, b.coveredByOthers]);
+    rows.push([b.staff, b.area, b.office, b.chanKey||'', b.gradeLabel, b.total, b.selfCompleted, b.teamCompleted, b.stillShort, b.completionPct.toFixed(1), b.officeSharePct.toFixed(1), b.areaSharePct.toFixed(1), b.helpedOthers, b.coveredByOthers, b.helperOnly ? '是' : '']);
   });
   var scopeLabel = (_contribPeriodSel ? _contribPeriodSel : '整體(全部檔期)') + (_contribAreaSel!=='全部' ? '_'+_contribAreaSel : '');
   var csv = '\uFEFF'+rows.map(function(r){
@@ -3638,7 +3704,9 @@ function _contribCopyLine(evt){
   if(!list.length){ _flashBtn(btn,'⚠️ 無資料'); return; }
   var scopeLabel = (_contribPeriodSel ? _contribPeriodSel : '整體(全部檔期)') + '　營業處：'+_contribAreaSel;
   var lines = ['👥 訪員分組貢獻度排行', '範圍：'+scopeLabel, ''];
-  var riskList = list.filter(function(b){ return b.completionPct<70; });
+  /* 1.47.0：helperOnly（純支援、這組沒有負責店）completionPct 預設值是
+     0，若不排除會被誤列進「需要盯」名單——這批人根本沒有負責店可盯。 */
+  var riskList = list.filter(function(b){ return !b.helperOnly && b.completionPct<70; });
   if(riskList.length){
     lines.push('🔴 需要盯：');
     riskList.forEach(function(b){
