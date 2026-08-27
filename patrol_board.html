@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.49.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-27
+  版本：Ver. 1.50.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-27
 
 【檔案定位】
   ‧ 單一 HTML 檔案，純前端 JS，透過 gviz API 讀同一份試算表兩分頁，
@@ -210,6 +210,38 @@
     把 <head> 裡那段 <script> 拿掉即可。
 ────────────────────────────────────────────────────────────
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.50.0  business 反映：兩點修正——
+          ①長條圖應該要能一眼看出「自己做的」跟「別人幫忙做的」各佔
+          多少，1.49.0 把「被支援完成」從長條拿掉、只用長條下方一句
+          純文字「被支援完成 X家」呈現，主管反映這句文字讀起來像是在
+          幫沒做完的人找台階、邀功感很重，是不必要的「灌水」措辭。
+          改法：長條恢復兩段——自己完成（實色，套狀態色）＋被支援完成
+          （斜紋灰，緊接在自己那段後面，游標移上去有 title 說明），
+          兩段合計就是總完成家數，但只有實色那段算進「自己完成度」；
+          長條下方文字旁註拿掉「被支援完成 X家」，只留「尚未完成 Y家」
+          或「全部自己完成」，不重複講一次被支援家數。
+          ②狀態燈號拿掉紅黃綠三色與「🔴 需要盯」「🟡 觀察中」字眼——
+          主管反映「需要盯」對完全沒動作的人是不必要的恐嚇字眼，對已
+          經有動作但還沒做完的人更是打擊士氣，有動起來就該是好消息。
+          改用三態（不再用紅黃燈號）：
+            idle　　　selfPct=0（自己還沒完成任何一家）→ 中性灰
+                      「⚪ 尚未開始」，不是負面判斷，只是客觀狀態。
+            progress　0%<selfPct<100%（已經有自己完成的家）→ 正向藍色
+                      「🔵 進行中」，鼓勵已經動起來的人。
+            ok　　　　selfPct=100% → 維持綠色「🟢 已達標」，不變。
+          helperOnly（純支援、這組沒有負責店）維持獨立的中性
+          「🤝 純支援」，不受影響。
+          影響範圍：CSS（.contrib-bar-idle/progress/ok 取代原本的
+          risk/watch/ok；.contrib-bar-team 斜紋樣式重新加回；
+          .contrib-status-idle/progress、.contrib-dot-idle/progress、
+          .contrib-sum-idle/progress 取代原本的 risk/watch 系列，class
+          命名跟著語意換掉，不再叫 risk/watch）；
+          _buildStaffContributionHtml() 內 stCls／stLabel／
+          riskCount→idleCount／watchCount→progressCount／breakdown
+          文案／長條 HTML；Legend 說明文字；複製文字函式
+          _contribCopyLine() 的清單從「🔴 需要盯（<70%）」改成
+          「⚪ 尚未開始（=0%）」。CSV 匯出欄位與計算邏輯（selfPct／
+          teamCompleted／stillShort 等）完全不變，只是呈現方式跟著換。
   1.49.0  business 反映：「訪員分組貢獻度排行」的完成度／紅黃綠燈號
           原本是「自己完成＋被支援完成」混在一起算（1.45.0 設計），
           主管認為這樣「灌水」——被支援湊出來的達標會蓋過「自己根本沒
@@ -1678,23 +1710,27 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
 .contrib-tag-pending-met { background:#EEF7EA; color:var(--green); border:1px dashed #9BC98C; }
 .contrib-bar-wrap { display:flex; align-items:center; gap:7px; min-width:120px; }
 .contrib-bar-track { flex:1; height:8px; background:var(--bg); border-radius:4px; overflow:hidden; display:flex; }
-.contrib-bar-self { height:100%; } /* 1.49.0：長條圖只剩自己完成一段，拿掉 .contrib-bar-team（斜紋段）與相關 background-image 規則——「被支援完成」不再是判斷達標的一部分，長條不畫這一段，改用旁邊小字純資訊呈現（見 breakdown）。 */
-/* 1.48.0 business 反映：堆疊長條「自己完成（實色）／同組支援完成（斜紋）」
-   兩段疊出來卻幾乎看不到斜紋，肉眼看起來整條都是純色——原因是下面三顆
-   狀態色 .contrib-bar-risk/watch/ok 用的是 background 簡寫屬性，簡寫會
-   連帶把 background-image 重設成 none；因為在樣式表裡排在 .contrib-
-   bar-team 的 background-image 規則之後、優先權又相同，就把斜紋蓋掉了，
-   跟兩個 class 在 HTML 上的先後順序無關。改法：三顆狀態色改用
-   background-color，只設定顏色、不去動 background-image，斜紋才能疊
-   在色塊上面顯示出來。 */
-.contrib-bar-risk { background-color:var(--red); }
-.contrib-bar-watch { background-color:var(--bonus); }
+.contrib-bar-self { height:100%; }
+/* 1.50.0 business 反映：長條要能一眼看出「自己做的」跟「別人幫忙做的」
+   各佔多少，不能只有自己一段、把別人做的部分完全藏起來變成一句容易
+   被誤讀成邀功/灌水的旁註文字（「被支援完成 X家」）。改法：長條恢復
+   兩段——自己完成（實色，套狀態色）＋被支援完成（斜紋灰，緊接在自己
+   那段後面），兩段合計就是總完成家數；斜紋段用中性灰階、不套紅黃綠，
+   一看就知道「這段不算你自己做的」，取代原本的文字旁註。 */
+.contrib-bar-team { height:100%; background-color:rgba(0,0,0,.10); background-image:repeating-linear-gradient(45deg, rgba(0,0,0,.14) 0 3px, transparent 3px 7px); }
+/* 1.50.0 business 反映：「🔴 需要盯」對完全沒動作的人是不必要的恐嚇字眼、
+   對已經有動作但還沒做完的人更是打擊士氣——有動起來就該是好消息。改用
+   三態：idle（自己完成度=0，中性灰，不是負面）／progress（0%~99%，有
+   自己完成的動作，正向藍色）／ok（100%，達標，維持綠色）。純支援
+   （helperOnly）維持獨立的中性 neutral，不變。 */
+.contrib-bar-idle { background-color:#B9B9B4; }
+.contrib-bar-progress { background-color:#1565C0; }
 .contrib-bar-ok { background-color:var(--green); }
 .contrib-frac { font-size:12px; font-weight:700; min-width:38px; text-align:right; }
 .contrib-breakdown { font-size:10.5px; color:var(--sub); opacity:.7; margin-top:2px; }
 .contrib-status-badge { display:inline-block; padding:2px 9px; border-radius:10px; font-size:11.5px; font-weight:700; white-space:nowrap; }
-.contrib-status-risk { background:var(--red-bg); color:var(--red); }
-.contrib-status-watch { background:var(--bonus-bg); color:var(--bonus); }
+.contrib-status-idle { background:#ECECE8; color:#6B6B63; }
+.contrib-status-progress { background:#E3F0FC; color:#1565C0; }
 .contrib-status-ok { background:var(--green-bg); color:var(--green); }
 .contrib-status-neutral { background:var(--bg); color:var(--sub); } /* 1.47.0：純支援（這組無主責店），中性色不套紅黃綠 */
 .contrib-help-wrap { display:flex; flex-direction:column; gap:3px; }
@@ -1704,12 +1740,12 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
 .contrib-help-empty { color:var(--sub); opacity:.35; font-size:12px; }
 .contrib-legend { font-size:11.5px; color:var(--sub); line-height:1.8; background:var(--bg); border-radius:8px; padding:8px 12px; margin-bottom:10px; }
 .contrib-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:5px; }
-.contrib-dot-risk { background:var(--red); }
-.contrib-dot-watch { background:var(--bonus); }
+.contrib-dot-idle { background:#B9B9B4; }
+.contrib-dot-progress { background:#1565C0; }
 .contrib-dot-ok { background:var(--green); }
 .contrib-dot-neutral { background:var(--sub); opacity:.5; } /* 1.47.0 */
-.contrib-sum-risk b { color:var(--red); }
-.contrib-sum-watch b { color:var(--bonus); }
+.contrib-sum-idle b { color:#6B6B63; }
+.contrib-sum-progress b { color:#1565C0; }
 .contrib-sum-ok b { color:var(--green); }
 .contrib-sum-neutral b { color:var(--sub); } /* 1.47.0 */
 .ov-mv-copy-btn { padding:5px 12px; border:1px solid var(--border); border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; color:var(--text); background:#fff; font-family:inherit; white-space:nowrap; flex-shrink:0; transition:background .12s; }
@@ -3638,10 +3674,10 @@ function _buildContribDialogHtml(){
       + (areaTabs ? '<div class="chip-group contrib-tab-row">'+areaTabs+'</div>' : '')
       + '<div class="empty">目前這個範圍沒有觸發「不足整週」分組門檻機制的資料——可能是所選檔期都還沒進到不足整週的最後一週，或所有等級折算後的次數本身還降得動、沒有卡在保底1次，尚未觸發分組門檻。</div></div>';
   }
-  var riskCount=0, watchCount=0, okCount=0, helperOnlyCount=0;
+  var idleCount=0, progressCount=0, okCount=0, helperOnlyCount=0;
   list.forEach(function(b){
     if(b.helperOnly) helperOnlyCount++;
-    else if(b.selfPct<70) riskCount++; else if(b.selfPct<100) watchCount++; else okCount++;
+    else if(b.selfPct<=0) idleCount++; else if(b.selfPct<100) progressCount++; else okCount++;
   });
   var rowsHtml = list.map(function(b){
     var key = b.area+'␟'+b.office+'␟'+b.staff+'␟'+b.chanKey+'␟'+b.gradeLabel;
@@ -3669,19 +3705,32 @@ function _buildContribDialogHtml(){
     }).join('');
     /* 1.45.0：狀態燈號原本用「完成度」（自己完成＋同組支援都算）。
        1.49.0 business 反映：被支援湊出來的達標會蓋過「自己根本沒做完」
-       的事實，主管要看的是「自己做了多少」，不是灌水後的達成率。改法：
-       紅黃綠燈號、主要百分比全部改用 selfPct（只算自己親自完成），被
-       支援完成的家數仍然顯示，但只當作旁註，不再拉抬燈號或排序。
-       1.47.0：helperOnly（這組沒有負責店，純粹來支援別人）不套用紅黃綠
-       三色判斷——這批人沒有「負責的家」可以評分，套用「需要盯」等於
-       誤判，改成中性的「🤝 純支援」標籤。 */
-    var stCls = b.helperOnly ? 'neutral' : (b.selfPct<70 ? 'risk' : (b.selfPct<100 ? 'watch' : 'ok'));
-    var stLabel = b.helperOnly ? '🤝 純支援' : (b.selfPct<70 ? '🔴 需要盯' : (b.selfPct<100 ? '🟡 觀察中' : '🟢 已達標'));
+       的事實，主管要看的是「自己做了多少」，主要百分比全部改用 selfPct
+       （只算自己親自完成）。
+       1.50.0 business 反映：「🔴 需要盯」對完全沒動作的人是不必要的
+       恐嚇字眼、對已經有動作但還沒做完的人更是打擊士氣——有動起來就該
+       是好消息。改用三態、不再用紅黃燈號：
+         idle　　　selfPct=0（還沒有自己完成的家）→ 中性灰「尚未開始」，
+                   不是負面判斷，只是客觀狀態。
+         progress　0%<selfPct<100%（已經有自己完成的家，正在推進）→
+                   正向藍色「進行中」，鼓勵已經動起來的人。
+         ok　　　　selfPct=100%（自己負責的家全部完成）→ 維持綠色
+                   「已達標」。
+       helperOnly（這組沒有負責店，純粹來支援別人）維持獨立的中性
+       「🤝 純支援」，不套用這三態。 */
+    var stCls = b.helperOnly ? 'neutral' : (b.selfPct<=0 ? 'idle' : (b.selfPct<100 ? 'progress' : 'ok'));
+    var stLabel = b.helperOnly ? '🤝 純支援' : (b.selfPct<=0 ? '⚪ 尚未開始' : (b.selfPct<100 ? '🔵 進行中' : '🟢 已達標'));
     var selfW = b.total>0 ? (b.selfCompleted/b.total*100) : 0;
+    /* 1.50.0 business 反映：長條要能一眼看出「自己做的」跟「別人幫忙做
+       的」各佔多少，不能只有自己一段、把別人做的部分完全藏起來變成一句
+       容易被誤讀成邀功/灌水的旁註文字（「被支援完成 X家」）。改法：
+       長條恢復兩段——自己完成（實色，套狀態色）＋被支援完成（斜紋灰，
+       緊接在自己那段後面），下方文字旁註只留「尚未完成 X家」／「全部
+       自己完成」，不再重複講一次被支援家數。 */
+    var teamW = b.total>0 ? (b.teamCompleted/b.total*100) : 0;
     var breakdownParts = [];
-    if(b.teamCompleted>0) breakdownParts.push('被支援完成 '+b.teamCompleted+'家');
     if(b.stillShort>0) breakdownParts.push('尚未完成 '+b.stillShort+'家');
-    var breakdown = breakdownParts.length ? breakdownParts.join('・') : (b.selfCompleted>0 ? '全部自己完成' : '');
+    var breakdown = breakdownParts.length ? breakdownParts.join('・') : (b.selfCompleted===b.total && b.total>0 ? '全部自己完成' : '');
     var helpBadges = (b.helpedOthers>0 ? '<span class="contrib-help-badge give">🤝 支援他店 '+b.helpedOthers+' 家</span>' : '')
       + (b.coveredByOthers>0 ? '<span class="contrib-help-badge take">🙏 被支援 '+b.coveredByOthers+' 家</span>' : '')
       + (b.helpedOthers===0 && b.coveredByOthers===0 ? '<span class="contrib-help-empty">—</span>' : '');
@@ -3693,6 +3742,7 @@ function _buildContribDialogHtml(){
             ? '<span class="contrib-help-empty">這組沒有負責店，純粹來支援別人</span>'
             : ('<div class="contrib-bar-wrap"><div class="contrib-bar-track">'
                 + (selfW>0 ? '<div class="contrib-bar-self contrib-bar-'+stCls+'" style="width:'+selfW+'%;"></div>' : '')
+                + (teamW>0 ? '<div class="contrib-bar-team" style="width:'+teamW+'%;" title="被支援完成 '+b.teamCompleted+'家——別人幫忙做的，不算進自己完成度"></div>' : '')
               + '</div><span class="contrib-frac">'+b.selfCompleted+'/'+b.total+'</span></div>'
               + (breakdown ? '<div class="contrib-breakdown">'+breakdown+'</div>' : '')))
       + '</td>'
@@ -3719,19 +3769,19 @@ function _buildContribDialogHtml(){
           : '');
   }).join('');
   return '<div class="visit-timeline">'
-    + '<p style="font-size:12.5px;color:var(--sub);line-height:1.6;margin:0 0 10px;">預設依「自己完成度」由低到高排序，自己做得少的人自動排最前面（被支援完成的不算，避免湊出來的達標蓋過真正沒做完的人）；純支援（這組沒有負責店）的人固定排最後面，不占用「需要盯」的版面。點一列可展開細節；「支援情況」正常的人這欄是空的，只有真的有支援紀錄的人才會顯示。</p>'
+    + '<p style="font-size:12.5px;color:var(--sub);line-height:1.6;margin:0 0 10px;">預設依「自己完成度」由低到高排序，自己做得少的人自動排最前面（被支援完成的不算，避免湊出來的達標蓋過真正沒做完的人）；純支援（這組沒有負責店）的人固定排最後面。點一列可展開細節；「支援情況」正常的人這欄是空的，只有真的有支援紀錄的人才會顯示。</p>'
     + '<div class="contrib-legend">'
-      + '<div><span class="contrib-dot contrib-dot-risk"></span><b>需要盯</b>　自己完成度 &lt; 70%（只算自己親自完成，被支援完成的不算）</div>'
-      + '<div><span class="contrib-dot contrib-dot-watch"></span><b>觀察中</b>　自己完成度 70%–99%</div>'
+      + '<div><span class="contrib-dot contrib-dot-idle"></span><b>尚未開始</b>　自己完成度 0%（只算自己親自完成，被支援完成的不算，不代表這個人有問題，可能剛好排在後面）</div>'
+      + '<div><span class="contrib-dot contrib-dot-progress"></span><b>進行中</b>　自己完成度 1%–99%，已經有自己完成的家</div>'
       + '<div><span class="contrib-dot contrib-dot-ok"></span><b>已達標</b>　自己完成度 100%（負責的家全部是自己親自完成，不含被支援）</div>'
-      + '<div><span class="contrib-dot contrib-dot-neutral"></span><b>純支援</b>　這組本身沒有負責店（沒有觸發不足整週門檻的店），只是來幫別的訪員完成店，不套用紅黃綠評分、固定排在最後面</div>'
-      + '<div style="margin-top:4px;">長條圖只算自己完成的比例，被支援完成的家數不計入長條、只用小字列出（「被支援完成 X家」），避免被別人做完的家數墊高你的達成率。「佔營業所／佔營業處」是這個人完成的家數，占整個所／處大家總共完成家數的比例——數字小不代表沒貢獻，可能只是分到的家數本來就少。</div>'
+      + '<div><span class="contrib-dot contrib-dot-neutral"></span><b>純支援</b>　這組本身沒有負責店（沒有觸發不足整週門檻的店），只是來幫別的訪員完成店，不套用這三態、固定排在最後面</div>'
+      + '<div style="margin-top:4px;">長條圖分兩段：實色是自己完成的比例，緊接在後面的斜紋灰是被支援完成的比例——兩段合起來才是總完成家數，但只有實色那段算進「自己完成度」，避免被別人做完的家數墊高你的達成率。「佔營業所／佔營業處」是這個人完成的家數，占整個所／處大家總共完成家數的比例——數字小不代表沒貢獻，可能只是分到的家數本來就少。</div>'
     + '</div>'
     + '<div class="chip-group contrib-tab-row">'+periodTabs+'</div>'
     + (areaTabs ? '<div class="chip-group contrib-tab-row">'+areaTabs+'</div>' : '')
     + '<div class="visit-summary">'
-    + '<div class="vs-item contrib-sum-risk">🔴 需要盯<br><b>'+riskCount+'</b></div>'
-    + '<div class="vs-item contrib-sum-watch">🟡 觀察中<br><b>'+watchCount+'</b></div>'
+    + '<div class="vs-item contrib-sum-idle">⚪ 尚未開始<br><b>'+idleCount+'</b></div>'
+    + '<div class="vs-item contrib-sum-progress">🔵 進行中<br><b>'+progressCount+'</b></div>'
     + '<div class="vs-item contrib-sum-ok">🟢 已達標<br><b>'+okCount+'</b></div>'
     + (helperOnlyCount>0 ? '<div class="vs-item contrib-sum-neutral">🤝 純支援<br><b>'+helperOnlyCount+'</b></div>' : '')
     + '<div class="vs-item">本頁訪員數<br><b>'+list.length+'</b></div>'
@@ -3770,17 +3820,19 @@ function _contribCopyLine(evt){
   var scopeLabel = (_contribPeriodSel ? _contribPeriodSel : '整體(全部檔期)') + '　營業處：'+_contribAreaSel;
   var lines = ['👥 訪員分組貢獻度排行', '範圍：'+scopeLabel, ''];
   /* 1.47.0：helperOnly（純支援、這組沒有負責店）selfPct 預設值是
-     0，若不排除會被誤列進「需要盯」名單——這批人根本沒有負責店可盯。
+     0，若不排除會被誤列進名單——這批人根本沒有負責店可盯。
      1.49.0：判斷依據從 completionPct（自己+被支援）改成 selfPct（只算
-     自己），文字也改成「自己完成度」，不再用被支援湊出來的數字。 */
-  var riskList = list.filter(function(b){ return !b.helperOnly && b.selfPct<70; });
-  if(riskList.length){
-    lines.push('🔴 需要盯：');
-    riskList.forEach(function(b){
-      lines.push('🔴 '+b.staff+'（'+b.area+' '+b.office+'／'+b.chanKey+' '+b.gradeLabel+'）　自己完成度 '+b.selfCompleted+'/'+b.total+'（'+b.selfPct.toFixed(0)+'%）');
+     自己），文字也改成「自己完成度」，不再用被支援湊出來的數字。
+     1.50.0 business 反映：「🔴 需要盯」字眼拿掉，改列「⚪ 尚未開始」
+     （selfPct=0，自己還沒完成任何一家），用詞中性、不帶恐嚇意味。 */
+  var idleList = list.filter(function(b){ return !b.helperOnly && b.selfPct<=0; });
+  if(idleList.length){
+    lines.push('⚪ 尚未開始：');
+    idleList.forEach(function(b){
+      lines.push('⚪ '+b.staff+'（'+b.area+' '+b.office+'／'+b.chanKey+' '+b.gradeLabel+'）　自己完成度 '+b.selfCompleted+'/'+b.total+'（'+b.selfPct.toFixed(0)+'%）');
     });
   } else {
-    lines.push('目前這個範圍沒有自己完成度低於70%的人。');
+    lines.push('目前這個範圍沒有自己完成度為 0 的人。');
   }
   var helpedList = list.filter(function(b){ return b.helpedOthers>0; }).sort(function(a,b){ return b.helpedOthers-a.helpedOthers; });
   if(helpedList.length){
