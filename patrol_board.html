@@ -263,8 +263,10 @@
     不特別標色。
   ‧ storeCount／storeSet：去重後的「實際負責家數」，不會因同一家店
     橫跨多檔期都觸發而重複計入。officeSharePct／areaSharePct：以
-    met（已達標）當貢獻量基準，算這個人在整個營業所／營業處總完成
-    量裡的佔比。
+    selfCompleted（自己親自完成的家數）當貢獻量基準，算這個人在整個
+    營業所／營業處「自己完成量」裡的佔比——一次都沒親自去就是0%，跟
+    「自己完成度」同一套「只算自己」的口徑，不會被店被別人代跑湊到
+    達標，佔比卻算在自己頭上。
   ‧ helpedOthers（🤝支援他店）：獨立於「不足整週」範圍，掃整個檔期
     全部週次，比對「送出紀錄的人」跟「這家店主要訪員」是否相符，不
     符就算「幫別人做了一次」，記在送出者自己的列上；即使這個人在這
@@ -2867,23 +2869,28 @@ function _buildStaffContribution(periodFilter){
        避開「需要盯」誤判，改成中性的「🤝 純支援」呈現，見下方使用處。 */
     b.helperOnly = b.total===0;
   });
-  /* 1.39.0：算「佔營業所／營業處貢獻比重」——用「自己已達標（met，1.40.0
-     起為即時累積數字，見上方）」當貢獻量的基準，逐營業所（area+office）、
-     逐營業處（area）各自加總，再回頭算每一列在該範圍裡的佔比。刻意不分
-     通路／等級混在一起算（業務要看的是「這個人在整個所/處的貢獻量佔
-     比」，不是限定同組比較），數字才會跟「整所」「整處」這種業務講法
-     對得起來；若這個人這個分組完全沒有 met，佔比顯示 0%，不會除以 0
-     出錯。 */
-  var officeMetSum = {}, areaMetSum = {};
+  /* 1.51.1 business 反映：「佔營業所／佔營業處」應該代表「這個人自己
+     真正貢獻的份量」，不是「他名下的店有沒有被湊到達標」——用 b.met
+     當基準時，只要店這週被任何人（含代跑的同事）湊到達標，這筆貢獻
+     還是算在店主頭上，會出現「自己完成度0%（一次都沒去），佔營業所
+     卻高達88%」這種矛盾。改法：基準改用 b.selfCompleted（自己親自
+     完成的家數），逐營業所（area+office）、逐營業處（area）各自加總，
+     再回頭算每一列在該範圍裡的佔比；一次都沒親自去，佔比就是0%，跟
+     「自己完成度」用同一套「只算自己」的口徑，不會再互相矛盾。刻意
+     不分通路／等級混在一起算（業務要看的是「這個人在整個所/處的貢獻
+     量佔比」，不是限定同組比較），數字才會跟「整所」「整處」這種業務
+     講法對得起來；若這個人這個分組完全沒有 selfCompleted，佔比顯示
+     0%，不會除以 0 出錯。 */
+  var officeSelfSum = {}, areaSelfSum = {};
   list.forEach(function(b){
     var ok = b.area+'␟'+b.office;
-    officeMetSum[ok] = (officeMetSum[ok]||0) + b.met;
-    areaMetSum[b.area] = (areaMetSum[b.area]||0) + b.met;
+    officeSelfSum[ok] = (officeSelfSum[ok]||0) + b.selfCompleted;
+    areaSelfSum[b.area] = (areaSelfSum[b.area]||0) + b.selfCompleted;
   });
   list.forEach(function(b){
     var ok = b.area+'␟'+b.office;
-    b.officeSharePct = officeMetSum[ok]>0 ? (b.met/officeMetSum[ok]*100) : 0;
-    b.areaSharePct = areaMetSum[b.area]>0 ? (b.met/areaMetSum[b.area]*100) : 0;
+    b.officeSharePct = officeSelfSum[ok]>0 ? (b.selfCompleted/officeSelfSum[ok]*100) : 0;
+    b.areaSharePct = areaSelfSum[b.area]>0 ? (b.selfCompleted/areaSelfSum[b.area]*100) : 0;
     delete b.storeSet;
   });
   return list;
