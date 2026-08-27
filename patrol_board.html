@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.43.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-27
+  版本：Ver. 1.44.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-27
 
 【檔案定位】
   ‧ 單一 HTML 檔案，純前端 JS，透過 gviz API 讀同一份試算表兩分頁，
@@ -210,6 +210,44 @@
     把 <head> 裡那段 <script> 拿掉即可。
 ────────────────────────────────────────────────────────────
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.44.0  business 反映：「幫別人做的次數」單獨看意義有限——次數多可能
+          只是剛好排得開，看不出「這個人是自己份內做完才有餘力幫人，
+          還是自己份內也沒做、靠同事看不下去去補」。要回答這個問題，
+          需要知道「這個人自己名下的店，整個檔期下來，實際是自己去的
+          還是被同事代跑的」，這件事不能只看「不足整週折算週」那一週，
+          要看該檔期全部週次才有意義。改法（_buildStaffContribution()
+          內）：
+          ‧ 在既有的 groups／grp.stores 架構上，新增一輪不受
+            _quotaUnitProgress 閘門限制的全期掃描，1..p.weeks 每一週
+            都算（不管有沒有觸發分組門檻），沿用 1.43.0 已經正規化過
+            的 v.staff，比對「送出紀錄的人」跟「這家店主要訪員」：
+            送出者＝主要訪員本人 → 累加「自己親跑次數」（selfRun）；
+            送出者≠主要訪員 → 累加「被同事代跑次數」（coveredByOthers，
+            記在店主的列上）＋「幫別人做的次數」（helpedOthers，記在
+            送出者自己的列上，延續 1.42.0 的歸戶邏輯，範圍一併放寬到
+            整個檔期，不再只算不足整週那一週）。
+          ‧ 刻意的範圍拿捏：selfRun／coveredByOthers 只累加進「已經因為
+            不足整週機制存在於排行裡」的列（byRow[rk] 存在才加）——避免
+            這兩欄把整份排行的列數灌成「全公司每一位訪員」，這份 Dialog
+            維持原本「只看不足整週這批人」的核心範圍不變，只是幫「已經
+            在排行裡的這些人」補上「整檔期自己/代跑」的脈絡；但
+            helpedOthers 沿用 1.42.0 就有的行為，即使幫忙的人在這個
+            分組原本沒有列，也會新增一列列出來。
+          ‧ 呈現：排行表最後新增「自己親跑次數」「被同事代跑次數」兩欄
+            （表頭加📅圖示＋hover提示「範圍是整個檔期」，跟其他欄位的
+            「僅不足整週」範圍明顯區隔，避免誤讀成同一套口徑）；新增
+            對應排序選項、summary 總計、CSV 欄位、複製文字段落（多列一段
+            「被同事代跑次數」明細，方便直接看誰自己親跑比例低）。
+          ‧ 刻意不在這裡下「這個人是不是躺平」的結論性標籤——只攤開
+            「自己親跑 vs 被代跑」的原始次數，多次代跑但次數本身很少
+            （樣本少）不代表定論，交由看的人自己判斷，維持本檔一貫的
+            「數字誠實顯示、不代替下評價」原則。
+          影響範圍：只新增 selfRun／coveredByOthers 兩個獨立欄位／對應
+          顯示；met/ride/stillShort／貢獻度%／佔比／負責家數（storeCount，
+          仍只計不足整週範圍內的店，語意不變）等既有欄位計算方式完全
+          不變；helpedOthers 的計算範圍從「僅不足整週」放寬為「整個
+          檔期」，數字會比 1.42.0/1.43.0 版本高（涵蓋更多週次），屬於
+          預期變化，不是計算錯誤。
   1.43.0  business 反映：處理層「執行人員」欄位（v.staff）偶爾會被系統
           自動多帶一段「-員編」（例如「劉芳妤-1151334」），跟母體名冊
           「主要訪員」欄位（乾淨姓名，無員編）對不上，同一個人因此在
@@ -3219,7 +3257,7 @@ function _buildStaffContribution(periodFilter){
           var rk = s.area+'␟'+officeName+'␟'+staffName+'␟'+gk;
           var row = byRow[rk] = byRow[rk] || { area:s.area, office:officeName, staff:staffName,
             chanKey:grp.chanKey, gradeLabel:gradeLabel, met:0, ride:0, stillShort:0,
-            storeSet:{}, detail:[], helpedOthers:0 };
+            storeSet:{}, detail:[], helpedOthers:0, selfRun:0, coveredByOthers:0 };
           /* 1.39.0 business 反映：業務要看「公平」的貢獻——有的人名下只有
              2 家店，但 2 家都做完，等於把自己「能貢獻的全部額度」都貢獻
              出來了，這種人不該因為絕對數字小就被忽略；同時也要能回答
@@ -3232,26 +3270,50 @@ function _buildStaffContribution(periodFilter){
           row[status]++;
           row.detail.push({ storeName:s.storeName, code:s.code, period:p.key, periodLabel:periodLabel,
             week:week, actual:actual, std:stdN, status:status, isPast:_isWeekPast(p.key, week) });
-          /* 1.42.0 business 反映：「分組協力達標」只看得出「誰沒做但沾了
-             光」，看不出「是誰去幫忙補的」——同事互相幫忙巡補很常見，這件
-             事應該被看見，不該完全埋沒在數字裡。改法：原始巡補紀錄本來就
-             各自記錄「這一筆是誰送出的」（v.staff），跟店家名冊上「這家店
-             主要負責的訪員」（s.staff）本來就是兩個獨立欄位，只是從來沒人
-             拿來互相比對過。這裡在同一個（店、檔期、週次）範圍內，把「誰
-             送出紀錄」跟「這家店主要訪員是誰」對一次：凡是送出紀錄的人
-             不是這家店的主要訪員，就算這個人「幫別人做了一次」，記在
-             helpedOthers（依實際送出的天數計，跟 _actualCount 同一套「同
-             一天只算一次」去重規則，不會因為重填膨脹次數）；這個功勞歸給
-             「實際去做的人」，即使他名下在這個分組本來就沒有這家店。範圍
-             刻意只算這份報表本來就在看的「不足整週折算週」這幾週，不擴大
-             到全年所有週次（若要擴大，屬於獨立的統計範圍，不在這裡算）。 */
+        });
+      }
+    });
+  });
+  /* 1.44.0 business 反映：光看「幫別人做的次數」看不出「這個人是自己
+     份內做完才有餘力幫人，還是自己份內也沒做、靠別人補」——要回答這個，
+     不能只看「不足整週折算週」那一週，要看「整個檔期（該檔期全部週次）」
+     這個人自己名下的店，究竟是「自己去的」還是「被同事代跑的」。改法：
+     在既有的 groups／grp.stores 架構上，新增一輪不受 _quotaUnitProgress
+     閘門限制的全期掃描（1..p.weeks 每一週都算，不管有沒有觸發分組門檻），
+     對每一家店比對「誰送出紀錄」跟「這家店主要訪員是誰」：
+     ‧ 送出的人＝主要訪員本人 → 算「自己親跑次數」（selfRun），記在店主
+       的列上；
+     ‧ 送出的人≠主要訪員 → 算「被同事代跑次數」（coveredByOthers，記在
+       店主的列上）＋「幫別人做的次數」（helpedOthers，記在送出者自己
+       的列上，沿用 1.42.0 的歸戶邏輯）。
+     範圍刻意限定「這個店主已經因為不足整週機制出現在排行裡」才記
+     selfRun／coveredByOthers（byRow[rk] 存在才累加）——避免整份排行的
+     列數暴增成「全公司每一位訪員」，維持這份 Dialog 原本「只看不足整週
+     這批人」的範圍；但 helpedOthers 沿用 1.42.0 就有的行為，即使幫忙的
+     人在這個分組原本沒有列，也會被新增一列列出來（幫忙這件事本身值得
+     被看見，不因為他自己在這組沒有負責的店就隱藏掉）。 */
+  Object.keys(groups).forEach(function(gkKeyOuter){
+    var grp = groups[gkKeyOuter];
+    var gk = _stdGroupKey(grp.chanKey, grp.grade);
+    var gradeLabel = _labelForGradeKey(grp.chanKey, grp.grade);
+    PERIODS.forEach(function(p){
+      if(periodFilter && p.key!==periodFilter) return;
+      for(var week=1; week<=p.weeks; week++){
+        grp.stores.forEach(function(s){
+          var staffName = s.staff || '（未填訪員）';
+          var officeName = s.office || '（未填營業所）';
+          var rk = s.area+'␟'+officeName+'␟'+staffName+'␟'+gk;
           var helperDays = _staffVisitDaysForStore(s.code, p.key, week);
           Object.keys(helperDays).forEach(function(helperName){
-            if(helperName===staffName) return; /* 自己做自己的店，不算幫別人 */
+            if(helperName===staffName){
+              if(byRow[rk]) byRow[rk].selfRun += helperDays[helperName];
+              return;
+            }
+            if(byRow[rk]) byRow[rk].coveredByOthers += helperDays[helperName];
             var hk = s.area+'␟'+officeName+'␟'+helperName+'␟'+gk;
             var hRow = byRow[hk] = byRow[hk] || { area:s.area, office:officeName, staff:helperName,
               chanKey:grp.chanKey, gradeLabel:gradeLabel, met:0, ride:0, stillShort:0,
-              storeSet:{}, detail:[], helpedOthers:0 };
+              storeSet:{}, detail:[], helpedOthers:0, selfRun:0, coveredByOthers:0 };
             hRow.helpedOthers += helperDays[helperName];
           });
         });
@@ -3302,6 +3364,8 @@ function _contribSortedList(){
     if(key==='met') return b.met-a.met;
     if(key==='total') return b.total-a.total;
     if(key==='helped') return b.helpedOthers-a.helpedOthers;
+    if(key==='selfRun') return b.selfRun-a.selfRun;
+    if(key==='coveredByOthers') return b.coveredByOthers-a.coveredByOthers;
     if(key==='officeShare') return b.officeSharePct-a.officeSharePct;
     if(key==='areaShare') return b.areaSharePct-a.areaSharePct;
     return b.ride-a.ride; /* 預設：分組協力達標次數多的排前面 */
@@ -3417,11 +3481,12 @@ function _buildContribDialogHtml(){
       + (areaTabs ? '<div class="chip-group contrib-tab-row">'+areaTabs+'</div>' : '')
       + '<div class="empty">目前這個範圍沒有觸發「不足整週」分組門檻機制的資料——可能是所選檔期都還沒進到不足整週的最後一週，或所有等級折算後的次數本身還降得動、沒有卡在保底1次，尚未觸發分組門檻。</div></div>';
   }
-  var totalMet=0, totalRide=0, totalShort=0, totalHelped=0;
+  var totalMet=0, totalRide=0, totalShort=0, totalHelped=0, totalSelfRun=0, totalCovered=0;
   list.forEach(function(b){
     totalMet+=b.met; totalRide+=b.ride; totalShort+=b.stillShort; totalHelped+=b.helpedOthers;
+    totalSelfRun+=b.selfRun; totalCovered+=b.coveredByOthers;
   });
-  var sortDefs = [['ride','🤝分組協力達標'],['contribution','貢獻度%'],['met','自己達標數'],['total','合計實例'],['helped','🤲幫別人做的次數'],['officeShare','佔營業所比重'],['areaShare','佔營業處比重']];
+  var sortDefs = [['ride','🤝分組協力達標'],['contribution','貢獻度%'],['met','自己達標數'],['total','合計實例'],['helped','🤲幫別人做的次數'],['selfRun','自己親跑次數'],['coveredByOthers','被同事代跑次數'],['officeShare','佔營業所比重'],['areaShare','佔營業處比重']];
   var sortBtns = sortDefs.map(function(d){
     return '<button class="contrib-sort-btn'+(_contribSortKey===d[0]?' active':'')+'" onclick="_contribSetSort(\''+d[0]+'\')">'+d[1]+'</button>';
   }).join('');
@@ -3464,13 +3529,16 @@ function _buildContribDialogHtml(){
       + '<td>'+b.officeSharePct.toFixed(0)+'%</td>'
       + '<td>'+b.areaSharePct.toFixed(0)+'%</td>'
       + '<td style="color:var(--bonus,#B8860B);font-weight:700;">'+(b.helpedOthers>0 ? b.helpedOthers : '<span style="color:var(--sub);font-weight:400;">—</span>')+'</td>'
+      + '<td style="color:var(--green);">'+(b.selfRun>0 ? b.selfRun : '<span style="color:var(--sub);">—</span>')+'</td>'
+      + '<td style="'+(b.coveredByOthers>0?'color:#B8860B;font-weight:700;':'color:var(--sub);')+'">'+(b.coveredByOthers>0 ? b.coveredByOthers : '—')+'</td>'
       + '</tr>'
       + (expanded
-          ? '<tr class="contrib-detail-row"><td colspan="14"><table class="ov-mini contrib-detail-tbl"><tr><th class="td-left">店家</th><th>檔期週次</th><th>次數</th><th>狀態</th></tr>'+detailRows+'</table></td></tr>'
+          ? '<tr class="contrib-detail-row"><td colspan="16"><table class="ov-mini contrib-detail-tbl"><tr><th class="td-left">店家</th><th>檔期週次</th><th>次數</th><th>狀態</th></tr>'+detailRows+'</table></td></tr>'
           : '');
   }).join('');
   return '<div class="visit-timeline">'
     + '<p style="font-size:12.5px;color:var(--sub);line-height:1.6;margin:0 0 10px;">只統計「不足整週」折算週、且分組已觸發縮減後家數門檻的範圍，平常整週的欄位不影響這份排行。同一位訪員名下不同（通路＋等級）分組會分開各成一列，不合併。「🤝 分組協力達標」代表這位訪員名下這個分組這週還沒去，但所屬分組（同營業處＋通路＋等級）已經達到縮減後門檻；「分組尚未達標」代表這組這週還沒到門檻，大家都還在缺。「🤲 幫別人做的次數」是另一件事：這一欄不是看這個人自己名下的店，而是看他有沒有去幫忙做了不是自己名下的店（比對每一筆巡補紀錄實際送出的人，跟店家名冊登記的主要訪員是不是同一人），呈現同事之間互相支援的情況，不代表功過。這裡只攤開原始次數，讓你自己判斷這份貢獻的意義——點一列可以展開看逐店明細。</p>'
+    + '<p style="font-size:12.5px;color:var(--sub);line-height:1.6;margin:0 0 10px;">📅 最後兩欄「自己親跑次數」「被同事代跑次數」的範圍跟其他欄位不一樣，特別標註：其他欄位只看「不足整週折算週」那一週，這兩欄看的是「整個檔期（該檔期全部週次）」——這個人自己名下的店，這整個檔期裡，實際去交件的是他自己本人幾次、是同事代跑幾次。兩欄合在一起看，可以看出「自己份內做得完、還有餘力幫別人」跟「自己份內常常空著、要靠同事代跑」的差別；只看「幫別人做的次數」一欄看不出這個差別，因為那一欄不會告訴你這個人自己的店做得怎麼樣。</p>'
     + '<p style="font-size:12.5px;color:var(--info);line-height:1.6;margin:0 0 10px;background:var(--info-bg,#eef4ff);border-radius:8px;padding:8px 10px;">👉 這裡怎麼看最公平：「負責家數」是這個人在這個分組底下真正配到的店（已去重，不會因為橫跨中元＋中秋兩個檔期而灌水）；「貢獻度%」＝自己達標數÷負責家數，只看這個人有沒有把自己那份做完，名下只有 2 家、2 家都做完一樣是 100%，不會因為家數少就被看輕。「佔營業所比重％」「佔營業處比重％」則是換一個角度：這個人自己完成的家數，占整個營業所／整個營業處「大家總共完成家數」的比例，用來看「這個人的產出，在整個團隊裡分量多重」——兩個指標一個看「自己有沒有盡份」，一個看「對團隊貢獻的份量」，建議一起看，不要只看其中一個。以下所有數字都是即時運算：不管這一週走完了沒，只要分組門檻觸發就立刻算進「自己達標／🤝分組協力達標／分組尚未達標」跟所有百分比，隨訪員後續補去持續累積、重新整理畫面就會跟著更新，不分「已定案」跟「進行中」兩套口徑。</p>'
     + '<div class="chip-group contrib-tab-row">'+periodTabs+'</div>'
     + (areaTabs ? '<div class="chip-group contrib-tab-row">'+areaTabs+'</div>' : '')
@@ -3479,19 +3547,21 @@ function _buildContribDialogHtml(){
     + '<div class="vs-item">分組協力達標實例<br><b style="color:var(--info)">'+totalRide+'</b></div>'
     + '<div class="vs-item">分組尚未達標實例<br><b>'+totalShort+'</b></div>'
     + '<div class="vs-item">🤲幫別人做的次數<br><b style="color:var(--bonus,#B8860B)">'+totalHelped+'</b></div>'
+    + '<div class="vs-item">📅自己親跑次數(整檔期)<br><b style="color:var(--green)">'+totalSelfRun+'</b></div>'
+    + '<div class="vs-item">📅被同事代跑次數(整檔期)<br><b style="color:#B8860B">'+totalCovered+'</b></div>'
     + '</div>'
     + '<div class="contrib-sort-bar">排序：'+sortBtns+'</div>'
-    + '<div class="oo-tbl-scroll"><table class="ov-mini" style="width:100%;"><tr><th class="td-left">訪員</th><th>營業處</th><th>營業所</th><th>通路</th><th>等級</th><th>負責家數</th><th>自己達標</th><th>🤝分組協力達標</th><th>分組尚未達標</th><th>合計實例</th><th>貢獻度%</th><th>佔營業所比重</th><th>佔營業處比重</th><th>🤲幫別人做的次數</th></tr>'+rowsHtml+'</table></div>'
+    + '<div class="oo-tbl-scroll"><table class="ov-mini" style="width:100%;"><tr><th class="td-left">訪員</th><th>營業處</th><th>營業所</th><th>通路</th><th>等級</th><th>負責家數</th><th>自己達標</th><th>🤝分組協力達標</th><th>分組尚未達標</th><th>合計實例</th><th>貢獻度%</th><th>佔營業所比重</th><th>佔營業處比重</th><th>🤲幫別人做的次數</th><th title="範圍是整個檔期所有週次，不只不足整週那一週">自己親跑次數📅</th><th title="範圍是整個檔期所有週次，不只不足整週那一週">被同事代跑次數📅</th></tr>'+rowsHtml+'</table></div>'
     + '</div>';
 }
 function _contribDownloadCsv(evt){
   var btn = evt ? evt.currentTarget : document.getElementById('contrib-csv-btn');
   var list = _contribSortedList();
   if(!list.length){ _flashBtn(btn,'⚠️ 無資料'); return; }
-  var headers = ['訪員','營業處','營業所','通路','等級','負責家數(去重)','自己達標實例(即時累積)','分組協力達標實例(即時累積)','分組尚未達標實例(即時累積)','合計實例(即時累積)','貢獻度%(即時累積)','佔營業所比重%','佔營業處比重%','幫別人做的次數(即時累積)'];
+  var headers = ['訪員','營業處','營業所','通路','等級','負責家數(去重)','自己達標實例(即時累積)','分組協力達標實例(即時累積)','分組尚未達標實例(即時累積)','合計實例(即時累積)','貢獻度%(即時累積)','佔營業所比重%','佔營業處比重%','幫別人做的次數(即時累積)','自己親跑次數(整個檔期)','被同事代跑次數(整個檔期)'];
   var rows = [headers];
   list.forEach(function(b){
-    rows.push([b.staff, b.area, b.office, b.chanKey||'', b.gradeLabel, b.storeCount, b.met, b.ride, b.stillShort, b.total, b.contributionPct.toFixed(1), b.officeSharePct.toFixed(1), b.areaSharePct.toFixed(1), b.helpedOthers]);
+    rows.push([b.staff, b.area, b.office, b.chanKey||'', b.gradeLabel, b.storeCount, b.met, b.ride, b.stillShort, b.total, b.contributionPct.toFixed(1), b.officeSharePct.toFixed(1), b.areaSharePct.toFixed(1), b.helpedOthers, b.selfRun, b.coveredByOthers]);
   });
   var scopeLabel = (_contribPeriodSel ? _contribPeriodSel : '整體(全部檔期)') + (_contribAreaSel!=='全部' ? '_'+_contribAreaSel : '');
   var csv = '\uFEFF'+rows.map(function(r){
@@ -3520,6 +3590,14 @@ function _contribCopyLine(evt){
     lines.push('🤲 幫別人做的次數：');
     helpedList.forEach(function(b){
       lines.push('🤲 '+b.staff+'（'+b.area+' '+b.office+'／'+b.chanKey+' '+b.gradeLabel+'）　幫別人做了 '+b.helpedOthers+' 次');
+    });
+  }
+  var coveredList = list.filter(function(b){ return b.coveredByOthers>0; }).sort(function(a,b){ return b.coveredByOthers-a.coveredByOthers; });
+  if(coveredList.length){
+    lines.push('');
+    lines.push('📅 被同事代跑次數（整個檔期，非僅限不足整週）：');
+    coveredList.forEach(function(b){
+      lines.push('📅 '+b.staff+'（'+b.area+' '+b.office+'／'+b.chanKey+' '+b.gradeLabel+'）　自己親跑 '+b.selfRun+' 次　被同事代跑 '+b.coveredByOthers+' 次');
     });
   }
   lines.push('');
