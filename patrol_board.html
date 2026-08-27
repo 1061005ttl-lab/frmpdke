@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.50.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-27
+  版本：Ver. 1.50.1 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-27
 
 【檔案定位】
   ‧ 單一 HTML 檔案，純前端 JS，透過 gviz API 讀同一份試算表兩分頁，
@@ -210,6 +210,42 @@
     把 <head> 裡那段 <script> 拿掉即可。
 ────────────────────────────────────────────────────────────
 【版本紀錄（僅列重點，細節見 git 歷史或原始交接紀錄）】
+  1.50.1  business 反映：主管實際核對「被支援完成」名單，發現裡面混進
+          了完全沒有到店紀錄的家——例如某訪員「0/6，被支援完成6家」，
+          實際查證這6家根本沒有任何人送出問卷、沒有到店紀錄，只是所屬
+          分組（同營業處＋通路＋等級）在這個折算週已經達到縮減後門檻，
+          這幾家店被系統判定「豁免、不用去」（也就是 status='ride' 但
+          actual=0），舊邏輯只看「這位訪員自己有沒有去」，自己沒去就
+          一律歸類「被支援完成」，等於把「沒人去過的店」講成「別人幫他
+          做完了」——主管要的是「有真實問卷資料的才叫被支援」，不是被
+          系統判定式的達標邏輯灌水出來的數字。改法：
+          ‧ _buildStaffContribution()：met／ride 這兩種「已完成」狀態，
+            原本只拆 selfCompleted／teamCompleted 兩種，現在拆成三種：
+              selfCompleted　自己這一天有送出紀錄（不變）。
+              teamCompleted　自己沒去，但 actual>0——真的有別人送出
+                            到店紀錄，貨真價實的「同組支援完成」。
+              exemptCount　　自己沒去、actual 也是 0——完全沒有任何到
+                            店紀錄，純粹分組門檻豁免，不算任何人的
+                            功勞，也不算自己完成。
+            三者相加永遠等於 met+ride，跟畫面上顯示的分母完全對得起來。
+          ‧ 完成度長條圖新增第三段「組已達標免驗」（淡紫平色，呼應本檔
+            既有「🤝組已達標，免驚」店家格徽章同色系），跟「被支援完成」
+            （斜紋灰，只算真的有到店紀錄的）明確區隔開來，不再混在一起。
+          ‧ 展開明細的「本期」區塊、CSV 匯出都新增獨立欄位「組已達標
+            免驗」，CSV「被支援完成」欄位改名「被支援完成(有到店紀錄)」
+            並只保留真的有到店紀錄的家數。
+          ‧ 展開明細下方的逐店明細表，原本「同組支援完成」紫色標籤是
+            直接照 status='ride' 貼的，不管這家店有沒有真的被人到訪，
+            現在改成照三態拆分後的 attrib（self/team/exempt/short）貼
+            標籤，只有真的有到店紀錄（actual>0）才顯示「🤝同組支援完成
+            （有到店紀錄）」，完全沒有到店紀錄的另外標成中性的「🤷組已
+            達標免驗（無到店紀錄）」，不再一律說成「支援完成」。
+          影響範圍：只改「訪員分組貢獻度排行」Dialog 的資料拆分／長條圖
+          ／展開明細／CSV／逐店明細標籤這幾處；met/ride/stillShort／
+          selfCompleted+teamCompleted+exemptCount=met+ride 這個恆等式；
+          selfPct（=selfCompleted/total）計算方式完全不變，不受這次拆分
+          影響——本來就沒把 exempt 算進 selfCompleted，這次只是把它從
+          teamCompleted 移出來，單獨列出，狀態燈號／排序邏輯不變。
   1.50.0  business 反映：兩點修正——
           ①長條圖應該要能一眼看出「自己做的」跟「別人幫忙做的」各佔
           多少，1.49.0 把「被支援完成」從長條拿掉、只用長條下方一句
@@ -1706,6 +1742,7 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
 .contrib-tag-met { background:var(--green-bg,#EAF3DE); color:var(--green); }
 .contrib-tag-ride { background:#EFEAF7; color:var(--info); }
 .contrib-tag-short { background:var(--bg); color:var(--sub); }
+.contrib-tag-exempt { background:var(--bg); color:var(--sub); opacity:.7; border:1px dashed rgba(0,0,0,.18); } /* 1.50.1：組已達標免驗、無到店紀錄——中性但跟純粹「尚未完成」的灰底稍作區隔（虛線框），避免使用者誤以為是缺工項目 */
 .contrib-tag-pending { background:#FFF3E0; color:#B8860B; border:1px dashed #E0B84D; }
 .contrib-tag-pending-met { background:#EEF7EA; color:var(--green); border:1px dashed #9BC98C; }
 .contrib-bar-wrap { display:flex; align-items:center; gap:7px; min-width:120px; }
@@ -1718,6 +1755,12 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
    那段後面），兩段合計就是總完成家數；斜紋段用中性灰階、不套紅黃綠，
    一看就知道「這段不算你自己做的」，取代原本的文字旁註。 */
 .contrib-bar-team { height:100%; background-color:rgba(0,0,0,.10); background-image:repeating-linear-gradient(45deg, rgba(0,0,0,.14) 0 3px, transparent 3px 7px); }
+/* 1.50.1 business 反映：「組已達標免驗」（完全沒有到店紀錄，純粹門檻
+   豁免）不能跟「有真實到店紀錄的被支援完成」用同一種灰紋，容易被誤讀
+   成也是別人幫忙做的。改用淡紫平色（跟本檔既有的「🤝組已達標，免驚」
+   店家格徽章同色系 #EFEAF7/var(--info)呼應，語意一致：都是「門檻豁免、
+   非某人功勞」），不用斜紋，跟「有真人到店」的灰紋段明顯區隔。 */
+.contrib-bar-exempt { height:100%; background-color:#EFEAF7; }
 /* 1.50.0 business 反映：「🔴 需要盯」對完全沒動作的人是不必要的恐嚇字眼、
    對已經有動作但還沒做完的人更是打擊士氣——有動起來就該是好消息。改用
    三態：idle（自己完成度=0，中性灰，不是負面）／progress（0%~99%，有
@@ -3448,7 +3491,7 @@ function _buildStaffContribution(periodFilter){
           var row = byRow[rk] = byRow[rk] || { area:s.area, office:officeName, staff:staffName,
             chanKey:grp.chanKey, gradeLabel:gradeLabel, met:0, ride:0, stillShort:0,
             storeSet:{}, detail:[], helpedOthers:0, selfRun:0, coveredByOthers:0,
-            selfCompleted:0, teamCompleted:0 };
+            selfCompleted:0, teamCompleted:0, exemptCount:0 };
           /* 1.39.0 business 反映：業務要看「公平」的貢獻——有的人名下只有
              2 家店，但 2 家都做完，等於把自己「能貢獻的全部額度」都貢獻
              出來了，這種人不該因為絕對數字小就被忽略；同時也要能回答
@@ -3465,16 +3508,32 @@ function _buildStaffContribution(periodFilter){
              （見 1.45.0 changelog）。改法：met／ride 這兩種「已完成」
              狀態，額外比對「這家店這一週實際送出紀錄的人，是不是這一
              列本人」，分成 selfCompleted（自己完成）／teamCompleted
-             （同組支援完成，非本人送出但這家店仍然達標），兩者相加
-             永遠等於 met+ride，跟畫面上顯示的「完成度」分母完全對得
-             起來，不會出現「完成14家、自己卻只有12家」這種各講各話。
+             （同組支援完成，非本人送出但這家店仍然達標）。
+             1.50.1 business 反映：主管實際核對發現，teamCompleted 裡混
+             進了一種完全沒有到店紀錄的情況——status='ride' 時，只要
+             actual===0（這家店這一週根本沒有任何人送出問卷／到店紀錄），
+             舊邏輯只看「_visitDays[staffName]是不是>0」，staffName 本人
+             沒去＝直接歸類「被支援完成」，但這其實是「所屬分組已經達到
+             縮減後門檻，這家店被豁免、不用去」，不是「有人真的幫他去
+             跑」，兩者不能混為一談——被支援要有真實到店資料才算數，不能
+             只因為系統判定「達標」就編派一個「被支援完成」的說法。改法：
+             拆成三種歸屬，缺一不可：
+               selfCompleted　　自己這一天有送出紀錄（_visitDays[staffName]>0）。
+               teamCompleted　　自己沒去，但 actual>0——真的有別人送出
+                               到店紀錄，是貨真價實的「同組支援完成」。
+               exemptCount　　　自己沒去、actual 也是 0——完全沒有任何
+                               到店紀錄，只是所屬分組已達縮減後門檻而被
+                               豁免，不算「有人幫忙」，也不能算「自己完成」。
+             三者相加永遠等於 met+ride，跟畫面上顯示的分母完全對得起來；
              stillShort 不算在這裡面（還沒完成，沒有送出人可比對）。 */
           if(status==='met' || status==='ride'){
             var _visitDays = _staffVisitDaysForStore(s.code, p.key, week);
-            if(_visitDays[staffName] > 0){ row.selfCompleted++; } else { row.teamCompleted++; }
-          }
+            if(_visitDays[staffName] > 0){ row.selfCompleted++; var attrib='self'; }
+            else if(actual>0){ row.teamCompleted++; var attrib='team'; }
+            else { row.exemptCount++; var attrib='exempt'; }
+          } else { var attrib='short'; }
           row.detail.push({ storeName:s.storeName, code:s.code, period:p.key, periodLabel:periodLabel,
-            week:week, actual:actual, std:stdN, status:status, isPast:_isWeekPast(p.key, week) });
+            week:week, actual:actual, std:stdN, status:status, attrib:attrib, isPast:_isWeekPast(p.key, week) });
         });
       }
     });
@@ -3519,7 +3578,7 @@ function _buildStaffContribution(periodFilter){
             var hRow = byRow[hk] = byRow[hk] || { area:s.area, office:officeName, staff:helperName,
               chanKey:grp.chanKey, gradeLabel:gradeLabel, met:0, ride:0, stillShort:0,
               storeSet:{}, detail:[], helpedOthers:0, selfRun:0, coveredByOthers:0,
-              selfCompleted:0, teamCompleted:0 };
+              selfCompleted:0, teamCompleted:0, exemptCount:0 };
             hRow.helpedOthers += helperDays[helperName];
           });
         });
@@ -3530,7 +3589,7 @@ function _buildStaffContribution(periodFilter){
   list.forEach(function(b){
     b.total = b.met + b.ride + b.stillShort;
     b.contributionPct = b.total>0 ? (b.met/b.total*100) : 0;
-    b.completed = b.selfCompleted + b.teamCompleted; /* = met+ride，跟 selfCompleted/teamCompleted 拆分永遠對得起來 */
+    b.completed = b.selfCompleted + b.teamCompleted + b.exemptCount; /* = met+ride，跟 selfCompleted/teamCompleted/exemptCount 三者拆分永遠對得起來 */
     b.completionPct = b.total>0 ? (b.completed/b.total*100) : 0; /* 1.45.0 新版「完成度」主指標：自己完成＋被支援都算。1.49.0 起不再是排行的主指標（見下方 selfPct），欄位保留供需要「這家有沒有人去服務到」這個角度時使用，不在畫面上當作主要判斷依據。 */
     b.selfPct = b.total>0 ? (b.selfCompleted/b.total*100) : 0; /* 1.49.0 新增：只算自己親自完成，不把被支援算進去——排行／燈號／統計改用這個當主指標，避免「被支援湊出來的達標」把真正沒做完的人蓋過去。 */
     b.storeCount = Object.keys(b.storeSet).length; /* 這個人在這個分組底下真正負責的家數，去重過 */
@@ -3691,12 +3750,21 @@ function _buildContribDialogHtml(){
       /* 1.40.0：不論這週是否已經走完，狀態標籤一律用同一套（已計入正式
          統計）；還在進行中的週次額外加一顆淡色「🕒本週進行中」提示，
          純粹告知「這是當下最新狀況，訪員晚點補去下次整理畫面會跟著變」，
-         不再代表「不列入統計」。 */
-      var statusHtml = d.status==='met'
+         不再代表「不列入統計」。
+         1.50.1 business 反映：這裡原本直接用 status（met/ride/stillShort）
+         決定標籤，但 status='ride' 不代表「真的有人幫忙到店」，也可能是
+         actual=0、純粹分組門檻豁免、完全沒有到店紀錄——用同一顆「🤝 同組
+         支援完成」蓋過去等於憑空生出一筆不存在的支援紀錄。改用 attrib
+         （self／team／exempt／short，見上方 _buildStaffContribution 三
+         態拆分）決定標籤，只有真的有到店紀錄（actual>0）的支援才顯示
+         「🤝」，沒有任何到店紀錄的豁免另外標成中性的「🤷」。 */
+      var statusHtml = d.attrib==='self'
         ? '<span class="contrib-tag contrib-tag-met">✓ 自己完成</span>'
-        : d.status==='ride'
-          ? '<span class="contrib-tag contrib-tag-ride">🤝 同組支援完成</span>'
-          : '<span class="contrib-tag contrib-tag-short">⏳ 尚未完成</span>';
+        : d.attrib==='team'
+          ? '<span class="contrib-tag contrib-tag-ride">🤝 同組支援完成（有到店紀錄）</span>'
+          : d.attrib==='exempt'
+            ? '<span class="contrib-tag contrib-tag-exempt">🤷 組已達標免驗（無到店紀錄）</span>'
+            : '<span class="contrib-tag contrib-tag-short">⏳ 尚未完成</span>';
       if(!d.isPast) statusHtml += ' <span class="contrib-tag contrib-tag-pending" title="這一週還沒走完，此刻狀態隨時可能因為訪員晚點補去而變化，但已計入左側即時累積統計">🕒 本週進行中</span>';
       return '<tr><td class="td-left">'+esc(d.storeName)+'<div class="td-code">'+esc(d.code)+'</div></td>'
         + '<td>'+esc(d.periodLabel)+' W'+d.week+'</td>'
@@ -3721,14 +3789,19 @@ function _buildContribDialogHtml(){
     var stCls = b.helperOnly ? 'neutral' : (b.selfPct<=0 ? 'idle' : (b.selfPct<100 ? 'progress' : 'ok'));
     var stLabel = b.helperOnly ? '🤝 純支援' : (b.selfPct<=0 ? '⚪ 尚未開始' : (b.selfPct<100 ? '🔵 進行中' : '🟢 已達標'));
     var selfW = b.total>0 ? (b.selfCompleted/b.total*100) : 0;
-    /* 1.50.0 business 反映：長條要能一眼看出「自己做的」跟「別人幫忙做
-       的」各佔多少，不能只有自己一段、把別人做的部分完全藏起來變成一句
-       容易被誤讀成邀功/灌水的旁註文字（「被支援完成 X家」）。改法：
-       長條恢復兩段——自己完成（實色，套狀態色）＋被支援完成（斜紋灰，
-       緊接在自己那段後面），下方文字旁註只留「尚未完成 X家」／「全部
-       自己完成」，不再重複講一次被支援家數。 */
+    /* 1.50.0/1.50.1 business 反映：長條要能一眼看出「自己做的」跟「別人
+       幫忙做的」各佔多少，不能只有自己一段、把別人做的部分完全藏起來
+       變成一句容易被誤讀成邀功/灌水的旁註文字（「被支援完成 X家」）。
+       1.50.1 進一步拆出「組已達標免驗（完全沒有到店紀錄）」跟「真的有
+       到店紀錄的同組支援」——前者不是任何人的功勞，不能算「被支援」。
+       改法：長條最多三段——自己完成（實色，套狀態色）／被支援完成
+       （斜紋灰，有真實到店紀錄）／組已達標免驗（淡紫平色，沒有任何到
+       店紀錄，純粹門檻豁免），下方文字旁註只留「尚未完成 X家」／「組
+       已達標免驗 X家」／「全部自己完成」，不再重複講一次被支援家數。 */
     var teamW = b.total>0 ? (b.teamCompleted/b.total*100) : 0;
+    var exemptW = b.total>0 ? (b.exemptCount/b.total*100) : 0;
     var breakdownParts = [];
+    if(b.exemptCount>0) breakdownParts.push('組已達標免驗 '+b.exemptCount+'家（無到店紀錄）');
     if(b.stillShort>0) breakdownParts.push('尚未完成 '+b.stillShort+'家');
     var breakdown = breakdownParts.length ? breakdownParts.join('・') : (b.selfCompleted===b.total && b.total>0 ? '全部自己完成' : '');
     var helpBadges = (b.helpedOthers>0 ? '<span class="contrib-help-badge give">🤝 支援他店 '+b.helpedOthers+' 家</span>' : '')
@@ -3742,7 +3815,8 @@ function _buildContribDialogHtml(){
             ? '<span class="contrib-help-empty">這組沒有負責店，純粹來支援別人</span>'
             : ('<div class="contrib-bar-wrap"><div class="contrib-bar-track">'
                 + (selfW>0 ? '<div class="contrib-bar-self contrib-bar-'+stCls+'" style="width:'+selfW+'%;"></div>' : '')
-                + (teamW>0 ? '<div class="contrib-bar-team" style="width:'+teamW+'%;" title="被支援完成 '+b.teamCompleted+'家——別人幫忙做的，不算進自己完成度"></div>' : '')
+                + (teamW>0 ? '<div class="contrib-bar-team" style="width:'+teamW+'%;" title="被支援完成 '+b.teamCompleted+'家——有真實到店紀錄，別人幫忙做的，不算進自己完成度"></div>' : '')
+                + (exemptW>0 ? '<div class="contrib-bar-exempt" style="width:'+exemptW+'%;" title="組已達標免驗 '+b.exemptCount+'家——完全沒有到店紀錄，只是所屬分組已達縮減後門檻而豁免，不算被支援、也不算自己完成"></div>' : '')
               + '</div><span class="contrib-frac">'+b.selfCompleted+'/'+b.total+'</span></div>'
               + (breakdown ? '<div class="contrib-breakdown">'+breakdown+'</div>' : '')))
       + '</td>'
@@ -3759,6 +3833,7 @@ function _buildContribDialogHtml(){
                   : ('<div class="contrib-detail-section">本期（負責 '+b.total+' 家）</div>'
                     + '<div class="contrib-detail-item">自己完成<b>'+b.selfCompleted+'</b></div>'
                     + '<div class="contrib-detail-item">被支援完成<b>'+b.teamCompleted+'</b></div>'
+                    + '<div class="contrib-detail-item">組已達標免驗<b>'+b.exemptCount+'</b></div>'
                     + '<div class="contrib-detail-item">尚未完成<b>'+b.stillShort+'</b></div>'))
               + '<div class="contrib-detail-section" style="border-top:1px solid var(--border);padding-top:8px;margin-top:4px;">整檔期累計</div>'
               + '<div class="contrib-detail-item">支援他店<b>'+(b.helpedOthers||'—')+'</b></div>'
@@ -3775,7 +3850,7 @@ function _buildContribDialogHtml(){
       + '<div><span class="contrib-dot contrib-dot-progress"></span><b>進行中</b>　自己完成度 1%–99%，已經有自己完成的家</div>'
       + '<div><span class="contrib-dot contrib-dot-ok"></span><b>已達標</b>　自己完成度 100%（負責的家全部是自己親自完成，不含被支援）</div>'
       + '<div><span class="contrib-dot contrib-dot-neutral"></span><b>純支援</b>　這組本身沒有負責店（沒有觸發不足整週門檻的店），只是來幫別的訪員完成店，不套用這三態、固定排在最後面</div>'
-      + '<div style="margin-top:4px;">長條圖分兩段：實色是自己完成的比例，緊接在後面的斜紋灰是被支援完成的比例——兩段合起來才是總完成家數，但只有實色那段算進「自己完成度」，避免被別人做完的家數墊高你的達成率。「佔營業所／佔營業處」是這個人完成的家數，占整個所／處大家總共完成家數的比例——數字小不代表沒貢獻，可能只是分到的家數本來就少。</div>'
+      + '<div style="margin-top:4px;">長條圖最多三段：實色是自己完成的比例；緊接在後面的斜紋灰是被支援完成的比例（有真實到店紀錄，別人真的去跑的）；再後面的淡紫平色是「組已達標免驗」（完全沒有到店紀錄，純粹因為所屬分組已達縮減後門檻而不用去，不是任何人的功勞）。三段合起來才是總完成家數，但只有實色那段算進「自己完成度」，斜紋灰／淡紫都不算被支援也不算自己完成，避免把「沒人去過的店」講成「別人幫你做完了」。「佔營業所／佔營業處」是這個人完成的家數，占整個所／處大家總共完成家數的比例——數字小不代表沒貢獻，可能只是分到的家數本來就少。</div>'
     + '</div>'
     + '<div class="chip-group contrib-tab-row">'+periodTabs+'</div>'
     + (areaTabs ? '<div class="chip-group contrib-tab-row">'+areaTabs+'</div>' : '')
@@ -3800,11 +3875,15 @@ function _contribDownloadCsv(evt){
      業務要看的是「自己做了多少」，不是灌水後的達成率。改法：欄位改成
      「自己完成度%」（=selfPct，只算自己），「被支援完成」欄位保留（原
      叫「同組支援完成」，改名成「被支援完成」更直白），純粹當作參考
-     資訊，不再是判斷達標與否的依據。 */
-  var headers = ['訪員','營業處','營業所','通路','等級','家數','自己完成','被支援完成','尚未完成','自己完成度%','佔營業所%','佔營業處%','支援他店(整檔期)','被支援(整檔期)','純支援(無主責店)'];
+     資訊，不再是判斷達標與否的依據。
+     1.50.1 business 反映：「被支援完成」欄位以前混進了完全沒有到店
+     紀錄、純粹分組門檻豁免的家數，CSV 讀者會誤以為那些家真的有人去
+     支援。改法：拆出獨立欄位「組已達標免驗(無到店紀錄)」，「被支援
+     完成」欄位只保留真的有到店紀錄（actual>0）的家數。 */
+  var headers = ['訪員','營業處','營業所','通路','等級','家數','自己完成','被支援完成(有到店紀錄)','組已達標免驗(無到店紀錄)','尚未完成','自己完成度%','佔營業所%','佔營業處%','支援他店(整檔期)','被支援(整檔期)','純支援(無主責店)'];
   var rows = [headers];
   list.forEach(function(b){
-    rows.push([b.staff, b.area, b.office, b.chanKey||'', b.gradeLabel, b.total, b.selfCompleted, b.teamCompleted, b.stillShort, b.selfPct.toFixed(1), b.officeSharePct.toFixed(1), b.areaSharePct.toFixed(1), b.helpedOthers, b.coveredByOthers, b.helperOnly ? '是' : '']);
+    rows.push([b.staff, b.area, b.office, b.chanKey||'', b.gradeLabel, b.total, b.selfCompleted, b.teamCompleted, b.exemptCount, b.stillShort, b.selfPct.toFixed(1), b.officeSharePct.toFixed(1), b.areaSharePct.toFixed(1), b.helpedOthers, b.coveredByOthers, b.helperOnly ? '是' : '']);
   });
   var scopeLabel = (_contribPeriodSel ? _contribPeriodSel : '整體(全部檔期)') + (_contribAreaSel!=='全部' ? '_'+_contribAreaSel : '');
   var csv = '\uFEFF'+rows.map(function(r){
