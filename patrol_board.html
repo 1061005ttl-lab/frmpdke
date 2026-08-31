@@ -6240,17 +6240,59 @@ function _summaryForShare(){
     totalMvMiss: perStore.reduce(function(sum,it){ return sum+it.mvMissTotal; }, 0),
     rate: rateOut };
 }
+/* ════ 1.52.0：CSV 逐店列補上「不足整週分組門檻」的呈現 ════
+   ‧ 原則跟主表格單店格子的「🤝組已達標，免驚」標籤一致：系統答不出
+     「具體是哪一家店」被算進分組門檻豁免，所以不能把某家店的格子直接
+     改寫成「已達標」——那是沒有依據的捏造。CSV 逐店列的 actual／std
+     維持原樣、完全不受影響，這裡只是在「不足整週」的最後一週旁邊，
+     多附上這家店所屬分組（同營業處＋通路＋等級）當週的縮減後門檻進度，
+     讓看的人自己判斷「這格是不是不用追」，不是系統替你下結論。
+   ‧ 範圍比照 _cellGroupMet()：只在店家自己「營業處」內部算分組（不受
+     其他營業處影響），跟畫面上單店格子那顆標籤同一套邏輯、同一份數字，
+     不會跟畫面對不起來。
+   ‧ 只在「不足整週」的最後一週附加這三欄，其餘整週欄位不變動、不受
+     影響；同一個週次即使是最後一週，若這個店家的等級/分組本身不適用
+     分組門檻機制（_quotaUnitProgress 回傳 null，例如折算次數本來就還
+     降得動、或這家店等級未知），三欄留空——留空本身就是誠實的答案
+     （不適用），不是資料缺漏。 */
+function _weekIsShortWeek(c){
+  var p = PERIODS.filter(function(pp){ return pp.key===c.period; })[0];
+  return !!(p && p.lastWeekDays!=null && c.week===p.weeks);
+}
+function _groupQuotaInfoForStore(s, c){
+  var baseStd = _stdFreq(s);
+  if(baseStd===undefined) return null;
+  var gk = _stdGroupKey(s.chanKey, s.grade);
+  if(!gk) return null;
+  var pool = STORE_ROWS.filter(function(x){ return x.area===s.area && _stdGroupKey(x.chanKey, x.grade)===gk; });
+  return _quotaUnitProgress(s.chanKey, s.grade, c.period, c.week, baseStd, pool);
+}
 function buildCsvContent(){
   var data = _summaryForShare();
   var cols = activeColumns();
-  var headers = ['營業處名稱','營業所/課','主要訪員','通路別','店家型態','店家代碼','店家名稱','店家等級'].concat(cols.map(function(c){return c.label.trim();})).concat(['應達合計','標準完成合計','超額合計','達成率%','五六必訪缺次數']);
+  var headers = ['營業處名稱','營業所/課','主要訪員','通路別','店家型態','店家代碼','店家名稱','店家等級'];
+  cols.forEach(function(c){
+    headers.push(c.label.trim());
+    if(_weekIsShortWeek(c)){
+      var lbl = c.label.trim();
+      headers.push(lbl+'(不足週)分組已達門檻');
+      headers.push(lbl+'(不足週)分組應達家數(縮減後)');
+      headers.push(lbl+'(不足週)分組已達家數');
+    }
+  });
+  headers = headers.concat(['應達合計','標準完成合計','超額合計','達成率%','五六必訪缺次數']);
   var rows = [headers];
   data.stores.forEach(function(item){
     var s = item.store;
     var row = [s.area, s.office, s.staff, s.channel, s.storeType, s.code, s.storeName, s.grade];
-    var std = _stdFreq(s);
-    var stdN = std===undefined?0:std;
-    cols.forEach(function(c){ row.push(_actualCount(s.code, c.period, c.week)); });
+    cols.forEach(function(c){
+      row.push(_actualCount(s.code, c.period, c.week));
+      if(_weekIsShortWeek(c)){
+        var qi = _groupQuotaInfoForStore(s, c);
+        if(qi){ row.push(qi.met?'是':'否', qi.quota, qi.rawAchieved); }
+        else { row.push('', '', ''); }
+      }
+    });
     row.push(item.exp, item.stdDone, item.extra, item.rate.toFixed(1), item.mvMissTotal);
     rows.push(row);
   });
