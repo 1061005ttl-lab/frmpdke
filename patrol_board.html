@@ -179,7 +179,7 @@
   ‧ 主表格：一列一店，欄位依檔期動態展開；每週固定 7 格（前 stdN
     格為應達，其餘超額或幽靈格佔位）。
   ‧ 點一列店家 → 店家明細 Dialog：逐筆巡補時間軸＋「問卷內容」。
-  ‧ 工具列：📥CSV／💬LINE全文／✂️LINE精簡／📸截圖／🖼️照片牆／
+  ‧ 工具列：📥Excel(彙總表＋原始巡補紀錄雙分頁)／💬LINE全文／✂️LINE精簡／📸截圖／🖼️照片牆／
     🔍逐題彙整／🧩細項匯出，皆針對「目前篩選後的完整結果」。
   ‧ 🧮 人次估算工具（獨立 MANPOWER_FILTER，不受主畫面篩選影響）：
     純依店家名冊＋GRADE_FREQ 試算排班人次，不看實際巡補紀錄；可收斂
@@ -1405,7 +1405,7 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
       <div class="ctrl-sep"></div>
       <div class="tb-group" id="toolbar-actions-share">
         <span class="tb-group-tag">分享</span>
-        <button class="tb-act-btn" id="tb-btn-csv" onclick="toolbarDownloadCsv();closeMobileMenu();">📥 CSV</button>
+        <button class="tb-act-btn" id="tb-btn-csv" onclick="toolbarDownloadWorkbook();closeMobileMenu();">📥 Excel</button>
         <button class="tb-act-btn" id="tb-btn-line" onclick="toolbarCopyLine();closeMobileMenu();">💬 LINE</button>
         <button class="tb-act-btn" id="tb-btn-line-brief" onclick="toolbarCopyLineBrief();closeMobileMenu();">✂️ 精簡</button>
         <button class="tb-act-btn" id="tb-btn-screenshot" onclick="toolbarScreenshot();closeMobileMenu();">📸 截圖</button>
@@ -1541,6 +1541,10 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
 <script src="shared/core-utils.js"></script>
 <script src="shared/copy-utils.js"></script>
 <script src="shared/csv-export.js"></script>
+<!-- 1.52.0：主要匯出改成單一 xlsx（多分頁：彙總表＋原始巡補紀錄），
+     只靠 CSV 沒辦法一個檔案放兩種粒度的表格，改用 SheetJS 在瀏覽器端
+     產生 .xlsx；純前端 JS，不需要後端支援。 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="shared/capture-clipboard.js"></script>
 <script src="shared/ui-chrome.js"></script>
 <script src="shared/photo-viewer.js"></script>
@@ -6258,11 +6262,95 @@ function buildCsvContent(){
     return r.map(function(c){ var s=String(c==null?'':c); return /[,"\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join(',');
   }).join('\n');
 }
-function toolbarDownloadCsv(){
+
+/* ════ 1.52.0：主要匯出（工具列📥）改成單一 .xlsx、雙分頁 ════
+   ‧ 分頁1「彙總表」：欄位跟原本 CSV 彙總表大致相同，差別是每個檔期
+     週次改拆成「實際次數」「應達次數」兩欄併排（不再只顯示實際次數，
+     要另外看合計欄或憑經驗猜這週基準是多少）；欄名遇到非整週檔期的
+     最後一週，直接標「(不足週‧僅N天)」，讓看的人不用查【檔期】設定
+     也能一眼看出這一欄的應達次數為什麼比其他週小——這是折算後的結果，
+     不是漏填或算錯。
+   ‧ 分頁2「原始巡補紀錄」：處理層逐筆資料（未依日期去重的原始明細，
+     含「來源分頁+行數」可回查問卷分頁），範圍＝目前篩選店家 × 目前
+     顯示中的檔期週次，跟分頁1同一份篩選基準，兩分頁互相對得起來、
+     也能追溯彙總表每一格數字的原始出處。
+   ‧ 兩分頁都吃同一份 activeColumns()／getFilteredStores()／
+     _summaryForShare()，不另外重算，維持跟畫面/其他匯出出口同一套
+     折算與篩選邏輯，避免各出口數字兜不起來。 */
+function _weekColLabel(c){
+  var p = PERIODS.filter(function(pp){ return pp.key===c.period; })[0];
+  var dayCount = p ? _weekDayCount(p, c.week) : 7;
+  var base = c.label.trim();
+  return dayCount<7 ? (base+'(不足週‧僅'+dayCount+'天)') : base;
+}
+function buildSummarySheetAOA(){
+  var data = _summaryForShare();
+  var cols = activeColumns();
+  var headers = ['營業處名稱','營業所/課','主要訪員','通路別','店家型態','店家代碼','店家名稱','店家等級'];
+  cols.forEach(function(c){
+    var lbl = _weekColLabel(c);
+    headers.push(lbl+'-實際次數');
+    headers.push(lbl+'-應達次數');
+  });
+  headers = headers.concat(['應達合計','標準完成合計','超額合計','達成率%','五六必訪缺次數']);
+  var rows = [headers];
+  data.stores.forEach(function(item){
+    var s = item.store;
+    var row = [s.area, s.office, s.staff, s.channel, s.storeType, s.code, s.storeName, s.grade];
+    var std = _stdFreq(s);
+    cols.forEach(function(c){
+      var actual = _actualCount(s.code, c.period, c.week);
+      var stdN = std===undefined?0:_stdForCol(c.period, c.week, std);
+      row.push(actual, stdN);
+    });
+    row.push(item.exp, item.stdDone, item.extra, Number(item.rate.toFixed(1)), item.mvMissTotal);
+    rows.push(row);
+  });
+  return rows;
+}
+/* 原始巡補紀錄分頁：直接吃 VISIT_ROWS（處理層逐筆原始列，見
+   fetchProcessLayer()），刻意不依日期去重──分頁1的「實際次數」已經是
+   去重後的數字，這一頁要留的是「同店同天到底送了幾筆」的原始樣貌，
+   方便回查問卷分頁或核對是否重複登打。只收「目前篩選店家」×「目前
+   顯示中的檔期週次」範圍內的列，跟分頁1篩選基準一致。 */
+function buildRawVisitSheetAOA(){
+  var byCode = {};
+  getFilteredStores().forEach(function(s){ byCode[s.code] = s; });
+  var cols = activeColumns();
+  var headers = ['店家代碼','店家名稱','營業處名稱','營業所/課','通路別','店家等級','執行人員(處理層)','巡補日期','檔期','週次','來源分頁+行數'];
+  var recs = (VISIT_ROWS||[]).filter(function(v){
+    if(!byCode[v.code]) return false;
+    return cols.some(function(c){ return c.period===v.period && c.week===v.week; });
+  }).map(function(v){
+    var s = byCode[v.code];
+    var p = PERIODS.filter(function(pp){ return pp.key===v.period; })[0];
+    return [v.code, s.storeName, s.area, s.office, s.channel, s.grade, v.staff, _fmtParts(v.parts), (p&&p.label)||v.period, 'W'+v.week, v.ref];
+  });
+  recs.sort(function(a,b){
+    if(a[2]!==b[2]) return a[2]>b[2]?1:-1; /* 營業處 */
+    if(a[3]!==b[3]) return a[3]>b[3]?1:-1; /* 營業所/課 */
+    if(a[0]!==b[0]) return a[0]>b[0]?1:-1; /* 店家代碼 */
+    return a[7]>b[7]?-1:1; /* 巡補日期，新到舊 */
+  });
+  return [headers].concat(recs);
+}
+/* 產生並觸發下載雙分頁 .xlsx；SheetJS 走 CDN（見 <head> 前的 script
+   src），離線或該網域被公司網路擋掉時 window.XLSX 會是 undefined，
+   這裡要能明確提示、不要讓使用者以為是資料本身出問題。 */
+function buildWorkbookAndDownload(filenameBase, btn){
+  if(typeof XLSX==='undefined'){ _flashBtn(btn,'⚠️ Excel元件載入失敗'); return false; }
+  var wb = XLSX.utils.book_new();
+  var wsSummary = XLSX.utils.aoa_to_sheet(buildSummarySheetAOA());
+  var wsRaw = XLSX.utils.aoa_to_sheet(buildRawVisitSheetAOA());
+  XLSX.utils.book_append_sheet(wb, wsSummary, '彙總表');
+  XLSX.utils.book_append_sheet(wb, wsRaw, '原始巡補紀錄');
+  XLSX.writeFile(wb, filenameBase+'.xlsx');
+  return true;
+}
+function toolbarDownloadWorkbook(){
   var btn = document.getElementById('tb-btn-csv');
   if(!getFilteredStores().length){ _flashBtn(btn,'⚠️ 無資料'); return; }
-  _triggerCsvDownload(buildCsvContent(), PROJ_NAME);
-  _flashBtn(btn,'✅ 已下載');
+  if(buildWorkbookAndDownload(PROJ_NAME, btn)) _flashBtn(btn,'✅ 已下載');
 }
 function toolbarCopyLine(){
   var btn = document.getElementById('tb-btn-line');
@@ -6464,7 +6552,9 @@ function _buildManualContent(){
     + '（文字或 CSV）</p>'
     + '<hr>'
     + '<p><b>【明細頁工具列 ─ 分享】</b><br>'
-    + '<b>📥 CSV</b>：下載目前篩選結果的完整表格<br>'
+    + '<b>📥 Excel</b>：下載目前篩選結果的 .xlsx（含「彙總表」「原始巡補'
+    + '紀錄」兩個分頁；彙總表每週欄位同時列出實際／應達次數，不足整週的'
+    + '最後一週會在欄名標註剩餘天數）<br>'
     + '<b>💬 LINE</b>：複製包含未達標店家清單的完整文字，可直接貼到 LINE 群組<br>'
     + '<b>✂️ 精簡</b>：只複製統計摘要數字，不列店家名稱<br>'
     + '<b>📸 截圖</b>：把目前畫面截圖直接複製到剪貼簿，貼上即可分享</p>'
@@ -6551,6 +6641,7 @@ function closeCfgDiag(){
   if(typeof _flashBtn !== 'function') missing.push('copy-utils.js（_flashBtn）');
   if(typeof _doCopy !== 'function') missing.push('copy-utils.js（_doCopy）');
   if(typeof _triggerCsvDownload !== 'function') missing.push('csv-export.js');
+  if(typeof XLSX === 'undefined') missing.push('SheetJS CDN（xlsx.full.min.js，工具列📥Excel需要，網路擋掉 cdnjs.cloudflare.com 會載不到）');
   if(typeof _captureElement !== 'function') missing.push('capture-clipboard.js');
   if(typeof updateStickyTops !== 'function') missing.push('ui-chrome.js');
   if(typeof _renderQuizSections !== 'function') missing.push('photo-viewer.js（_renderQuizSections）');
