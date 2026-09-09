@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 3.10.0 ｜ 最後更新：2026-08-14
+  版本：Ver. 3.11.0 ｜ 最後更新：2026-09-09
 ════════════════════════════════════════════════════════════
 
 
@@ -49,6 +49,58 @@
 
 
 【版本紀錄】
+  3.11.0 2026-09-09  使用者回報兩件事：1) 趨勢圖最右側（本期）常常看起來
+                      「沒畫出來」；2) 隔一段時間回來操作趨勢圖，完全看不懂
+                      在顯示什麼。另外詢問主頁週檢視能不能有月檢視／自訂
+                      區間。四項改動：
+                      1) 診斷確認①不是渲染 bug，而是本期還沒走完（例如週
+                      三查看本週）時，該期巡查紀錄天生就少，算出來的比例
+                      會貼近前一期或貼近圖表頂部格線，視覺上難以分辨。
+                      _covWeeklySeries／_covCumulativeSeries／_covBranchSeries
+                      新增 partial 旗標（區間結束時間點還在未來＝true），
+                      _buildTrendSVG／_buildTrendBarSVG 把本期的線段畫成
+                      虛線、資料點畫成空心圓、bar 加淡化＋虛線外框，X 軸
+                      標籤與 hover 小卡都加註「⏳」，並新增藍色提示
+                      _buildTrendPartialBanner「這期還沒走完，先別跟左邊
+                      完整期間比較」。
+                      2) UI/UX 簡化：四種模式說明文字從長句子改成一句話
+                      （TREND_MODE_DESC），完整版本移到 title 屬性用滑鼠停留
+                      查看；開啟趨勢圖預設只畫「已有（整體）」／「已跟訪
+                      （總份數）」單一條總覽線（openTrendDialog 設定
+                      TREND_FOCUS 預設值），不再一開始就把所有 B/C 桶疊在
+                      一起，要看細項可自己點單看 chip 或按「✕ 全部顯示」。
+                      3) 主頁週檢視 pager 新增「月檢視」：新增 COV_PERIOD_UNIT
+                      （'week'|'month'|'custom'）＋一組粒度無關的期間函式
+                      （_cwStartOfPeriod／_cwRangeFromStartUnit／
+                      _cwCurrentRangeUnit／_cwShiftPeriodStart／_cwLabelUnit），
+                      pager 旁加「週/月」下拉；切換粒度時會把目前選取的日期
+                      換算成新粒度「所在的那一期」，◄/►、本週/本月、全部
+                      三顆按鈕與 label 全部沿用同一套邏輯，行為跟原本週檢視
+                      一致。刻意不動趨勢圖既有的 7 天一週迴圈（_covWeeklySeries
+                      等）──那是獨立的多週序列邏輯，跟主頁這顆 pager 選什麼
+                      粒度無關。
+                      4) 主頁新增「📆 自訂區間」：pager 新增按鈕開出小面板
+                      （兩個 date input＋套用），套用後 COV_PERIOD_UNIT 設為
+                      'custom'、COV_CUSTOM_LEN_MS 記錄這次自訂區間的長度，
+                      之後 ◄/► 會照這個長度往前/後移動；結束日期早於開始
+                      日期時擋下並提示，不會讓狀態壞掉；點「本週」可以直接
+                      跳出自訂模式回到當週。
+                      用 node --check 驗證全檔語法；並用 vm 模組載入抽出的
+                      主 script 區塊，搭配合成資料（20 家店、2 個營業處，
+                      其中 2 家店在「本週」已有拜訪紀錄、其餘沒有，模擬
+                      本期尚未走完的真實情境）做函式層級測試，共 43 項
+                      檢查全過：partial 旗標正確標記本期／不誤標已完整的
+                      週；SVG 虛線／空心點／⏳標籤與提示橫幅正確產生；
+                      cumulative／delta 序列正確承接 partial 旗標；預設
+                      單看總覽線＋「✕ 全部顯示」能正確切換回全部線；
+                      rate/cumulative/delta/rank 四種模式切換皆不拋錯；
+                      月檢視切換＋跨月分/跨年分頁（含月底天數如 8 月 31
+                      天換算正確）；自訂區間套用／驗證失敗擋下／依自訂
+                      長度翻頁／從自訂模式跳回本週皆正確。未做全瀏覽器端
+                      對端測試（沙盒環境無法連線 Google Sheets 取得真實
+                      gviz 資料，也沒有 shared/*.js 真實檔案內容可完整還原
+                      buildCard 等既有渲染管線），交付時明確告知：建議實際
+                      部署後在瀏覽器裡再過一次滑鼠/觸控操作與行動裝置版面。
   3.10.0 2026-08-14  使用者回報趨勢圖畫面「太多資料一種吃一整列、空間浪費」
                       ＋「線太多分不出哪條是哪個單位、也看不到滑鼠停留位置
                       的數值」，兩點優化：
@@ -588,6 +640,24 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .cwn-btn:hover { background:var(--primary-bg); border-color:var(--primary); color:var(--primary); }
 .cwn-btn.active { border-color:var(--primary); color:var(--primary); background:var(--primary-bg); }
 .cwn-label { font-size:12.5px; font-weight:900; min-width:76px; text-align:center; white-space:nowrap; }
+/* v3.11.0：週／月粒度切換下拉、自訂區間彈出面板 */
+.cwn-unit-sel {
+  background:#fff; border:1px solid var(--border); border-radius:8px;
+  padding:3px 5px; font-size:11.5px; font-weight:700; color:var(--text);
+  cursor:pointer; flex-shrink:0;
+}
+.cwn-custom-box {
+  position:absolute; top:calc(100% + 4px); left:0; z-index:60;
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+  background:#fff; border:1px solid var(--border); border-radius:10px;
+  padding:8px 9px; box-shadow:0 4px 16px rgba(0,0,0,.14);
+}
+.cwn-custom-input {
+  border:1px solid var(--border); border-radius:7px; padding:4px 6px;
+  font-size:12px; color:var(--text); background:#fff;
+}
+.cwn-custom-sep { font-size:12px; color:var(--sub,#888); }
+.cwn-custom-apply { background:var(--primary); border-color:var(--primary); color:#fff; }
 
 
 /* ── 趨勢圖（v3.6.3 modal → v3.8.3 改整頁呈現）：id 仍叫 trend-dialog 是
@@ -716,6 +786,13 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   margin:8px 14px 0; padding:8px 11px; border-radius:9px;
   background:#FFF3E0; border:1px solid rgba(230,81,0,.3);
   color:#B8560A; font-size:11.5px; line-height:1.6;
+}
+/* v3.11.0：本期進行中提示——藍色調，跟 .trend-warn（橘色，比對失敗警示）
+   區分開來，語意不同：這個是「資料本來就還沒收完」，不是「哪裡出錯了」 */
+.trend-info {
+  margin:8px 14px 0; padding:8px 11px; border-radius:9px;
+  background:#E8F1FC; border:1px solid rgba(25,101,191,.25);
+  color:#1A5DAD; font-size:11.5px; line-height:1.6;
 }
 .trend-rank-hint { padding:6px 14px 4px; font-size:11px; color:var(--sub,#888); }
 .trend-rank-list { padding:2px 14px 16px; display:flex; flex-direction:column; gap:6px; }
@@ -1280,6 +1357,10 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   /* 分組容器（v3.8.0）手機縮小 padding／字級，標籤太窄時只留 emoji 圖示 */
   .lamp-group, .cwn-group { padding:2px 6px 2px 6px; gap:4px; border-radius:9px; }
   .lamp-group-tag, .cwn-group-tag { font-size:9px; }
+  /* v3.11.0：週/月切換下拉、自訂區間面板手機縮小 */
+  .cwn-unit-sel { font-size:10px; padding:2px 4px; }
+  .cwn-custom-box { left:auto; right:0; padding:6px 7px; gap:4px; }
+  .cwn-custom-input { font-size:11px; padding:3px 4px; }
 
 
   /* lamp-row 和 quicknav 的 top 由 JS updateStickyTops 動態設定
@@ -1535,14 +1616,26 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <div class="lamp-bar" id="lamp-bar"></div>
   </div>
   <span class="lamp-sep"></span>
-  <div class="cwn-group">
-    <span class="cwn-group-tag">📅 週檢視</span>
-    <div class="cwn-pager" id="cwn-pager" title="週檢視：切換要看哪一週的最新巡查狀態，「全部」＝目前即時快照">
-      <button class="cwn-btn cwn-btn-icon" onclick="covPageWeek(-1)" aria-label="上一週">◄</button>
+  <div class="cwn-group" style="position:relative;">
+    <span class="cwn-group-tag" id="cwn-group-tag">📅 週檢視</span>
+    <select id="cwn-unit-sel" class="cwn-unit-sel" title="切換檢視的時間粒度" onchange="_setPeriodUnit(this.value)">
+      <option value="week">週</option>
+      <option value="month">月</option>
+    </select>
+    <div class="cwn-pager" id="cwn-pager" title="週檢視：切換要看哪一期的最新巡查狀態，「全部」＝目前即時快照">
+      <button class="cwn-btn cwn-btn-icon" onclick="covPageWeek(-1)" aria-label="上一期">◄</button>
       <span class="cwn-label" id="cwn-label">全部</span>
-      <button class="cwn-btn cwn-btn-icon" onclick="covPageWeek(1)" aria-label="下一週">►</button>
+      <button class="cwn-btn cwn-btn-icon" onclick="covPageWeek(1)" aria-label="下一期">►</button>
       <button class="cwn-btn" id="cwn-btn-today" onclick="covJumpToday()">本週</button>
       <button class="cwn-btn" id="cwn-btn-all" onclick="covJumpAll()">全部</button>
+      <button class="cwn-btn cwn-btn-icon" onclick="_toggleCustomRangeBox()" title="自訂區間" aria-label="自訂區間">📆</button>
+    </div>
+    <div class="cwn-custom-box" id="cwn-custom-box" style="display:none" onclick="event.stopPropagation()">
+      <input type="date" id="cwn-custom-start" class="cwn-custom-input">
+      <span class="cwn-custom-sep">–</span>
+      <input type="date" id="cwn-custom-end" class="cwn-custom-input">
+      <button class="cwn-btn cwn-custom-apply" onclick="_applyCustomRange()">套用</button>
+      <button class="cwn-btn cwn-btn-icon" onclick="_closeCustomRangeBox()" aria-label="關閉">✕</button>
     </div>
   </div>
   <span class="lamp-sep"></span>
@@ -1712,7 +1805,12 @@ var viewMode = 'org';
    （COL_UNFILL），順勢標記為未知／未填寫──語意上就是「這週沒有可判斷的
    巡查依據」，沿用既有「未填寫」分類，不用另外設計新燈號。 */
 var COV_WEEK_MODE = false;   /* false=即時快照（原本行為）｜true=週檢視 */
-var COV_WEEK_SEL  = null;    /* {start:Date, end:Date} 目前選定的週（僅週檢視開啟時有意義） */
+var COV_WEEK_SEL  = null;    /* {start:Date, end:Date} 目前選定的期間（僅週檢視開啟時有意義） */
+/* v3.11.0：期間粒度——'week'=原本行為（週一到週日）｜'month'=當月1號到月底｜
+   'custom'=使用者自選起訖日。COV_CUSTOM_LEN_MS 記錄目前自訂區間的長度
+   （毫秒），只有 unit==='custom' 時才有意義，供 ◄/► 用同樣長度往前/後移。 */
+var COV_PERIOD_UNIT = 'week';
+var COV_CUSTOM_LEN_MS = 7*24*60*60*1000;
 
 /* 用台灣時區判斷「今天」，避免使用者瀏覽器時區跟公司作業時區（UTC+8）兜不起來 */
 function _cwTaipeiNow(){
@@ -1732,9 +1830,58 @@ function _cwRangeFromStart(startDt){
   return { start:start, end:end };
 }
 function _cwCurrentRange(){ return _cwRangeFromStart(_cwStartOfWeek(_cwTaipeiNow())); }
+/* v3.11.0：跟上面兩個「週専用」函式（_cwStartOfWeek／_cwRangeFromStart）
+   分開放，不改動它們——趨勢圖那邊的多週序列（_covWeeklySeries 等）還是
+   固定用 7 天一週跑迴圈，跟主頁這顆 pager 選什麼粒度無關，兩邊各自獨立
+   互不影響。這裡是主頁 pager 專用的「依目前 COV_PERIOD_UNIT 換算」版本。 */
+function _cwStartOfPeriod(d){
+  if(COV_PERIOD_UNIT==='month') return new Date(d.getFullYear(), d.getMonth(), 1);
+  return _cwStartOfWeek(d);
+}
+function _cwRangeFromStartUnit(startDt){
+  if(COV_PERIOD_UNIT==='month'){
+    var mStart = new Date(startDt.getFullYear(), startDt.getMonth(), 1); mStart.setHours(0,0,0,0);
+    var mEnd = new Date(startDt.getFullYear(), startDt.getMonth()+1, 0); mEnd.setHours(23,59,59,999);
+    return { start:mStart, end:mEnd };
+  }
+  if(COV_PERIOD_UNIT==='custom'){
+    var cStart = new Date(startDt); cStart.setHours(0,0,0,0);
+    var cEnd = new Date(cStart.getTime() + COV_CUSTOM_LEN_MS - 1000);
+    return { start:cStart, end:cEnd };
+  }
+  return _cwRangeFromStart(startDt);
+}
+function _cwCurrentRangeUnit(){ return _cwRangeFromStartUnit(_cwStartOfPeriod(_cwTaipeiNow())); }
+/* ◄/► 一次要移動多長：月＝整個月（月天數不固定，用 setMonth 處理）；
+   自訂＝上次套用的區間長度；週＝原本的 7 天 */
+function _cwShiftPeriodStart(startDt, dir){
+  if(COV_PERIOD_UNIT==='month'){
+    var d = new Date(startDt); d.setDate(1); d.setMonth(d.getMonth()+dir); return d;
+  }
+  if(COV_PERIOD_UNIT==='custom'){
+    return new Date(startDt.getTime() + dir*COV_CUSTOM_LEN_MS);
+  }
+  var d2 = new Date(startDt); d2.setDate(d2.getDate()+7*dir); return d2;
+}
+function _cwLabelUnit(range){
+  if(COV_PERIOD_UNIT==='month') return range.start.getFullYear()+'/'+(range.start.getMonth()+1);
+  return _cwLabel(range);
+}
+/* YYYY-MM-DD，餵給 <input type="date"> 用 */
+function _cwISODate(d){
+  function pad(n){ return n<10?'0'+n:''+n; }
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+}
 function _cwLabel(range){
   function f(d){ return (d.getMonth()+1)+'/'+d.getDate(); }
   return f(range.start)+' – '+f(range.end);
+}
+/* v3.11.0：這個區間是不是「還沒結束」（區間終點還在未來）。趨勢圖最新一個
+   資料點通常就是「本期」，本期還沒走完時裡面的巡查紀錄本來就會偏少，
+   跟已經走完的完整期間放在同一張圖上比較容易誤讀成「掉到 0」或「沒資料」。
+   用這個旗標讓畫圖端知道要用不同樣式（虛線／空心點）處理，而不是直接漏畫。 */
+function _cwIsPartial(range){
+  return range.end.getTime() > _cwTaipeiNow().getTime();
 }
 /* 問卷資料的 timeKey 來自 _findTimeText（shared/core-utils.js），格式不完全
    保證，這裡用寬鬆解析：先直接丟給 Date，失敗再用正規表達式抓年月日時分秒。
@@ -1934,22 +2081,31 @@ function _covBaseRows(){
 /* 更新 cwn-pager 的標籤文字＋本週/全部兩顆按鈕的 active 樣式。
    label：週檢視關閉（COV_WEEK_MODE=false，預設狀態）顯示「全部」，
    開啟時顯示選定週的日期範圍；title 附讀取狀態方便滑鼠停留查看。 */
+/* v3.11.0：本週/本月切換鈕的文字＋群組標籤要跟著目前的期間粒度變 */
+function _cwUnitTodayLabel(){ return COV_PERIOD_UNIT==='month' ? '本月' : '本週'; }
 function _renderWeekNavLabel(){
   var lbl = document.getElementById('cwn-label');
-  if(lbl) lbl.textContent = (COV_WEEK_MODE && COV_WEEK_SEL) ? _cwLabel(COV_WEEK_SEL) : '全部';
+  if(lbl) lbl.textContent = (COV_WEEK_MODE && COV_WEEK_SEL) ? _cwLabelUnit(COV_WEEK_SEL) : '全部';
   var btnToday = document.getElementById('cwn-btn-today');
   var btnAll   = document.getElementById('cwn-btn-all');
-  if(btnToday) btnToday.classList.toggle('active', COV_WEEK_MODE && COV_WEEK_SEL && +COV_WEEK_SEL.start === +_cwCurrentRange().start);
+  if(btnToday){
+    btnToday.textContent = _cwUnitTodayLabel();
+    btnToday.classList.toggle('active', COV_WEEK_MODE && COV_WEEK_SEL && COV_PERIOD_UNIT!=='custom' && +COV_WEEK_SEL.start === +_cwCurrentRangeUnit().start);
+  }
   if(btnAll)   btnAll.classList.toggle('active', !COV_WEEK_MODE);
+  var groupTag = document.getElementById('cwn-group-tag');
+  if(groupTag) groupTag.textContent = '📅 ' + (COV_PERIOD_UNIT==='month' ? '月檢視' : COV_PERIOD_UNIT==='custom' ? '自訂區間' : '週檢視');
+  var unitSel = document.getElementById('cwn-unit-sel');
+  if(unitSel && unitSel.value !== COV_PERIOD_UNIT && COV_PERIOD_UNIT!=='custom') unitSel.value = COV_PERIOD_UNIT;
   var pager = document.getElementById('cwn-pager');
   if(pager){
-    if(!COV_WEEK_MODE) pager.title = '週檢視：切換要看哪一週的最新巡查狀態，目前＝全部（即時快照）';
+    if(!COV_WEEK_MODE) pager.title = '週檢視：切換要看哪一期的最新巡查狀態，目前＝全部（即時快照）';
     else if(!_qSheetCache) pager.title = '⏳ 讀取拜訪紀錄中…';
     else if(_qSheetCache.error) pager.title = '⚠️ 拜訪紀錄讀取失敗：'+_qSheetCache.error;
     else {
       var rows = _weekEffectiveRows(allRows, COV_WEEK_SEL, _qSheetCache);
       var noVisit = rows.filter(function(r){ return r.__covNoVisit; }).length;
-      pager.title = '本週共 '+rows.length+' 家店，本期未巡 '+noVisit+' 家';
+      pager.title = '本期共 '+rows.length+' 家店，本期未巡 '+noVisit+' 家';
     }
   }
 }
@@ -1970,24 +2126,77 @@ function _covWeekStateChanged(){
   }
   render();
 }
-/* ◄／► 翻週：本來就在週檢視中，直接前後移一週；本來是「全部」，則以本週
-   為基準先移一週再進入週檢視（等於「往前/後一週」，符合直覺） */
+/* ◄／► 翻期：本來就在週檢視中，直接前後移一期（週／月／自訂長度視目前
+   COV_PERIOD_UNIT 而定）；本來是「全部」，則以「本期」為基準先移一期再
+   進入週檢視（等於「往前/後一期」，符合直覺） */
 function covPageWeek(dir){
-  var base = (COV_WEEK_MODE && COV_WEEK_SEL) ? COV_WEEK_SEL : _cwCurrentRange();
-  var newStart = new Date(base.start); newStart.setDate(newStart.getDate() + 7*dir);
-  COV_WEEK_SEL = _cwRangeFromStart(newStart);
+  var base = (COV_WEEK_MODE && COV_WEEK_SEL) ? COV_WEEK_SEL : _cwCurrentRangeUnit();
+  var newStart = _cwShiftPeriodStart(base.start, dir);
+  COV_WEEK_SEL = _cwRangeFromStartUnit(newStart);
   COV_WEEK_MODE = true;
   _covWeekStateChanged();
 }
-/* 回本週：進入週檢視並跳回當週 */
+/* 回本週/本月：進入週檢視並跳回當期；如果目前是自訂區間，順便切回「週」
+   （自訂區間沒有「當期」這個概念，切回去比留在原地卻按鈕發呆更直覺） */
 function covJumpToday(){
+  if(COV_PERIOD_UNIT==='custom') COV_PERIOD_UNIT = 'week';
   COV_WEEK_MODE = true;
-  COV_WEEK_SEL = _cwCurrentRange();
+  COV_WEEK_SEL = _cwCurrentRangeUnit();
   _covWeekStateChanged();
 }
 /* 回全部：關閉週檢視，回到即時快照（預設狀態） */
 function covJumpAll(){
   COV_WEEK_MODE = false;
+  _covWeekStateChanged();
+}
+/* v3.11.0：週／月粒度切換——切換時如果目前已經在檢視某一期，把選取的日期
+   換算成新粒度「所在的那一期」（例如原本在 9/7-9/13，切成月＝直接變成
+   9 月整月），維持「還在看同一段時間附近」的直覺，不會突然跳到別的地方。 */
+function _setPeriodUnit(u){
+  if(COV_PERIOD_UNIT===u) return;
+  COV_PERIOD_UNIT = u;
+  if(COV_WEEK_MODE && COV_WEEK_SEL){
+    COV_WEEK_SEL = _cwRangeFromStartUnit(_cwStartOfPeriod(COV_WEEK_SEL.start));
+  }
+  _closeCustomRangeBox();
+  _covWeekStateChanged();
+}
+/* v3.11.0：自訂區間——彈出小面板讓使用者選任意起訖日，套用後 COV_PERIOD_UNIT
+   切成 'custom'，◄/► 之後就會照這個區間的長度往前/後移動。 */
+function _toggleCustomRangeBox(){
+  var box = document.getElementById('cwn-custom-box');
+  if(!box) return;
+  var opening = box.style.display === 'none' || !box.style.display;
+  if(opening){
+    var base = (COV_WEEK_MODE && COV_WEEK_SEL) ? COV_WEEK_SEL : _cwCurrentRange();
+    var s = document.getElementById('cwn-custom-start');
+    var e = document.getElementById('cwn-custom-end');
+    if(s) s.value = _cwISODate(base.start);
+    if(e) e.value = _cwISODate(base.end);
+    box.style.display = 'flex';
+  } else {
+    box.style.display = 'none';
+  }
+}
+function _closeCustomRangeBox(){
+  var box = document.getElementById('cwn-custom-box');
+  if(box) box.style.display = 'none';
+}
+function _applyCustomRange(){
+  var sEl = document.getElementById('cwn-custom-start');
+  var eEl = document.getElementById('cwn-custom-end');
+  var sVal = sEl && sEl.value, eVal = eEl && eEl.value;
+  if(!sVal || !eVal){ alert('請選擇開始與結束日期'); return; }
+  var start = new Date(sVal+'T00:00:00');
+  var end = new Date(eVal+'T23:59:59');
+  if(isNaN(start.getTime()) || isNaN(end.getTime())){ alert('日期格式不正確'); return; }
+  if(end < start){ alert('結束日期不能早於開始日期'); return; }
+  COV_PERIOD_UNIT = 'custom';
+  COV_CUSTOM_LEN_MS = (end.getTime() - start.getTime() + 1000);
+  start.setHours(0,0,0,0);
+  COV_WEEK_SEL = _cwRangeFromStartUnit(start);
+  COV_WEEK_MODE = true;
+  _closeCustomRangeBox();
   _covWeekStateChanged();
 }
 /* 店家明細裡的拜訪時間軸：週檢視開啟時只顯示落在選定週內的紀錄，
@@ -2086,7 +2295,7 @@ function _covWeeklySeries(nWeeks){
     var scoped = _applyTrendScopeOverride(applyGradeFilter(_applyDrillStack(weekRows)));
     var stat = calcGroup(scoped);
     var matchFail = scoped.filter(function(r){ return r.__covMatchFail; }).length;
-    out.push({ range: range, label: _cwLabel(range), stat: stat, matchFail: matchFail });
+    out.push({ range: range, label: _cwLabel(range), stat: stat, matchFail: matchFail, partial: _cwIsPartial(range) });
   }
   return out;
 }
@@ -2104,7 +2313,7 @@ function _covCumulativeSeries(nWeeks){
     var scoped = _applyTrendScopeOverride(applyGradeFilter(_applyDrillStack(cumRows)));
     var stat = calcGroup(scoped);
     var matchFail = scoped.filter(function(r){ return r.__covMatchFail; }).length;
-    out.push({ range: range, label: _cwLabel(range), stat: stat, matchFail: matchFail });
+    out.push({ range: range, label: _cwLabel(range), stat: stat, matchFail: matchFail, partial: _cwIsPartial(range) });
   }
   return out;
 }
@@ -2121,7 +2330,7 @@ function _covDeltaSeries(cumSeries, defs){
       var prev = prevStat ? d.getRaw(prevStat) : 0;
       return cur - prev;
     });
-    return { range: pt.range, label: pt.label, deltaVals: deltaVals };
+    return { range: pt.range, label: pt.label, deltaVals: deltaVals, partial: pt.partial };
   });
 }
 /* 每條線要畫什麼、什麼顏色、百分比還是原始數字——跟卡片上目前顯示的統計
@@ -2206,17 +2415,36 @@ function _buildTrendSVG(series, defs){
   var xHtml = '';
   series.forEach(function(pt, i){
     if(i%step!==0 && i!==n-1) return;
-    xHtml += '<text x="'+xAt(i)+'" y="'+(H-padB+16)+'" text-anchor="middle" font-size="9.5" fill="#999">'+esc(pt.label)+'</text>';
+    var lbl = pt.label + (pt.partial ? ' ⏳' : '');
+    xHtml += '<text x="'+xAt(i)+'" y="'+(H-padB+16)+'" text-anchor="middle" font-size="9.5" fill="'+(pt.partial?'#B0730A':'#999')+'">'+esc(lbl)+'</text>';
   });
+  /* v3.11.0：最新一個資料點如果是「還沒結束的本期」（series[n-1].partial），
+     把連到它的最後一段線畫成虛線、點畫成空心圓，並在 title 註記「本期進行中」，
+     讓使用者一眼看出這一段跟前面已經走完的完整期間不是同一個可信度等級，
+     不會誤讀成「掉到 0」或「沒資料」。其餘線段／點的畫法完全不變。 */
+  var lastPartial = n>0 && series[n-1].partial;
   var linesHtml = '';
   defs.forEach(function(d){
     var pts = [];
-    series.forEach(function(pt, i){ var v=d.getVal(pt.stat); if(v!=null) pts.push(xAt(i)+','+yAt(v)); });
-    if(pts.length) linesHtml += '<polyline points="'+pts.join(' ')+'" fill="none" stroke="'+d.color+'" stroke-width="'+(d.bold?2.6:1.8)+'" stroke-linejoin="round" stroke-linecap="round"/>';
+    series.forEach(function(pt, i){ var v=d.getVal(pt.stat); if(v!=null) pts.push({i:i, s:xAt(i)+','+yAt(v)}); });
+    if(pts.length){
+      var isLastPtPartial = lastPartial && pts[pts.length-1].i === n-1;
+      var mainPts = (isLastPtPartial && pts.length>1) ? pts.slice(0,-1) : pts;
+      var solidStr = mainPts.map(function(p){ return p.s; }).join(' ');
+      if(solidStr) linesHtml += '<polyline points="'+solidStr+'" fill="none" stroke="'+d.color+'" stroke-width="'+(d.bold?2.6:1.8)+'" stroke-linejoin="round" stroke-linecap="round"/>';
+      if(isLastPtPartial && pts.length>1){
+        var dashStr = pts.slice(-2).map(function(p){ return p.s; }).join(' ');
+        linesHtml += '<polyline points="'+dashStr+'" fill="none" stroke="'+d.color+'" stroke-width="'+(d.bold?2.6:1.8)+'" stroke-dasharray="5 4" opacity="0.65" stroke-linejoin="round" stroke-linecap="round"/>';
+      }
+    }
     series.forEach(function(pt, i){
       var v = d.getVal(pt.stat);
       if(v==null) return;
-      linesHtml += '<circle cx="'+xAt(i)+'" cy="'+yAt(v)+'" r="'+(d.bold?3.2:2.4)+'" fill="'+d.color+'"><title>'+esc(pt.label)+'　'+esc(d.label)+'：'+(d.isPercent?Math.round(v)+'%':Math.round(v))+'</title></circle>';
+      var isPt = pt.partial && i===n-1;
+      var fillAttr = isPt ? '#fff' : d.color;
+      var strokeAttr = isPt ? ' stroke="'+d.color+'" stroke-width="2"' : '';
+      var titleSuffix = isPt ? '　⏳ 本期進行中，資料尚未完整' : '';
+      linesHtml += '<circle cx="'+xAt(i)+'" cy="'+yAt(v)+'" r="'+(d.bold?3.2:2.4)+'" fill="'+fillAttr+'"'+strokeAttr+'><title>'+esc(pt.label)+'　'+esc(d.label)+'：'+(d.isPercent?Math.round(v)+'%':Math.round(v))+titleSuffix+'</title></circle>';
     });
   });
   /* v3.10.0：滑鼠/觸控 hover 用的資料——每一週一筆，記錄每條線在該週的
@@ -2230,7 +2458,7 @@ function _buildTrendSVG(series, defs){
   _TREND_HOVER = {
     W:W,
     xs: series.map(function(pt,i){ return xAt(i); }),
-    labels: series.map(function(pt){ return pt.label; }),
+    labels: series.map(function(pt){ return pt.label + (pt.partial ? ' ⏳' : ''); }),
     rows: series.map(function(pt){
       return defs.map(function(d){
         var v = d.getVal(pt.stat);
@@ -2286,8 +2514,12 @@ function _buildTrendBarSVG(deltaSeries, defs){
   var xHtml = '';
   deltaSeries.forEach(function(pt, i){
     if(i%step!==0 && i!==n-1) return;
-    xHtml += '<text x="'+(xGroupStart(i)+groupW/2)+'" y="'+(H-padB+16)+'" text-anchor="middle" font-size="9.5" fill="#999">'+esc(pt.label)+'</text>';
+    var lbl = pt.label + (pt.partial ? ' ⏳' : '');
+    xHtml += '<text x="'+(xGroupStart(i)+groupW/2)+'" y="'+(H-padB+16)+'" text-anchor="middle" font-size="9.5" fill="'+(pt.partial?'#B0730A':'#999')+'">'+esc(lbl)+'</text>';
   });
+  /* v3.11.0：本期進行中（pt.partial）的那一組長條加淡化＋斜線紋理效果
+     （opacity 額外打折＋虛線外框），呼應折線圖那邊「虛線／空心」的處理，
+     提醒這一組的增減量還沒走完，之後回來看可能會再往上補。 */
   var barsHtml = '';
   deltaSeries.forEach(function(pt, i){
     var gx = xGroupStart(i) + (groupW - barW*m)/2;
@@ -2296,7 +2528,11 @@ function _buildTrendBarSVG(deltaSeries, defs){
       var x = gx + j*barW;
       var h = Math.abs(v)*scale;
       var y = v>=0 ? yZero-h : yZero;
-      barsHtml += '<rect x="'+(x+0.5)+'" y="'+y+'" width="'+Math.max(1,barW-1)+'" height="'+Math.max(0,h)+'" fill="'+d.color+'" opacity="'+(v>=0?0.88:0.55)+'"><title>'+esc(pt.label)+'　'+esc(d.label)+'：'+(v>0?'+':'')+v+'</title></rect>';
+      var baseOp = v>=0?0.88:0.55;
+      var opacity = pt.partial ? baseOp*0.6 : baseOp;
+      var dashAttr = pt.partial ? ' stroke="'+d.color+'" stroke-width="1" stroke-dasharray="3 2"' : '';
+      var titleSuffix = pt.partial ? '　⏳ 本期進行中' : '';
+      barsHtml += '<rect x="'+(x+0.5)+'" y="'+y+'" width="'+Math.max(1,barW-1)+'" height="'+Math.max(0,h)+'" fill="'+d.color+'" opacity="'+opacity+'"'+dashAttr+'><title>'+esc(pt.label)+'　'+esc(d.label)+'：'+(v>0?'+':'')+v+titleSuffix+'</title></rect>';
     });
   });
   /* v3.10.0：hover 資料——長條圖每組（每週）中心點當作命中位置；delta
@@ -2305,7 +2541,7 @@ function _buildTrendBarSVG(deltaSeries, defs){
   _TREND_HOVER = {
     W:W,
     xs: deltaSeries.map(function(pt,i){ return xGroupStart(i)+groupW/2; }),
-    labels: deltaSeries.map(function(pt){ return pt.label; }),
+    labels: deltaSeries.map(function(pt){ return pt.label + (pt.partial ? ' ⏳' : ''); }),
     rows: deltaSeries.map(function(pt){
       return defs.map(function(d, j){
         var v = pt.deltaVals[j];
@@ -2373,6 +2609,15 @@ function _buildTrendMatchFailBanner(series){
   var latest = series[series.length-1].matchFail||0;
   return '<div class="trend-warn">⚠️ 有店家「查得到拜訪紀錄」但比對不到任何 B/C 欄位（最新一週 '+latest+' 家，這段區間內最多同時有 '+maxFail+' 家）。這些店目前會被算成「已有 0%」，但很可能不是真的零覆蓋，而是這個專案「問卷資料」分頁的表頭命名跟比對邏輯兜不起來。建議先確認問卷表頭命名方式，這幾週的 0% 暫時不建議當真。</div>';
 }
+/* v3.11.0：series 最後一個點如果是「還沒結束的本期」，提醒一下，
+   避免使用者把這個還在累積中的數字，直接拿去跟左邊已經走完的完整
+   期間比較，誤以為「這期忽然掉下來」。只在最後一點確實是本期時才顯示。 */
+function _buildTrendPartialBanner(series){
+  if(!series.length) return '';
+  var last = series[series.length-1];
+  if(!last.partial) return '';
+  return '<div class="trend-info">⏳ 「'+esc(last.label)+'」是目前還沒走完的一期，資料會持續增加。圖上用虛線／空心點標出，先別拿它跟左邊已經走完的期間直接比較。</div>';
+}
 /* v3.8.0：趨勢圖四種模式——rate=週執行率／cumulative=累計達成進度／
    delta=每週新增家數／rank=各營業處(所)比較。切換模式不影響已選的
    週數（trend-weeks-sel）與 TREND_SCOPE 範圍，只換算法跟畫法。 */
@@ -2381,7 +2626,17 @@ function _buildTrendMatchFailBanner(series){
    _onTrendHoverMove 直接讀這個全域變數組浮動小卡內容，不用在 DOM 屬性裡塞 JSON。 */
 var _TREND_HOVER = null;
 var TREND_MODE = 'rate';
+/* v3.11.0：畫面上常駐顯示的短版說明——原本每則都是長句子，回來操作的人
+   要看完一整段才懂這張圖在幹嘛。改成一句話講完「這張圖回答什麼問題」，
+   完整技術細節（怎麼算的、跟卡片口徑差在哪）保留在 title 屬性，滑鼠停留
+   或長按還是看得到，不用整段文字都塞在畫面上。 */
 var TREND_MODE_DESC = {
+  rate:       '📈 每一週「這一週做了多少」，各週分開算，忽高忽低是正常的。',
+  cumulative: '📊 「累計推進到哪了」，理論上會愈來愈高、趨近 100%。',
+  delta:      '📶 「這週比上週多／少了幾家」，長條在上方＝進步、下方＝被撤除。',
+  rank:       '🏢 比較「各單位現在的達成率」，由低排到高，最上面的最需要關注。'
+};
+var TREND_MODE_DESC_FULL = {
   rate:       '每一週「各自獨立」計算，只看落在該週範圍內的巡查紀錄——回答「這一週做了多少」，數字本來就會忽高忽低，不是累加的。',
   cumulative: '每一週改成「從最早紀錄累計到這一週為止」找每家店最新狀態——回答「累計推進到哪裡了」，理論上會逐步逼近 100%（除非有品項被店家撤除才會回落）。',
   delta:      '把「累計達成進度」相鄰兩週的家數相減，長條在基準線上方＝這週比上週多了幾家、下方＝少了幾家（可能是被撤除）——回答「這週的貢獻量」，補足純折線圖看不出來的單週增減細節。',
@@ -2477,7 +2732,7 @@ function _covBranchSeries(nWeeks, level, cumulative){
     var branchStats = {};
     Object.keys(groups).forEach(function(k){ branchStats[k] = calcGroup(groups[k]); });
     var matchFail = scoped.filter(function(r){ return r.__covMatchFail; }).length;
-    out.push({ range: range, label: _cwLabel(range), stat: { branchStats: branchStats }, matchFail: matchFail });
+    out.push({ range: range, label: _cwLabel(range), stat: { branchStats: branchStats }, matchFail: matchFail, partial: _cwIsPartial(range) });
   }
   return out;
 }
@@ -2573,7 +2828,8 @@ function _renderTrendDialog(){
   if(!body) return;
   _renderTrendModeTabs();
   var descText = esc(TREND_MODE_DESC[TREND_MODE]||'');
-  var descHtml = '<div class="trend-mode-desc" title="'+descText+'">'+descText+'</div>';
+  var descTitle = esc(TREND_MODE_DESC_FULL[TREND_MODE]||'');
+  var descHtml = '<div class="trend-mode-desc" title="'+descTitle+'">'+descText+'</div>';
   var scopeBarHtml = _buildTrendScopeBar();
 
   if(TREND_MODE === 'rank'){
@@ -2636,7 +2892,7 @@ function _renderTrendDialog(){
       return '<span class="trend-legend-item"><span class="trend-legend-dot" style="background:'+d.color+'"></span>'+esc(d.label)+'</span>';
     }).join('') + '</div>';
     var metaRowHtml = '<div class="trend-meta-row"><span class="trend-meta-scope" title="'+scopeFull+'">'+scopeFull+'</span>' + legendHtml + '</div>';
-    body.innerHTML = descHtml + toolbarHtml + _buildTrendMatchFailBanner(cumSeries) + metaRowHtml
+    body.innerHTML = descHtml + toolbarHtml + _buildTrendMatchFailBanner(cumSeries) + _buildTrendPartialBanner(cumSeries) + metaRowHtml
       + '<div class="trend-chart-wrap">' + _buildTrendBarSVG(deltaSeries, defs) + '</div>'
       + tableToggleHtml + (TREND_TABLE_OPEN ? _buildTrendDeltaTable(deltaSeries, defs) : '');
     _initTrendHoverOnce();
@@ -2654,18 +2910,23 @@ function _renderTrendDialog(){
     return '<span class="trend-legend-item"><span class="trend-legend-dot" style="background:'+d.color+'"></span>'+esc(d.label)+'</span>';
   }).join('') + '</div>';
   var metaRowHtml = '<div class="trend-meta-row"><span class="trend-meta-scope" title="'+scopeFull+'">'+scopeFull+'</span>' + legendHtml + '</div>';
-  body.innerHTML = descHtml + toolbarHtml + _buildTrendMatchFailBanner(series) + metaRowHtml
+  body.innerHTML = descHtml + toolbarHtml + _buildTrendMatchFailBanner(series) + _buildTrendPartialBanner(series) + metaRowHtml
     + '<div class="trend-chart-wrap">' + _buildTrendSVG(series, defs) + '</div>'
     + tableToggleHtml + (TREND_TABLE_OPEN ? _buildTrendTable(series, defs) : '');
   _initTrendHoverOnce();
 }
+/* v3.11.0：一打開預設只畫「總覽線」（計數型＝已有（整體）／加總型＝已跟訪
+   總份數），不要一次把所有 B/C 桶都疊在同一張圖——這是使用者反映「隔一段
+   時間回來完全看不懂」的主因之一：線太多、還沒搞懂在看什麼就先被畫面
+   嚇到。要看細項的人自己點單看 chip 或按「✕ 全部顯示」都還在，不用重寫
+   底層邏輯，只是換一下預設值。 */
 function openTrendDialog(){
   var dlg = document.getElementById('trend-dialog');
   if(!dlg) return;
   dlg.style.display = 'flex';
   TREND_MODE = 'rate';
   TREND_SCOPE = { area:'', office:'' };
-  TREND_FOCUS = null;
+  TREND_FOCUS = isSum() ? '已跟訪（總份數）' : '已有（整體）';
   TREND_COMPARE = false;
   TREND_TABLE_OPEN = false;
   _renderTrendDialog();
