@@ -4325,19 +4325,30 @@ function getDisplayCols(levelKey) {
   /* 用於 buildStoreTable 顯示欄（COL_TYPE 另行獨立渲染，不在此列）。
      COL_STAFF（執行人員）也不在此列——Ver.3.4.0 起改成不分層級、
      一律固定顯示在「店碼」正前方（見 buildStoreTable），不要在這裡
-     的 case 加回 COL_STAFF，否則該層級會重複出現兩欄執行人員。 */
+     的 case 加回 COL_STAFF，否則該層級會重複出現兩欄執行人員。
+
+     【修正】原本各 case 是假設「levelKey 是哪一層，rows 就已經被篩到
+     只剩那一層底下的單一範圍」，例如 levelKey==='office' 就假設 rows
+     只剩「同一個營業所」，所以不需要再顯示營業所欄。但 renderLevel()
+     裡「整體概況」卡片（isOverall）用的 levelKey 跟同一批「單一群組」
+     卡片是同一個值，rows 卻是「這一層底下所有群組」的全部資料——例如
+     鑽到某個營業處後，畫面上是一張張營業所卡片（levelKey==='office'），
+     這一層最前面「整體概況」卡片代表的是這個營業處底下*所有*營業所
+     的加總，點它的📋明細，rows 橫跨多個營業所，卻因為 levelKey 一樣是
+     'office' 而被下面 switch 判成「不需要營業所欄」，導致表格裡完全
+     看不出每一列店家屬於哪個營業所（使用者回報「營業處級了，點選明細，
+     就沒有出現營業所」就是這個情況）。
+     跟上次 buildCsvContent() 的 CSV 匯出欄位是同一種問題，修法也一致：
+     不管目前鑽到哪一層、是不是整體概況卡片，「營業處」「營業所」這兩欄
+     固定顯示，不再靠 levelKey 猜 rows 的實際範圍夠不夠窄。跟 CSV 一致
+     之後也比較好維護，不用每加一種「整體卡片可能橫跨多群組」的情境就
+     再补一次 case。COL_TYPE／COL_STAFF 的顯示規則不受影響，維持原樣。 */
+  var extra;
   switch (levelKey) {
-    case 'area':      return [COL_OFFICE];
-    case 'office':    return [];
-    case 'ch-area':   return [COL_OFFICE];
-    case 'ch-office': return [];
-    case 'type':      return [COL_AREA];
-    case 'grade':     return [COL_AREA, COL_OFFICE];
-    case 'gr-area':   return [COL_OFFICE];
-    case 'gr-office': return [];
-    case 'gr-staff':  return [];
-    default:          return [];
+    case 'type': extra = []; break; /* COL_AREA 已由下方固定加入，不重複 */
+    default:     extra = [];
   }
+  return [COL_AREA, COL_OFFICE].concat(extra.filter(function(c){ return c !== COL_AREA && c !== COL_OFFICE; }));
 }
 
 
