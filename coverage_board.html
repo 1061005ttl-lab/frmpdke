@@ -5018,8 +5018,20 @@ function buildCsvContent(dRows, lv) {
   /* COL_STAFF 已經改成固定獨立一欄「執行人員」（見下方 headers），
      這裡從 getExtraCols 結果濾掉，避免部門視角（area/office/grade...）
      重複出現兩欄一樣的人員資料。getExtraCols() 本身保持不動，
-     buildLineText 的 gcol（分組 banner 用）仍需要原始的第一欄。 */
-  var extraCols = getExtraCols(lv).filter(function(c){ return c !== COL_STAFF; });
+     buildLineText 的 gcol（分組 banner 用）仍需要原始的第一欄。
+
+     【CSV 專屬修正】getExtraCols() 是給畫面顯示用的，鑽到越深的層級
+     （office/ch-office/staff/gr-office/gr-staff...）刻意省略掉
+     COL_AREA／COL_OFFICE，因為畫面上「目前在哪個營業處/所」已經靠
+     麵包屑/標題看得到，不需要每欄重複。但 CSV 檔案一旦下載下來，
+     脫離了畫面的麵包屑，只看檔案內容完全看不出這是哪個營業處/所的
+     資料，收到檔案的人（要轉交店家清單給誰時）沒辦法判斷。
+     所以「營業處」「營業所」這兩欄固定加進 CSV，不管目前鑽到哪一層都有；
+     用 concat+filter 去重，避免跟 getExtraCols() 原本就有回傳的重複。
+     只動 CSV 這裡，getDisplayCols()／畫面上的店家明細表格不受影響。 */
+  var extraCols = [COL_AREA, COL_OFFICE].concat(
+    getExtraCols(lv).filter(function(c){ return c !== COL_STAFF && c !== COL_AREA && c !== COL_OFFICE; })
+  );
   var dynCols = [];
   BUCKETS_B.forEach(function(g){if(g.cols.length===1)dynCols.push(g.label);else g.cols.forEach(function(t){dynCols.push(t);});});
   BUCKETS_C.forEach(function(g){if(g.cols.length===1)dynCols.push(g.label);else g.cols.forEach(function(t){dynCols.push(t);});});
