@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 3.11.0 ｜ 最後更新：2026-09-09
+  版本：Ver. 3.12.0 ｜ 最後更新：2026-09-11
 ════════════════════════════════════════════════════════════
 
 
@@ -49,6 +49,55 @@
 
 
 【版本紀錄】
+  3.12.0 2026-09-11  新增「⚠️待確認」稽核狀態，用來標示一種灰色地帶：
+                      COL_UNFILL（未填寫）欄未被標記=1，但 B 群（已知有）
+                      ／C 群（已知無）用不受燈號影響的 Raw 版本檢查也都
+                      完全沒有命中——資料列存在、卻沒有對應任何已知狀態，
+                      跟真正的「未填寫」是兩件不同的事（一個是沒填，一個
+                      是填了但沒對到已知狀態），過去這種列會被硬併進
+                      「未填寫」一起顯示，或在卡片統計裡完全不落入任何
+                      分類、稽核不出來。
+                      新增 isGapRow() 做唯一判定（不 COL_UNFILL、已標記
+                      未填寫、或 B/C 任一邊有命中都回傳 false），所有
+                      呈現面共用同一份判定與同一個 GAP_LABEL 標籤文字：
+                      1) calcGroup()：計數型分支新增 stat.gap 獨立計數，
+                        不再被默默併入 total 卻沒有任何分類；加總型分支
+                        固定回傳 gap:0 保持物件結構一致。
+                      2) dialogRows()：以前 B/C 都無命中時直接推進
+                        grp:3（未填寫），現在改推進獨立的 grp:4，跟真
+                        未填寫在畫面上分開。
+                      3) 主頁卡片新增「⚠️待確認」統計格（紫色，跟未填寫
+                        的橘色刻意區分色系），固定顯示、不因為是 0 就
+                        隱藏，讓「這個口徑存在且目前是 0」可以跟「根本
+                        沒被計算」分辨出來。
+                      4) 燈號列（主頁與明細 dialog 都有）新增「⚠️待確認」
+                        燈，可獨立開關；applyChips() 對應加入過濾。
+                      5) 店家明細表：grp:4 的列套用新的 .d-gap／.row-gap
+                        樣式（紫色、虛線框，且店名刻意加粗凸顯而非像
+                        未填寫那樣淡化——這是需要人工回頭稽核的資料
+                        異常，不是單純進度落後）。
+                      6) 💬LINE／LINE精簡：buildLineText() 拆出獨立的
+                        gap 清單區塊，摘要行與頁腳統計的「valid／已知」
+                        排除範圍一併排除 grp:4。
+                      7) 📥CSV：buildCsvContent() 狀態欄新增 GAP_LABEL
+                        對應輸出；細項匯出（_subColMatchedRows）比照
+                        未填寫，一併跳過 grp:4（反正也命中不了任何子
+                        欄位）。
+                      8) 彙整看板跨分支比較表（_pivot* 系列）新增「⚠️
+                        待確認」欄，方便一次看出哪個分支灰色地帶較多。
+                      9) 📸截圖：takeScreenshot() 複製 DOM 時比照既有
+                        .d-unfill 做法，為 .d-gap 補上等效行內樣式，
+                        避免複製後的孤立節點吃不到外部 CSS 而跑版。
+                      用 node --check 驗證全檔語法通過；另外用抽出的
+                      核心計算函式（isGapRow／applyChips／calcGroup）
+                      搭配合成資料（含使用者回報的「未填寫=0、B=0、
+                      C=0」實際情境）做函式層級測試，驗證 total／
+                      unfilled／gap／各群組計數在有一筆灰色地帶資料時
+                      皆正確、不再被靜默吃進 total 卻無法歸類。未做全
+                      瀏覽器端對端測試（沙盒環境無法連線 Google Sheets
+                      取得真實 gviz 資料），建議實際部署後再實機操作一次
+                      主頁卡片、明細 dialog、LINE／CSV 匯出、彙整看板，
+                      確認灰色地帶店家的呈現符合預期。
   3.11.0 2026-09-09  使用者回報兩件事：1) 趨勢圖最右側（本期）常常看起來
                       「沒畫出來」；2) 隔一段時間回來操作趨勢圖，完全看不懂
                       在顯示什麼。另外詢問主頁週檢視能不能有月檢視／自訂
@@ -990,6 +1039,11 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .stat-item.known .stat-label { color:var(--primary); }
 .stat-item.known .stat-val { color:var(--primary); }
 .stat-item.known .stat-pct { color:var(--primary); opacity:.7; }
+/* ⚠️待確認（紫，2026-09-11 新增） */
+.stat-item.gap { background:#F3E5F5; border:1px dashed rgba(106,27,154,.5); }
+.stat-item.gap .stat-label { color:#6A1B9A; }
+.stat-item.gap .stat-val { color:#6A1B9A; }
+.stat-item.gap .stat-pct { color:#6A1B9A; opacity:.7; }
 
 
 /* 細項列（各 B 群／各 C 群）跟總覽列（總家數/已知合計/未填寫）之間用一條
@@ -1059,6 +1113,11 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   font-size:11px; font-weight:700; color:#E65100;
   background:#FFF3E0; padding:2px 7px; border-radius:6px;
 }
+.d-gap {
+  font-size:11px; font-weight:700; color:#6A1B9A;
+  background:#F3E5F5; padding:2px 7px; border-radius:6px;
+  border:1px dashed rgba(106,27,154,.5);
+}
 .d-no-label {
   font-size:11px; font-weight:700; color:var(--red);
   background:var(--red-bg); padding:2px 7px; border-radius:6px;
@@ -1084,6 +1143,8 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .td-grp-c3 { background:rgba(255,59,48,.17); }
 .row-unfill td { background:rgba(255,243,224,.45); color:#aaa; }
 .row-unfill .td-name { color:#bbb; }
+.row-gap td { background:rgba(243,229,245,.55); color:#8a5a99; }
+.row-gap .td-name { color:#6A1B9A; font-weight:700; }
 
 
 .detail-tbl th.th-left { text-align:left; }
@@ -1290,6 +1351,10 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 /* 未填寫（橘） */
 .lamp-chip.neutral.on { background:#FFF3E0; color:#E65100; border-color:rgba(230,81,0,.3); }
 .lamp-chip.neutral.on .lamp-dot { background:#E65100; }
+/* ⚠️待確認（紫，2026-09-11 新增：跟未填寫的橘刻意用不同色系，避免使用者
+   掃過燈號列時把「真的沒填」跟「填了但資料異常」誤看成同一種狀態） */
+.lamp-chip.gap.on { background:#F3E5F5; color:#6A1B9A; border-color:rgba(106,27,154,.3); }
+.lamp-chip.gap.on .lamp-dot { background:#6A1B9A; }
 /* 子欄位燈（BUCKET_B 細項） */
 .lamp-chip.sub {
   font-size:11px; padding:3px 8px; border-radius:14px;
@@ -1730,6 +1795,13 @@ var COL_UNFILL  = null; /* 由管理分頁動態設定，null=不顯示未填寫
 var PROJECT_TYPE = '計數';
 /* 未知群組顯示名稱，由管理分頁 D 欄決定 */
 var UNFILL_LABEL = '未填寫';
+/* 【2026-09-11 新增】資料稽核灰色地帶標籤：一筆店家資料「未填寫」欄未被
+   標記=1，但 B 群（已知有）／C 群（已知無）也都完全沒有任何欄位命中，
+   代表這筆資料存在、卻無法歸類到任何已知狀態——不是真的未填寫，但也
+   沒有對應的狀態資料，需要人工回頭稽核。用 isGapRow() 統一判定（見
+   rowCGroupRaw 之後），所有呈現面（卡片／明細／CSV／LINE／彙整表）都
+   共用同一個判定跟同一個標籤文字，避免各處各自寫一套判斷邏輯而口徑不一。 */
+var GAP_LABEL = '⚠️待確認';
 var COL_CODE    = '店家代碼';
 var COL_NAME    = '店家名稱';
 /* 店家等級欄位（店家名冊 H 欄） */
@@ -2998,8 +3070,9 @@ function _hideTrendTooltip(){
 
 
 /* ── 燈號 chips 狀態 ── */
-/* 3 題燈： disp(已有) / no(未有，如果有 BUCKET_C) / unfill(未填寫) */
-var chips = { disp: true, no: true, unfill: true };
+/* 4 題燈： disp(已有) / no(未有，如果有 BUCKET_C) / unfill(未填寫) /
+   gap(⚠️待確認，2026-09-11 新增的稽核灰色地帶燈) */
+var chips = { disp: true, no: true, unfill: true, gap: true };
 
 
 function initChips() {
@@ -3007,6 +3080,7 @@ function initChips() {
   BUCKETS_B.forEach(function(g, i){ chips['b:'+i] = true; });
   BUCKETS_C.forEach(function(g, i){ chips['c:'+i] = true; });
   chips['unfill'] = true;
+  chips['gap'] = true;
   renderLampBar();
   _renderWeekNavLabel();
   /* 週檢視 pager 現在一直顯示在 lamp-row（不用再點才出現），背景先把問卷
@@ -3046,6 +3120,8 @@ function renderLampBar() {
   if (!isSum()) BUCKETS_C.forEach(function(g, i) { makeChip('c:'+i, g.label, 'warn'); });
   /* 未填寫燈 */
   if(COL_UNFILL) makeChip('unfill', UNFILL_LABEL, 'neutral');
+  /* ⚠️待確認燈（灰色地帶：非未填寫，但 B/C 都沒有命中） */
+  if(COL_UNFILL) makeChip('gap', GAP_LABEL, 'gap');
 }
 
 
@@ -3668,12 +3744,22 @@ function rowCGroupRaw(r) {
 }
 function isDispRow(r){ return rowBGroup(r) >= 0; }
 function isNoRow(r){ return rowCGroup(r) >= 0; }
+/* 【2026-09-11 新增】灰色地帶判定：COL_UNFILL 沒被標記=1（不是「真的
+   未填寫」），但 B 群／C 群兩邊用 Raw 版本（不受燈號開關影響）檢查也
+   都完全沒有命中——代表這筆資料存在，卻沒有任何已知狀態可以歸類。
+   沒有設定 COL_UNFILL 的專案，這個灰色地帶的概念不適用，一律回傳 false。 */
+function isGapRow(r){
+  if (!COL_UNFILL) return false;
+  if (isOne(r[COL_UNFILL])) return false;
+  return rowBGroupRaw(r) < 0 && rowCGroupRaw(r) < 0;
+}
 
 
 /* 燈狀態篩選：關掉的燈所對應的店家排除 */
 function applyChips(rows) {
   return rows.filter(function(r) {
     if (COL_UNFILL && isOne(r[COL_UNFILL])) return chips['unfill'] !== false;
+    if (isGapRow(r)) return chips['gap'] !== false;
     var bi = rowBGroup(r);
     if (bi >= 0) return chips['b:'+bi] !== false;
     var ci = rowCGroup(r);
@@ -3719,7 +3805,7 @@ function calcGroup(rows) {
     });
     /* bTotalSum = 所有 B 群欄位的總份數（卡片 stat-val 用） */
     var bTotalSum = bGroupCounts.reduce(function(s, n){ return s + n; }, 0);
-    return { total: validCount, unfilled: 0, valid: validCount,
+    return { total: validCount, unfilled: 0, gap: 0, valid: validCount,
              hasDisp: validCount, hasNo: 0,
              bGroupCounts: bGroupCounts, bTotalSum: bTotalSum, bGroupStores: null,
              cGroupCounts: [], bColCounts: bColCounts, cColCounts: cColCounts };
@@ -3727,11 +3813,16 @@ function calcGroup(rows) {
 
   } else {
     /* ── 計數型（原邏輯）── */
-    var total = filtered.length, unfilled = 0;
+    var total = filtered.length, unfilled = 0, gap = 0;
     var bGroupCounts = BUCKETS_B.map(function(){ return 0; });
     var cGroupCounts = BUCKETS_C.map(function(){ return 0; });
     filtered.forEach(function(r){
       if (COL_UNFILL && isOne(r[COL_UNFILL])) { unfilled++; return; }
+      /* 【2026-09-11 新增】灰色地帶獨立計數：以前這種列既不會被算進
+         unfilled，也不會命中任何 B/C 群組，只會靜靜地被含在 total 裡，
+         卡片上完全看不出來、稽核不出來。現在明確 gap++ 並提早 return，
+         不讓它落進下面的 B/C 命中迴圈（反正本來也命中不了任何一群）。 */
+      if (isGapRow(r)) { gap++; return; }
       BUCKETS_B.forEach(function(g, i){
         if (chips['b:'+i] === false) return;
         if (g.cols.some(function(t){ return isOne(r[t]); })) {
@@ -3760,7 +3851,7 @@ function calcGroup(rows) {
         return chips['c:'+j] !== false && g.cols.some(function(t){ return isOne(r[t]); });
       });
     }).length;
-    return { total: total, unfilled: unfilled, valid: valid,
+    return { total: total, unfilled: unfilled, gap: gap, valid: valid,
              hasDisp: hasDisp, hasNo: hasNo,
              bGroupCounts: bGroupCounts, bTotalSum: null, bGroupStores: null,
              cGroupCounts: cGroupCounts, bColCounts: bColCounts, cColCounts: cColCounts };
@@ -4002,6 +4093,11 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
     '<div class="stat-item"><div class="stat-label">總家數</div><div class="stat-val">'+(isSum()?stat.hasDisp:stat.total)+'</div><div class="stat-pct hidden">&nbsp;</div></div>'+
     _knownHtml +
     (COL_UNFILL ? '<div class="stat-item warn'+(chips['unfill']===false?' dim':'')+'"><div class="stat-label">'+esc(UNFILL_LABEL)+'</div><div class="stat-val">'+stat.unfilled+'</div><div class="stat-pct">'+fp(stat.unfilled)+'</div></div>' : '')+
+    /* ⚠️待確認：稽核灰色地帶（非未填寫，但B/C都沒有命中），2026-09-11 新增。
+       只在計數型 + 有未填寫欄時才有意義（跟已調查格的排除條件一致），
+       且刻意固定顯示（不因為 stat.gap===0 就隱藏），這樣「這個口徑存在
+       且目前是 0」跟「這個口徑根本沒被計算」是可以被分辨出來的兩件事。 */
+    (COL_UNFILL && !isSum() ? '<div class="stat-item gap'+(chips['gap']===false?' dim':'')+'"><div class="stat-label">'+esc(GAP_LABEL)+'</div><div class="stat-val">'+stat.gap+'</div><div class="stat-pct">'+fp(stat.gap)+'</div></div>' : '')+
   '</div>';
   /* 細項列：各 B 群／各 C 群，跟總覽列之間僅用一條分隔線區隔，不再顯示
      「已知細項（B／C群）」這類內部代號文字（v3.2.0 移除：外部人員看了
@@ -4259,8 +4355,11 @@ function dialogRows(rows, levelKey) {
        改用不受燈號影響的 Raw 版本，只看欄位實際數值是否真的兩邊都沒有。 */
     var biRaw = rowBGroupRaw(r), ciRaw = rowCGroupRaw(r);
     if (biRaw < 0 && ciRaw < 0) {
-      /* B/C 欄位真的都沒有值且設有未知群組 → 視同未填寫處理 */
-      if (COL_UNFILL && chips['unfill'] !== false) result.push({ r:r, grp:3, bi:-1, ci:-1 });
+      /* 【2026-09-11 修正】以前這裡直接併入 grp:3（未填寫），跟「真的
+         未填寫」視覺上完全分不出來，稽核時看不出這其實是兩種不同的
+         資料問題（一個是沒填，一個是填了但沒對到任何已知狀態）。
+         現在改成獨立的 grp:4（⚠️待確認），跟真未填寫的 grp:3 分開。 */
+      if (COL_UNFILL && chips['gap'] !== false) result.push({ r:r, grp:4, bi:-1, ci:-1 });
     }
     /* 否則：這家店其實有資料，只是對應的燈被關掉了。維持原行為不 push，
        讓它單純從明細清單中消失，等對應的燈重新打開才會再出現，這才是
@@ -4389,9 +4488,10 @@ function buildStoreTable(rows, levelKey, ridPrefix, compact){
   items.forEach(function(d){
     var r = d.r, grp = d.grp;
     var isUnfill = (grp === 3);
+    var isGap = (grp === 4); /* 【2026-09-11 新增】稽核灰色地帶，跟真未填寫分開渲染 */
     var code = String(r[COL_CODE]||'');
     var rid  = (ridPrefix||'')+'st-'+_rid(code);
-    var trClass  = 'store-row' + (isUnfill ? ' row-unfill' : '');
+    var trClass  = 'store-row' + (isUnfill ? ' row-unfill' : '') + (isGap ? ' row-gap' : '');
     html += '<tr class="'+trClass+'" id="storerow-'+rid+'" onclick="_toggleStoreDetail(\''+rid+'\',\''+esc(code).replace(/'/g,"\\'")+'\')">';
     extraCols.forEach(function(c){
       html += '<td class="td-org">' + esc(String(r[c]||'—')) + '</td>';
@@ -4403,8 +4503,8 @@ function buildStoreTable(rows, levelKey, ridPrefix, compact){
 
 
     /* 狀態欄 */
-    if (isUnfill) {
-      html += '<td><span class="d-unfill">'+esc(UNFILL_LABEL)+'</span></td>';
+    if (isUnfill || isGap) {
+      html += '<td><span class="'+(isGap?'d-gap':'d-unfill')+'">'+esc(isGap?GAP_LABEL:UNFILL_LABEL)+'</span></td>';
       if (compact) {
         BUCKETS_B.forEach(function(g,gi){ html+='<td class="td-grp-b'+gi+'"><span class="d-no">—</span></td>'; });
         if (!isSum()) BUCKETS_C.forEach(function(g,gi){ html+='<td class="td-grp-c'+gi+'"><span class="d-no">—</span></td>'; });
@@ -4505,7 +4605,7 @@ function _renderPivotSlide(mode){
 
 /* 依目前 BUCKETS_B / BUCKETS_C / COL_UNFILL 動態決定彙總表欄位數 */
 function _pivotColCount(){
-  return 1 + BUCKETS_B.length + (isSum() ? 0 : BUCKETS_C.length) + (COL_UNFILL ? 1 : 0) + 1;
+  return 1 + BUCKETS_B.length + (isSum() ? 0 : BUCKETS_C.length) + (COL_UNFILL ? 1 : 0) + (COL_UNFILL && !isSum() ? 1 : 0) + 1;
 }
 function _pivotHeaderCells(){
   var html='';
@@ -4514,6 +4614,9 @@ function _pivotHeaderCells(){
     BUCKETS_C.forEach(function(g){ html += '<th class="th-num">'+esc(g.label||'未有')+'（家）</th>'; });
   }
   if(COL_UNFILL) html += '<th class="th-num">'+esc(UNFILL_LABEL)+'</th>';
+  /* ⚠️待確認欄（2026-09-11 新增），讓跨分支彙整表也能看出哪個單位灰色
+     地帶特別多，不用另外點開每個分支的明細才發現 */
+  if(COL_UNFILL && !isSum()) html += '<th class="th-num">'+esc(GAP_LABEL)+'</th>';
   html += '<th class="th-num th-total">合計</th>';
   return html;
 }
@@ -4530,6 +4633,7 @@ function _pivotStatCells(stat){
     });
   }
   if(COL_UNFILL) html += '<td class="td-num">'+(stat.unfilled ? stat.unfilled+' 家' : '')+'</td>';
+  if(COL_UNFILL && !isSum()) html += '<td class="td-num">'+(stat.gap ? stat.gap+' 家' : '')+'</td>';
   var totalVal = isSum() ? (stat.bTotalSum||0) : stat.total;
   html += '<td class="td-total">'+totalVal+(isSum()?' 份':' 家')+'</td>';
   return html;
@@ -4792,7 +4896,9 @@ function refreshDialogContent() {
   var rows = _dialogRows, levelKey = _dialogLevel;
   var items = dialogRows(rows, levelKey);
   var total = items.length;
-  var validTotal = items.filter(function(d){ return d.grp!==3; }).length;
+  /* 【2026-09-11 修正】灰色地帶(grp:4)以前併在grp:3裡被一起排除，現在
+     兩者都要從「已知(B/C)家數」排除，validTotal 才是真正已知的家數 */
+  var validTotal = items.filter(function(d){ return d.grp!==3 && d.grp!==4; }).length;
   /* % 分母 = 當前可見總家數（隨 chip 動態變化，與卡片一致） */
   function pct(n){ return total>0 ? ' ('+Math.round(n/total*100)+'%)' : ''; }
 
@@ -4803,6 +4909,8 @@ function refreshDialogContent() {
   var parts = ['共 ' + total + ' 家'];
   var unfillCnt = items.filter(function(d){ return d.grp===3; }).length;
   if(chips['unfill']!==false && unfillCnt) parts.push('未填寫 ' + unfillCnt + pct(unfillCnt));
+  var gapCnt = items.filter(function(d){ return d.grp===4; }).length;
+  if(chips['gap']!==false && gapCnt) parts.push(GAP_LABEL+' ' + gapCnt + pct(gapCnt));
   BUCKETS_B.forEach(function(g,i){
     if(chips['b:'+i]!==false){
       var cnt = items.filter(function(d){ return d.grp===0 && d.bi===i; }).length;
@@ -4851,6 +4959,7 @@ function buildDlgFilterRow() {
   BUCKETS_B.forEach(function(g, i){ makeChip('b:'+i, g.label, 'good'); });
   if (!isSum()) BUCKETS_C.forEach(function(g, i){ makeChip('c:'+i, g.label, 'warn'); });
   if(COL_UNFILL) makeChip('unfill', UNFILL_LABEL, 'neutral');
+  if(COL_UNFILL) makeChip('gap', GAP_LABEL, 'gap');
 }
 
 
@@ -4891,7 +5000,9 @@ function buildLineText(dRows, lv, title, simple) {
   var DIV = '─────────────────';
   var allD = dialogRows(dRows, lv);
   var unfill = allD.filter(function(d){return d.grp===3;}).map(function(d){return d.r;});
-  var valid  = allD.filter(function(d){return d.grp!==3;}).map(function(d){return d.r;});
+  /* 【2026-09-11 新增】灰色地帶：非未填寫，但B/C都沒有命中 */
+  var gap    = allD.filter(function(d){return d.grp===4;}).map(function(d){return d.r;});
+  var valid  = allD.filter(function(d){return d.grp!==3 && d.grp!==4;}).map(function(d){return d.r;});
   var disp   = valid.filter(function(r){return isDispRow(r);});
   var no     = valid.filter(function(r){return isNoRow(r);});
   var gcol   = getExtraCols(lv)[0]||null;
@@ -4908,6 +5019,7 @@ function buildLineText(dRows, lv, title, simple) {
     sp.push(g.label+' '+valid.filter(function(r){return g.cols.some(function(t){return isOne(r[t])||isCText(r[t]);});}).length+' 家');
   });
   if(unfill.length) sp.push(UNFILL_LABEL+' '+unfill.length+' 家');
+  if(gap.length) sp.push(GAP_LABEL+' '+gap.length+' 家');
 
 
   var lines=['【'+title+'】店家明細', sp.join('　'), DIV];
@@ -4961,9 +5073,23 @@ function buildLineText(dRows, lv, title, simple) {
   }
 
 
+  /* ⚠️待確認（2026-09-11 新增）：非未填寫，但B/C都沒有命中的灰色地帶，
+     獨立列出來方便執行人員／稽核人員直接照這份名單回頭確認資料 */
+  if(gap.length){
+    lines.push('');
+    lines.push(' '+GAP_LABEL+'（'+gap.length+' 家，資料存在但無對應狀態，需人工確認）');
+    var cur=null;
+    gap.forEach(function(r){
+      var gk=gh(r);
+      if(gk!==null&&gk!==cur){cur=gk;if(gk)lines.push('▌ '+gk);}
+      lines.push('  • '+ss(r));
+    });
+  }
+
+
   /* 完整版才加頁腳統計 */
   if(!simple){
-    var _footRows = allD.filter(function(d){return d.grp!==3;}).map(function(d){return d.r;});
+    var _footRows = allD.filter(function(d){return d.grp!==3 && d.grp!==4;}).map(function(d){return d.r;});
     lines.push('');
     lines.push(DIV);
     BUCKETS_B.forEach(function(g){
@@ -5052,7 +5178,7 @@ function buildCsvContent(dRows, lv) {
     var r=d.r,row=[];
     extraCols.forEach(function(c){row.push(String(r[c]||''));});
     row.push(String(r[COL_STAFF]||''));row.push(String(r[COL_CODE]||''));row.push(String(r[COL_NAME]||''));
-    row.push(d.grp===3?UNFILL_LABEL:d.grp===0?'已有':d.grp===1?'未有':'—');
+    row.push(d.grp===3?UNFILL_LABEL:d.grp===4?GAP_LABEL:d.grp===0?'已有':d.grp===1?'未有':'—');
     BUCKETS_B.forEach(function(g){if(g.cols.length===1)row.push(isSum()?numVal(r[g.cols[0]]):(isOne(r[g.cols[0]])?1:0));else g.cols.forEach(function(t){row.push(isSum()?numVal(r[t]):(isOne(r[t])?1:0));});});
     BUCKETS_C.forEach(function(g){if(g.cols.length===1){var v=r[g.cols[0]];row.push(isOne(v)?1:(isCText(v)?String(v):0));}else g.cols.forEach(function(t){var v=r[t];row.push(isOne(v)?1:(isCText(v)?String(v):0));});});
     rows.push(row);
@@ -5178,7 +5304,7 @@ function _subColMatchedRows(){
   var items = dialogRows(_pivotRows || [], 'area');
   var out = [];
   items.forEach(function(it){
-    if(it.grp===3) return;
+    if(it.grp===3 || it.grp===4) return;
     var r = it.r, matched = [];
     defs.forEach(function(d){
       var v = r[d.col];
@@ -5323,6 +5449,7 @@ function takeScreenshot(){
       tblClone.querySelectorAll('.d-yes').forEach(function(el){ el.style.color='#3B6D11'; el.style.fontWeight='700'; });
       tblClone.querySelectorAll('.d-no').forEach(function(el){ el.style.color='#ccc'; });
       tblClone.querySelectorAll('.d-unfill').forEach(function(el){ el.style.cssText='font-size:11px;font-weight:700;color:#E65100;background:#FFF3E0;padding:2px 7px;border-radius:6px;'; });
+      tblClone.querySelectorAll('.d-gap').forEach(function(el){ el.style.cssText='font-size:11px;font-weight:700;color:#6A1B9A;background:#F3E5F5;padding:2px 7px;border-radius:6px;border:1px dashed rgba(106,27,154,.5);'; });
       wrapper.appendChild(tblClone);
     }
     var ts=document.createElement('div');
