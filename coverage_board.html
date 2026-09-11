@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 3.12.0 ｜ 最後更新：2026-09-11
+  版本：Ver. 3.12.1 ｜ 最後更新：2026-09-11
 ════════════════════════════════════════════════════════════
 
 
@@ -49,6 +49,12 @@
 
 
 【版本紀錄】
+  3.12.1 2026-09-11  「⚠️待確認」卡片改成 stat.gap===0 時不渲染整個格子
+                      （原本 3.12.0 刻意固定顯示含 0，使用者實際看過後
+                      回饋大多數單位長期是 0、佔位讓卡片變擠）。只改
+                      buildCard() 裡這一格的渲染條件，其餘（燈號、明細、
+                      LINE、CSV、彙整表）不受影響——CSV／LINE 這類匯出
+                      本來就是「有資料才列一行」，維持原樣不用跟著改。
   3.12.0 2026-09-11  新增「⚠️待確認」稽核狀態，用來標示一種灰色地帶：
                       COL_UNFILL（未填寫）欄未被標記=1，但 B 群（已知有）
                       ／C 群（已知無）用不受燈號影響的 Raw 版本檢查也都
@@ -4094,10 +4100,13 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
     _knownHtml +
     (COL_UNFILL ? '<div class="stat-item warn'+(chips['unfill']===false?' dim':'')+'"><div class="stat-label">'+esc(UNFILL_LABEL)+'</div><div class="stat-val">'+stat.unfilled+'</div><div class="stat-pct">'+fp(stat.unfilled)+'</div></div>' : '')+
     /* ⚠️待確認：稽核灰色地帶（非未填寫，但B/C都沒有命中），2026-09-11 新增。
-       只在計數型 + 有未填寫欄時才有意義（跟已調查格的排除條件一致），
-       且刻意固定顯示（不因為 stat.gap===0 就隱藏），這樣「這個口徑存在
-       且目前是 0」跟「這個口徑根本沒被計算」是可以被分辨出來的兩件事。 */
-    (COL_UNFILL && !isSum() ? '<div class="stat-item gap'+(chips['gap']===false?' dim':'')+'"><div class="stat-label">'+esc(GAP_LABEL)+'</div><div class="stat-val">'+stat.gap+'</div><div class="stat-pct">'+fp(stat.gap)+'</div></div>' : '')+
+       只在計數型 + 有未填寫欄時才有意義（跟已調查格的排除條件一致）。
+       【2026-09-11 修正】原本刻意固定顯示（含 0）以區分「口徑存在且為0」
+       跟「根本沒被計算」，但使用者實際使用後回饋：大多數單位這格長期
+       是 0，佔位反而讓卡片變擠、注意力被稀釋。改成只在 stat.gap>0 時
+       才渲染整個格子——這正好符合「稽核」的初衷：格子出現＝有東西要
+       查，格子消失＝目前這個單位沒有這類異常，不需要另外分辨兩種 0。 */
+    (COL_UNFILL && !isSum() && stat.gap>0 ? '<div class="stat-item gap'+(chips['gap']===false?' dim':'')+'"><div class="stat-label">'+esc(GAP_LABEL)+'</div><div class="stat-val">'+stat.gap+'</div><div class="stat-pct">'+fp(stat.gap)+'</div></div>' : '')+
   '</div>';
   /* 細項列：各 B 群／各 C 群，跟總覽列之間僅用一條分隔線區隔，不再顯示
      「已知細項（B／C群）」這類內部代號文字（v3.2.0 移除：外部人員看了
