@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 3.12.1 ｜ 最後更新：2026-09-11
+  版本：Ver. 3.12.2 ｜ 最後更新：2026-09-11
 ════════════════════════════════════════════════════════════
 
 
@@ -49,6 +49,31 @@
 
 
 【版本紀錄】
+  3.12.2 2026-09-11  修正「📆 自訂區間」按鈕按下去沒反應的問題。根因不是
+                      onclick／JS 邏輯，是 CSS：面板 #cwn-custom-box 原本
+                      position:absolute 掛在 .cwn-group 底下，往下彈出；但
+                      外層 .lamp-row 設了 overflow-x:auto 卻沒明寫 overflow-y
+                      ──CSS 規則是只要 overflow-x 不是 visible，overflow-y
+                      會被瀏覽器強制算成 auto，等於連垂直方向也一起裁切。
+                      面板其實有正常展開，只是被裁掉看不見。
+                      改成 position:fixed，_toggleCustomRangeBox() 開啟時
+                      把面板搬到 document.body、用新增的 _cwPositionCustomBox()
+                      依按鈕當下的 getBoundingClientRect() 動態算 top/left
+                      （靠右邊界會自動收，避免超出視窗），不再受任何祖先層
+                      overflow 影響。另外掛 resize／.lamp-row scroll 監聽器
+                      即時重新定位，避免視窗縮放或橫向捲動燈號列後面板跟按鈕
+                      對不齊；_closeCustomRangeBox() 對應把監聽器清掉，避免
+                      每開一次就多累積一份。按鈕 onclick 改傳 this 讓函式知道
+                      要對哪顆按鈕定位；手機版 media query 裡原本疊加的
+                      left:auto/right:0（在 absolute 時代用來貼右邊界）拿掉，
+                      因為 inline style 優先權本來就比 class 高，留著只是
+                      誤導閱讀，實際定位全由 JS 決定。
+                      用 node --check 驗證全檔語法通過。未做全瀏覽器端對端
+                      測試（沙盒環境無法開瀏覽器實際點擊驗證），建議部署後
+                      實機測試：桌面/手機開關面板、視窗縮放時面板位置是否
+                      跟著按鈕、燈號列橫向捲動後面板定位是否正確、以及原本
+                      「套用」「✕ 關閉」「切換週/月粒度時自動關閉面板」三個
+                      既有行為仍正常運作。
   3.12.1 2026-09-11  「⚠️待確認」卡片改成 stat.gap===0 時不渲染整個格子
                       （原本 3.12.0 刻意固定顯示含 0，使用者實際看過後
                       回饋大多數單位長期是 0、佔位讓卡片變擠）。只改
@@ -701,8 +726,15 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   padding:3px 5px; font-size:11.5px; font-weight:700; color:var(--text);
   cursor:pointer; flex-shrink:0;
 }
+/* v3.12.2：position 由 absolute 改 fixed，top/left 交給 JS（_cwPositionCustomBox）
+   在開啟當下動態算好再寫成 inline style。原本用 absolute 掛在 .cwn-group 底下，
+   雖然本身 z-index:60 夠高，但外層 .lamp-row 有 overflow-x:auto——CSS 規則是
+   overflow-x 只要不是 visible，overflow-y 會被瀏覽器強制算成 auto，等於連垂直
+   方向也一起裁切，導致這個往下彈出的面板其實有展開、只是被裁掉看不見。改成
+   fixed 定位＋開啟時搬到 document.body（見 _toggleCustomRangeBox），就不再受
+   任何祖先層 overflow 影響。 */
 .cwn-custom-box {
-  position:absolute; top:calc(100% + 4px); left:0; z-index:60;
+  position:fixed; z-index:210;
   display:flex; align-items:center; gap:6px; flex-wrap:wrap;
   background:#fff; border:1px solid var(--border); border-radius:10px;
   padding:8px 9px; box-shadow:0 4px 16px rgba(0,0,0,.14);
@@ -1430,7 +1462,10 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   .lamp-group-tag, .cwn-group-tag { font-size:9px; }
   /* v3.11.0：週/月切換下拉、自訂區間面板手機縮小 */
   .cwn-unit-sel { font-size:10px; padding:2px 4px; }
-  .cwn-custom-box { left:auto; right:0; padding:6px 7px; gap:4px; }
+  /* left/top 由 _cwPositionCustomBox() 用 inline style 動態寫入，
+     這裡只調手機上的內距／間距，不再手動指定 left/right（inline style
+     優先權本來就比這裡高，留著舊值只會誤導人） */
+  .cwn-custom-box { padding:6px 7px; gap:4px; }
   .cwn-custom-input { font-size:11px; padding:3px 4px; }
 
 
@@ -1699,7 +1734,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
       <button class="cwn-btn cwn-btn-icon" onclick="covPageWeek(1)" aria-label="下一期">►</button>
       <button class="cwn-btn" id="cwn-btn-today" onclick="covJumpToday()">本週</button>
       <button class="cwn-btn" id="cwn-btn-all" onclick="covJumpAll()">全部</button>
-      <button class="cwn-btn cwn-btn-icon" onclick="_toggleCustomRangeBox()" title="自訂區間" aria-label="自訂區間">📆</button>
+      <button class="cwn-btn cwn-btn-icon" onclick="_toggleCustomRangeBox(this)" title="自訂區間" aria-label="自訂區間">📆</button>
     </div>
     <div class="cwn-custom-box" id="cwn-custom-box" style="display:none" onclick="event.stopPropagation()">
       <input type="date" id="cwn-custom-start" class="cwn-custom-input">
@@ -1889,6 +1924,11 @@ var COV_WEEK_SEL  = null;    /* {start:Date, end:Date} 目前選定的期間（�
    （毫秒），只有 unit==='custom' 時才有意義，供 ◄/► 用同樣長度往前/後移。 */
 var COV_PERIOD_UNIT = 'week';
 var COV_CUSTOM_LEN_MS = 7*24*60*60*1000;
+/* v3.12.2：自訂區間面板改用 fixed 定位＋動態算座標（見下方 _toggleCustomRangeBox），
+   這兩個變數記著「目前是對哪顆按鈕開的」以及「重新定位用的事件處理函式」，
+   面板關閉時要記得把監聽器拿掉，不然每開一次就多掛一份、越積越多。 */
+var _cwCustomBoxBtn = null;
+var _cwCustomBoxRepoHandler = null;
 
 /* 用台灣時區判斷「今天」，避免使用者瀏覽器時區跟公司作業時區（UTC+8）兜不起來 */
 function _cwTaipeiNow(){
@@ -2239,9 +2279,29 @@ function _setPeriodUnit(u){
   _closeCustomRangeBox();
   _covWeekStateChanged();
 }
+/* v3.12.2：面板是 position:fixed，座標用按鈕當下在畫面上的位置算出來——
+   靠右邊界時往左收（避免超出視窗），並用 Math.max 確保不會被收到負值跑到
+   螢幕外。開啟當下算一次，之後只在 resize／.lamp-row 橫向捲動時才重算
+   （見 _toggleCustomRangeBox 掛的監聽器），平常不需要每個 frame 都重算。 */
+function _cwPositionCustomBox(box, btn){
+  if(!box || !btn) return;
+  var r = btn.getBoundingClientRect();
+  box.style.top = (r.bottom + 4) + 'px';
+  var left = r.left;
+  var maxLeft = window.innerWidth - box.offsetWidth - 8;
+  if(left > maxLeft) left = maxLeft;
+  if(left < 8) left = 8;
+  box.style.left = left + 'px';
+}
 /* v3.11.0：自訂區間——彈出小面板讓使用者選任意起訖日，套用後 COV_PERIOD_UNIT
-   切成 'custom'，◄/► 之後就會照這個區間的長度往前/後移動。 */
-function _toggleCustomRangeBox(){
+   切成 'custom'，◄/► 之後就會照這個區間的長度往前/後移動。
+   v3.12.2：修正面板開了但看不到的問題——原本用 position:absolute 掛在
+   .cwn-group 底下，被外層 .lamp-row 的 overflow-x:auto 連帶裁掉了垂直方向
+   （CSS 規則：overflow-x 只要不是 visible，overflow-y 會被強制算成 auto）。
+   改成開啟時把面板搬到 document.body、position:fixed，用按鈕座標動態定位，
+   就不再受任何祖先層 overflow 影響；關閉時把監聽器清掉，避免每開一次就
+   多掛一份越積越多。 */
+function _toggleCustomRangeBox(btn){
   var box = document.getElementById('cwn-custom-box');
   if(!box) return;
   var opening = box.style.display === 'none' || !box.style.display;
@@ -2251,14 +2311,30 @@ function _toggleCustomRangeBox(){
     var e = document.getElementById('cwn-custom-end');
     if(s) s.value = _cwISODate(base.start);
     if(e) e.value = _cwISODate(base.end);
+    if(box.parentNode !== document.body) document.body.appendChild(box);
     box.style.display = 'flex';
+    _cwCustomBoxBtn = btn || document.querySelector('.cwn-pager button[aria-label="自訂區間"]');
+    _cwPositionCustomBox(box, _cwCustomBoxBtn);
+    if(!_cwCustomBoxRepoHandler){
+      _cwCustomBoxRepoHandler = function(){ _cwPositionCustomBox(box, _cwCustomBoxBtn); };
+      window.addEventListener('resize', _cwCustomBoxRepoHandler);
+      var lampRow = document.getElementById('lamp-row');
+      if(lampRow) lampRow.addEventListener('scroll', _cwCustomBoxRepoHandler);
+    }
   } else {
-    box.style.display = 'none';
+    _closeCustomRangeBox();
   }
 }
 function _closeCustomRangeBox(){
   var box = document.getElementById('cwn-custom-box');
   if(box) box.style.display = 'none';
+  if(_cwCustomBoxRepoHandler){
+    window.removeEventListener('resize', _cwCustomBoxRepoHandler);
+    var lampRow = document.getElementById('lamp-row');
+    if(lampRow) lampRow.removeEventListener('scroll', _cwCustomBoxRepoHandler);
+    _cwCustomBoxRepoHandler = null;
+  }
+  _cwCustomBoxBtn = null;
 }
 function _applyCustomRange(){
   var sEl = document.getElementById('cwn-custom-start');
