@@ -29,9 +29,20 @@
      不再跟 gviz 綁在同一個 Promise.all 裡擋住卡片渲染——GAS Web App
      常有明顯冷啟動延遲，不該讓整頁陪著等。改成背景抓，卡片先用當下
      資料畫出來，GAS 回應後用 patchUpdateButtons() 補上「🔄 更新」
-     按鈕。卡片要不要顯示按鈕、按鈕對應哪個任務名稱，統一由
-     resolveTaskName() 判斷，buildCard() 跟 patchUpdateButtons() 共用
+     按鈕。卡片要不要顯示按鈕、按鈕對應哪些任務名稱，統一由
+     resolveTaskNames() 判斷，buildCard() 跟 patchUpdateButtons() 共用
      這支函式，不要各寫一份判斷邏輯。
+
+  第五輪（支援一個看板專案對應多個同步任務）：
+  12. 「專案管理」表新增了 J 欄「同步報表名稱」，多數專案留空、照舊
+      自動比對；只有名稱對不上、或一個看板背後有多個同步任務（例如
+      彙總多張問卷表的專案）時才需要填，可填一個或多個，用逗號
+      （全形/半形）或儲存格內換行分隔皆可（見 loadProjects()）。
+  13. resolveTaskNames() 一律回傳陣列，handleUpdateClick() 對應改成
+      用 Promise.allSettled 平行觸發陣列裡每一個任務，全部成功才顯示
+      ✅，任一失敗則整體顯示 ❌ 並列出是哪幾個來源出錯，不會因為其中
+      一個任務被改名/刪除就讓整張卡片的更新按鈕整組消失——查不到的
+      名稱只是被濾掉，還查得到的來源照常可以更新。
 
   第三輪（混合式 IMPORTRANGE 讀取，取代逐專案即時查詢）：
   6. 「專案管理」表新增了 I 欄，公式是
@@ -815,10 +826,19 @@ function loadProjects(){
            即時請求；公式出錯／還沒授權／留空時是空字串，交給
            fetchAllSyncTimes() 的 fallback 邏輯即時查詢補上。 */
         var syncPre=String(cv(cells[8])||'').trim();
+        /* J欄（第五輪新增）：同步報表名稱，給「一個看板專案對應多個
+           同步任務」或「名稱怎麼樣都對不上自動比對規則」的少數專案用。
+           支援用逗號（全形/半形）或儲存格內換行（Alt+Enter）分隔多個
+           報表名稱，兩種寫法都接受、可以混用。大多數專案這欄留空，
+           留空就完全不影響、照舊走自動比對（見 resolveTaskNames()）。 */
+        var taskNamesRaw=String(cv(cells[9])||'').trim();
+        var taskNames=taskNamesRaw
+          ? taskNamesRaw.split(/[,，\n]+/).map(function(s){return s.trim();}).filter(Boolean)
+          : [];
         /* ── 修正①：跳過空列與表頭佔位列 ── */
         if(!name||!sid) return;
         if(isHeaderRow(name,sid)) return;
-        var p={name:name,id:sid,sheet:sheet,syncSheet:sync,syncCell:cell,boardType:btype,group:group,syncPre:syncPre};
+        var p={name:name,id:sid,sheet:sheet,syncSheet:sync,syncCell:cell,boardType:btype,group:group,syncPre:syncPre,taskNames:taskNames};
         if(active) onList.push(p); else offList.push(p);
       });
       _surveys={on:onList,off:offList};
@@ -991,14 +1011,29 @@ function renderGroupedGrid(container, list, isOff){
   container.appendChild(row);
 }
 
-/* 卡片要不要顯示「🔄 更新」按鈕、按鈕該對應哪個同步任務名稱，
+/* 卡片要不要顯示「🔄 更新」按鈕、按鈕該對應哪些同步任務名稱，
    buildCard()（第一次畫卡片）跟 patchUpdateButtons()（GAS 任務清單
    晚到時補畫按鈕）都要用同一套判斷邏輯，抽出來避免兩邊各寫一次、
-   日後改規則只改一個地方就好，也不會兩邊行為兜不起來。 */
-function resolveTaskName(proj, isOff){
-  var stripped = stripDateSuffix(proj.name);
-  var effectiveTaskName = _syncTaskOverride[stripped] || stripped;
-  return (isOff || !_syncTaskNames[effectiveTaskName]) ? null : effectiveTaskName;
+   日後改規則只改一個地方就好，也不會兩邊行為兜不起來。
+   回傳值一律是陣列（可能是空陣列、一個名稱、或多個名稱）：
+   - J欄「同步報表名稱」有填 → 直接用 J 欄拆出來的名稱清單，
+     跳過下面的自動比對（一個看板對多個來源、或名稱怎樣都對不上
+     自動規則的少數專案用這個）。
+   - J欄留空 → 照舊：專案名去掉結尾括號、查「同步對照」例外，
+     比對出一個名稱。
+   最後一律只留下「真的能在 _syncTaskNames 裡查到」的名稱，查不到
+   的名稱會被濾掉而不是整組作廢，避免因為其中一個來源改名/刪除，
+   害另一個明明還在的來源也跟著失去更新按鈕。 */
+function resolveTaskNames(proj, isOff){
+  if(isOff) return [];
+  var candidates;
+  if(proj.taskNames && proj.taskNames.length){
+    candidates = proj.taskNames;
+  }else{
+    var stripped = stripDateSuffix(proj.name);
+    candidates = [ _syncTaskOverride[stripped] || stripped ];
+  }
+  return candidates.filter(function(n){ return _syncTaskNames[n]; });
 }
 
 function buildCard(proj,isOff){
@@ -1008,9 +1043,9 @@ function buildCard(proj,isOff){
   card.id='card-'+proj.id;
   card.style.cssText='--accent:'+sty.accent+';--badge-bg:'+sty.badgeBg+';--badge-fg:'+sty.badgeFg+';';
 
-  var taskName = resolveTaskName(proj, isOff);
-  var updateBtnHtml = taskName
-    ? '<button class="proj-update-btn" type="button" title="更新「'+esc(taskName)+'」資料">🔄</button>'
+  var taskNames = resolveTaskNames(proj, isOff);
+  var updateBtnHtml = taskNames.length
+    ? '<button class="proj-update-btn" type="button" title="更新「'+esc(taskNames.join('、'))+'」資料">🔄</button>'
     : '';
 
   card.innerHTML=
@@ -1031,11 +1066,11 @@ function buildCard(proj,isOff){
     openProject(proj);
   });
 
-  if(taskName){
+  if(taskNames.length){
     var btn = card.querySelector('.proj-update-btn');
     btn.addEventListener('click', function(e){
       e.stopPropagation();
-      handleUpdateClick(btn, proj, taskName);
+      handleUpdateClick(btn, proj, taskNames);
     });
   }
   return card;
@@ -1051,19 +1086,19 @@ function patchUpdateButtons(list){
   list.forEach(function(proj){
     var card = document.getElementById('card-'+proj.id);
     if(!card || card.querySelector('.proj-update-btn')) return;
-    var taskName = resolveTaskName(proj, false);
-    if(!taskName) return;
+    var taskNames = resolveTaskNames(proj, false);
+    if(!taskNames.length) return;
     var syncRow = card.querySelector('.proj-sync');
     if(!syncRow) return;
     var btn = document.createElement('button');
     btn.className = 'proj-update-btn';
     btn.type = 'button';
-    btn.title = '更新「'+taskName+'」資料';
+    btn.title = '更新「'+taskNames.join('、')+'」資料';
     btn.textContent = '🔄';
     syncRow.appendChild(btn);
     btn.addEventListener('click', function(e){
       e.stopPropagation();
-      handleUpdateClick(btn, proj, taskName);
+      handleUpdateClick(btn, proj, taskNames);
     });
   });
 }
@@ -1077,12 +1112,46 @@ function openProject(proj){
   window.location.href=page+'?sheetId='+encodeURIComponent(proj.id);
 }
 
+/* 觸發單一同步任務，回傳 Promise。找不到任務名單快取時保險性地重抓
+   一次最新清單，而不是直接判定失敗（邏輯跟原本單任務版本一樣，
+   只是抽出來給下面的多任務版本重複呼叫）。失敗時 reject 的 Error
+   會帶上 taskName，讓外層知道是「哪一個」來源失敗。 */
+function syncOneTask(taskName){
+  var lookup = _syncTaskNames[taskName]
+    ? Promise.resolve(_syncTaskNames[taskName])
+    : fetchSyncTaskList().then(function(){ return _syncTaskNames[taskName]; });
+
+  return lookup
+    .then(function(match){
+      if(!match) throw new Error('在同步工具裡找不到任務：'+taskName);
+      return fetch(SYNC_GAS_URL, {
+        method:'POST',
+        body: JSON.stringify({ action:'syncTask', index: match._originalIndex })
+      });
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(json){
+      if(!json.ok) throw new Error(json.message||'更新失敗');
+    })
+    .catch(function(err){
+      var msg = (err&&err.message)||'失敗';
+      /* 統一包一層，讓外層 Promise.allSettled 收到的 reason 一定帶
+         taskName，不用每次都自己判斷 err.message 是不是已經有名稱。 */
+      throw new Error(taskName+'：'+msg);
+    });
+}
+
 /* 點 4+5：更新按鈕點擊流程，加入三階段視覺回饋
    ① 按下：按鈕 ⏳，時間欄顯示「同步中…」
    ② 完成：按鈕 ✅，時間欄顯示「✅ 完成」，1.5s 後重新讀取最新時間
-   ③ 失敗：按鈕 ❌，時間欄顯示錯誤原因，2s 後恢復 */
-function handleUpdateClick(btn, proj, taskName){
+   ③ 失敗：按鈕 ❌，時間欄顯示錯誤原因，2s 後恢復
+   taskNames 現在一律是陣列（單一來源的專案陣列長度就是 1，行為跟
+   原本一樣）。多個來源會平行送出，用 allSettled 而不是 all，
+   確保其中一個來源失敗不會讓還沒回應的其他來源被中斷或忽略——
+   全部成功才算 ✅，只要有一個失敗就整體算 ❌ 並列出是哪幾個失敗。 */
+function handleUpdateClick(btn, proj, taskNames){
   if(btn.disabled) return;
+  if(!taskNames || !taskNames.length) return;
   btn.disabled = true;
   btn.textContent = '⏳';
 
@@ -1099,49 +1168,37 @@ function handleUpdateClick(btn, proj, taskName){
     if(statusEl) statusEl.textContent = '同步中… '+secs+'s';
   }, 1000);
 
-  /* 按鈕會顯示，代表載入頁面時 _syncTaskNames 裡已經有這個任務，
-     正常情況下直接用快取就好，不用每次點擊都重新問一次後端「有哪些
-     任務」——sync.html 本身開著才需要即時清單，這裡只是觸發，用頁面
-     載入時的快照即可。只有極少數「快取裡剛好找不到」的情況（例如
-     使用者開著這頁很久，後端當中任務被改名/移除）才保險性地重新問
-     一次最新清單，而不是直接判定失敗。 */
-  var lookup = _syncTaskNames[taskName]
-    ? Promise.resolve(_syncTaskNames[taskName])
-    : fetchSyncTaskList().then(function(){ return _syncTaskNames[taskName]; });
+  Promise.allSettled(taskNames.map(syncOneTask))
+    .then(function(results){
+      clearInterval(timerInterval);
+      var failed = results
+        .filter(function(r){ return r.status==='rejected'; })
+        .map(function(r){ return r.reason&&r.reason.message||'失敗'; });
 
-  lookup
-    .then(function(match){
-      if(!match) throw new Error('在同步工具裡找不到任務：'+taskName);
-      return fetch(SYNC_GAS_URL, {
-        method:'POST',
-        body: JSON.stringify({ action:'syncTask', index: match._originalIndex })
-      });
-    })
-    .then(function(r){ return r.json(); })
-    .then(function(json){
-      if(!json.ok) throw new Error(json.message||'更新失敗');
-      clearInterval(timerInterval);
-      var elapsed = ((Date.now()-startTs)/1000).toFixed(1);
-      btn.textContent = '✅';
-      if(statusEl) statusEl.textContent = '✅ '+elapsed+'s';
-      /* 點 5：1.5s 後重新讀取最新同步時間並刷新顯示 */
-      setTimeout(function(){
-        if(statusEl) statusEl.textContent = '';
-        fetchOneSyncTime(proj);
-        btn.textContent = '🔄';
-        btn.disabled = false;
-      }, 1500);
-    })
-    .catch(function(err){
-      clearInterval(timerInterval);
+      if(!failed.length){
+        var elapsed = ((Date.now()-startTs)/1000).toFixed(1);
+        btn.textContent = '✅';
+        if(statusEl) statusEl.textContent = '✅ '+elapsed+'s';
+        /* 點 5：1.5s 後重新讀取最新同步時間並刷新顯示 */
+        setTimeout(function(){
+          if(statusEl) statusEl.textContent = '';
+          fetchOneSyncTime(proj);
+          btn.textContent = '🔄';
+          btn.disabled = false;
+        }, 1500);
+        return;
+      }
+
+      /* 只要有一個來源失敗，整體視為失敗；訊息裡列出哪幾個來源出錯，
+         方便判斷是全部都掛掉還是只有其中一個（例如任務被改名）。 */
       btn.textContent = '❌';
-      var msg = (err&&err.message)||'失敗';
-      if(statusEl) statusEl.textContent = '❌ '+msg.slice(0,20);
+      var msg = failed.join('；');
+      if(statusEl) statusEl.textContent = '❌ '+msg.slice(0,30);
       if(textEl) textEl.textContent = prevText; /* 恢復舊時間 */
       setTimeout(function(){
         if(statusEl) statusEl.textContent = '';
         btn.textContent = '🔄';
-        btn.title = '更新「'+taskName+'」資料';
+        btn.title = '更新「'+taskNames.join('、')+'」資料';
         btn.disabled = false;
       }, 2500);
     });
