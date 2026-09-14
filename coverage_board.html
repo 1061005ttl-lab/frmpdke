@@ -1029,6 +1029,11 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .stat-item.good .stat-pct { color:var(--green); opacity:.7; }
 .stat-item.warn .stat-pct { color:var(--red); opacity:.7; }
 .stat-pct.hidden { visibility:hidden; }
+/* 【2026-09-14 新增】stat-pct-sub：B/C 細項格第二行小字，顯示「佔總家數」
+   比例，跟主要的 stat-pct（佔已調查家數比例）區分開來——用更小、更淡的
+   灰階，確保視覺主從關係清楚，不會跟主要百分比搶注意力 */
+.stat-pct-sub { font-size:9px; font-weight:600; color:#999; opacity:.75; margin-top:1px; line-height:1; }
+.stat-item.dim .stat-pct-sub { color:#999 !important; }
 
 
 /* ══════════════════════════════
@@ -1112,6 +1117,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   .stat-val { font-size:20px !important; }
   .stat-label { font-size:9px; min-height:2em; margin-bottom:2px; }
   .stat-pct { font-size:11px; }
+  .stat-pct-sub { font-size:8px; }
   .card-detail-btn { font-size:11px; padding:4px 10px; }
 
 
@@ -3734,6 +3740,11 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
   var ttId='tt-'+name.replace(/[^a-zA-Z0-9]/g,'_')+'-'+levelKey+(isOverall?'-all':'');
   var T = stat.total;
   function fp(n){ return T>0 ? Math.round(n/T*100)+'%' : '—'; }
+  /* 【2026-09-14 新增】fp2：B/C 細項群組專用的第二種百分比，分母改成
+     stat.valid（已調查家數），呈現「已調查樣本中的組成分布」，跟 fp()
+     的「佔全體家數比例」分開標示，兩種語意都保留（見卡片內雙百分比）。 */
+  var V = stat.valid;
+  function fp2(n){ return V>0 ? Math.round(n/V*100)+'%' : '—'; }
   /* 卡片標題一行：組別小字（營業處/整體概況…）+ 名稱大字 + 右側明細按鈕 */
   var topLabel = isOverall ? '整體概況' : labelText;
   var _safeName = name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
@@ -3766,7 +3777,8 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
       _bStatHtml += '<div class="stat-item good'+dim+'" id="'+siId+'" style="position:relative">'+
         '<div class="stat-label">'+esc(g.label)+'</div>'+
         '<div class="stat-val">'+cnt+'</div>'+
-        '<div class="stat-pct">'+fp(cnt)+'</div>'+
+        '<div class="stat-pct" title="佔已調查家數比例">'+fp2(cnt)+'</div>'+
+        '<div class="stat-pct-sub" title="佔總家數比例">總'+fp(cnt)+'</div>'+
         (hasMultiCols ? '<div class="tooltip" id="'+ttBId+'">'+buildTooltipHTML(g.label, g.cols, stat.bColCounts, cnt)+'</div>' : '')+
       '</div>';
     });
@@ -3782,7 +3794,8 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
       _cStatHtml += '<div class="stat-item warn'+dim+'" id="'+siId+'" style="position:relative">'+
         '<div class="stat-label">'+esc(g.label)+'</div>'+
         '<div class="stat-val">'+cnt+'</div>'+
-        '<div class="stat-pct">'+fp(cnt)+'</div>'+
+        '<div class="stat-pct" title="佔已調查家數比例">'+fp2(cnt)+'</div>'+
+        '<div class="stat-pct-sub" title="佔總家數比例">總'+fp(cnt)+'</div>'+
         (hasMultiCols ? '<div class="tooltip" id="'+ttCId2+'">'+buildTooltipHTML(g.label, g.cols, stat.cColCounts, cnt)+'</div>' : '')+
       '</div>';
     });
