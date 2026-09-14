@@ -1376,12 +1376,12 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   </div>
   <span class="lamp-sep"></span>
   <!-- 【2026-09-14 新增】pct-group：手動切換 B/C 細項卡片要顯示哪種佔比口徑
-       （已調查% / 總家數% / 雙口徑並列），取代先前「自動依調查完成度隱藏」的
+       （已回收% / 總家數% / 雙口徑並列），取代先前「自動依調查完成度隱藏」的
        做法——高層反應調查後期兩個%會趨於一致、自動邏輯太被動，改成使用者
        自己決定要看哪個口徑，選擇存 localStorage，重整頁面後仍記得 -->
   <div class="cwn-group" id="pct-group" title="切換卡片『販售中/無上架』等細項要顯示哪種佔比口徑">
     <span class="cwn-group-tag">📊 佔比口徑</span>
-    <button class="cwn-btn pct-mode-btn" data-mode="valid" onclick="setPctMode('valid')">已調查%</button>
+    <button class="cwn-btn pct-mode-btn" data-mode="valid" onclick="setPctMode('valid')">已回收%</button>
     <button class="cwn-btn pct-mode-btn" data-mode="total" onclick="setPctMode('total')">總家數%</button>
     <button class="cwn-btn pct-mode-btn" data-mode="both" onclick="setPctMode('both')">雙口徑並列</button>
   </div>
@@ -2156,12 +2156,14 @@ function _covTrendSeriesDefs(){
       getVal:function(stat){ return stat.bTotalSum||0; },
       getRaw:function(stat){ return stat.bTotalSum||0; } });
   } else {
-    /* 【2026-09-14 新增】已調查：最基礎的「資料回收進度」，獨立成一條可選
-       線型，不用再靠「100%－未填寫%」倒推。放在第一個，對應高層最基本
-       的提問「這週在店家名冊上回收了多少資料」。只在有設未填寫欄時才有
-       意義（沒設的話 valid 恆等於 total，跟卡片上「已調查」格顯示條件一致） */
+    /* 【2026-09-14 新增，同日改名】已回收：最基礎的「資料回收進度」，獨立
+       成一條可選線型，不用再靠「100%－未填寫%」倒推。放在第一個，對應
+       高層最基本的提問「這週在店家名冊上回收了多少資料」。只在有設未填寫
+       欄時才有意義（沒設的話 valid 恆等於 total，跟卡片上「已回收」格顯示
+       條件一致）。原本叫「已調查」，改名是因為這格算的是「有寫問卷回來的
+       店家數」，不是稽核意義上的「已調查」，避免跟「調查完成度」混淆 */
     if(COL_UNFILL){
-      defs.push({ label:'已調查', color:'#378ADD', isPercent:true, bold:true,
+      defs.push({ label:'已回收', color:'#378ADD', isPercent:true, bold:true,
         getVal:function(stat){ return stat.total>0 ? stat.valid/stat.total*100 : null; },
         getRaw:function(stat){ return stat.valid||0; },
         getTotal:function(stat){ return stat.total||0; } });
@@ -2810,7 +2812,7 @@ var chips = { disp: true, no: true, unfill: true, gap: true };
 
 /* 【2026-09-14 新增】PCT_MODE：B/C 細項卡片百分比口徑，使用者手動切換，
    記在 localStorage 讓重整頁面後仍維持選擇。
-   'valid' = 只顯示「佔已調查家數比例」（預設，調查初期/後期都適用的主要口徑）
+   'valid' = 只顯示「佔已回收家數比例」（預設，調查初期/後期都適用的主要口徑）
    'total' = 只顯示「佔總家數比例」
    'both'  = 兩個都顯示（初期覆蓋率低、兩者差異大時最有參考價值） */
 var PCT_MODE = localStorage.getItem('ttl_pct_mode_v1') || 'valid';
@@ -3786,23 +3788,23 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
   var T = stat.total;
   function fp(n){ return T>0 ? Math.round(n/T*100)+'%' : '—'; }
   /* 【2026-09-14 新增】fp2：B/C 細項群組專用的第二種百分比，分母改成
-     stat.valid（已調查家數），呈現「已調查樣本中的組成分布」，跟 fp()
+     stat.valid（已回收家數），呈現「已回收樣本中的組成分布」，跟 fp()
      的「佔全體家數比例」分開標示，兩種語意都保留（見卡片內雙百分比）。 */
   var V = stat.valid;
   function fp2(n){ return V>0 ? Math.round(n/V*100)+'%' : '—'; }
   /* 【2026-09-14 修正】原本用「調查是否完成」自動判斷要不要顯示第二行
      百分比，但覆蓋率提高到一定程度後兩個%會趨於一致、使用者難以預期何
      時會多一行少一行；改成頂部工具列「📊 佔比口徑」按鈕由使用者手動決定
-     要看哪種口徑（已調查% / 總家數% / 雙口徑並列），比自動判斷更直覺可控 */
+     要看哪種口徑（已回收% / 總家數% / 雙口徑並列），比自動判斷更直覺可控 */
   function pctHtml(cnt) {
     if (PCT_MODE === 'total') {
       return '<div class="stat-pct" title="佔總家數比例">'+fp(cnt)+'</div>';
     }
     if (PCT_MODE === 'both') {
-      return '<div class="stat-pct" title="佔已調查家數比例">'+fp2(cnt)+'</div>'+
+      return '<div class="stat-pct" title="佔已回收家數比例">'+fp2(cnt)+'</div>'+
              '<div class="stat-pct-sub" title="佔總家數比例">總'+fp(cnt)+'</div>';
     }
-    return '<div class="stat-pct" title="佔已調查家數比例">'+fp2(cnt)+'</div>';
+    return '<div class="stat-pct" title="佔已回收家數比例">'+fp2(cnt)+'</div>';
   }
   /* 卡片標題一行：組別小字（營業處/整體概況…）+ 名稱大字 + 右側明細按鈕 */
   var topLabel = isOverall ? '整體概況' : labelText;
@@ -3857,18 +3859,18 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
       '</div>';
     });
   }
-  /* 已調查 = 總家數 - 未填寫，用一格直接給答案，不用讀者自己心算。
+  /* 已回收 = 總家數 - 未填寫，用一格直接給答案，不用讀者自己心算。
      只在計數型 + 有設未填寫欄時才有意義：加總型的「總家數」本身已經是
      已知家數（未填寫恆為 0），再放一格「已知」會跟總家數重複，故排除。 */
   var _knownHtml = (COL_UNFILL && !isSum())
-    ? '<div class="stat-item known"><div class="stat-label">已調查</div><div class="stat-val">'+stat.valid+'</div><div class="stat-pct">'+fp(stat.valid)+'</div></div>'
+    ? '<div class="stat-item known"><div class="stat-label">已回收</div><div class="stat-val">'+stat.valid+'</div><div class="stat-pct">'+fp(stat.valid)+'</div></div>'
     : '';
   var summaryRowHtml = '<div class="stat-row">'+
     '<div class="stat-item"><div class="stat-label">總家數</div><div class="stat-val">'+(isSum()?stat.hasDisp:stat.total)+'</div><div class="stat-pct hidden">&nbsp;</div></div>'+
     _knownHtml +
     (COL_UNFILL ? '<div class="stat-item warn'+(chips['unfill']===false?' dim':'')+'"><div class="stat-label">'+esc(UNFILL_LABEL)+'</div><div class="stat-val">'+stat.unfilled+'</div><div class="stat-pct">'+fp(stat.unfilled)+'</div></div>' : '')+
     /* ⚠️待確認：稽核灰色地帶（非未填寫，但B/C都沒有命中），2026-09-11 新增。
-       只在計數型 + 有未填寫欄時才有意義（跟已調查格的排除條件一致）。
+       只在計數型 + 有未填寫欄時才有意義（跟已回收格的排除條件一致）。
        【2026-09-11 修正】原本刻意固定顯示（含 0）以區分「口徑存在且為0」
        跟「根本沒被計算」，但使用者實際使用後回饋：大多數單位這格長期
        是 0，佔位反而讓卡片變擠、注意力被稀釋。改成只在 stat.gap>0 時
