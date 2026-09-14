@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 3.13.0 ｜ 最後更新：2026-09-14
+  版本：Ver. 3.13.1 ｜ 最後更新：2026-09-14
 ════════════════════════════════════════════════════════════
 
 
@@ -133,6 +133,39 @@
 
 
 【版本紀錄】（往後新版本請繼續往下累加，格式：版本號 日期 摘要）
+  3.13.1 2026-09-14  修正 3.13.0「❓ 說明」彈窗的定位問題：使用者回報離開
+                      趨勢圖後，說明彈窗還飄在主畫面某個角落，要點開才知道
+                      這東西原來屬於趨勢圖。根因是 3.13.0 誤以為 id 命名
+                      `xxx-dialog` 會自動套用跟 #summary-dialog／#detail-
+                      dialog 相同的「置中彈窗＋半透明背景」共用樣式，但那份
+                      共用樣式其實不在本檔可視範圍內（來自 shared/*.js，
+                      檔頭【關鍵注意事項】本來就警告過不能保證裡面長什麼
+                      樣子），實際上 #trend-help-dialog 完全沒有任何定位
+                      CSS，變成一個沒有 overlay、沒有置中、卡在文件流某處
+                      的裸 div；而且它掛在 body 下當 #trend-dialog 的
+                      sibling，離開趨勢圖（closeTrendDialog）不會連帶讓它
+                      消失。
+                      這版整個重寫：①UI 改成自己完整寫好的置中彈窗
+                      （.trend-help-overlay：position:fixed;inset:0 半透明
+                      背景 ＋ flex 置中，z-index:220 蓋過趨勢圖整頁的
+                      200），不再借用任何未知的共用樣式；②HTML 結構改成
+                      #trend-help-dialog 巢狀在 #trend-dialog 的 .dlg-box
+                      底下當子元素，不再是 body 下的 sibling——這樣只要外層
+                      #trend-dialog 被設回 display:none，這塊說明不管自己
+                      的 display 是什麼都不會被瀏覽器渲染出來，結構上就不
+                      可能再發生「離開趨勢圖說明還留著」的狀況；
+                      openTrendDialog／closeTrendDialog 也都加呼叫
+                      closeTrendHelp() 重置狀態做雙重保險。視覺上另外把
+                      關閉鈕改成圓形 ✕（.trend-help-close），跟内容區塊
+                      標題／清單／提示區的樣式一併微調，維持跟主畫面一致
+                      的字級與間距。
+                      用 node --check 驗證全檔語法通過（先剝除 HTML 註解
+                      再抽出所有內嵌 <script> 內容合併檢查，避免註解裡的
+                      文字被誤判成程式碼）。未做全瀏覽器端對端測試，建議
+                      部署後實機測試：桌面/手機點「❓ 說明」開關、彈窗是否
+                      正確置中且蓋住半透明背景、點背景／✕ 關閉、離開趨勢圖
+                      （← 返回）後說明是否確實一併消失、重新打開趨勢圖時
+                      說明是否維持關閉狀態。
   3.13.0 2026-09-14  趨勢圖新增「❓ 說明」按鈕與說明彈窗，把 4 種模式在
                       回答什麼、畫面各區塊怎麼讀（提示橫幅／圖表＋明細表／
                       排行榜長條顏色）、可操作項目（🔎 只看／🎯 單看／🔀
@@ -624,15 +657,49 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 }
 
 
-/* v3.13.0：趨勢圖「❓ 說明」彈窗——#trend-help-dialog 這個 id 以 -dialog
-   結尾，套用的是跟 #summary-dialog／#detail-dialog 同一份「置中彈窗＋半
-   透明背景」共用樣式（外層 overlay、.dlg-box 定位置中、z-index 都是那份
-   共用邏輯給的，這裡不重寫），只針對「內容是長篇說明文字」這件事做
-   id 範圍內的覆寫：.dlg-body 預設 overflow:hidden（給表格類明細用），
-   這裡改成可以垂直捲動；.dlg-box 給一個適合閱讀的寬度上限與高度上限，
-   避免內容被裁掉或撐爆版面。 */
-#trend-help-dialog .trend-help-box { max-width:640px; width:92vw; max-height:86vh; display:flex; flex-direction:column; }
-#trend-help-dialog .trend-help-body { overflow-y:auto; -webkit-overflow-scrolling:touch; padding:14px 18px 20px; font-size:13px; line-height:1.7; color:var(--text); flex:1; min-height:0; }
+/* v3.13.1：趨勢圖「❓ 說明」彈窗重新設計——v3.13.0 版誤以為 id 命名為
+   `xxx-dialog`會自動套到 #summary-dialog／#detail-dialog 那份「置中彈窗＋
+   半透明背景」共用樣式，結果那份共用樣式其實不在本檔可視範圍內（見檔頭
+   【關鍵注意事項】對 shared/*.js 的警語，本來就不該假設），實際上
+   #trend-help-dialog 完全沒有任何定位樣式，變成一個沒有 overlay、沒有
+   置中、卡在文件流某個位置的裸 div——使用者回報「離開趨勢圖後這塊說明
+   還飄在主畫面某個角落」正是這個根因（連帶說明「返回」沒有一併關掉它）。
+   這版全部改成自己寫好完整定位邏輯，不借用任何外部/未知樣式：
+   1) 整個 #trend-help-dialog 挪到 #trend-dialog 的 .dlg-box 底下當子元素
+      （不再是掛在 body 下的 sibling）。這樣只要外層 #trend-dialog 被設回
+      display:none，不管 #trend-help-dialog 自己的 display 是什麼，瀏覽器
+      渲染規則保證整個子樹都不會顯示——結構上就不可能發生「趨勢圖關掉了
+      說明彈窗還飄在主畫面上」這件事，不是只靠記得呼叫 closeTrendHelp()
+      去補。
+   2) overlay／置中／z-index 全部自己在這裡寫（.trend-help-overlay），
+      position:fixed 的 containing block 是 viewport（祖先都沒有
+      transform/filter），不會被 .dlg-box 的 overflow-x:hidden 裁到。
+      z-index 220 > 趨勢圖整頁的 200，蓋在最上層。 */
+.trend-help-overlay {
+  position:fixed; inset:0; z-index:220;
+  background:rgba(30,28,24,.5);
+  display:none; align-items:center; justify-content:center;
+  padding:20px;
+}
+.trend-help-box {
+  background:#fff; border-radius:14px; box-shadow:0 12px 40px rgba(0,0,0,.28);
+  width:100%; max-width:640px; max-height:86vh;
+  display:flex; flex-direction:column; overflow:hidden;
+}
+.trend-help-header {
+  display:flex; align-items:center; gap:10px;
+  padding:14px 18px; border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.trend-help-title { font-size:14.5px; font-weight:800; color:var(--text); flex:1; min-width:0; }
+.trend-help-close {
+  width:28px; height:28px; flex-shrink:0; border-radius:50%; border:none;
+  background:#F0F0EE; color:var(--sub,#888); font-size:14px; line-height:1;
+  cursor:pointer; font-family:inherit;
+  display:flex; align-items:center; justify-content:center; transition:background .15s,color .15s;
+}
+.trend-help-close:hover { background:#E4E2DC; color:var(--text); }
+.trend-help-body { overflow-y:auto; -webkit-overflow-scrolling:touch; padding:14px 18px 20px; font-size:13px; line-height:1.7; color:var(--text); flex:1; min-height:0; }
 .trend-help-body h4 { font-size:13.5px; font-weight:800; margin:16px 0 6px; color:var(--text); }
 .trend-help-body h4:first-child { margin-top:2px; }
 .trend-help-body ul { margin:0 0 4px; padding-left:20px; }
@@ -642,8 +709,10 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .trend-help-table th, .trend-help-table td { border-bottom:1px solid var(--border); padding:6px 8px; text-align:left; vertical-align:top; }
 .trend-help-table th { color:var(--sub,#888); font-weight:700; font-size:11px; white-space:nowrap; }
 @media (max-width:480px) {
-  #trend-help-dialog .trend-help-box { width:96vw; max-height:90vh; }
-  #trend-help-dialog .trend-help-body { padding:12px 12px 16px; font-size:12.5px; }
+  .trend-help-overlay { padding:0; }
+  .trend-help-box { max-width:none; width:100%; height:100%; max-height:100dvh; border-radius:0; }
+  .trend-help-header { padding:12px 14px; }
+  .trend-help-body { padding:12px 14px 18px; font-size:12.5px; }
   .trend-help-table { font-size:11px; }
 }
 
@@ -1550,63 +1619,66 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
       <button class="trend-mode-btn" data-mode="rank" onclick="switchTrendMode('rank')">🏢 各處/所比較</button>
     </div>
     <div class="dlg-body trend-body-flex" id="trend-body"></div>
-  </div>
-</div>
 
+    <!-- v3.13.1：說明面板改成 #trend-dialog 的子元素（不是掛在 body 下的
+         sibling），overlay／置中／z-index 全部自己寫（.trend-help-overlay，
+         定義在上方 CSS），不借用任何外部/未知的共用彈窗樣式。巢狀在這裡
+         的好處：只要外層 #trend-dialog 被設回 display:none，這塊說明
+         不管自己的 display 是什麼，都不會被瀏覽器渲染出來——結構上就不會
+         再發生「離開趨勢圖後說明還飄在主畫面某個角落」這件事，不是只靠
+         記得呼叫 closeTrendHelp() 去補（openTrendDialog／closeTrendDialog
+         仍然會呼叫 closeTrendHelp() 重置狀態，屬於雙重保險）。內容是純
+         靜態說明文字，不經 JS 組字串，直接寫死在這裡，之後功能調整
+         （模式、操作項目改變）要記得回來同步更新這段文字。 -->
+    <div id="trend-help-dialog" class="trend-help-overlay" onclick="if(event.target===this)closeTrendHelp()">
+      <div class="trend-help-box">
+        <div class="trend-help-header">
+          <span class="trend-help-title">📈 趨勢圖 說明</span>
+          <button type="button" class="trend-help-close" onclick="closeTrendHelp()">✕</button>
+        </div>
+        <div class="trend-help-body">
 
-<!-- v3.13.0 趨勢圖「❓ 說明」：id 用 -dialog 結尾，沿用 summary-dialog／
-     detail-dialog 那套「置中彈窗＋半透明背景」共用樣式（.dlg-box/.dlg-header/
-     .dlg-close，跟 #trend-dialog 借用的是同一批 class），不是 #trend-dialog
-     的整頁樣式（那個是靠 .trend-page 這個 class 額外覆寫成滿版，這裡不加
-     這個 class，所以會維持原本置中彈窗的樣子）。內容是純靜態說明文字，
-     不經 JS 組字串，直接寫死在這裡，之後功能調整（模式、操作項目改變）
-     要記得回來同步更新這段文字。 -->
-<div id="trend-help-dialog" style="display:none" onclick="if(event.target===this)closeTrendHelp()">
-  <div class="dlg-box trend-help-box">
-    <div class="dlg-header">
-      <span style="font-size:14px;font-weight:800;flex:1;min-width:0;">📈 趨勢圖 說明</span>
-      <button class="dlg-close" onclick="closeTrendHelp()">✕</button>
+          <h4>一、這 4 種模式在回答什麼</h4>
+          <table class="trend-help-table">
+            <thead><tr><th>模式</th><th>一句話說明</th><th>特性</th></tr></thead>
+            <tbody>
+              <tr><td>📈 週執行率</td><td>「這一週做了多少」，各週分開算</td><td>忽高忽低是正常的，不是異常</td></tr>
+              <tr><td>📊 累計達成進度</td><td>「累計推進到哪了」</td><td>理論上會逐步逼近 100%，除非有店家被撤除品項才會回落</td></tr>
+              <tr><td>📶 每週新增家數</td><td>「這週比上週多／少了幾家」</td><td>長條在基準線上方＝進步，下方＝被撤除（用累計達成進度相鄰兩週相減算出來）</td></tr>
+              <tr><td>🏢 各處/所比較</td><td>比較「各單位現在的達成率」，由低到高排序</td><td>用主畫面卡片同一份即時快照數字，<b>不經過問卷比對</b></td></tr>
+            </tbody>
+          </table>
+          <p class="trend-help-note">💡 前三種模式的資料來源是「問卷比對」邏輯，若問卷表頭命名跟系統比對規則兜不起來，可能出現「查得到拜訪紀錄卻算不到任何 B/C 欄位」的狀況；「🏢 各處/所比較」完全不受此影響。</p>
+
+          <h4>二、畫面怎麼讀</h4>
+          <ul>
+            <li><b>⚠️ 橘色橫幅</b>：這段期間有店家「查得到拜訪紀錄」但比對不到任何 B/C 欄位，畫出來的 0% 暫不建議當真，需先確認問卷表頭命名方式。</li>
+            <li><b>⏳ 藍色橫幅</b>：最右側（本期）時間還沒走完，資料會持續增加，圖上用<b>虛線／空心點</b>標示，先別拿它跟左邊已走完的期間直接比較。</li>
+            <li>圖表與旁邊的明細表是同一份資料，表格是圖的逐週逐項數字版，兩者常駐同時顯示。滑鼠移到圖上（或觸控）會跳出浮動小卡，依該週實際數值由高到低即時排序。</li>
+            <li>圖表下方「📍 本期快照」會列出最新一期各線的當前數值。</li>
+            <li>「🏢 各處/所比較」畫的是橫向排行榜，由低到高排序，<b>最上面通常是拖累整體平均的來源</b>；長條顏色：紅（&lt;50%）／橘（50–80%）／綠（≥80%），加總型專案統一綠色顯示份數。點一列可往下鑽一層，最細層級（業務人員）點了不會有反應。</li>
+          </ul>
+
+          <h4>三、可以操作的項目</h4>
+          <ul>
+            <li><b>週數切換</b>（右上角下拉）：近4／8／12／26 週，只影響前三種模式，不影響「🏢 各處/所比較」（該模式只看即時快照）。</li>
+            <li><b>🔎 只看</b>：先選營業處，才會出現該處底下的營業所/課可選；選定後可按「✕ 清除」還原。此範圍是額外疊加在主畫面既有的組織／通路／等級／燈號篩選之上。</li>
+            <li><b>🎯 單看</b>（2 條線以上才會出現）：點一個指標＝只顯示這一條線，再點一次或按「✕ 全部顯示」恢復全部。剛打開趨勢圖時預設只顯示一條「總覽線」（計數型＝已有（整體）／加總型＝已跟訪（總份數）），避免一次疊太多線看不懂。</li>
+            <li><b>🔀 同時比較</b>（需先選定「🎯 單看」某指標，且範圍還能往下鑽時才出現）：把這一條線展開成「目前範圍下每個分支各一條」，方便一次比較多個分支的同一指標，不用來回切換「🔎 只看」。</li>
+          </ul>
+          <p class="trend-help-note">🔎 只看決定「看誰的資料」，🎯 單看決定「看哪一條線」，🔀 同時比較決定「要不要把這條線拆成多分支一起看」，三者可以搭配使用。</p>
+
+          <h4>四、常見誤讀提醒</h4>
+          <ul>
+            <li>最右側（本期）看起來很低或空白，<b>不代表沒資料或渲染壞掉</b>——通常是本期時間還沒走完，紀錄天生就少，畫面會有虛線／空心點／⏳提示。</li>
+            <li>B/C 桶命中率整批是 0%，主表格資料卻是對的——通常<b>不是覆蓋率真的是零</b>，而是這筆拜訪紀錄比對不到任何已知 B/C 欄位（對應橘色 ⚠️ 橫幅），需先確認問卷表頭命名方式。</li>
+            <li>「🏢 各處/所比較」跟「週執行率／累計達成進度」數字對不起來是正常的——前者即時快照、不經問卷比對，後者要經過問卷比對邏輯，兩者口徑本來就不完全相同。</li>
+          </ul>
+
+        </div>
+      </div>
     </div>
-    <div class="dlg-body trend-help-body">
 
-      <h4>一、這 4 種模式在回答什麼</h4>
-      <table class="trend-help-table">
-        <thead><tr><th>模式</th><th>一句話說明</th><th>特性</th></tr></thead>
-        <tbody>
-          <tr><td>📈 週執行率</td><td>「這一週做了多少」，各週分開算</td><td>忽高忽低是正常的，不是異常</td></tr>
-          <tr><td>📊 累計達成進度</td><td>「累計推進到哪了」</td><td>理論上會逐步逼近 100%，除非有店家被撤除品項才會回落</td></tr>
-          <tr><td>📶 每週新增家數</td><td>「這週比上週多／少了幾家」</td><td>長條在基準線上方＝進步，下方＝被撤除（用累計達成進度相鄰兩週相減算出來）</td></tr>
-          <tr><td>🏢 各處/所比較</td><td>比較「各單位現在的達成率」，由低到高排序</td><td>用主畫面卡片同一份即時快照數字，<b>不經過問卷比對</b></td></tr>
-        </tbody>
-      </table>
-      <p class="trend-help-note">💡 前三種模式的資料來源是「問卷比對」邏輯，若問卷表頭命名跟系統比對規則兜不起來，可能出現「查得到拜訪紀錄卻算不到任何 B/C 欄位」的狀況；「🏢 各處/所比較」完全不受此影響。</p>
-
-      <h4>二、畫面怎麼讀</h4>
-      <ul>
-        <li><b>⚠️ 橘色橫幅</b>：這段期間有店家「查得到拜訪紀錄」但比對不到任何 B/C 欄位，畫出來的 0% 暫不建議當真，需先確認問卷表頭命名方式。</li>
-        <li><b>⏳ 藍色橫幅</b>：最右側（本期）時間還沒走完，資料會持續增加，圖上用<b>虛線／空心點</b>標示，先別拿它跟左邊已走完的期間直接比較。</li>
-        <li>圖表與旁邊的明細表是同一份資料，表格是圖的逐週逐項數字版，兩者常駐同時顯示。滑鼠移到圖上（或觸控）會跳出浮動小卡，依該週實際數值由高到低即時排序。</li>
-        <li>圖表下方「📍 本期快照」會列出最新一期各線的當前數值。</li>
-        <li>「🏢 各處/所比較」畫的是橫向排行榜，由低到高排序，<b>最上面通常是拖累整體平均的來源</b>；長條顏色：紅（&lt;50%）／橘（50–80%）／綠（≥80%），加總型專案統一綠色顯示份數。點一列可往下鑽一層，最細層級（業務人員）點了不會有反應。</li>
-      </ul>
-
-      <h4>三、可以操作的項目</h4>
-      <ul>
-        <li><b>週數切換</b>（右上角下拉）：近4／8／12／26 週，只影響前三種模式，不影響「🏢 各處/所比較」（該模式只看即時快照）。</li>
-        <li><b>🔎 只看</b>：先選營業處，才會出現該處底下的營業所/課可選；選定後可按「✕ 清除」還原。此範圍是額外疊加在主畫面既有的組織／通路／等級／燈號篩選之上。</li>
-        <li><b>🎯 單看</b>（2 條線以上才會出現）：點一個指標＝只顯示這一條線，再點一次或按「✕ 全部顯示」恢復全部。剛打開趨勢圖時預設只顯示一條「總覽線」（計數型＝已有（整體）／加總型＝已跟訪（總份數）），避免一次疊太多線看不懂。</li>
-        <li><b>🔀 同時比較</b>（需先選定「🎯 單看」某指標，且範圍還能往下鑽時才出現）：把這一條線展開成「目前範圍下每個分支各一條」，方便一次比較多個分支的同一指標，不用來回切換「🔎 只看」。</li>
-      </ul>
-      <p class="trend-help-note">🔎 只看決定「看誰的資料」，🎯 單看決定「看哪一條線」，🔀 同時比較決定「要不要把這條線拆成多分支一起看」，三者可以搭配使用。</p>
-
-      <h4>四、常見誤讀提醒</h4>
-      <ul>
-        <li>最右側（本期）看起來很低或空白，<b>不代表沒資料或渲染壞掉</b>——通常是本期時間還沒走完，紀錄天生就少，畫面會有虛線／空心點／⏳提示。</li>
-        <li>B/C 桶命中率整批是 0%，主表格資料卻是對的——通常<b>不是覆蓋率真的是零</b>，而是這筆拜訪紀錄比對不到任何已知 B/C 欄位（對應橘色 ⚠️ 橫幅），需先確認問卷表頭命名方式。</li>
-        <li>「🏢 各處/所比較」跟「週執行率／累計達成進度」數字對不起來是正常的——前者即時快照、不經問卷比對，後者要經過問卷比對邏輯，兩者口徑本來就不完全相同。</li>
-      </ul>
-
-    </div>
   </div>
 </div>
 
@@ -2954,22 +3026,27 @@ function openTrendDialog(){
   TREND_SCOPE = { area:'', office:'' };
   TREND_FOCUS = isSum() ? '已跟訪（總份數）' : '已有（整體）';
   TREND_COMPARE = false;
+  closeTrendHelp(); /* 每次重新打開趨勢圖都保證說明面板是關的，不會殘留上次的開啟狀態 */
   _renderTrendDialog();
 }
 function closeTrendDialog(){
   var dlg = document.getElementById('trend-dialog');
   if(dlg) dlg.style.display = 'none';
+  closeTrendHelp(); /* 巢狀在 #trend-dialog 底下，關掉外層本來就會一併不可見，這裡只是同步重置狀態 */
   _hideTrendTooltip();
 }
-/* v3.13.0：趨勢圖「❓ 說明」──內容是寫死在 HTML 裡的靜態說明，這裡只負責
-   開關顯示，不用另外組字串 */
+/* v3.13.1：趨勢圖「❓ 說明」──內容是寫死在 HTML 裡的靜態說明，這裡只負責
+   開關顯示，不用另外組字串。.trend-help-overlay 的 display 預設值（none）
+   寫在 CSS class 裡，這裡開啟時用 inline style 蓋過去，關閉時把 inline
+   style 拿掉、還原成 CSS class 的預設值，避免兩處各存一份「關閉時的值」
+   要對齊。 */
 function openTrendHelp(){
   var dlg = document.getElementById('trend-help-dialog');
   if(dlg) dlg.style.display = 'flex';
 }
 function closeTrendHelp(){
   var dlg = document.getElementById('trend-help-dialog');
-  if(dlg) dlg.style.display = 'none';
+  if(dlg) dlg.style.display = '';
 }
 /* ══════════════ v3.10.0：圖表 hover/觸控浮動小卡 ══════════════
    #trend-body 整個容器每次 _renderTrendDialog() 都會被 innerHTML 整段
