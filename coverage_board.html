@@ -599,6 +599,30 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 }
 
 
+/* v3.13.0：趨勢圖「❓ 說明」彈窗——#trend-help-dialog 這個 id 以 -dialog
+   結尾，套用的是跟 #summary-dialog／#detail-dialog 同一份「置中彈窗＋半
+   透明背景」共用樣式（外層 overlay、.dlg-box 定位置中、z-index 都是那份
+   共用邏輯給的，這裡不重寫），只針對「內容是長篇說明文字」這件事做
+   id 範圍內的覆寫：.dlg-body 預設 overflow:hidden（給表格類明細用），
+   這裡改成可以垂直捲動；.dlg-box 給一個適合閱讀的寬度上限與高度上限，
+   避免內容被裁掉或撐爆版面。 */
+#trend-help-dialog .trend-help-box { max-width:640px; width:92vw; max-height:86vh; display:flex; flex-direction:column; }
+#trend-help-dialog .trend-help-body { overflow-y:auto; -webkit-overflow-scrolling:touch; padding:14px 18px 20px; font-size:13px; line-height:1.7; color:var(--text); flex:1; min-height:0; }
+.trend-help-body h4 { font-size:13.5px; font-weight:800; margin:16px 0 6px; color:var(--text); }
+.trend-help-body h4:first-child { margin-top:2px; }
+.trend-help-body ul { margin:0 0 4px; padding-left:20px; }
+.trend-help-body li { margin-bottom:6px; }
+.trend-help-note { font-size:12px; color:var(--sub,#888); background:#F7F6F2; border-radius:8px; padding:8px 10px; margin:6px 0 4px; }
+.trend-help-table { width:100%; border-collapse:collapse; font-size:12px; margin:4px 0 8px; }
+.trend-help-table th, .trend-help-table td { border-bottom:1px solid var(--border); padding:6px 8px; text-align:left; vertical-align:top; }
+.trend-help-table th { color:var(--sub,#888); font-weight:700; font-size:11px; white-space:nowrap; }
+@media (max-width:480px) {
+  #trend-help-dialog .trend-help-box { width:96vw; max-height:90vh; }
+  #trend-help-dialog .trend-help-body { padding:12px 12px 16px; font-size:12.5px; }
+  .trend-help-table { font-size:11px; }
+}
+
+
 /* ── lamp-row 內兩種不同性質的資料分組視覺區隔（v3.8.0）：
    .lamp-group＝B/C 桶燈號 chips（篩選條件，綠色調），
    .cwn-group＝週檢視 pager（切換要看哪一週，藍色調）。
@@ -1485,6 +1509,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
       <button class="back-btn" onclick="closeTrendDialog()">← 返回</button>
       <span id="trend-title" style="font-size:13px;line-height:1.5;flex:1;min-width:0;">📈 趨勢圖</span>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+        <button type="button" class="dlg-action-btn" onclick="openTrendHelp()"><span>❓</span><span class="btn-txt"> 說明</span></button>
         <select id="trend-weeks-sel" onchange="_renderTrendDialog()" style="font-size:12px;padding:4px 6px;border:1px solid var(--border);border-radius:8px;background:#fff;">
           <option value="4">近4週</option>
           <option value="8" selected>近8週</option>
@@ -1503,6 +1528,62 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   </div>
 </div>
 
+
+<!-- v3.13.0 趨勢圖「❓ 說明」：id 用 -dialog 結尾，沿用 summary-dialog／
+     detail-dialog 那套「置中彈窗＋半透明背景」共用樣式（.dlg-box/.dlg-header/
+     .dlg-close，跟 #trend-dialog 借用的是同一批 class），不是 #trend-dialog
+     的整頁樣式（那個是靠 .trend-page 這個 class 額外覆寫成滿版，這裡不加
+     這個 class，所以會維持原本置中彈窗的樣子）。內容是純靜態說明文字，
+     不經 JS 組字串，直接寫死在這裡，之後功能調整（模式、操作項目改變）
+     要記得回來同步更新這段文字。 -->
+<div id="trend-help-dialog" style="display:none" onclick="if(event.target===this)closeTrendHelp()">
+  <div class="dlg-box trend-help-box">
+    <div class="dlg-header">
+      <span style="font-size:14px;font-weight:800;flex:1;min-width:0;">📈 趨勢圖 說明</span>
+      <button class="dlg-close" onclick="closeTrendHelp()">✕</button>
+    </div>
+    <div class="dlg-body trend-help-body">
+
+      <h4>一、這 4 種模式在回答什麼</h4>
+      <table class="trend-help-table">
+        <thead><tr><th>模式</th><th>一句話說明</th><th>特性</th></tr></thead>
+        <tbody>
+          <tr><td>📈 週執行率</td><td>「這一週做了多少」，各週分開算</td><td>忽高忽低是正常的，不是異常</td></tr>
+          <tr><td>📊 累計達成進度</td><td>「累計推進到哪了」</td><td>理論上會逐步逼近 100%，除非有店家被撤除品項才會回落</td></tr>
+          <tr><td>📶 每週新增家數</td><td>「這週比上週多／少了幾家」</td><td>長條在基準線上方＝進步，下方＝被撤除（用累計達成進度相鄰兩週相減算出來）</td></tr>
+          <tr><td>🏢 各處/所比較</td><td>比較「各單位現在的達成率」，由低到高排序</td><td>用主畫面卡片同一份即時快照數字，<b>不經過問卷比對</b></td></tr>
+        </tbody>
+      </table>
+      <p class="trend-help-note">💡 前三種模式的資料來源是「問卷比對」邏輯，若問卷表頭命名跟系統比對規則兜不起來，可能出現「查得到拜訪紀錄卻算不到任何 B/C 欄位」的狀況；「🏢 各處/所比較」完全不受此影響。</p>
+
+      <h4>二、畫面怎麼讀</h4>
+      <ul>
+        <li><b>⚠️ 橘色橫幅</b>：這段期間有店家「查得到拜訪紀錄」但比對不到任何 B/C 欄位，畫出來的 0% 暫不建議當真，需先確認問卷表頭命名方式。</li>
+        <li><b>⏳ 藍色橫幅</b>：最右側（本期）時間還沒走完，資料會持續增加，圖上用<b>虛線／空心點</b>標示，先別拿它跟左邊已走完的期間直接比較。</li>
+        <li>圖表與旁邊的明細表是同一份資料，表格是圖的逐週逐項數字版，兩者常駐同時顯示。滑鼠移到圖上（或觸控）會跳出浮動小卡，依該週實際數值由高到低即時排序。</li>
+        <li>圖表下方「📍 本期快照」會列出最新一期各線的當前數值。</li>
+        <li>「🏢 各處/所比較」畫的是橫向排行榜，由低到高排序，<b>最上面通常是拖累整體平均的來源</b>；長條顏色：紅（&lt;50%）／橘（50–80%）／綠（≥80%），加總型專案統一綠色顯示份數。點一列可往下鑽一層，最細層級（業務人員）點了不會有反應。</li>
+      </ul>
+
+      <h4>三、可以操作的項目</h4>
+      <ul>
+        <li><b>週數切換</b>（右上角下拉）：近4／8／12／26 週，只影響前三種模式，不影響「🏢 各處/所比較」（該模式只看即時快照）。</li>
+        <li><b>🔎 只看</b>：先選營業處，才會出現該處底下的營業所/課可選；選定後可按「✕ 清除」還原。此範圍是額外疊加在主畫面既有的組織／通路／等級／燈號篩選之上。</li>
+        <li><b>🎯 單看</b>（2 條線以上才會出現）：點一個指標＝只顯示這一條線，再點一次或按「✕ 全部顯示」恢復全部。剛打開趨勢圖時預設只顯示一條「總覽線」（計數型＝已有（整體）／加總型＝已跟訪（總份數）），避免一次疊太多線看不懂。</li>
+        <li><b>🔀 同時比較</b>（需先選定「🎯 單看」某指標，且範圍還能往下鑽時才出現）：把這一條線展開成「目前範圍下每個分支各一條」，方便一次比較多個分支的同一指標，不用來回切換「🔎 只看」。</li>
+      </ul>
+      <p class="trend-help-note">🔎 只看決定「看誰的資料」，🎯 單看決定「看哪一條線」，🔀 同時比較決定「要不要把這條線拆成多分支一起看」，三者可以搭配使用。</p>
+
+      <h4>四、常見誤讀提醒</h4>
+      <ul>
+        <li>最右側（本期）看起來很低或空白，<b>不代表沒資料或渲染壞掉</b>——通常是本期時間還沒走完，紀錄天生就少，畫面會有虛線／空心點／⏳提示。</li>
+        <li>B/C 桶命中率整批是 0%，主表格資料卻是對的——通常<b>不是覆蓋率真的是零</b>，而是這筆拜訪紀錄比對不到任何已知 B/C 欄位（對應橘色 ⚠️ 橫幅），需先確認問卷表頭命名方式。</li>
+        <li>「🏢 各處/所比較」跟「週執行率／累計達成進度」數字對不起來是正常的——前者即時快照、不經問卷比對，後者要經過問卷比對邏輯，兩者口徑本來就不完全相同。</li>
+      </ul>
+
+    </div>
+  </div>
+</div>
 
 
 <script src="shared/core-utils.js"></script>
@@ -2854,6 +2935,16 @@ function closeTrendDialog(){
   var dlg = document.getElementById('trend-dialog');
   if(dlg) dlg.style.display = 'none';
   _hideTrendTooltip();
+}
+/* v3.13.0：趨勢圖「❓ 說明」──內容是寫死在 HTML 裡的靜態說明，這裡只負責
+   開關顯示，不用另外組字串 */
+function openTrendHelp(){
+  var dlg = document.getElementById('trend-help-dialog');
+  if(dlg) dlg.style.display = 'flex';
+}
+function closeTrendHelp(){
+  var dlg = document.getElementById('trend-help-dialog');
+  if(dlg) dlg.style.display = 'none';
 }
 /* ══════════════ v3.10.0：圖表 hover/觸控浮動小卡 ══════════════
    #trend-body 整個容器每次 _renderTrendDialog() 都會被 innerHTML 整段
