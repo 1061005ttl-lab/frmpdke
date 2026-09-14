@@ -1375,6 +1375,17 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     </div>
   </div>
   <span class="lamp-sep"></span>
+  <!-- 【2026-09-14 新增】pct-group：手動切換 B/C 細項卡片要顯示哪種佔比口徑
+       （已調查% / 總家數% / 都顯示），取代先前「自動依調查完成度隱藏」的
+       做法——高層反應調查後期兩個%會趨於一致、自動邏輯太被動，改成使用者
+       自己決定要看哪個口徑，選擇存 localStorage，重整頁面後仍記得 -->
+  <div class="cwn-group" id="pct-group" title="切換卡片『販售中/無上架』等細項要顯示哪種佔比口徑">
+    <span class="cwn-group-tag">📊 佔比口徑</span>
+    <button class="cwn-btn pct-mode-btn" data-mode="valid" onclick="setPctMode('valid')">已調查%</button>
+    <button class="cwn-btn pct-mode-btn" data-mode="total" onclick="setPctMode('total')">總家數%</button>
+    <button class="cwn-btn pct-mode-btn" data-mode="both" onclick="setPctMode('both')">都顯示</button>
+  </div>
+  <span class="lamp-sep"></span>
   <button id="manual-toggle" onclick="(function(){var i=document.getElementById('manual-inner');var open=i.style.display==='block';i.style.display=open?'none':'block';document.getElementById('manual-toggle').innerHTML=open?'📖 說明 ▶':'📖 說明 ▼';setTimeout(updateStickyTops,0);})()">📖 說明 ▶</button>
 </div>
 
@@ -2787,6 +2798,27 @@ function _hideTrendTooltip(){
 var chips = { disp: true, no: true, unfill: true, gap: true };
 
 
+/* 【2026-09-14 新增】PCT_MODE：B/C 細項卡片百分比口徑，使用者手動切換，
+   記在 localStorage 讓重整頁面後仍維持選擇。
+   'valid' = 只顯示「佔已調查家數比例」（預設，調查初期/後期都適用的主要口徑）
+   'total' = 只顯示「佔總家數比例」
+   'both'  = 兩個都顯示（初期覆蓋率低、兩者差異大時最有參考價值） */
+var PCT_MODE = localStorage.getItem('ttl_pct_mode_v1') || 'valid';
+
+function setPctMode(mode) {
+  PCT_MODE = mode;
+  try { localStorage.setItem('ttl_pct_mode_v1', mode); } catch(e) {}
+  _updatePctModeButtons();
+  render();
+}
+
+function _updatePctModeButtons() {
+  document.querySelectorAll('.pct-mode-btn').forEach(function(btn){
+    btn.classList.toggle('active', btn.getAttribute('data-mode') === PCT_MODE);
+  });
+}
+
+
 function initChips() {
   chips = {};
   BUCKETS_B.forEach(function(g, i){ chips['b:'+i] = true; });
@@ -2794,6 +2826,7 @@ function initChips() {
   chips['unfill'] = true;
   chips['gap'] = true;
   renderLampBar();
+  _updatePctModeButtons();
   _renderWeekNavLabel();
   /* 週檢視 pager 現在一直顯示在 lamp-row（不用再點才出現），背景先把問卷
      資料抓起來，使用者第一次點 ◄／►／本週 時就不用等 */
@@ -3747,6 +3780,20 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
      的「佔全體家數比例」分開標示，兩種語意都保留（見卡片內雙百分比）。 */
   var V = stat.valid;
   function fp2(n){ return V>0 ? Math.round(n/V*100)+'%' : '—'; }
+  /* 【2026-09-14 修正】原本用「調查是否完成」自動判斷要不要顯示第二行
+     百分比，但覆蓋率提高到一定程度後兩個%會趨於一致、使用者難以預期何
+     時會多一行少一行；改成頂部工具列「📊 佔比口徑」按鈕由使用者手動決定
+     要看哪種口徑（已調查% / 總家數% / 都顯示），比自動判斷更直覺可控 */
+  function pctHtml(cnt) {
+    if (PCT_MODE === 'total') {
+      return '<div class="stat-pct" title="佔總家數比例">'+fp(cnt)+'</div>';
+    }
+    if (PCT_MODE === 'both') {
+      return '<div class="stat-pct" title="佔已調查家數比例">'+fp2(cnt)+'</div>'+
+             '<div class="stat-pct-sub" title="佔總家數比例">總'+fp(cnt)+'</div>';
+    }
+    return '<div class="stat-pct" title="佔已調查家數比例">'+fp2(cnt)+'</div>';
+  }
   /* 卡片標題一行：組別小字（營業處/整體概況…）+ 名稱大字 + 右側明細按鈕 */
   var topLabel = isOverall ? '整體概況' : labelText;
   var _safeName = name.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
@@ -3779,8 +3826,7 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
       _bStatHtml += '<div class="stat-item good'+dim+'" id="'+siId+'" style="position:relative">'+
         '<div class="stat-label">'+esc(g.label)+'</div>'+
         '<div class="stat-val">'+cnt+'</div>'+
-        '<div class="stat-pct" title="佔已調查家數比例">'+fp2(cnt)+'</div>'+
-        '<div class="stat-pct-sub" title="佔總家數比例">總'+fp(cnt)+'</div>'+
+        pctHtml(cnt)+
         (hasMultiCols ? '<div class="tooltip" id="'+ttBId+'">'+buildTooltipHTML(g.label, g.cols, stat.bColCounts, cnt)+'</div>' : '')+
       '</div>';
     });
@@ -3796,8 +3842,7 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
       _cStatHtml += '<div class="stat-item warn'+dim+'" id="'+siId+'" style="position:relative">'+
         '<div class="stat-label">'+esc(g.label)+'</div>'+
         '<div class="stat-val">'+cnt+'</div>'+
-        '<div class="stat-pct" title="佔已調查家數比例">'+fp2(cnt)+'</div>'+
-        '<div class="stat-pct-sub" title="佔總家數比例">總'+fp(cnt)+'</div>'+
+        pctHtml(cnt)+
         (hasMultiCols ? '<div class="tooltip" id="'+ttCId2+'">'+buildTooltipHTML(g.label, g.cols, stat.cColCounts, cnt)+'</div>' : '')+
       '</div>';
     });
