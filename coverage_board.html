@@ -437,6 +437,47 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .trend-legend-item { display:inline-flex; align-items:center; gap:5px; color:var(--sub,#888); white-space:nowrap; }
 .trend-legend-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
 
+/* 【2026-09-14 新增】使用者反映：篩選器／提示／圖表／表格全部直向堆疊，
+   一定超過一個畫面高度，要一直往下滑才看得完整、圖表跟表格也沒辦法同時
+   看到互相對照。改法：#trend-body 本身不再整頁上下捲動（拿掉外層 scroll），
+   改成上方（篩選/提示/圖例/最新一週數字）固定不動的區塊＋下方「圖表／
+   表格」左右並排（螢幕窄時改上下）各自獨立捲動的分割區──篩選跟提示永遠
+   看得到，圖表跟表格永遠同時在畫面上，不用再上下滑動比對，各自的捲動
+   範圍也縮小到只剩「這一塊內容真的放不下」的部分（例如分支很多的表格），
+   不會拖累整頁。 */
+#trend-body.trend-body-flex { display:flex; flex-direction:column; overflow:hidden; }
+.trend-top-fixed { flex-shrink:0; }
+.trend-scroll-pane { flex:1; min-height:0; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; }
+.trend-main-split { flex:1; min-height:0; display:flex; gap:10px; padding:6px 14px 12px; }
+.trend-chart-pane { flex:1.3 1 0; min-width:0; min-height:0; display:flex; flex-direction:column; }
+.trend-chart-pane .trend-chart-wrap { flex:1; min-height:0; padding:4px; display:flex; }
+.trend-chart-pane .trend-chart-wrap svg { max-height:none; }
+.trend-table-pane {
+  flex:1 1 0; min-width:0; min-height:0; overflow:auto; -webkit-overflow-scrolling:touch;
+  border:1px solid var(--border); border-radius:10px;
+}
+.trend-table-pane .trend-table-wrap { padding:0; overflow:visible; }
+.trend-table-pane .trend-table { font-size:11.5px; }
+.trend-table-pane .trend-table thead th { position:sticky; top:0; background:#fff; z-index:1; }
+.trend-table-pane .trend-table th:first-child, .trend-table-pane .trend-table td:first-child { z-index:2; }
+.trend-table-empty-hint { padding:20px 14px; text-align:center; color:var(--sub,#888); font-size:12px; }
+/* 螢幕窄（手機直向）時，並排會擠得看不清楚，改上下各佔一半高度，
+   各自局部捲動──比整頁一路滑到底還是省事很多 */
+@media (max-width: 880px){
+  .trend-main-split { flex-direction:column; padding:4px 10px 8px; }
+  .trend-chart-pane { flex:1 1 46%; }
+  .trend-table-pane { flex:1 1 44%; }
+}
+/* 提示條改用 <details>，預設收合成一行摘要，點了才展開全文，
+   省下常駐佔用的高度給圖表/表格用 */
+.trend-banner-details { margin:6px 14px 0; border-radius:9px; font-size:11.5px; line-height:1.6; }
+.trend-banner-details[open] { padding-bottom:2px; }
+.trend-banner-details.trend-warn { background:#FFF3E0; border:1px solid rgba(230,81,0,.3); color:#B8560A; }
+.trend-banner-details.trend-info { background:#E8F1FC; border:1px solid rgba(25,101,191,.25); color:#1A5DAD; }
+.trend-banner-summary { cursor:pointer; padding:8px 11px; list-style:none; }
+.trend-banner-summary::-webkit-details-marker { display:none; }
+.trend-banner-body { padding:0 11px 9px; }
+
 .trend-chart-wrap { padding:6px 4px 10px; position:relative; }
 .trend-chart-wrap svg { max-height:46vh; touch-action:pan-y; }
 /* ── v3.10.0：圖表 hover/觸控提示──多條線疊在一起時，靠這個浮動小卡＋
@@ -1458,7 +1499,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
       <button class="trend-mode-btn" data-mode="delta" onclick="switchTrendMode('delta')">📶 每週新增家數</button>
       <button class="trend-mode-btn" data-mode="rank" onclick="switchTrendMode('rank')">🏢 各處/所比較</button>
     </div>
-    <div class="dlg-body" id="trend-body" style="overflow-y:auto;overflow-x:hidden;"></div>
+    <div class="dlg-body trend-body-flex" id="trend-body"></div>
   </div>
 </div>
 
@@ -2299,7 +2340,7 @@ function _buildTrendSVG(series, defs){
   };
   var hoverHtml = '<line class="trend-hover-line" id="trend-hover-line" x1="'+padL+'" y1="'+padT+'" x2="'+padL+'" y2="'+(H-padB)+'"/>'
     + '<rect class="trend-hover-capture" x="'+padL+'" y="'+padT+'" width="'+plotW+'" height="'+plotH+'" fill="transparent"/>';
-  return '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;display:block" xmlns="http://www.w3.org/2000/svg">'
+  return '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:100%;display:block" xmlns="http://www.w3.org/2000/svg">'
     + gridHtml + xHtml + linesHtml
     + '<line x1="'+padL+'" y1="'+(H-padB)+'" x2="'+(W-padR)+'" y2="'+(H-padB)+'" stroke="rgba(0,0,0,.15)" stroke-width="1"/>'
     + hoverHtml + '</svg>';
@@ -2373,7 +2414,7 @@ function _buildTrendBarSVG(deltaSeries, defs){
   };
   var hoverHtml = '<line class="trend-hover-line" id="trend-hover-line" x1="'+padL+'" y1="'+padT+'" x2="'+padL+'" y2="'+(H-padB)+'"/>'
     + '<rect class="trend-hover-capture" x="'+padL+'" y="'+padT+'" width="'+plotW+'" height="'+plotH+'" fill="transparent"/>';
-  return '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:auto;display:block" xmlns="http://www.w3.org/2000/svg">'
+  return '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:100%;display:block" xmlns="http://www.w3.org/2000/svg">'
     + gridHtml + xHtml + barsHtml
     + '<line x1="'+padL+'" y1="'+yZero+'" x2="'+(W-padR)+'" y2="'+yZero+'" stroke="rgba(0,0,0,.25)" stroke-width="1"/>'
     + hoverHtml + '</svg>';
@@ -2429,7 +2470,10 @@ function _buildTrendMatchFailBanner(series){
   var maxFail = Math.max.apply(null, series.map(function(p){ return p.matchFail||0; }));
   if(maxFail<=0) return '';
   var latest = series[series.length-1].matchFail||0;
-  return '<div class="trend-warn">⚠️ 有店家「查得到拜訪紀錄」但比對不到任何 B/C 欄位（最新一週 '+latest+' 家，這段區間內最多同時有 '+maxFail+' 家）。這些店目前會被算成「已有 0%」，但很可能不是真的零覆蓋，而是這個專案「問卷資料」分頁的表頭命名跟比對邏輯兜不起來。建議先確認問卷表頭命名方式，這幾週的 0% 暫時不建議當真。</div>';
+  return '<details class="trend-banner-details trend-warn">'
+    + '<summary class="trend-banner-summary">⚠️ 有 '+latest+' 家「查得到拜訪紀錄」但比對不到 B/C 欄位，這幾週的 0% 暫不建議當真（點看說明）</summary>'
+    + '<div class="trend-banner-body">有店家「查得到拜訪紀錄」但比對不到任何 B/C 欄位（最新一週 '+latest+' 家，這段區間內最多同時有 '+maxFail+' 家）。這些店目前會被算成「已有 0%」，但很可能不是真的零覆蓋，而是這個專案「問卷資料」分頁的表頭命名跟比對邏輯兜不起來。建議先確認問卷表頭命名方式，這幾週的 0% 暫時不建議當真。</div>'
+    + '</details>';
 }
 /* 【2026-09-14 新增】使用者反映：要看「最新一週／當週」的數字，得精準把
    滑鼠停在圖表最右邊那個小小的點上才會跳出小卡，在筆電上很難瞄準、手機
@@ -2479,7 +2523,10 @@ function _buildTrendPartialBanner(series){
   if(!series.length) return '';
   var last = series[series.length-1];
   if(!last.partial) return '';
-  return '<div class="trend-info">⏳ 「'+esc(last.label)+'」是目前還沒走完的一期，資料會持續增加。圖上用虛線／空心點標出，先別拿它跟左邊已經走完的期間直接比較。</div>';
+  return '<details class="trend-banner-details trend-info">'
+    + '<summary class="trend-banner-summary">⏳「'+esc(last.label)+'」還沒走完，資料會持續增加（點看說明）</summary>'
+    + '<div class="trend-banner-body">「'+esc(last.label)+'」是目前還沒走完的一期，資料會持續增加。圖上用虛線／空心點標出，先別拿它跟左邊已經走完的期間直接比較。</div>'
+    + '</details>';
 }
 /* v3.8.0：趨勢圖四種模式——rate=週執行率／cumulative=累計達成進度／
    delta=每週新增家數／rank=各營業處(所)比較。切換模式不影響已選的
@@ -2528,7 +2575,8 @@ function switchTrendMode(mode){
    繪圖函式，沒有另外重畫一套圖表邏輯。 ══════ */
 var TREND_FOCUS = null;     /* null＝顯示全部線型；有值＝只顯示這一個 def.label */
 var TREND_COMPARE = false;  /* 是否啟用「跨分支比較」（需先選定 TREND_FOCUS 才有意義） */
-var TREND_TABLE_OPEN = false; /* 明細表預設收合，避免逐週數字表把畫面撐得要一直往下滑 */
+/* 【2026-09-14 起】明細表改成常駐顯示在圖表右側／下方（見 .trend-table-pane），
+   不再需要「展開/收合」開關，原本的 TREND_TABLE_OPEN／_toggleTrendTable 移除 */
 function _toggleTrendFocus(label){
   TREND_FOCUS = (label && TREND_FOCUS !== label) ? label : null;
   if(!TREND_FOCUS) TREND_COMPARE = false; /* 沒有單看指標，跨分支比較沒有意義，一併關掉 */
@@ -2536,10 +2584,6 @@ function _toggleTrendFocus(label){
 }
 function _toggleTrendCompare(){
   TREND_COMPARE = !TREND_COMPARE;
-  _renderTrendDialog();
-}
-function _toggleTrendTable(){
-  TREND_TABLE_OPEN = !TREND_TABLE_OPEN;
   _renderTrendDialog();
 }
 /* chips 用 label 當 key（defs 每次都是同一組固定設定重新產生，label 穩定
@@ -2696,18 +2740,21 @@ function _renderTrendDialog(){
   var scopeBarHtml = _buildTrendScopeBar();
 
   if(TREND_MODE === 'rank'){
-    body.innerHTML = descHtml + '<div class="trend-toolbar">'+scopeBarHtml+'</div>' + _buildTrendRankBody();
+    body.innerHTML = '<div class="trend-top-fixed">' + descHtml + '<div class="trend-toolbar">'+scopeBarHtml+'</div></div>'
+      + '<div class="trend-scroll-pane">' + _buildTrendRankBody() + '</div>';
     _initTrendHoverOnce();
     return;
   }
 
   if(!_qSheetCache){
-    body.innerHTML = descHtml + '<div class="trend-toolbar">'+scopeBarHtml+'</div>' + '<div class="trend-empty">⏳ 讀取拜訪紀錄中…</div>';
+    body.innerHTML = '<div class="trend-top-fixed">' + descHtml + '<div class="trend-toolbar">'+scopeBarHtml+'</div></div>'
+      + '<div class="trend-scroll-pane"><div class="trend-empty">⏳ 讀取拜訪紀錄中…</div></div>';
     _fetchQuestionnaireSheet(function(){ _renderTrendDialog(); });
     return;
   }
   if(_qSheetCache.error){
-    body.innerHTML = descHtml + '<div class="trend-toolbar">'+scopeBarHtml+'</div>' + '<div class="trend-empty">⚠️ 拜訪紀錄讀取失敗：'+esc(_qSheetCache.error)+'</div>';
+    body.innerHTML = '<div class="trend-top-fixed">' + descHtml + '<div class="trend-toolbar">'+scopeBarHtml+'</div></div>'
+      + '<div class="trend-scroll-pane"><div class="trend-empty">⚠️ 拜訪紀錄讀取失敗：'+esc(_qSheetCache.error)+'</div></div>';
     return;
   }
   var selEl = document.getElementById('trend-weeks-sel');
@@ -2727,8 +2774,6 @@ function _renderTrendDialog(){
   var levelDesc = level ? (level.drillKey==='area'?'各營業處':level.drillKey==='office'?'各營業所/課':'各業務人員') : '';
   var scopeLabel = esc(_covTrendScopeLabel()) + (comparing ? '　｜　🔀 比較模式：' + levelDesc : '');
   var scopeFull = '範圍：'+scopeLabel+'　（跟目前畫面篩選連動）';
-  var tableToggleHtml = '<div class="trend-table-toggle-bar"><button type="button" class="trend-table-toggle-btn" onclick="_toggleTrendTable()">'
-    + (TREND_TABLE_OPEN ? '▲ 收合明細表' : '▼ 展開明細表（逐週數字對照）') + '</button></div>';
   /* v3.10.0：「都有數據了為什麼不 rank」──有一條以上的線時，依「最新一週
      的數值」由高到低重新排序 defs，圖例／折線／長條的畫圖順序都跟著這份
      排序走（一致），一眼就看得出目前排前面的是誰；hover 小卡則是依「當下
@@ -2746,7 +2791,8 @@ function _renderTrendDialog(){
   if(TREND_MODE === 'delta'){
     var cumSeries = comparing ? _covBranchSeries(nWeeks, level, true) : _covCumulativeSeries(nWeeks);
     if(!cumSeries.length || !defs.length){
-      body.innerHTML = descHtml + toolbarHtml + '<div class="trend-empty">目前範圍沒有可畫的資料（可能是燈號都關掉了，或問卷資料還沒有任何一筆落在這段期間）。</div>';
+      body.innerHTML = '<div class="trend-top-fixed">' + descHtml + toolbarHtml + '</div>'
+        + '<div class="trend-scroll-pane"><div class="trend-empty">目前範圍沒有可畫的資料（可能是燈號都關掉了，或問卷資料還沒有任何一筆落在這段期間）。</div></div>';
       return;
     }
     defs = _sortDefsByLatest(defs, cumSeries[cumSeries.length-1].stat);
@@ -2755,10 +2801,14 @@ function _renderTrendDialog(){
       return '<span class="trend-legend-item"><span class="trend-legend-dot" style="background:'+d.color+'"></span>'+esc(d.label)+'</span>';
     }).join('') + '</div>';
     var metaRowHtml = '<div class="trend-meta-row"><span class="trend-meta-scope" title="'+scopeFull+'">'+scopeFull+'</span>' + legendHtml + '</div>';
-    body.innerHTML = descHtml + toolbarHtml + _buildTrendMatchFailBanner(cumSeries) + _buildTrendPartialBanner(cumSeries) + metaRowHtml
-      + _buildTrendLatestSummary(deltaSeries[deltaSeries.length-1], defs, true)
-      + '<div class="trend-chart-wrap">' + _buildTrendBarSVG(deltaSeries, defs) + '</div>'
-      + tableToggleHtml + (TREND_TABLE_OPEN ? _buildTrendDeltaTable(deltaSeries, defs) : '');
+    body.innerHTML = '<div class="trend-top-fixed">' + descHtml + toolbarHtml
+        + _buildTrendMatchFailBanner(cumSeries) + _buildTrendPartialBanner(cumSeries) + metaRowHtml
+        + _buildTrendLatestSummary(deltaSeries[deltaSeries.length-1], defs, true)
+      + '</div>'
+      + '<div class="trend-main-split">'
+        + '<div class="trend-chart-pane"><div class="trend-chart-wrap">' + _buildTrendBarSVG(deltaSeries, defs) + '</div></div>'
+        + '<div class="trend-table-pane">' + _buildTrendDeltaTable(deltaSeries, defs) + '</div>'
+      + '</div>';
     _initTrendHoverOnce();
     return;
   }
@@ -2766,7 +2816,8 @@ function _renderTrendDialog(){
   var series = comparing ? _covBranchSeries(nWeeks, level, TREND_MODE==='cumulative')
     : ((TREND_MODE === 'cumulative') ? _covCumulativeSeries(nWeeks) : _covWeeklySeries(nWeeks));
   if(!series.length || !defs.length){
-    body.innerHTML = descHtml + toolbarHtml + '<div class="trend-empty">目前範圍沒有可畫的資料（可能是燈號都關掉了，或問卷資料還沒有任何一筆落在這段期間）。</div>';
+    body.innerHTML = '<div class="trend-top-fixed">' + descHtml + toolbarHtml + '</div>'
+      + '<div class="trend-scroll-pane"><div class="trend-empty">目前範圍沒有可畫的資料（可能是燈號都關掉了，或問卷資料還沒有任何一筆落在這段期間）。</div></div>';
     return;
   }
   defs = _sortDefsByLatest(defs, series[series.length-1].stat);
@@ -2774,10 +2825,14 @@ function _renderTrendDialog(){
     return '<span class="trend-legend-item"><span class="trend-legend-dot" style="background:'+d.color+'"></span>'+esc(d.label)+'</span>';
   }).join('') + '</div>';
   var metaRowHtml = '<div class="trend-meta-row"><span class="trend-meta-scope" title="'+scopeFull+'">'+scopeFull+'</span>' + legendHtml + '</div>';
-  body.innerHTML = descHtml + toolbarHtml + _buildTrendMatchFailBanner(series) + _buildTrendPartialBanner(series) + metaRowHtml
-    + _buildTrendLatestSummary(series[series.length-1], defs, false)
-    + '<div class="trend-chart-wrap">' + _buildTrendSVG(series, defs) + '</div>'
-    + tableToggleHtml + (TREND_TABLE_OPEN ? _buildTrendTable(series, defs) : '');
+  body.innerHTML = '<div class="trend-top-fixed">' + descHtml + toolbarHtml
+      + _buildTrendMatchFailBanner(series) + _buildTrendPartialBanner(series) + metaRowHtml
+      + _buildTrendLatestSummary(series[series.length-1], defs, false)
+    + '</div>'
+    + '<div class="trend-main-split">'
+      + '<div class="trend-chart-pane"><div class="trend-chart-wrap">' + _buildTrendSVG(series, defs) + '</div></div>'
+      + '<div class="trend-table-pane">' + _buildTrendTable(series, defs) + '</div>'
+    + '</div>';
   _initTrendHoverOnce();
 }
 /* v3.11.0：一打開預設只畫「總覽線」（計數型＝已有（整體）／加總型＝已跟訪
@@ -2793,7 +2848,6 @@ function openTrendDialog(){
   TREND_SCOPE = { area:'', office:'' };
   TREND_FOCUS = isSum() ? '已跟訪（總份數）' : '已有（整體）';
   TREND_COMPARE = false;
-  TREND_TABLE_OPEN = false;
   _renderTrendDialog();
 }
 function closeTrendDialog(){
