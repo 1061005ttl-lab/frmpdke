@@ -1376,14 +1376,14 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   </div>
   <span class="lamp-sep"></span>
   <!-- 【2026-09-14 新增】pct-group：手動切換 B/C 細項卡片要顯示哪種佔比口徑
-       （已調查% / 總家數% / 都顯示），取代先前「自動依調查完成度隱藏」的
+       （已調查% / 總家數% / 雙口徑並列），取代先前「自動依調查完成度隱藏」的
        做法——高層反應調查後期兩個%會趨於一致、自動邏輯太被動，改成使用者
        自己決定要看哪個口徑，選擇存 localStorage，重整頁面後仍記得 -->
   <div class="cwn-group" id="pct-group" title="切換卡片『販售中/無上架』等細項要顯示哪種佔比口徑">
     <span class="cwn-group-tag">📊 佔比口徑</span>
     <button class="cwn-btn pct-mode-btn" data-mode="valid" onclick="setPctMode('valid')">已調查%</button>
     <button class="cwn-btn pct-mode-btn" data-mode="total" onclick="setPctMode('total')">總家數%</button>
-    <button class="cwn-btn pct-mode-btn" data-mode="both" onclick="setPctMode('both')">都顯示</button>
+    <button class="cwn-btn pct-mode-btn" data-mode="both" onclick="setPctMode('both')">雙口徑並列</button>
   </div>
   <span class="lamp-sep"></span>
   <button id="manual-toggle" onclick="(function(){var i=document.getElementById('manual-inner');var open=i.style.display==='block';i.style.display=open?'none':'block';document.getElementById('manual-toggle').innerHTML=open?'📖 說明 ▶':'📖 說明 ▼';setTimeout(updateStickyTops,0);})()">📖 說明 ▶</button>
@@ -2156,6 +2156,16 @@ function _covTrendSeriesDefs(){
       getVal:function(stat){ return stat.bTotalSum||0; },
       getRaw:function(stat){ return stat.bTotalSum||0; } });
   } else {
+    /* 【2026-09-14 新增】已調查：最基礎的「資料回收進度」，獨立成一條可選
+       線型，不用再靠「100%－未填寫%」倒推。放在第一個，對應高層最基本
+       的提問「這週在店家名冊上回收了多少資料」。只在有設未填寫欄時才有
+       意義（沒設的話 valid 恆等於 total，跟卡片上「已調查」格顯示條件一致） */
+    if(COL_UNFILL){
+      defs.push({ label:'已調查', color:'#378ADD', isPercent:true, bold:true,
+        getVal:function(stat){ return stat.total>0 ? stat.valid/stat.total*100 : null; },
+        getRaw:function(stat){ return stat.valid||0; },
+        getTotal:function(stat){ return stat.total||0; } });
+    }
     BUCKETS_B.forEach(function(g, i){
       if(chips['b:'+i]===false) return;
       defs.push({ label:g.label, color:_covPalette(i,'good'), isPercent:true, bold:false,
@@ -3783,7 +3793,7 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
   /* 【2026-09-14 修正】原本用「調查是否完成」自動判斷要不要顯示第二行
      百分比，但覆蓋率提高到一定程度後兩個%會趨於一致、使用者難以預期何
      時會多一行少一行；改成頂部工具列「📊 佔比口徑」按鈕由使用者手動決定
-     要看哪種口徑（已調查% / 總家數% / 都顯示），比自動判斷更直覺可控 */
+     要看哪種口徑（已調查% / 總家數% / 雙口徑並列），比自動判斷更直覺可控 */
   function pctHtml(cnt) {
     if (PCT_MODE === 'total') {
       return '<div class="stat-pct" title="佔總家數比例">'+fp(cnt)+'</div>';
