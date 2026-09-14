@@ -504,6 +504,21 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   color:#1A5DAD; font-size:11.5px; line-height:1.6;
 }
 .trend-rank-hint { padding:6px 14px 4px; font-size:11px; color:var(--sub,#888); }
+/* 【2026-09-14 新增】最新一週數字卡——不靠 hover，圖表一打開就看得到，
+   常駐顯示在圖表正上方；跟 .trend-info（藍色提示條）用同一色系但更明顯，
+   格狀排版讓多個單位/分支的數字可以並排掃過去，不用一條一條找 */
+.trend-now-panel {
+  margin:10px 14px 0; padding:10px 12px; border-radius:10px;
+  background:#F4F8FF; border:1.5px solid rgba(25,101,191,.35);
+}
+.trend-now-title { font-size:12px; font-weight:800; color:#1A5DAD; margin-bottom:7px; }
+/* 格狀排版讓多個單位/分支的數字可以並排掃過去，不用一條一條找 */
+.trend-now-grid { display:flex; flex-wrap:wrap; gap:4px 14px; }
+.trend-now-row { display:flex; align-items:center; gap:6px; font-size:12px; }
+.trend-now-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.trend-now-label { font-weight:700; color:var(--text); }
+.trend-now-val { font-weight:800; color:var(--text); }
+.trend-now-sub { font-size:10.5px; color:var(--sub,#888); }
 .trend-rank-list { padding:2px 14px 16px; display:flex; flex-direction:column; gap:6px; }
 .trend-rank-row {
   display:flex; align-items:center; gap:9px; cursor:pointer;
@@ -2367,7 +2382,7 @@ function _buildTrendBarSVG(deltaSeries, defs){
    手機上滑不到 tooltip 時也能直接查表，順便就是「期間比較」──挑任兩欄
    對照著看即可，不用另外做「兩期並排」模式 */
 function _buildTrendTable(series, defs){
-  var head = '<tr><th>項目 ＼ 週次</th>' + series.map(function(pt){ return '<th>'+esc(pt.label)+'</th>'; }).join('') + '</tr>';
+  var head = '<tr><th>項目 ＼ 週次</th>' + series.map(function(pt){ return '<th'+(pt.partial?' title="本期進行中，資料還會持續增加" style="color:#B0730A"':'')+'>'+esc(pt.label)+(pt.partial?' ⏳':'')+'</th>'; }).join('') + '</tr>';
   var rows = defs.map(function(d){
     var cells = series.map(function(pt){
       var v = d.getVal(pt.stat);
@@ -2380,7 +2395,7 @@ function _buildTrendTable(series, defs){
 /* v3.8.0：「每週新增家數」模式的對照表，跟 _buildTrendTable 版面一致，
    差別是儲存格內容是「相鄰兩週差值」（帶正負號），不是當週的原始值或 %。 */
 function _buildTrendDeltaTable(deltaSeries, defs){
-  var head = '<tr><th>項目 ＼ 週次</th>' + deltaSeries.map(function(pt){ return '<th>'+esc(pt.label)+'</th>'; }).join('') + '</tr>';
+  var head = '<tr><th>項目 ＼ 週次</th>' + deltaSeries.map(function(pt){ return '<th'+(pt.partial?' title="本期進行中，資料還會持續增加" style="color:#B0730A"':'')+'>'+esc(pt.label)+(pt.partial?' ⏳':'')+'</th>'; }).join('') + '</tr>';
   var rows = defs.map(function(d, j){
     var cells = deltaSeries.map(function(pt){
       var v = pt.deltaVals[j];
@@ -2415,6 +2430,47 @@ function _buildTrendMatchFailBanner(series){
   if(maxFail<=0) return '';
   var latest = series[series.length-1].matchFail||0;
   return '<div class="trend-warn">⚠️ 有店家「查得到拜訪紀錄」但比對不到任何 B/C 欄位（最新一週 '+latest+' 家，這段區間內最多同時有 '+maxFail+' 家）。這些店目前會被算成「已有 0%」，但很可能不是真的零覆蓋，而是這個專案「問卷資料」分頁的表頭命名跟比對邏輯兜不起來。建議先確認問卷表頭命名方式，這幾週的 0% 暫時不建議當真。</div>';
+}
+/* 【2026-09-14 新增】使用者反映：要看「最新一週／當週」的數字，得精準把
+   滑鼠停在圖表最右邊那個小小的點上才會跳出小卡，在筆電上很難瞄準、手機
+   上更是幾乎點不到，導致「明明資料有算，卻等於看不到」。這裡不靠 hover，
+   直接把最新一期（可能是還在進行中的本期）的每一條線數字，用固定文字
+   列在圖表正上方——一打開趨勢圖就看得到，不用滑鼠、不用展開明細表。
+   isDelta=true 時，pt 是 deltaSeries 的最後一筆（pt.deltaVals 跟 defs
+   同一個順序，直接依索引對應，不用另外查表）。 */
+function _buildTrendLatestSummary(pt, defs, isDelta){
+  if(!pt || !defs.length) return '';
+  var items = defs.map(function(d, i){
+    var val, txt, sub = '';
+    if(isDelta){
+      val = pt.deltaVals[i];
+      txt = (val>0?'+':'') + val;
+    } else {
+      val = d.getVal(pt.stat);
+      if(val==null){ txt = '—'; }
+      else if(d.isPercent){
+        txt = Math.round(val) + '%';
+        if(d.getTotal){
+          var tot = d.getTotal(pt.stat), raw = d.getRaw ? d.getRaw(pt.stat) : null;
+          if(tot!=null && raw!=null) sub = raw+'/'+tot;
+        }
+      } else txt = Math.round(val);
+    }
+    return { label:d.label, color:d.color, val:(val==null?-Infinity:val), txt:txt, sub:sub };
+  }).sort(function(a,b){ return b.val - a.val; });
+  var rowsHtml = items.map(function(it){
+    return '<div class="trend-now-row">'
+      + '<span class="trend-now-dot" style="background:'+it.color+'"></span>'
+      + '<span class="trend-now-label">'+esc(it.label)+'</span>'
+      + '<span class="trend-now-val">'+esc(String(it.txt))+'</span>'
+      + (it.sub ? '<span class="trend-now-sub">'+esc(it.sub)+'</span>' : '')
+      + '</div>';
+  }).join('');
+  var titleSuffix = pt.partial ? '　⏳ 本期進行中，數字之後還會再增加' : '';
+  return '<div class="trend-now-panel">'
+    + '<div class="trend-now-title">📍 '+esc(pt.label)+titleSuffix+'</div>'
+    + '<div class="trend-now-grid">' + rowsHtml + '</div>'
+    + '</div>';
 }
 /* v3.11.0：series 最後一個點如果是「還沒結束的本期」，提醒一下，
    避免使用者把這個還在累積中的數字，直接拿去跟左邊已經走完的完整
@@ -2700,6 +2756,7 @@ function _renderTrendDialog(){
     }).join('') + '</div>';
     var metaRowHtml = '<div class="trend-meta-row"><span class="trend-meta-scope" title="'+scopeFull+'">'+scopeFull+'</span>' + legendHtml + '</div>';
     body.innerHTML = descHtml + toolbarHtml + _buildTrendMatchFailBanner(cumSeries) + _buildTrendPartialBanner(cumSeries) + metaRowHtml
+      + _buildTrendLatestSummary(deltaSeries[deltaSeries.length-1], defs, true)
       + '<div class="trend-chart-wrap">' + _buildTrendBarSVG(deltaSeries, defs) + '</div>'
       + tableToggleHtml + (TREND_TABLE_OPEN ? _buildTrendDeltaTable(deltaSeries, defs) : '');
     _initTrendHoverOnce();
@@ -2718,6 +2775,7 @@ function _renderTrendDialog(){
   }).join('') + '</div>';
   var metaRowHtml = '<div class="trend-meta-row"><span class="trend-meta-scope" title="'+scopeFull+'">'+scopeFull+'</span>' + legendHtml + '</div>';
   body.innerHTML = descHtml + toolbarHtml + _buildTrendMatchFailBanner(series) + _buildTrendPartialBanner(series) + metaRowHtml
+    + _buildTrendLatestSummary(series[series.length-1], defs, false)
     + '<div class="trend-chart-wrap">' + _buildTrendSVG(series, defs) + '</div>'
     + tableToggleHtml + (TREND_TABLE_OPEN ? _buildTrendTable(series, defs) : '');
   _initTrendHoverOnce();
