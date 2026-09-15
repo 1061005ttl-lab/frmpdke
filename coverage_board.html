@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 3.13.2 ｜ 最後更新：2026-09-15
+  版本：Ver. 3.13.4 ｜ 最後更新：2026-09-15
 ════════════════════════════════════════════════════════════
 
 
@@ -133,6 +133,39 @@
 
 
 【版本紀錄】（往後新版本請繼續往下累加，格式：版本號 日期 摘要）
+  3.13.4 2026-09-15  「最後訪店(調查)日」逾期警示（_isStaleVisit）比較
+                      基準改掉：原本拿電腦當下真實時間跟該店最後一筆
+                      比較，改成拿「全案目前最新一筆問卷資料的時間」
+                      （新增 _covGlobalLatestDate／_covRecalcGlobalLatestDate，
+                      每次問卷資料重新抓取完成都會重算一次）當基準，
+                      跟真實時間取小值防止未來日期誤把基準推遠。
+                      原因：案子還在跑時全案最新一筆≈今天，跟用真實
+                      時間比較沒差別；但案子整個停案、沒人再回填資料
+                      後，全案最新一筆會停在停案那天不再往前走，這時
+                      如果還拿真實時間比較，逾期天數會隨時間流逝持續
+                      往上累加，把「案子結束了」誤判成「全部店家突然
+                      都沒人去巡」。改用全案最新一筆當基準後，案子一
+                      停，基準自動跟著凍結，不用另外記「這案子有沒有
+                      結案」。
+                      3.13.3 新增的 COL_CLOSED（名冊「結案」欄）保留不
+                      拿掉——它解決的是不同情境：單一店家提早結案、但
+                      案子其他店還在跑，這時全案最新一筆仍會持續往前
+                      走，該店還是會被判定逾期，需要用這欄手動排除。
+                      兩個機制分別對應「全案凍結」跟「單店提早結案」，
+                      互補不衝突。
+  3.13.3 2026-09-15  「最後訪店(調查)日」新增逾期警示（_isStaleVisit）：
+                      超過 STALE_VISIT_DAYS（預設 60 天，用電腦時間換算
+                      台北時區跟 _cwTaipeiNow() 比較）沒有拜訪紀錄，或
+                      問卷資料載入完成後查無任何紀錄，該格改用紅底
+                      .d-stale 徽章＋⏰圖示標示；截圖（takeScreenshot）
+                      同步補上這顆徽章的 inline 樣式，避免截圖漏掉顏色。
+                      新增 COL_CLOSED（店家名冊「結案」欄，選填）：該欄
+                      標記 1/TRUE 的店家一律不判斷逾期，即使名冊沒有這欄
+                      也不影響其他行為（isOne() 對不存在的欄一律回傳
+                      false，向後相容）。刻意設計成人工在名冊上明講
+                      「這家已結案」，不是用「最後一筆時間很舊」反推
+                      結案──那樣會跟本功能要抓的對象互相矛盾，等於把
+                      真正被冷落的店永久排除在警示之外。
   3.13.2 2026-09-15  店家明細表格（buildStoreTable）新增「最後訪店(調查)日」欄，
                       放在「店名／店家型態」之後、「狀態」之前。資料來源沿用
                       既有 _latestVisitTimeKey(code)（即 qData.codeToRecords 該
@@ -960,6 +993,12 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   background:#F3E5F5; padding:2px 7px; border-radius:6px;
   border:1px dashed rgba(106,27,154,.5);
 }
+/* 最後訪店(調查)日逾期／查無紀錄警示（結案店家或問卷未載入完成時不會套用，見 _isStaleVisit） */
+.d-stale {
+  font-size:12px; font-weight:800; color:#C62828;
+  background:#FFEBEE; padding:2px 8px; border-radius:6px;
+  border:1px solid rgba(198,40,40,.35); white-space:nowrap;
+}
 .d-no-label {
   font-size:11px; font-weight:700; color:var(--red);
   background:var(--red-bg); padding:2px 7px; border-radius:6px;
@@ -1731,6 +1770,18 @@ var COL_NAME    = '店家名稱';
 /* 店家等級欄位（店家名冊 H 欄） */
 var COL_GRADE = '店家等級';
 var selectedGrades = null; /* null = 全選，Set = 已選等級 */
+/* 【最後訪店(調查)日 逾期警示】
+   COL_CLOSED：店家名冊裡選填的「結案」欄（人工在該欄填 1/TRUE 表示此店
+   已結案，之後不用再稽核拜訪頻率）。故意設計成「人工在名冊上明講」，
+   不是靠系統自動用資料去猜──不能拿「最後一筆時間很舊」反過來推論
+   「已結案」，那樣會跟這個警示本來要抓的對象（真的被冷落太久的店）
+   互相矛盾，等於自己把要抓的問題永久排除掉。名冊沒有這欄、或該店這欄
+   是空的，isOne() 都回傳 false，行為等同沒有這個功能，向後相容。
+   STALE_VISIT_DAYS：逾期天數門檻，用電腦當下時間（換算台北時區，跟
+   全檔其他「本期／週檢視」判斷同一套 _cwTaipeiNow()）跟該店最後一筆
+   問卷時間相減計算，超過門檻天數才標記。 */
+var COL_CLOSED = '結案';
+var STALE_VISIT_DAYS = 60;
 
 
 /* 通路視角欄位 */
@@ -3230,6 +3281,28 @@ function isCText(v){ return v!==null && v!==undefined && v!=='' && v!==0 && v!==
    ══════════════════════════════════════════════════════════════ */
 var QUESTIONNAIRE_SHEET = '問卷資料'; /* 問卷資料 */
 var _qSheetCache = null;      /* { quizCols, codeToRecords } */
+/* 全案「目前為止最新一筆問卷資料的時間」，供 _isStaleVisit 當比較基準
+   （見該函式註解）。掃過整個 codeToRecords 找最大值，不受目前畫面上
+   的燈號篩選／分支篩選影響——要看的是「整個案子有沒有人還在回填資料」，
+   不是「目前這個畫面篩出來的子集合」。每次問卷資料重新抓取完成
+   （_fetchQuestionnaireSheet 成功時）都會呼叫 _covRecalcGlobalLatestDate
+   重算一次；資料還沒載入完成前維持 null。 */
+var _covGlobalLatestDate = null;
+function _covRecalcGlobalLatestDate(cache){
+  var maxD = null;
+  if (cache && cache.codeToRecords) {
+    Object.keys(cache.codeToRecords).forEach(function(code){
+      var recs = cache.codeToRecords[code];
+      if (recs && recs.length) {
+        /* codeToRecords[code] 已依時間新到舊排序（見下方載入邏輯），
+           [0] 就是這家店目前最新一筆，不用整份陣列都掃 */
+        var d = _cwParseTimeKey(recs[0].timeKey);
+        if (d && (!maxD || d.getTime() > maxD.getTime())) maxD = d;
+      }
+    });
+  }
+  _covGlobalLatestDate = maxD;
+}
 var _qSheetLoading = false;
 var _qSheetWaiters = [];
 var _storeDetailLoaded = {};
@@ -3341,6 +3414,7 @@ function _fetchQuestionnaireSheet(callback){
 
 
       _qSheetCache = { quizCols:quizCols, codeToRecords:codeToRecords };
+      _covRecalcGlobalLatestDate(_qSheetCache);
       _qSheetLoading = false;
       callback(_qSheetCache);
       _qSheetWaiters.forEach(function(cb){ cb(_qSheetCache); });
@@ -4483,6 +4557,39 @@ function _latestVisitTimeKey(code){
   }
   return '';
 }
+/* 這家店的「最後訪店(調查)日」是否該亮紅色警示：
+   ①已在名冊 COL_CLOSED 欄標記結案 → 一律不警示，不管時間差多少；
+     這是「單一店家提早結案，但整個案子其他店還在跑」用的例外開關，
+     跟下面②的「全案凍結」是兩種不同情境，互不取代。
+   ②問卷資料還沒載入完成（_qSheetCache 還是 null）→ 先不誤判，等
+     _warmQuestionnaireCache 觸發重新渲染後這裡會拿到真正的資料再判斷；
+   ③載入完成後，該店完全查無任何拜訪紀錄（raw 是空字串、parse 不出時間）
+     → 一樣算警示對象，語意上比「超過門檻天數」更需要人工回頭確認；
+   ④比較基準不是電腦當下的真實時間，而是「全案目前最新一筆資料的時間」
+     （_covGlobalLatestDate，見下方 _covRecalcGlobalLatestDate）。原因：
+     案子還在跑時，全案最新一筆基本上就等於今天，跟用真實時間比較沒
+     差別；但案子已經停案、大家都不再回填資料時，全案最新一筆會停在
+     停案那天不再往前走，這時如果還拿電腦的真實日期去比較，會隨著
+     時間過去讓所有店家的「逾期天數」持續增加、逼近或超過門檻，變成
+     全部被誤判成新增的警示——實際上只是案子結束了，不是有人突然
+     不去巡店。改用「全案最新一筆」當比較基準後，案子一旦真的停了，
+     這個基準也會跟著凍結在同一天，逾期天數不會再繼續往上累加，
+     不需要另外去記「這個案子有沒有結案」。
+     用 Math.min 跟真實時間取小值，防止萬一問卷裡混進未來日期的
+     手誤資料，把基準往後推到不合理的日期。全案完全沒有任何一筆能
+     解析出時間時，_covGlobalLatestDate 會是 null，退回用真實時間，
+     行為等同沒有這個機制之前。 */
+function _isStaleVisit(r, raw){
+  if (COL_CLOSED && isOne(r[COL_CLOSED])) return false;
+  if (!_qSheetCache) return false;
+  var d = _cwParseTimeKey(raw);
+  if (!d) return true;
+  var now = _cwTaipeiNow();
+  var anchor = _covGlobalLatestDate && _covGlobalLatestDate.getTime() < now.getTime()
+    ? _covGlobalLatestDate : now;
+  var diffDays = (anchor.getTime() - d.getTime()) / 86400000;
+  return diffDays > STALE_VISIT_DAYS;
+}
 
 
 
@@ -4593,7 +4700,13 @@ function buildStoreTable(rows, levelKey, ridPrefix, compact){
     html += '<td class="td-code">' + esc(code||'—') + '</td>';
     html += '<td class="td-name"><span class="store-expand-ico" id="storeico-'+rid+'">▶</span>' + esc(String(r[COL_NAME]||'—')) + '</td>';
     if(showType) html += '<td class="td-org">' + esc(String(r[COL_TYPE]||'—')) + '</td>';
-    html += '<td class="td-org">' + esc(_dateOnly(_latestVisitTimeKey(code)) || '—') + '</td>';
+    (function(){
+      var _rawVisit = _latestVisitTimeKey(code);
+      var _visitText = _dateOnly(_rawVisit) || '—';
+      html += _isStaleVisit(r, _rawVisit)
+        ? '<td class="td-org"><span class="d-stale" title="超過 '+STALE_VISIT_DAYS+' 天未有拜訪(調查)紀錄">⏰ '+esc(_visitText)+'</span></td>'
+        : '<td class="td-org">' + esc(_visitText) + '</td>';
+    })();
 
 
     /* 狀態欄 */
@@ -5544,6 +5657,7 @@ function takeScreenshot(){
       tblClone.querySelectorAll('.d-no').forEach(function(el){ el.style.color='#ccc'; });
       tblClone.querySelectorAll('.d-unfill').forEach(function(el){ el.style.cssText='font-size:11px;font-weight:700;color:#E65100;background:#FFF3E0;padding:2px 7px;border-radius:6px;'; });
       tblClone.querySelectorAll('.d-gap').forEach(function(el){ el.style.cssText='font-size:11px;font-weight:700;color:#6A1B9A;background:#F3E5F5;padding:2px 7px;border-radius:6px;border:1px dashed rgba(106,27,154,.5);'; });
+      tblClone.querySelectorAll('.d-stale').forEach(function(el){ el.style.cssText='font-size:12px;font-weight:800;color:#C62828;background:#FFEBEE;padding:2px 8px;border-radius:6px;border:1px solid rgba(198,40,40,.35);white-space:nowrap;'; });
       wrapper.appendChild(tblClone);
     }
     var ts=document.createElement('div');
