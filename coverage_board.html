@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 3.13.4 ｜ 最後更新：2026-09-15
+  版本：Ver. 3.13.5 ｜ 最後更新：2026-09-15
 ════════════════════════════════════════════════════════════
 
 
@@ -133,6 +133,11 @@
 
 
 【版本紀錄】（往後新版本請繼續往下累加，格式：版本號 日期 摘要）
+  3.13.5 2026-09-15  拿掉 3.13.3 新增的 COL_CLOSED（名冊「結案」欄）手動
+                      排除機制，改回單純只看 3.13.4 的「全案最新一筆資料
+                      時間」當比較基準，不再有第二套人工標記邏輯。
+                      _isStaleVisit() 簽名跟著簡化（拿掉不再使用的 r 參數，
+                      只吃 raw 一個引數），呼叫端同步更新。
   3.13.4 2026-09-15  「最後訪店(調查)日」逾期警示（_isStaleVisit）比較
                       基準改掉：原本拿電腦當下真實時間跟該店最後一筆
                       比較，改成拿「全案目前最新一筆問卷資料的時間」
@@ -993,7 +998,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   background:#F3E5F5; padding:2px 7px; border-radius:6px;
   border:1px dashed rgba(106,27,154,.5);
 }
-/* 最後訪店(調查)日逾期／查無紀錄警示（結案店家或問卷未載入完成時不會套用，見 _isStaleVisit） */
+/* 最後訪店(調查)日逾期／查無紀錄警示（問卷未載入完成時不會套用，見 _isStaleVisit） */
 .d-stale {
   font-size:12px; font-weight:800; color:#C62828;
   background:#FFEBEE; padding:2px 8px; border-radius:6px;
@@ -1771,16 +1776,8 @@ var COL_NAME    = '店家名稱';
 var COL_GRADE = '店家等級';
 var selectedGrades = null; /* null = 全選，Set = 已選等級 */
 /* 【最後訪店(調查)日 逾期警示】
-   COL_CLOSED：店家名冊裡選填的「結案」欄（人工在該欄填 1/TRUE 表示此店
-   已結案，之後不用再稽核拜訪頻率）。故意設計成「人工在名冊上明講」，
-   不是靠系統自動用資料去猜──不能拿「最後一筆時間很舊」反過來推論
-   「已結案」，那樣會跟這個警示本來要抓的對象（真的被冷落太久的店）
-   互相矛盾，等於自己把要抓的問題永久排除掉。名冊沒有這欄、或該店這欄
-   是空的，isOne() 都回傳 false，行為等同沒有這個功能，向後相容。
-   STALE_VISIT_DAYS：逾期天數門檻，用電腦當下時間（換算台北時區，跟
-   全檔其他「本期／週檢視」判斷同一套 _cwTaipeiNow()）跟該店最後一筆
-   問卷時間相減計算，超過門檻天數才標記。 */
-var COL_CLOSED = '結案';
+   STALE_VISIT_DAYS：逾期天數門檻，比較基準見下方 _isStaleVisit
+   （用「全案目前最新一筆問卷資料的時間」，不是電腦真實時間）。 */
 var STALE_VISIT_DAYS = 60;
 
 
@@ -4558,14 +4555,11 @@ function _latestVisitTimeKey(code){
   return '';
 }
 /* 這家店的「最後訪店(調查)日」是否該亮紅色警示：
-   ①已在名冊 COL_CLOSED 欄標記結案 → 一律不警示，不管時間差多少；
-     這是「單一店家提早結案，但整個案子其他店還在跑」用的例外開關，
-     跟下面②的「全案凍結」是兩種不同情境，互不取代。
-   ②問卷資料還沒載入完成（_qSheetCache 還是 null）→ 先不誤判，等
+   ①問卷資料還沒載入完成（_qSheetCache 還是 null）→ 先不誤判，等
      _warmQuestionnaireCache 觸發重新渲染後這裡會拿到真正的資料再判斷；
-   ③載入完成後，該店完全查無任何拜訪紀錄（raw 是空字串、parse 不出時間）
+   ②載入完成後，該店完全查無任何拜訪紀錄（raw 是空字串、parse 不出時間）
      → 一樣算警示對象，語意上比「超過門檻天數」更需要人工回頭確認；
-   ④比較基準不是電腦當下的真實時間，而是「全案目前最新一筆資料的時間」
+   ③比較基準不是電腦當下的真實時間，而是「全案目前最新一筆資料的時間」
      （_covGlobalLatestDate，見下方 _covRecalcGlobalLatestDate）。原因：
      案子還在跑時，全案最新一筆基本上就等於今天，跟用真實時間比較沒
      差別；但案子已經停案、大家都不再回填資料時，全案最新一筆會停在
@@ -4579,8 +4573,7 @@ function _latestVisitTimeKey(code){
      手誤資料，把基準往後推到不合理的日期。全案完全沒有任何一筆能
      解析出時間時，_covGlobalLatestDate 會是 null，退回用真實時間，
      行為等同沒有這個機制之前。 */
-function _isStaleVisit(r, raw){
-  if (COL_CLOSED && isOne(r[COL_CLOSED])) return false;
+function _isStaleVisit(raw){
   if (!_qSheetCache) return false;
   var d = _cwParseTimeKey(raw);
   if (!d) return true;
@@ -4703,7 +4696,7 @@ function buildStoreTable(rows, levelKey, ridPrefix, compact){
     (function(){
       var _rawVisit = _latestVisitTimeKey(code);
       var _visitText = _dateOnly(_rawVisit) || '—';
-      html += _isStaleVisit(r, _rawVisit)
+      html += _isStaleVisit(_rawVisit)
         ? '<td class="td-org"><span class="d-stale" title="超過 '+STALE_VISIT_DAYS+' 天未有拜訪(調查)紀錄">⏰ '+esc(_visitText)+'</span></td>'
         : '<td class="td-org">' + esc(_visitText) + '</td>';
     })();
