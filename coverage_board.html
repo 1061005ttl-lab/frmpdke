@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 3.13.1 ｜ 最後更新：2026-09-14
+  版本：Ver. 3.13.2 ｜ 最後更新：2026-09-15
 ════════════════════════════════════════════════════════════
 
 
@@ -133,6 +133,14 @@
 
 
 【版本紀錄】（往後新版本請繼續往下累加，格式：版本號 日期 摘要）
+  3.13.2 2026-09-15  店家明細表格（buildStoreTable）新增「最後訪店(調查)日」欄，
+                      放在「店名／店家型態」之後、「狀態」之前。資料來源沿用
+                      既有 _latestVisitTimeKey(code)（即 qData.codeToRecords 該
+                      店最新一筆問卷紀錄的 timeKey），套上跟照片牆同一顆
+                      _dateOnly() 只取日期部分；問卷資料尚未載入完成或該店
+                      查無紀錄時顯示「—」。同步更新 totalCols 計算（展開列
+                      colspan 用），欄位順序沒有另外處理排序／CSV/LINE 匯出，
+                      那些輸出維持原樣。
   3.13.1 2026-09-14  修正 3.13.0「❓ 說明」彈窗的定位問題：使用者回報離開
                       趨勢圖後，說明彈窗還飄在主畫面某個角落，要點開才知道
                       這東西原來屬於趨勢圖。根因是 3.13.0 誤以為 id 命名
@@ -4546,6 +4554,7 @@ function buildStoreTable(rows, levelKey, ridPrefix, compact){
   extraCols.forEach(function(c){ html+='<th class="th-left">'+(colLabels[c]||c)+'</th>'; });
   html+='<th class="th-left">執行人員</th><th class="th-left">店碼</th><th class="th-left">店名</th>';
   if(showType) html+='<th class="th-left">店家型態</th>';
+  html+='<th class="th-left">最後訪店(調查)日</th>';
   html+='<th>狀態</th>';
   /* B 群欄：精簡模式每群組固定一欄；一般模式群組有多個子欄則逐欄展開 */
   BUCKETS_B.forEach(function(g,gi){
@@ -4561,7 +4570,7 @@ function buildStoreTable(rows, levelKey, ridPrefix, compact){
     });
   }
   /* 計算總欄數，供展開列 colspan 使用 */
-  var totalCols = extraCols.length + 1 /* 執行人員 */ + 2 /* 店碼/店名 */ + (showType?1:0) + 1 /* 狀態 */;
+  var totalCols = extraCols.length + 1 /* 執行人員 */ + 2 /* 店碼/店名 */ + (showType?1:0) + 1 /* 最後訪店(調查)日 */ + 1 /* 狀態 */;
   BUCKETS_B.forEach(function(g){ totalCols += compact ? 1 : g.cols.length; });
   if (!isSum()) BUCKETS_C.forEach(function(g){ totalCols += compact ? 1 : g.cols.filter(function(t){return t;}).length; });
 
@@ -4584,6 +4593,7 @@ function buildStoreTable(rows, levelKey, ridPrefix, compact){
     html += '<td class="td-code">' + esc(code||'—') + '</td>';
     html += '<td class="td-name"><span class="store-expand-ico" id="storeico-'+rid+'">▶</span>' + esc(String(r[COL_NAME]||'—')) + '</td>';
     if(showType) html += '<td class="td-org">' + esc(String(r[COL_TYPE]||'—')) + '</td>';
+    html += '<td class="td-org">' + esc(_dateOnly(_latestVisitTimeKey(code)) || '—') + '</td>';
 
 
     /* 狀態欄 */
