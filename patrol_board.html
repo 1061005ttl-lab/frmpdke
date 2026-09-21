@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.51.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-08-27
+  版本：Ver. 1.52.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-09-21
 
 【檔案定位】
   ‧ 單一 HTML 檔案，純前端 JS，透過 gviz API 讀同一份試算表兩分頁，
@@ -31,6 +31,20 @@
     - 巡補日期：核心依據；週次由看板端依【檔期】設定自動換算，處理層
       本身不存週次欄位。
   ‧ 兩者皆讀自同一 SHEET_ID（網址參數帶入）。
+
+  ‧「工讀排班」（1.52.0 新增，第三份資料來源，見 fetchWorkShiftSheet()）：
+    外部工讀單位自行維護的清單，欄位：營業處名稱／營業所-課／主要訪員／
+    通路別／店家型態／店家代碼／店家名稱／店家等級／日期／工讀生／班表時間。
+    - 只有「店家代碼」「日期」兩欄會被採用，其餘欄位是外部人員自己抄的
+      （不保證跟店家名冊一致），只給人工比對參考，不進計算。
+    - 背景：工讀生代班＝主要訪員那天沒辦法去，本來就不會有正式問卷紀錄；
+      這份清單裡「店代碼＋日期」對得到店家名冊的每一列，會直接併入跟
+      「處理層」同一份 VISIT_INDEX／ACTUAL_INDEX，讓格子顏色、達成率、
+      必訪日判斷自動一起算對，不用另外改任何畫面邏輯。
+    - 對不到店家名冊代碼的列，不計入任何店，只記一筆到「⚙️ 設定診斷」
+      提醒（不擋其他列、不擋整頁）。
+    - 併入的紀錄會標記 source:'temp'，店家明細時間軸顯示「🧑‍🎓 工讀代班」
+      徽章＋班表時間跟正式紀錄區分，但達成率／必訪日計算一視同仁。
 
 ────────────────────────────────────────────────────────────
 【看版設定分頁（常數 CFG_SHEET＝'看版設定'）】
@@ -196,6 +210,10 @@
 
 ────────────────────────────────────────────────────────────
 【已知待確認/待部署事項（交接時務必告知後端）】
+  ‧ 「工讀排班」分頁的「日期」欄務必是 Sheet 日期格式（不要存純文字），
+    否則 _cellDateParts() 可能解析不到，該列會被當成「日期不明」整列跳過。
+  ‧ 「工讀排班」分頁的「店家代碼」務必跟「店家名冊」完全一致（含全半形），
+    對不到的列會顯示在「⚙️ 設定診斷」，但不會擋其他資料載入。
   ‧ GAS 端需另新增「處理層」產生函式（本檔不含 GAS 程式碼）；「巡補
     日期」務必是 Sheet 日期格式，不要存純文字字串。
   ‧ 兩份問卷分頁務必各自有「店家代碼」欄，值須跟店家名冊對得上。
@@ -1603,6 +1621,12 @@ var PROJ_NAME = '2026 節慶巡補看板'; /* 載入前的暫時標題，fetchBo
 
 var POP_SHEET  = '店家名冊';
 var PROC_SHEET = '處理層';
+/* 1.52.0 新增：「工讀排班」分頁——外部工讀生單位自行維護的清單，欄位比
+   「處理層」少很多，且只保證「店家代碼」這欄跟店家名冊對得上（其餘營業處／
+   通路／等級／店名等欄位是外部人員自己抄的，不採用、只給人工比對參考）。
+   見 fetchWorkShiftSheet()。 */
+var WORK_SHEET = '工讀排班';
+var W_CODE='店家代碼', W_DATE='日期', W_WORKER='工讀生', W_SHIFT='班表時間';
 var SYNC_SHEET = '輔助';
 var SYNC_CELL  = 'B1';
 /* 原始問卷分頁（給店家明細 Dialog 顯示「問卷內容」用，比照 coverage_board 的
@@ -1746,7 +1770,8 @@ function _chanKey(channelVal, storeTypeVal){
 }
 
 var STORE_ROWS  = [];   /* 店家名冊，含 __visits 索引 */
-var VISIT_ROWS  = [];   /* 處理層原始列（供明細 Dialog 用） */
+var VISIT_ROWS  = [];   /* 處理層原始列＋工讀排班已勾稽列（供明細 Dialog 用） */
+var WORK_ROWS   = [];   /* 工讀排班分頁裡「店代碼有對到店家名冊」的列，供參考／診斷用 */
 var VISIT_INDEX = {};   /* key: code → [{period,week,y,mo,d,ref}, ...]（新到舊） */
 /* 1.9.3：_actualCount() 被 render()／_statsFor()／_officeStatsFor() 大量
    重複呼叫（店數 × 欄位數），舊實作每次都重新掃該店全部原始紀錄＋現場
@@ -1957,6 +1982,7 @@ function init(){
     buildFilterUI();
     fetchPopulation(function(){
       fetchProcessLayer(function(){
+       fetchWorkShiftSheet(function(){
         hideLoading();
         /* 1.14.0：手機斷面且店家名冊有資料時，先跳單位導引篩選，使用者
            選完（或按略過）才會實際呼叫 renderOverview()／_enterDetail()；
@@ -1971,6 +1997,7 @@ function init(){
         Object.keys(QUESTIONNAIRE_SHEETS).forEach(function(chanKey){
           _fetchQuestionnaireSheet(chanKey, function(){});
         });
+       });
       });
     });
     fetchSyncTime();
@@ -3402,7 +3429,7 @@ function fetchProcessLayer(callback){
       if(!code || !cls) return; /* 不屬於任何已定義檔期週次的紀錄，不計入統計 */
       var ref = idxRef!==-1 ? String(cv(c[idxRef])).trim() : '';
       var staff = idxStaff!==-1 ? _normalizeStaffName(cv(c[idxStaff])) : '';
-      var rec = { code:code, period:cls.period, week:cls.week, parts:parts, ref:ref, staff:staff };
+      var rec = { code:code, period:cls.period, week:cls.week, parts:parts, ref:ref, staff:staff, source:'normal' };
       rows.push(rec);
       if(!index[code]) index[code] = [];
       index[code].push(rec);
@@ -3438,6 +3465,75 @@ function _buildActualIndex(visitIndex){
     out[code] = counts;
   });
   return out;
+}
+
+/* ════ 讀「工讀排班」（1.52.0 新增）════
+   背景：工讀生代班表示「主要訪員那天本來就沒辦法去」，本來就不會有正式
+   問卷紀錄；如果不處理，這些天在畫面上會一直卡在「已過期未達成」（灰格／
+   紅框），跟現場實況不符。
+   做法：只認「店家代碼」＋「日期」兩欄當勾稽依據，把工讀排班分頁裡對得到
+   店家名冊的每一列，當成一筆「巡補紀錄」直接併入 VISIT_INDEX（跟「處理層」
+   的正式紀錄放在同一份索引裡），再重建 ACTUAL_INDEX──這樣格子顏色／達成率／
+   必訪日判斷全部共用同一套現有邏輯自動一起算對，不用另外改任何畫面程式。
+   ‧ 工讀排班分頁自己填的營業處／通路／店家型態／店家名稱／店家等級這幾欄
+     一律不採用（外部人員自己抄的，不保證跟店家名冊一致），只當人工比對
+     用途；權威資料一律以「店家名冊」為準。
+   ‧ 店代碼在店家名冊查不到的列：這筆資料沒有店可以掛，不會出現在任何店的
+     格子上，計入 CFG_DIAG 提醒（方便事後抓錯字的店代碼），不擋其他列繼續
+     處理、也不擋整頁載入。
+   ‧ 併入的紀錄標記 source:'temp'（並保留 worker／shift），店家明細時間軸
+     會依此標示「🧑‍🎓 工讀代班」＋班表時間，跟正式訪員紀錄區分；但達成率／
+     必訪日計算完全比照正式紀錄一視同仁，不特別打折或加權。
+   ‧ 分頁不存在／缺「店家代碼」「日期」欄：不影響其他資料載入，記一筆
+     CFG_DIAG 提醒，整份工讀排班資料視同沒有。 */
+function fetchWorkShiftSheet(callback){
+  var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(WORK_SHEET);
+  fetch(url).then(function(r){ return r.text(); }).then(function(txt){
+    var json = gvizParse(txt);
+    var tbl = json.table || {};
+    var cols = (tbl.cols||[]).map(function(c){ return c.label||''; });
+    var idxCode = cols.indexOf(W_CODE), idxDate = cols.indexOf(W_DATE),
+        idxWorker = cols.indexOf(W_WORKER), idxShift = cols.indexOf(W_SHIFT);
+    function cv(c){ return (c && (c.v!=null ? c.v : c.f)) || ''; }
+    var rows = [];
+    if(idxCode===-1 || idxDate===-1){
+      _cfgDiagPush('工讀排班', 'warn', '分頁「'+WORK_SHEET+'」找不到「'+W_CODE+'」或「'+W_DATE+'」欄，工讀排班資料本次未併入計算。', null);
+    } else {
+      var unmatched = 0, unmatchedEg = [];
+      (tbl.rows||[]).forEach(function(row){
+        var c = row.c || [];
+        var code = String(cv(c[idxCode])).trim();
+        var parts = _cellDateParts(c[idxDate]);
+        var cls = _classifyParts(parts);
+        if(!code || !cls) return; /* 代碼空白，或日期不屬於任何已定義檔期週次，不計入 */
+        if(!STORE_ROWS.some(function(s){ return s.code===code; })){
+          unmatched++; if(unmatchedEg.length<5) unmatchedEg.push(code);
+          return; /* 店家名冊查不到這個代碼，這筆沒有店可以掛 */
+        }
+        var worker = idxWorker!==-1 ? String(cv(c[idxWorker])).trim() : '';
+        var shift = idxShift!==-1 ? String(cv(c[idxShift])).trim() : '';
+        var rec = { code:code, period:cls.period, week:cls.week, parts:parts, ref:'', staff:worker, source:'temp', shift:shift };
+        rows.push(rec);
+        if(!VISIT_INDEX[code]) VISIT_INDEX[code] = [];
+        VISIT_INDEX[code].push(rec);
+      });
+      if(unmatched>0){
+        _cfgDiagPush('工讀排班', 'warn', '工讀排班分頁裡有 '+unmatched+' 筆「'+W_CODE+'」對不到店家名冊，未計入任何店的巡補次數，例如：'+unmatchedEg.join('、')+(unmatched>5?' 等':'')+'。', null);
+      }
+    }
+    WORK_ROWS = rows;
+    Object.keys(VISIT_INDEX).forEach(function(code){
+      VISIT_INDEX[code].sort(function(a,b){
+        var da=_toEpochDay(a.parts.y,a.parts.mo,a.parts.d), db=_toEpochDay(b.parts.y,b.parts.mo,b.parts.d);
+        return db-da; /* 新到舊，跟 fetchProcessLayer 排序規則一致 */
+      });
+    });
+    VISIT_ROWS = VISIT_ROWS.concat(rows);
+    ACTUAL_INDEX = _buildActualIndex(VISIT_INDEX); /* 併入後重建，讓工讀代班天數也一起去重計數 */
+  }).catch(function(err){
+    _cfgDiagPush('工讀排班', 'info', '分頁「'+WORK_SHEET+'」讀取失敗或不存在，本次未併入工讀排班資料（'+err+'）。', null);
+  }).then(function(){ callback(); });
 }
 
 /* ════ 讀原始問卷分頁（店家明細 Dialog「問卷內容」用，比照 coverage_board
@@ -5717,12 +5813,19 @@ function openStoreDetail(code, scopePeriod, scopeWeek, evt){
       var dayKey = _toEpochDay(v.parts.y, v.parts.mo, v.parts.d);
       var dupN = dupDays[dayKey];
       var dupBadge = dupN ? '<span class="store-history-badge dup" title="同一天共 '+dupN+' 筆紀錄，達成率僅計1次巡補" style="flex-shrink:0;">同日'+dupN+'筆</span>' : '';
+      /* 1.52.0：工讀代班紀錄（source==='temp'，來自「工讀排班」分頁）沒有
+         正式問卷，用獨立徽章標示、附上班表時間，跟正式訪員紀錄區分開來，
+         但排版跟計算方式（v-date／v-week 欄位）維持一致，不另外特殊處理。 */
+      var tempBadge = v.source==='temp'
+        ? '<span class="store-history-badge" style="flex-shrink:0;background:#FFF3CD;color:#8a6d1f;" title="這天由工讀生代班，非主要訪員本人到店，故無正式問卷紀錄">🧑‍🎓 工讀代班'+(v.shift?'（'+esc(v.shift)+'）':'')+'</span>'
+        : '';
       return '<div class="visit-row">'
         + '<span class="v-date">'+esc(_fmtParts(v.parts))+'</span>'
         + '<span class="v-week">'+esc(periodLabel.replace('專案',''))+' W'+v.week+'</span>'
         + '<span class="v-staff">'+esc(v.staff||'—')+'</span>'
         + dupBadge
-        + '<span class="v-ref">'+esc(v.ref||'—')+'</span>'
+        + tempBadge
+        + '<span class="v-ref">'+esc(v.ref||(v.source==='temp'?'工讀排班':'—'))+'</span>'
         + '</div>';
     }).join('');
   }
