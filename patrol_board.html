@@ -1639,6 +1639,13 @@ var QUESTIONNAIRE_SHEETS = {};
 /* 母體（店家名冊）欄名 */
 var P_AREA='營業處名稱', P_OFFICE='營業所/課', P_STAFF='主要訪員', P_CHANNEL='通路別',
     P_STORETYPE='店家型態', P_CODE='店家代碼', P_STORENAME='店家名稱', P_GRADE='店家等級';
+/* 1.53.1 修正：改成完全獨立的「等級覆寫」分頁，不碰「店家名冊」——
+   店家名冊是 ARRAYFORMULA+SORT 公式產生的，列的順序會隨來源資料變動，
+   絕對不能在裡面加任何要「跟著特定列」的手動欄位；例外資料改放到獨立
+   小表，看板端用店家代碼在 JS 裡自己勾稽，比照「工讀排班」同一套模式，
+   見 fetchGradeOverrides()／_applyGradeOverrides()。 */
+var GRADE_OV_SHEET='等級覆寫';
+var GO_CODE='店家代碼', GO_PERIOD='檔期覆寫', GO_GRADE='等級覆寫';
 /* 處理層欄名 */
 var R_CODE='店家代碼', R_DATE='巡補日期', R_SOURCEREF='來源分頁+行數', R_STAFF='執行人員';
 /* 1.43.0 business 反映：處理層「執行人員」欄位（原始問卷送出時系統自動
@@ -1706,6 +1713,30 @@ function _labelForGradeKey(chanKey, grade){
   return '未設定';
 }
 function _stdFreq(s){ return _freqForGradeKey(s.chanKey, s.grade); }
+/* 1.53.1 修正：例外資料改從獨立分頁「等級覆寫」載入成 GRADE_OV（見
+   fetchGradeOverrides()），完全不碰「店家名冊」本身——那是 ARRAYFORMULA+
+   SORT 公式產生的，列的順序會隨來源資料變動，不能放任何要「跟著特定列」
+   的手動欄位，例外一律用店家代碼在這裡勾稽。
+   ‧ 「等級覆寫」分頁沒有這家店的代碼＝完全不會被碰到，grade 永遠等於
+     店家名冊填的原始值。
+   ‧ 檔期比對同時接受【檔期】區塊的 key 或 label 兩種寫法，避免「等級
+     覆寫」分頁填的到底是哪一種搞錯而覆寫不生效。
+   ‧ 已知限制：篩選在「全部檔期」（混合顯示多個檔期欄位）時無法逐欄
+     切換等級，這種情況下維持顯示店家名冊本身的預設等級；要看到覆寫
+     生效，把篩選切到「等級覆寫」分頁指定的那個單一檔期即可。這是刻意
+     取捨——只有個位數店家需要覆寫時，不值得為了「全部檔期」混合檢視
+     去改動應達次數引擎，讓它逐欄查等級。 */
+var GRADE_OV = {}; /* 店家代碼 -> { period:'檔期覆寫文字', grade:'等級覆寫文字' } */
+function _applyGradeOverrides(){
+  var periodKey = (typeof FILTER!=='undefined' && FILTER.period!=='全部') ? FILTER.period : null;
+  var p = periodKey ? PERIODS.filter(function(pp){ return pp.key===periodKey; })[0] : null;
+  STORE_ROWS.forEach(function(s){
+    var ov = GRADE_OV[s.code];
+    if(!ov) return; /* 「等級覆寫」分頁沒有這家店的代碼，完全不動 */
+    var hit = !!(p && (ov.period===p.label || ov.period===p.key));
+    s.grade = hit ? ov.grade : s.baseGrade;
+  });
+}
 function _gradeLabel(s){ return _labelForGradeKey(s.chanKey, s.grade); }
 var AREA_ORDER = ['北部','桃園','臺中','嘉義','臺南','高雄','花蓮'];
 /* 1.11.0：通路 → 該通路底下才有的店家等級清單，用來讓「等級」chip 只列出
@@ -1981,6 +2012,7 @@ function init(){
     document.title = PROJ_NAME;
     buildFilterUI();
     fetchPopulation(function(){
+     fetchGradeOverrides(function(){
       fetchProcessLayer(function(){
        fetchWorkShiftSheet(function(){
         hideLoading();
@@ -1999,6 +2031,7 @@ function init(){
         });
        });
       });
+     });
     });
     fetchSyncTime();
   });
@@ -2406,6 +2439,7 @@ function fetchPopulation(callback){
       });
       var channelVal = String(obj[P_CHANNEL]||'').trim();
       var storeTypeVal = String(obj[P_STORETYPE]||'').trim();
+      var gradeVal = String(obj[P_GRADE]||'').trim();
       return {
         area: String(obj[P_AREA]||'').trim(),
         office: String(obj[P_OFFICE]||'').trim(),
@@ -2414,10 +2448,12 @@ function fetchPopulation(callback){
         chanKey: _chanKey(channelVal, storeTypeVal),
         storeName: String(obj[P_STORENAME]||'').trim(),
         code: String(obj[P_CODE]||'').trim(),
-        grade: String(obj[P_GRADE]||'').trim(),
+        grade: gradeVal,
+        baseGrade: gradeVal, /* 1.53.0：預設等級存底，_applyGradeOverrides() 沒命中覆寫時拿來還原 */
         staff: String(obj[P_STAFF]||'').trim()
       };
     }).filter(function(r){ return r.code; });
+    _applyGradeOverrides(); /* 1.53.0：載入當下先套用一次（此時 FILTER.period 還是預設值），render()/renderOverview() 之後每次重繪還會再套一次 */
     _cfgDiagStoreChecks();
   }).catch(function(err){
     STORE_ROWS = [];
@@ -3465,6 +3501,41 @@ function _buildActualIndex(visitIndex){
     out[code] = counts;
   });
   return out;
+}
+
+/* ════ 讀「等級覆寫」（1.53.1 新增）════
+   背景：極少數店家「特定檔期用不同等級」，且「店家名冊」是 ARRAYFORMULA+
+   SORT 公式即時產生的表，列的順序會隨來源資料（量販名冊／全聯名冊）變動，
+   完全不能在裡面加任何要「跟著特定列」的手動欄位——加了公式一重算，值就
+   會錯位貼到別家店身上。所以例外資料獨立開一張分頁維護，只認「店家代碼」
+   一個勾稽鍵，比照「工讀排班」同一套模式：分頁存在就讀、不存在或缺欄位
+   就當作沒有例外，不擋看板其他資料載入。
+   多數店家在這張分頁裡完全不會出現，也就完全不受影響——這是唯一允許碰
+   s.grade 的地方，其餘所有應達次數／必訪規則／CSV／分組門檻邏輯讀到的
+   還是同一個 s.grade 欄位，不需要跟著改。 */
+function fetchGradeOverrides(callback){
+  var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
+    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(GRADE_OV_SHEET);
+  fetch(url).then(function(r){ return r.text(); }).then(function(txt){
+    var json = gvizParse(txt);
+    var tbl = json.table || {};
+    var cols = (tbl.cols||[]).map(function(c){ return c.label||''; });
+    var idxCode = cols.indexOf(GO_CODE), idxPeriod = cols.indexOf(GO_PERIOD), idxGrade = cols.indexOf(GO_GRADE);
+    function cv(c){ return (c && (c.v!=null ? c.v : c.f)) || ''; }
+    var ov = {};
+    if(idxCode!==-1 && idxPeriod!==-1 && idxGrade!==-1){
+      (tbl.rows||[]).forEach(function(row){
+        var c = row.c || [];
+        var code = String(cv(c[idxCode])).trim();
+        var period = String(cv(c[idxPeriod])).trim();
+        var grade = String(cv(c[idxGrade])).trim();
+        if(!code || !period || !grade) return; /* 三欄缺一，這列不算例外 */
+        ov[code] = { period:period, grade:grade };
+      });
+    }
+    GRADE_OV = ov;
+  }).catch(function(){ GRADE_OV = {}; /* 分頁不存在／讀取失敗，視同沒有任何店要覆寫 */ })
+    .then(function(){ callback(); });
 }
 
 /* ════ 讀「工讀排班」（1.52.0 新增）════
@@ -4737,6 +4808,7 @@ function openMvAuditFromOffice(area, chanKey, evt){
   _enterDetail();
 }
 function renderOverview(){
+  _applyGradeOverrides(); /* 1.53.0：依目前 FILTER.period 校正極少數有覆寫欄的店家等級 */
   var wrap = document.getElementById('ov-cards');
   if(!wrap) return;
   /* 1.6.0：同一檔期的量販／全聯改成同框「上下垂直排列」（量販在上、
@@ -5128,6 +5200,7 @@ function _buildDayBoxCells(s, period, week, stdN, actual){
   return html;
 }
 function render(){
+  _applyGradeOverrides(); /* 1.53.0：依目前 FILTER.period 校正極少數有覆寫欄的店家等級，須在 getFilteredStores() 之前執行（等級篩選 chip 也依賴 s.grade） */
   var stores = getFilteredStores();
   var cols = activeColumns();
   _initMobileSel(); /* 手機版週期切換的目前選定週次（跟桌機 cols 是各自獨立的狀態） */
