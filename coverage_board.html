@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 3.13.5 ｜ 最後更新：2026-09-15
+  版本：Ver. 3.14.0 ｜ 最後更新：2026-09-21
 ════════════════════════════════════════════════════════════
 
 
@@ -133,6 +133,86 @@
 
 
 【版本紀錄】（往後新版本請繼續往下累加，格式：版本號 日期 摘要）
+  3.14.0 2026-09-21  一次修正多個 BUG＋優化（此版只處理「計數型」路徑，
+                      加總型維持原狀不動）：
+                      【BUG】fetchSheet() 的 C 群文字二次請求回填，以前是
+                      先過濾掉幽靈列（isRowIdentified）才回填，但二次請求
+                      的 row index 對應的是原始列序，名單中間只要有幽靈列
+                      就會回填到錯的店家。改成先用 rawRows 保留原始列序、
+                      回填完成才過濾。
+                      【BUG】等級收合鈕第一次點沒反應（要點兩次才展開）：
+                      window._gradeExpanded 初始 undefined 時，
+                      !(undefined!==false) 算出來還是 false，第一次點擊
+                      沒有效果。改成 !(window._gradeExpanded===true)。
+                      【BUG】refreshDialogContent()／_covTrendScopeLabel()
+                      把 drillStack 的 key、_dialogTitle、TREND_SCOPE 直接
+                      塞進 innerHTML，沒跳脫 HTML，名稱含 <＆ 等字元會壞版
+                      甚至被注入；統一補上 esc()。
+                      【BUG】週/月下拉選單套用自訂區間後，下拉外觀停在
+                      「週」，使用者選「週」不會觸發 change（值沒變化）。
+                      新增隱藏的 'custom' 選項，讓下拉值能真實反映自訂
+                      區間狀態。
+                      【BUG】週檢視 ◄/► 可以一路翻到未來，超過「本期」後
+                      全部店家都變「本期未巡」；covPageWeek() 往未來方向
+                      加上不超過本期的上限。
+                      【BUG】彙整看板共用 CSV 鈕在照片牆／逐題彙整分頁匯出
+                      的其實是店家清單（對不上畫面），細項匯出分頁則有
+                      自己專屬的 CSV 鈕卻被共用鈕蓋過去；downloadSummaryCsv()
+                      改成只在人員/單位/店家三個分頁才用共用鈕匯出。
+                      【BUG】C 群「命中」口徑不一致：rowCGroup／calcGroup／
+                      hasNo 等統計只認 isOne()，但明細表／LINE／CSV 一直
+                      都是 isOne()||isCText() 兩者皆算命中（C 欄常存文字
+                      原因，不是只有 1/0），造成卡片統計跟明細對不上。新增
+                      isCHit() 統一兩邊口徑。
+                      【BUG】codeToRecords 依 timeKey 字串排序，日期沒補零
+                      時（如 "2026/9/5" vs "2026/9/12"）字串排序會排錯，
+                      週檢視「取最新一筆」依賴這個順序。改用 _cwParseTimeKey
+                      轉成真正時間比較，轉不出來才退回字串比較。
+                      【BUG】_covRecordMatchedCols 對「表頭跟主表格欄名
+                      完全相同」的情況，只要非空字串就算命中，字面 "0"
+                      （明確填「否」）也會被誤判成命中；補上排除 "0"/0。
+                      【BUG】卡片 ttId 用 name.replace(/[^a-zA-Z0-9]/g,'_')
+                      產生，中文名稱全部塌縮成同一串底線，同一層不同中文
+                      名稱的卡片會產生重複 DOM id（目前靠 card.querySelector
+                      限定子樹才沒出事，但仍是隱患）。新增 _safeId()：非
+                      英數字元換成「_」+字元碼點 36 進位，保留唯一性。
+                      【BUG】卡片點擊排除邏輯寫 e.target.closest('#si-'+ttId)，
+                      但畫面上沒有任何元素叫這個 id（真正的 id 是
+                      sib0-/sic0-/ttbsum- 這類前綴），這行 closest 永遠比對
+                      不到、是死碼。改用 .stat-item 這個所有統計格共用的
+                      class。
+                      【BUG】趨勢圖／說明面板完全沒接 Escape 鍵（原本只有
+                      彙整看板、店家明細兩個 Dialog 有）。補上同一套優先
+                      順序：燈箱 > 說明面板 > 趨勢圖本身。
+                      【穩健性】fetchSheet() 的 C 群文字補抓請求改成各自
+                      catch，其中一個失敗不會讓整個主畫面顯示「載入失敗」；
+                      init() 讀完「覆蓋率型專案管理」後，若 BUCKETS_B 是空
+                      的（sheetId 沒對應到設定），改顯示明確錯誤訊息，不
+                      再是空白畫面。
+                      【效能】_covRecordMatchedCols 的結果只跟 record 本身
+                      ＋目前 B/C 欄位集合有關、跟哪一週無關，以前趨勢圖
+                      每畫一週都對每家店重算一次；改成 _covRecordMatchedColsCached()
+                      把結果快取在 record 物件上。codeToRecords 載入時
+                      預先用 _cwParseTimeKey 解析好 rec.ts，週檢視／趨勢圖
+                      / 排序都直接讀 rec.ts，不用每次重新 parse 字串。
+                      問卷欄名的 headers=1 請求加上 range=1:1，只抓表頭列，
+                      不再下載整張問卷表。
+                      【新增】工具列加上 🔄 重新整理鈕（refreshBoardData()），
+                      清掉問卷快取後重抓主表格＋同步時間，不用整頁重新
+                      整理就能看到 Google Sheet 最新資料，也保留目前鑽層
+                      /篩選狀態。
+                      【清理】刪除重複定義兩次的 .lamp-sep CSS 規則（保留
+                      後面那份實際生效的）；quicknav 等級按鈕的跳脫改統一
+                      用既有的 qEsc()，不再另外重寫一次跳脫邏輯。
+                      【未處理，刻意跳過】趨勢圖加畫⚠️待確認線：現有
+                      matchFail 統計已經有、只是還沒進圖表；風險是要動
+                      _buildTrendSVG 的 defs／圖例／單看 chip 邏輯，這塊
+                      在檔頭被明確警告過脆弱且看不到完整渲染結果，這次
+                      沒有可以連 Google Sheet 的環境能實測，先不動，避免
+                      改壞現有趨勢圖。_renderWeekNavLabel() 為了 pager
+                      tooltip 每次 render 仍會重算一次 _weekEffectiveRows，
+                      因為 record 級快取已經讓這次重算便宜很多，這次沒有
+                      再進一步處理。
   3.13.5 2026-09-15  拿掉 3.13.3 新增的 COL_CLOSED（名冊「結案」欄）手動
                       排除機制，改回單純只看 3.13.4 的「全案最新一筆資料
                       時間」當比較基準，不再有第二套人工標記邏輯。
@@ -1214,7 +1294,6 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   z-index:41;
 }
 .lamp-row::-webkit-scrollbar { display:none; }
-.lamp-sep { width:1px; height:16px; background:var(--border); flex-shrink:0; margin:0 4px; align-self:center; }
 .lamp-bar {
   display:flex; align-items:center; gap:6px; flex-shrink:0;
 }
@@ -1399,6 +1478,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
   <button class="back-btn" id="back-btn" onclick="goBack()">← 返回</button>
   <select class="proj-sel" id="proj-sel" style="display:none" onchange="switchProject(this.value)"></select>
   <span class="sync-note" id="tb-sync"></span>
+  <button class="back-btn" id="refresh-btn" onclick="refreshBoardData()" title="重新讀取試算表最新資料（原本開著不會自動更新，需手動重新整理頁面）">🔄</button>
   <button class="hamburger-btn" id="hamburger-btn" onclick="toggleMobileMenu(event)">☰</button>
   <div class="toolbar-controls" id="toolbar-controls">
     <div class="view-toggle" id="view-toggle">
@@ -1583,6 +1663,7 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
     <select id="cwn-unit-sel" class="cwn-unit-sel" title="切換檢視的時間粒度" onchange="_setPeriodUnit(this.value)">
       <option value="week">週</option>
       <option value="month">月</option>
+      <option value="custom" style="display:none">自訂</option>
     </select>
     <div class="cwn-pager" id="cwn-pager" title="週檢視：切換要看哪一期的最新巡查狀態，「全部」＝目前即時快照">
       <button class="cwn-btn cwn-btn-icon" onclick="covPageWeek(-1)" aria-label="上一期">◄</button>
@@ -2011,12 +2092,29 @@ function _covBestContain(text, pool){
   cands.sort(function(a,b){ return b.length - a.length; }); /* 名稱越長越具體，優先取用 */
   return cands[0];
 }
+/* 【效能優化】_covRecordMatchedCols 的結果只跟「record 本身＋目前的 B/C
+   欄位集合」有關，跟要看哪一週完全無關；但趨勢圖／週檢視以前是每畫一週
+   就對每家店重跑一次，26 週等於同一筆紀錄重算 26 次。這裡把結果快取在
+   record 物件本身上（colNames 在同一個專案 session 內是固定集合，用
+   join 出來的簽章判斷是否需要重算，配置真的變了也能正確失效）。 */
+function _covRecordMatchedColsCached(record, colNames){
+  var sig = colNames.join('|');
+  if(record.__hitColsSig === sig) return record.__hitCols;
+  var hit = _covRecordMatchedCols(record, colNames);
+  record.__hitColsSig = sig;
+  record.__hitCols = hit;
+  return hit;
+}
 function _covRecordMatchedCols(record, colNames){
   var hit = [];
   colNames.forEach(function(c){
     if(!c || hit.indexOf(c)!==-1) return;
     var v = record.base ? record.base[c] : undefined;
-    if(v!==undefined && v!==null && String(v).trim()!=='') hit.push(c);
+    /* 【修正】原本只要非空字串就算命中，若問卷欄位填了字面 "0"（代表明確
+       「否」），也會被誤判成有命中；改成排除 "0"/0，跟全站 isOne() 的
+       0/1 語意一致。其餘非空文字（含業務填的原因說明）維持算命中，
+       不改動比對邏輯本身，只補這一個字面值的例外。 */
+    if(v!==undefined && v!==null && v!==0 && v!=='0' && String(v).trim()!=='') hit.push(c);
   });
   (record.sections||[]).forEach(function(sec){
     var sectionText = String(sec.section||'');
@@ -2059,7 +2157,7 @@ function _weekEffectiveRows(rows, weekSel, qCache){
     var code = String(r[COL_CODE]||'').trim();
     var recs = code ? (qCache.codeToRecords[code]||[]) : [];
     var inRange = recs.filter(function(rec){
-      var t = _cwParseTimeKey(rec.timeKey);
+      var t = rec.ts !== undefined ? rec.ts : _cwParseTimeKey(rec.timeKey);
       return t && t >= weekSel.start && t <= weekSel.end;
     });
     var er = {}; for(var k in r) er[k] = r[k];
@@ -2070,7 +2168,7 @@ function _weekEffectiveRows(rows, weekSel, qCache){
       return er;
     }
     var latest = inRange[0]; /* codeToRecords 已依時間新到舊排序，篩選後順序不變 */
-    var hitCols = _covRecordMatchedCols(latest, colNames);
+    var hitCols = _covRecordMatchedColsCached(latest, colNames);
     colNames.forEach(function(c){ er[c] = (hitCols.indexOf(c) !== -1) ? 1 : 0; });
     if(COL_UNFILL) er[COL_UNFILL] = 0;
     er.__covNoVisit = false;
@@ -2099,7 +2197,7 @@ function _cumulativeEffectiveRows(rows, uptoEnd, qCache){
     var code = String(r[COL_CODE]||'').trim();
     var recs = code ? (qCache.codeToRecords[code]||[]) : [];
     var inRange = recs.filter(function(rec){
-      var t = _cwParseTimeKey(rec.timeKey);
+      var t = rec.ts !== undefined ? rec.ts : _cwParseTimeKey(rec.timeKey);
       return t && t <= uptoEnd;
     });
     var er = {}; for(var k in r) er[k] = r[k];
@@ -2110,7 +2208,7 @@ function _cumulativeEffectiveRows(rows, uptoEnd, qCache){
       return er;
     }
     var latest = inRange[0]; /* codeToRecords 已依時間新到舊排序，篩選後順序不變 */
-    var hitCols = _covRecordMatchedCols(latest, colNames);
+    var hitCols = _covRecordMatchedColsCached(latest, colNames);
     colNames.forEach(function(c){ er[c] = (hitCols.indexOf(c) !== -1) ? 1 : 0; });
     if(COL_UNFILL) er[COL_UNFILL] = 0;
     er.__covNoVisit = false;
@@ -2144,8 +2242,11 @@ function _renderWeekNavLabel(){
   if(btnAll)   btnAll.classList.toggle('active', !COV_WEEK_MODE);
   var groupTag = document.getElementById('cwn-group-tag');
   if(groupTag) groupTag.textContent = '📅 ' + (COV_PERIOD_UNIT==='month' ? '月檢視' : COV_PERIOD_UNIT==='custom' ? '自訂區間' : '週檢視');
+  /* 自訂區間也要同步進下拉的隱藏 'custom' 選項，值才會跟狀態一致；
+     否則套用自訂區間後下拉外觀仍停在「週」，使用者選「週」不會觸發
+     change（因為視覺上的值沒變），只能靠「本週」鈕跳回去。 */
   var unitSel = document.getElementById('cwn-unit-sel');
-  if(unitSel && unitSel.value !== COV_PERIOD_UNIT && COV_PERIOD_UNIT!=='custom') unitSel.value = COV_PERIOD_UNIT;
+  if(unitSel && unitSel.value !== COV_PERIOD_UNIT) unitSel.value = COV_PERIOD_UNIT;
   var pager = document.getElementById('cwn-pager');
   if(pager){
     if(!COV_WEEK_MODE) pager.title = '週檢視：切換要看哪一期的最新巡查狀態，目前＝全部（即時快照）';
@@ -2181,6 +2282,12 @@ function _covWeekStateChanged(){
 function covPageWeek(dir){
   var base = (COV_WEEK_MODE && COV_WEEK_SEL) ? COV_WEEK_SEL : _cwCurrentRangeUnit();
   var newStart = _cwShiftPeriodStart(base.start, dir);
+  /* 上限：不能往未來翻到超過「本期」，否則全部店家都會變成「本期未巡」，
+     看起來像資料壞掉。往前（過去）不設限。 */
+  if(dir > 0){
+    var curStart = _cwStartOfPeriod(_cwTaipeiNow());
+    if(+newStart > +curStart) newStart = curStart;
+  }
   COV_WEEK_SEL = _cwRangeFromStartUnit(newStart);
   COV_WEEK_MODE = true;
   _covWeekStateChanged();
@@ -2290,7 +2397,7 @@ function _applyCustomRange(){
 function _covFilterRecordsForWeek(records){
   if(!COV_WEEK_MODE || !COV_WEEK_SEL || !records) return records;
   return records.filter(function(rec){
-    var t = _cwParseTimeKey(rec.timeKey);
+    var t = rec.ts !== undefined ? rec.ts : _cwParseTimeKey(rec.timeKey);
     return t && t >= COV_WEEK_SEL.start && t <= COV_WEEK_SEL.end;
   });
 }
@@ -2685,13 +2792,13 @@ function _buildTrendDeltaTable(deltaSeries, defs){
    趨勢圖對話框內自己選的 TREND_SCOPE 營業處/營業所） */
 function _covTrendScopeLabel(){
   var parts = [];
-  if(drillStack.length) parts.push(drillStack.map(function(d){ return d.key; }).join(' › '));
+  if(drillStack.length) parts.push(drillStack.map(function(d){ return esc(d.key); }).join(' › '));
   else parts.push(viewMode==='org' ? '整體（組織視角）' : viewMode==='channel' ? '整體（通路視角）' : '整體（等級視角）');
   if(selectedGrades){
     var active = Object.keys(selectedGrades).filter(function(k){ return selectedGrades[k]; });
-    if(active.length) parts.push('等級：'+active.join('、'));
+    if(active.length) parts.push('等級：'+active.map(esc).join('、'));
   }
-  if(TREND_SCOPE.area) parts.push('🔎 '+TREND_SCOPE.area+(TREND_SCOPE.office ? (' › '+TREND_SCOPE.office) : ''));
+  if(TREND_SCOPE.area) parts.push('🔎 '+esc(TREND_SCOPE.area)+(TREND_SCOPE.office ? (' › '+esc(TREND_SCOPE.office)) : ''));
   return parts.join('　｜　');
 }
 /* v3.8.1：把每一週的診斷旗標（__covMatchFail）彙整成一句警示，只在
@@ -3104,6 +3211,18 @@ function closeTrendHelp(){
   var dlg = document.getElementById('trend-help-dialog');
   if(dlg) dlg.style.display = '';
 }
+/* 【新增】原本 Escape 只處理彙整看板／店家明細兩個 Dialog（見下方另外兩個
+   keydown 監聽器），趨勢圖跟它的說明面板完全沒接到 Escape。補上同一套
+   優先順序：燈箱 > 說明面板（巢狀在最上層）> 趨勢圖本身，跟其他兩處的
+   寫法一致。 */
+document.addEventListener('keydown', function(e){
+  if(e.key!=='Escape') return;
+  if(typeof _isPhotoLightboxOpen==='function' && _isPhotoLightboxOpen()) return;
+  var helpDlg = document.getElementById('trend-help-dialog');
+  if(helpDlg && helpDlg.style.display==='flex'){ closeTrendHelp(); return; }
+  var dlg = document.getElementById('trend-dialog');
+  if(dlg && dlg.style.display==='flex') closeTrendDialog();
+});
 /* ══════════════ v3.10.0：圖表 hover/觸控浮動小卡 ══════════════
    #trend-body 整個容器每次 _renderTrendDialog() 都會被 innerHTML 整段
    換掉，事件不能綁在圖表本身（綁了也會被換掉），改用「事件代理」──
@@ -3264,6 +3383,12 @@ function numVal(v){ var n=Number(v); return (n>=1)?n:(v===true||v==='true'||v===
 function isSum(){ return PROJECT_TYPE==='加總'; }
 /* C 群欄位：判斷是否為業務文字敘述（非 0/1 的非空字串） */
 function isCText(v){ return v!==null && v!==undefined && v!=='' && v!==0 && v!=='0' && v!==false && !isOne(v) && typeof v==='string' && v.trim().length>0; }
+/* 【修正】C 群「命中」的完整口徑：明細表／LINE／CSV 一直都是 isOne(v) 或
+   isCText(v) 兩者皆算命中（C 欄常存文字原因，不是只有 1/0）。但 rowCGroup／
+   rowCGroupRaw／calcGroup 的 C 群統計以前只看 isOne，導致「填了文字原因、
+   沒填 1」的店在卡片統計／⚠️待確認判斷跟明細表兜不起來（卡片少算、或誤判
+   成灰色地帶）。統一改用這支 isCHit，兩邊口徑才會一致。 */
+function isCHit(v){ return isOne(v) || isCText(v); }
 /* esc()／parseGvizDate() → shared/core-utils.js */
 
 
@@ -3293,7 +3418,7 @@ function _covRecalcGlobalLatestDate(cache){
       if (recs && recs.length) {
         /* codeToRecords[code] 已依時間新到舊排序（見下方載入邏輯），
            [0] 就是這家店目前最新一筆，不用整份陣列都掃 */
-        var d = _cwParseTimeKey(recs[0].timeKey);
+        var d = recs[0].ts !== undefined ? recs[0].ts : _cwParseTimeKey(recs[0].timeKey);
         if (d && (!maxD || d.getTime() > maxD.getTime())) maxD = d;
       }
     });
@@ -3327,8 +3452,11 @@ function _fetchQuestionnaireSheet(callback){
      headers=1 讀 cols[].label 是同一個道理，那邊從沒出過表頭消失的問題，
      只有「資料格值」在數字型欄位裡被吃掉過，是不同層次的另一個已知坑）。
      資料列仍照舊用 headers=0 那次請求讀，不更動既有資料解析邏輯。 */
+  /* 【效能優化】這次請求的目的只是拿 table.cols[].label（欄名），不需要
+     整張表的資料列，加上 range=1:1 只抓第一列，流量從整張問卷表縮到一列，
+     不影響 headers=1 對 cols[].label 的解析（label 來自表頭列本身）。 */
   var headerUrl = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
-    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(QUESTIONNAIRE_SHEET);
+    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(QUESTIONNAIRE_SHEET) + '&range=1:1';
   Promise.all([
     fetch(dataUrl).then(function(r){ return r.text(); }),
     fetch(headerUrl).then(function(r){ return r.text(); })
@@ -3396,17 +3524,29 @@ function _fetchQuestionnaireSheet(callback){
 
 
         if(!codeToRecords[code]) codeToRecords[code] = [];
+        var _timeKey = _findTimeText(baseData);
         codeToRecords[code].push({
           base: baseData,
           sections: sectionOrder.map(function(s){ return { section:s, picks:sections[s] }; }),
-          timeKey: _findTimeText(baseData)
+          timeKey: _timeKey,
+          /* 【效能優化】跟哪一週無關，載入時就先解析一次存起來，週檢視／
+             趨勢圖迴圈裡直接讀 rec.ts，不用每次重新 parse 同一個字串。 */
+          ts: _cwParseTimeKey(_timeKey)
         });
       }
 
 
-      /* 同一家店多筆紀錄，時間新到舊排序 */
+      /* 同一家店多筆紀錄，時間新到舊排序。
+         【修正】原本直接比較 timeKey 字串，若日期沒有補零（如 "2026/9/5"
+         對到 "2026/9/12"），字串排序會把 "2026/9/5" 排在 "2026/9/12" 之後
+         （因為 '5' > '1'），順序就錯了——而週檢視／_latestVisitTimeKey 都
+         依賴這裡排好的順序取「最新一筆」。改用 _cwParseTimeKey 轉成真正的
+         時間再比較；兩邊都轉不出時間時才退回字串比較，至少不會整批拋錯。 */
       Object.keys(codeToRecords).forEach(function(code){
-        codeToRecords[code].sort(function(a,b){ return a.timeKey < b.timeKey ? 1 : (a.timeKey > b.timeKey ? -1 : 0); });
+        codeToRecords[code].sort(function(a,b){
+          if (a.ts && b.ts) return b.ts.getTime() - a.ts.getTime();
+          return a.timeKey < b.timeKey ? 1 : (a.timeKey > b.timeKey ? -1 : 0);
+        });
       });
 
 
@@ -3725,11 +3865,23 @@ function init() {
       }
 
 
+      if (!BUCKETS_B.length) {
+        hideLoading();
+        document.getElementById('stage').innerHTML =
+          '<div class="empty">⚠️ 找不到此專案在「' + esc(COV_CFG_SHEET) + '」的桶設定（B 群為空），請確認管理表 sheetId 與欄位設定是否正確</div>';
+        return;
+      }
       initChips();
       fetchSheet();
       fetchSyncTime();
     })
     .catch(function(){
+      if (!BUCKETS_B.length) {
+        hideLoading();
+        document.getElementById('stage').innerHTML =
+          '<div class="empty">⚠️ 找不到此專案在「' + esc(COV_CFG_SHEET) + '」的桶設定（B 群為空），請確認管理表 sheetId 與欄位設定是否正確</div>';
+        return;
+      }
       initChips();
       fetchSheet();
       fetchSyncTime();
@@ -3753,7 +3905,11 @@ function fetchSheet() {
       var json = gvizParse(txt);
       var tbl  = json.table || {};
       var cols = (tbl.cols||[]).map(function(c){ return c.label||''; });
-      allRows = (tbl.rows||[]).map(function(row){
+      /* 注意：rawRows 暫時保留「原始列序」（含幽靈列），因為下面 C 群文字
+         二次請求回傳的 row index 是對應這個原始順序，不是過濾後的順序。
+         幽靈列要等文字回填完成後才能濾掉，否則名單中間只要有一列幽靈列，
+         後面所有列的回填目標都會錯位（見版本紀錄 BUG 修正說明）。 */
+      var rawRows = (tbl.rows||[]).map(function(row){
         var obj = {};
         (row.c||[]).forEach(function(cell,i){
           if (!cell) { obj[cols[i]] = ''; return; }
@@ -3763,19 +3919,22 @@ function fetchSheet() {
         });
         return obj;
       });
-      /* 過濾掉 A:H 全空的「幽靈列」：名單動態變動時，公式殘留可能讓 I 欄以後
-         （未填寫/已貼開瓶…等統計欄）仍算出值，但這列其實已經不是真實店家，
-         在最源頭就濾掉，後面所有計算（卡片統計、明細 Dialog、CSV、LINE…）
-         都不用再各自補判斷。 */
-      allRows = allRows.filter(isRowIdentified);
       /* 找出 C 群欄位的欄位索引（BUCKETS_C 在 init 之後才有，先收集所有可能含文字的欄） */
       /* 策略：找出所有值有 null cell 的欄，發第二次請求用 format 強制讀文字 */
       var nullColIndexes = [];
       (tbl.cols||[]).forEach(function(c,i){
         if (c.type === 'number' || c.type === 'boolean') nullColIndexes.push(i);
       });
+      function finishLoad(){
+        /* 回填完成（或不需要回填）後才過濾掉 A:H 全空的「幽靈列」：名單動態
+           變動時，公式殘留可能讓 I 欄以後（未填寫/已貼開瓶…等統計欄）仍算
+           出值，但這列其實已經不是真實店家，濾掉後後面所有計算（卡片統計、
+           明細 Dialog、CSV、LINE…）都不用再各自補判斷。 */
+        allRows = rawRows.filter(isRowIdentified);
+        buildGradeBar(); render(); _warmQuestionnaireCache();
+      }
       if (!nullColIndexes.length) {
-        buildGradeBar(); render(); _warmQuestionnaireCache(); return;
+        finishLoad(); return;
       }
       /* 把欄 index 轉成試算表欄字母（A=0, B=1...） */
       function colLetter(n){
@@ -3787,22 +3946,25 @@ function fetchSheet() {
       var cGroupCols = [];
       (BUCKETS_C||[]).forEach(function(g){ cGroupCols = cGroupCols.concat(g.cols||[]); });
       var cIndexes = cGroupCols.map(function(name){ return cols.indexOf(name); }).filter(function(i){ return i>=0; });
-      if (!cIndexes.length) { buildGradeBar(); render(); _warmQuestionnaireCache(); return; }
+      if (!cIndexes.length) { finishLoad(); return; }
       /* 組成範圍，如 N:N,P:P */
       var ranges = cIndexes.map(function(i){ var l=colLetter(i); return l+':'+l; });
       var promises = ranges.map(function(range, ri){
         var u2 = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
           '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(SHEET_NAME) +
           '&range=' + range;
+        /* 個別 catch：C 群文字補抓若失敗，不應該讓主資料整個顯示「載入失敗」，
+           只是那個專案的 C 群文字值補不回來，其餘照常渲染。 */
         return fetch(u2).then(function(r2){ return r2.text(); }).then(function(t2){
           var j2 = JSON.parse(t2.replace(/^[^\(]+\(/, '').replace(/\);?\s*$/, ''));
           var colName = cGroupCols[ri];
           var rows2 = (j2.table||{}).rows || [];
-          /* 把文字值回填到 allRows（對齊 row index，rows2 可能因 parsedNumHeaders 少幾列）*/
+          /* 把文字值回填到 rawRows（對齊「原始列序」的 row index，
+             rows2 可能因 parsedNumHeaders 少幾列） */
           var offset = (j2.table.parsedNumHeaders||1) - 1;
           rows2.forEach(function(row, rowIdx){
             var targetIdx = rowIdx + offset;
-            if (!allRows[targetIdx]) return;
+            if (!rawRows[targetIdx]) return;
             var cell = row.c && row.c[0];
             if (!cell) return;
             var v = (cell.v!==null&&cell.v!==undefined) ? cell.v : '';
@@ -3810,14 +3972,17 @@ function fetchSheet() {
             var val = (v!==''&&v!==null&&v!==undefined) ? v : f;
             /* 只有當原本是 null/空 且新值有內容時才覆蓋 */
             if (val !== '' && val !== 0 && val !== '0' &&
-                (allRows[targetIdx][colName]===''||allRows[targetIdx][colName]===null||allRows[targetIdx][colName]===undefined)) {
-              allRows[targetIdx][colName] = val;
+                (rawRows[targetIdx][colName]===''||rawRows[targetIdx][colName]===null||rawRows[targetIdx][colName]===undefined)) {
+              rawRows[targetIdx][colName] = val;
             }
           });
+        }).catch(function(err){
+          console.warn('C 群文字補抓失敗（' + colName_forLog(ri) + '）：', err);
         });
       });
+      function colName_forLog(ri){ return cGroupCols[ri]; }
       return Promise.all(promises).then(function(){
-        buildGradeBar(); render(); _warmQuestionnaireCache();
+        finishLoad();
         setTimeout(updateStickyTops, 100);
       });
     })
@@ -3828,6 +3993,20 @@ function fetchSheet() {
 }
 
 
+/* 【新增】手動重新整理：頁面開著期間 allRows／_qSheetCache 都只在第一次
+   載入時抓過一次，之後 Google Sheet 上的新資料不會自動反映，只能整頁
+   重新整理（會連鑽層狀態、篩選都一起重置）。加一顆 🔄 鈕，清掉問卷快取
+   （_qSheetCache=null，逼下次用到時重抓）後重抓主表格＋同步時間，不用
+   重新整理整頁，也保留目前鑽層／篩選狀態。 */
+function refreshBoardData(){
+  var btn = document.getElementById('refresh-btn');
+  if(btn) btn.disabled = true;
+  _qSheetCache = null;
+  _covResetStoreDetailCache();
+  fetchSheet();
+  fetchSyncTime();
+  if(btn) setTimeout(function(){ btn.disabled = false; }, 800);
+}
 window.addEventListener('resize', updateStickyTops);
 
 
@@ -3863,7 +4042,7 @@ function rowBGroup(r) {
 function rowCGroup(r) {
   for (var j = 0; j < BUCKETS_C.length; j++) {
     if (chips['c:'+j] === false) continue;
-    if (BUCKETS_C[j].cols.some(function(t){ return isOne(r[t]); })) return j;
+    if (BUCKETS_C[j].cols.some(function(t){ return isCHit(r[t]); })) return j;
   }
   return -1;
 }
@@ -3879,7 +4058,7 @@ function rowBGroupRaw(r) {
 }
 function rowCGroupRaw(r) {
   for (var j = 0; j < BUCKETS_C.length; j++) {
-    if (BUCKETS_C[j].cols.some(function(t){ return isOne(r[t]); })) return j;
+    if (BUCKETS_C[j].cols.some(function(t){ return isCHit(r[t]); })) return j;
   }
   return -1;
 }
@@ -3973,9 +4152,9 @@ function calcGroup(rows) {
       });
       BUCKETS_C.forEach(function(g, j){
         if (chips['c:'+j] === false) return;
-        if (g.cols.some(function(t){ return isOne(r[t]); })) {
+        if (g.cols.some(function(t){ return isCHit(r[t]); })) {
           cGroupCounts[j]++;
-          g.cols.forEach(function(t){ if (isOne(r[t])) cColCounts[t]++; });
+          g.cols.forEach(function(t){ if (isCHit(r[t])) cColCounts[t]++; });
         }
       });
     });
@@ -3989,7 +4168,7 @@ function calcGroup(rows) {
     var hasNo = filtered.filter(function(r){
       if (COL_UNFILL && isOne(r[COL_UNFILL])) return false;
       return BUCKETS_C.some(function(g, j){
-        return chips['c:'+j] !== false && g.cols.some(function(t){ return isOne(r[t]); });
+        return chips['c:'+j] !== false && g.cols.some(function(t){ return isCHit(r[t]); });
       });
     }).length;
     return { total: total, unfilled: unfilled, gap: gap, valid: valid,
@@ -4168,7 +4347,13 @@ function renderLevel(stage, rows, col, levelKey, labelText, overallName) {
 function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
   var card=document.createElement('div');
   card.className='card'+(isOverall?' card-overall':'');
-  var ttId='tt-'+name.replace(/[^a-zA-Z0-9]/g,'_')+'-'+levelKey+(isOverall?'-all':'');
+  /* 【修正】原本非英數字元一律換成 '_'，中文名稱（本專案最常見的名稱）
+     會全部塌縮成同一串底線，同一層裡不同的中文名稱卡片會產生重複 id。
+     目前靠每次都用 card.querySelector()（限定在該卡片子樹內找）才沒出事，
+     但仍是無效 HTML、也是未來若改成 document.getElementById() 就會爆炸的
+     地雷。改用 _safeId()：非英數字元換成「_」+字元碼點的 36 進位，保留
+     可還原的唯一性。 */
+  var ttId='tt-'+_safeId(name)+'-'+levelKey+(isOverall?'-all':'');
   var T = stat.total;
   function fp(n){ return T>0 ? Math.round(n/T*100)+'%' : '—'; }
   /* 【2026-09-14 新增】fp2：B/C 細項群組專用的第二種百分比，分母改成
@@ -4299,7 +4484,11 @@ function buildCard(name, labelText, stat, levelKey, rows, isOverall) {
   card.addEventListener('click',function(e){
     /* 長按後 600ms 內的 click 一律忽略（避免長按 tooltip 後鑽層） */
     if (window._lastLongPress && Date.now() - window._lastLongPress < 600) return;
-    if(e.target.closest('#si-'+ttId)||e.target.closest('#dbtn-'+ttId)) return;
+    /* 【修正】原本寫 '#si-'+ttId，但卡片內實際產生的 id 是 sib0-/sic0-/
+       ttbsum- 這類，從來沒有真正叫 'si-' 開頭的元素，這個 closest 永遠
+       比對不到（死碼）。改用 .stat-item 這個所有統計格都有的共同 class，
+       點統計格（含裡面的 tooltip）才會正確被排除，不誤觸卡片鑽層。 */
+    if(e.target.closest('.stat-item')||e.target.closest('#dbtn-'+ttId)) return;
     /* 整體卡片：開 dialog */
     if(isOverall){ openDialog(name,levelKey,rows); return; }
     /* 最末層：開 dialog；其餘層級都往下鑽
@@ -4370,6 +4559,11 @@ function jumpToGrOffice(gradeName, areaName, officeName) {
 
 
 function qEsc(s){ return s.replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+/* 產生可安全當 DOM id 用的字串：非英數字元換成「_」+字元碼點 36 進位，
+   確保不同的原字串（尤其是中文名稱）不會塌縮成同一個 id。 */
+function _safeId(s){
+  return String(s).replace(/[^a-zA-Z0-9]/g, function(ch){ return '_'+ch.charCodeAt(0).toString(36); });
+}
 
 
 /* 產生一組 quicknav 按鈕列（導航元件通用）
@@ -4396,12 +4590,12 @@ function buildQuicknav() {
     var hasActiveGrade = selectedGrades !== null;
     var dot = hasActiveGrade ? '<span style="width:5px;height:5px;border-radius:50%;background:var(--primary);display:inline-block;margin-left:3px;vertical-align:middle;flex-shrink:0;"></span>' : '';
     html += '<div class="qn-group">';
-    html += '<button class="qn-btn" style="gap:3px;font-size:10px;padding:4px 7px;" onclick="(function(){window._gradeExpanded=!(window._gradeExpanded!==false);buildQuicknav();})()"><span style="font-size:9px;color:var(--sub);font-weight:600;">等級</span> ' + (gradeExpanded ? '◀' : '▶') + dot + '</button>';
+    html += '<button class="qn-btn" style="gap:3px;font-size:10px;padding:4px 7px;" onclick="(function(){window._gradeExpanded=!(window._gradeExpanded===true);buildQuicknav();})()"><span style="font-size:9px;color:var(--sub);font-weight:600;">等級</span> ' + (gradeExpanded ? '◀' : '▶') + dot + '</button>';
     if (gradeExpanded) {
       html += '<button class="qn-btn grade-all' + (selectedGrades===null?' active':'') + '" onclick="(function(){selectedGrades=null;buildGradeBar();render();})()">全選</button>';
       _gradeList.forEach(function(g){
         var isActive = selectedGrades && selectedGrades[g];
-        var safeG = g.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+        var safeG = qEsc(g);
         html += '<button class="qn-btn' + (isActive?' active':'') + '" onclick="(function(){if(!selectedGrades)selectedGrades={};selectedGrades[\'' + safeG + '\']=!selectedGrades[\'' + safeG + '\'];buildGradeBar();render();})()">'+ esc(g) +'</button>';
       });
     }
@@ -5063,9 +5257,17 @@ function _buildDrilldownTab(rows){
 }
 
 
-/* ── Pivot CSV 匯出（依目前 tab 對應維度） ── */
+/* ── Pivot CSV 匯出（依目前 tab 對應維度） ──
+   【修正】原本不論哪個分頁都固定用 buildCsvContent(_pivotRows, levelKey)（人員／
+   單位／店家清單），但「照片牆」「逐題彙整」兩個分頁畫面上根本不是這種店家清單，
+   點下去會下載跟畫面對不上的內容；「細項匯出」分頁自己有專屬的
+   _subColCsvDownload（見下方），不該再被這顆共用鈕蓋過去。所以這裡改成只在
+   人員／單位／店家三個分頁才用這顆共用鈕匯出，其餘分頁提示改用該分頁自己的
+   匯出功能。 */
 function downloadSummaryCsv(){
   var btn = document.getElementById('btn-sum-csv');
+  if(_pivotMode === 'subcol'){ _flashBtn(btn,'請用下方「細項匯出」自己的 CSV 鈕'); return; }
+  if(_pivotMode === 'photos' || _pivotMode === 'drilldown'){ _flashBtn(btn,'⚠️ 此分頁尚無 CSV 匯出'); return; }
   if(!_pivotRows || !_pivotRows.length){ _flashBtn(btn,'⚠️ 無資料'); return; }
   var levelKey = _pivotMode === 'staff' ? 'staff' : (_pivotMode === 'office' ? 'office' : 'area');
   _triggerCsvDownload(buildCsvContent(_pivotRows, levelKey), '彙整看板_'+(PIVOT_TITLES[_pivotMode]||''));
@@ -5103,8 +5305,8 @@ function refreshDialogContent() {
   function pct(n){ return total>0 ? ' ('+Math.round(n/total*100)+'%)' : ''; }
 
 
-  var ctx = drillStack.map(function(d){ return d.key; });
-  ctx.push(_dialogTitle);
+  var ctx = drillStack.map(function(d){ return esc(d.key); });
+  ctx.push(esc(_dialogTitle));
   var line1 = '【' + ctx.join(' › ') + '】店家明細';
   var parts = ['共 ' + total + ' 家'];
   var unfillCnt = items.filter(function(d){ return d.grp===3; }).length;
