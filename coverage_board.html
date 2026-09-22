@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 3.14.0 ｜ 最後更新：2026-09-21
+  版本：Ver. 3.15.1 ｜ 最後更新：2026-09-22
 ════════════════════════════════════════════════════════════
 
 
@@ -133,6 +133,27 @@
 
 
 【版本紀錄】（往後新版本請繼續往下累加，格式：版本號 日期 摘要）
+  3.15.1 2026-09-22  【BUG】新格式「覆蓋分組設定」讀取（_fetchNewBucketConfig）
+                      原本不管類型是什麼，只要對應欄位（C 欄）留空就整列跳過。
+                      但「未填寫」這個類型，語意上是「這家店完全沒有任何一筆
+                      問卷紀錄」，本來就不需要指定要比對哪個欄位——導致使用者
+                      新增「未填寫」列、對應欄位留空（覺得沒有欄位好填很合理）
+                      時，這列會被誤判為說明列整個跳過，COL_UNFILL 變成 null，
+                      連帶「未填寫」「已回收」統計和「⚠️待確認」燈號一起消失
+                      （因為 isGapRow() 只要 COL_UNFILL 是 null 就直接回傳
+                      false）。改成「未填寫」類型即使對應欄位留空也算有效列，
+                      COL_UNFILL 沒填欄位時用內部保留字 '__covDirectUnfill'
+                      頂著（純粹當 er[] 的 key，不會去外面找真實欄位，所以安
+                      全）；有填欄位時維持原本比對行為不變。
+  3.15.0 2026-09-21  新增「直接讀問卷資料」模式（COV_DIRECT_QUIZ）：新專案
+                      不用再靠店家名冊的公式欄（I~L：未填寫／販售中／無上架／
+                      狀態檢核）才能算覆蓋率，改成各專案自己開一個「覆蓋分組
+                      設定」分頁（縱向、一列一桶，A=類型〔已達成／已知未達成
+                      ／未填寫〕、B=標題、C=對應欄位，直接填「問卷資料」裡的
+                      欄名，逗號分隔），看板直接比對「問卷資料」算出 B/C/未
+                      填寫。找不到這個新分頁時，自動退回舊的集中管理表（覆蓋
+                      率型專案管理）讀取，不影響還沒搬過去的舊專案；現有專案
+                      可以逐一遷移，不用一次全部改完。
   3.14.0 2026-09-21  一次修正多個 BUG＋優化（此版只處理「計數型」路徑，
                       加總型維持原狀不動）：
                       【BUG】fetchSheet() 的 C 群文字二次請求回填，以前是
@@ -3836,16 +3857,28 @@ function _fetchNewBucketConfig(callback){
         /* 類型欄不是這三個關鍵字之一，一律當成表頭／說明列跳過，不是
            資料錯誤，讓使用者可以在分頁裡自由加說明列而不用擔心讀壞 */
         if (type !== '已達成' && type !== '已知未達成' && type !== '未填寫') return;
-        if (!cols.length) return;
+        /* 【修正】未填寫這一列不需要對應欄位：在新格式（直接讀問卷資料）
+           底下，「未填寫」的意思是「這家店完全沒有任何一筆問卷紀錄」，
+           跟已達成/已知未達成不一樣，不需要指定要比對哪個欄位——所以
+           未填寫這一列即使對應欄位留空，也要算是有效設定，不能被下面
+           「沒填對應欄位就跳過」的規則擋掉，否則使用者只填類型跟標題、
+           對應欄位留空（覺得沒有欄位可填很合理），未填寫燈永遠不會亮。 */
+        if (type !== '未填寫' && !cols.length) return;
         found = true;
         if (type === '已達成') newBB.push({ label: label || '已有', cols: cols });
         else if (type === '已知未達成') newBC.push({ label: label || '未有', cols: cols });
-        else if (type === '未填寫' && !unfillCols.length) { unfillTitle = label || '未填寫'; unfillCols = cols; }
+        else if (type === '未填寫' && !unfillTitle) { unfillTitle = label || '未填寫'; unfillCols = cols; }
       });
       if (!found) { callback(false); return; }
       BUCKETS_B = newBB;
       BUCKETS_C = newBC;
-      if (unfillCols.length) { COL_UNFILL = unfillCols[0]; UNFILL_LABEL = unfillTitle; }
+      /* 【修正】COL_UNFILL 只是拿來當 er[COL_UNFILL] 的一個內部旗標欄位
+         名稱，不需要對應真實存在的欄位——沒填對應欄位時用一個保留字
+         '__covDirectUnfill' 頂著，_cumulativeEffectiveRows／_weekEffectiveRows
+         本來就是直接寫 er[COL_UNFILL]=1/0，不會去外面找這個名字的欄位，
+         所以用內部保留字完全安全。有填對應欄位時維持舊行為，用第一個
+         填的欄名（相容於「未填寫」也想指定實際欄位比對的舊用法）。 */
+      if (unfillTitle) { COL_UNFILL = unfillCols.length ? unfillCols[0] : '__covDirectUnfill'; UNFILL_LABEL = unfillTitle; }
       else { COL_UNFILL = null; }
       /* 新格式目前只支援計數型（加總型已不再使用，沿用新格式一律當計數型） */
       PROJECT_TYPE = '計數';
