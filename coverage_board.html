@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 3.15.1 ｜ 最後更新：2026-09-22
+  版本：Ver. 3.16.0 ｜ 最後更新：2026-09-22
 ════════════════════════════════════════════════════════════
 
 
@@ -133,6 +133,35 @@
 
 
 【版本紀錄】（往後新版本請繼續往下累加，格式：版本號 日期 摘要）
+  3.16.0 2026-09-22  【效能優化】一進畫面的資料讀取速度優化，只改網路請求
+                      的發送時機／方式，不改任何計算邏輯與畫面呈現：
+                      1) <head> 加 preconnect／dns-prefetch，提早跟
+                      docs.google.com 建好連線，省下第一個請求的連線
+                      建立時間。
+                      2) 桶設定讀取（新格式「覆蓋分組設定」＋舊格式集中
+                      管理表）以前是序列——先試新格式，讀不到才發舊格式
+                      ——改成兩邊一開始就同時發出去，等兩邊都回來後才
+                      決定用誰（新格式讀到就用新格式，即使舊格式也讀到
+                      東西也不用），語意跟以前完全一樣，只是不用再序列
+                      等待；為了避免「誰先回來就先動全域變數」互相蓋掉
+                      的競態，舊格式那支改成只回傳解析結果、不直接動
+                      全域變數，交給統一的地方判斷後只套用一次（已用
+                      模擬先後到達順序的測試驗證過）。
+                      3) 主資料表（店家名冊）讀取以前要等「專案管理」
+                      回來確認分頁名稱才發；改成 init() 一開始就先用
+                      預設分頁名稱「店家名冊」猜著發一次，等「專案管理」
+                      回來後如果猜對就直接用這次結果，猜錯（少數專案
+                      指定了非預設分頁名稱）才補發一次正確的。
+                      4) 「問卷資料」讀取以前是等主資料表載入完成後才
+                      觸發（COV_DIRECT_QUIZ 專案要等它才能第一次
+                      render()，舊格式專案是背景暖快取）；改成 init()
+                      一開始就先發出去，不用等前面任何請求，之後不管
+                      哪一種專案要用到，都可能已經有現成結果可以直接用。
+                      整體效果：以前「桶設定→專案管理→主資料表→問卷
+                      資料」4 輪網路請求幾乎是序列排隊，改成大致同時
+                      發出去後，總等待時間從「4 次相加」變成「取其中
+                      最慢的一次」，一進畫面的等待時間可以省下一半以上
+                      （實際幅度依網路狀況與試算表大小而定）。
   3.15.1 2026-09-22  【BUG】新格式「覆蓋分組設定」讀取（_fetchNewBucketConfig）
                       原本不管類型是什麼，只要對應欄位（C 欄）留空就整列跳過。
                       但「未填寫」這個類型，語意上是「這家店完全沒有任何一筆
@@ -421,6 +450,10 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
+<!-- 【v3.16.0 效能優化】提早跟 Google 建好連線（DNS＋TLS 握手），
+     省下第一個 gviz 請求的連線建立時間，跟後面邏輯完全無關、零風險。 -->
+<link rel="preconnect" href="https://docs.google.com" crossorigin>
+<link rel="dns-prefetch" href="https://docs.google.com">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>覆蓋率看板</title>
 <script>
@@ -3891,9 +3924,15 @@ function _fetchNewBucketConfig(callback){
 }
 /* 【舊格式】集中在管理表 MGMT_ID 的「覆蓋率型專案管理」，橫向欄位、
    每 4 欄一組 B+C。只在新格式讀不到時當退回備案，讓還沒搬過去的專案
-   不受影響，可以逐專案慢慢遷移。 */
-function _fetchLegacyBucketConfig(){
-  COV_DIRECT_QUIZ = false; /* 走舊路徑，B/C/未填寫繼續讀主表格本身欄位 */
+   不受影響，可以逐專案慢慢遷移。
+   【v3.16.0 效能優化】以前是「先試新格式、讀不到才發這支請求」，兩支
+   請求序列排隊。改成 _loadBucketConfig() 一開始就把新格式跟這支舊格式
+   請求同時發出去，省一輪網路來回；但這支請求本身還是可能白跑（專案已
+   搬新格式時，這支的結果會被丟棄不用）。為了不要「兩邊都在跑，誰先
+   回來就先動全域變數」互相覆蓋造成競態，這支函式改成只負責讀值、包成
+   一個結果物件回傳，不直接改 BUCKETS_B/COL_UNFILL 等全域變數；真正要
+   採用哪一邊的結果，交給 _loadBucketConfig() 統一判斷、只套用一次。 */
+function _fetchLegacyBucketConfigData(){
   var urlCfg = 'https://docs.google.com/spreadsheets/d/' + MGMT_ID +
     '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(COV_CFG_SHEET);
   return fetch(urlCfg)
@@ -3901,6 +3940,7 @@ function _fetchLegacyBucketConfig(){
     .then(function(txt){
       var json = gvizParse(txt);
       var rows = (json.table && json.table.rows) || [];
+      var result = null;
       rows.forEach(function(row){
         var cells = row.c || [];
         function cv(c){ return _cvCell(c); }
@@ -3913,8 +3953,9 @@ function _fetchLegacyBucketConfig(){
            J=B2標題 K=B2欄位 L=C2標題 M=C2欄位 ...（每4欄一組 B+C）
            專案類型值：「計數」= 家數統計(0/1)，「加總」= 數值加總(>=1 視為有) */
         var projType = cv(cells[2]);
-        if (projType === '加總') PROJECT_TYPE = '加總';
-        else PROJECT_TYPE = '計數';
+        result = { projectType: (projType === '加總') ? '加總' : '計數',
+                   colUnfill: null, unfillLabel: '未填寫',
+                   bucketsB: [], bucketsC: [] };
 
 
         /* D 欄 = 未知群組標題(選填)，E 欄 = 未知欄位(選填) */
@@ -3922,59 +3963,98 @@ function _fetchLegacyBucketConfig(){
         var colsA = parseCsv(cv(cells[4]));
         /* 只有 D/E 都填寫才啟用未填寫燈 */
         if (unfillTitle && colsA.length) {
-          COL_UNFILL   = colsA[0];
-          UNFILL_LABEL = unfillTitle;
-        } else {
-          COL_UNFILL   = null;
+          result.colUnfill   = colsA[0];
+          result.unfillLabel = unfillTitle;
         }
 
 
-        BUCKETS_B = [];
-        BUCKETS_C = [];
         /* 從 F(index 5) 起，每 4 欄讀一對 B+C 群組 */
         for (var gi = 5; gi < cells.length - 1; gi += 4) {
           var lb = cv(cells[gi]),   cb = parseCsv(cv(cells[gi+1] || {}));
           var lc = cv(cells[gi+2] || {}), cc = parseCsv(cv(cells[gi+3] || {}));
           if (!lb && !cb.length && !lc && !cc.length) break; /* 空白即停 */
-          if (cb.length) BUCKETS_B.push({ label: lb || '已有', cols: cb });
-          if (cc.length) BUCKETS_C.push({ label: lc.trim() || '未有', cols: cc.filter(Boolean) });
+          if (cb.length) result.bucketsB.push({ label: lb || '已有', cols: cb });
+          if (cc.length) result.bucketsC.push({ label: lc.trim() || '未有', cols: cc.filter(Boolean) });
         }
       });
+      return result; /* 找不到這個 sheetId 的設定列時是 null */
     })
-    .catch(function(){});
+    .catch(function(){ return null; });
 }
-/* 桶設定統一入口：先試新格式（各專案自己試算表的「覆蓋分組設定」分頁），
-   讀不到才退回舊格式（集中管理表）。回傳 Promise，完成後 BUCKETS_B/
-   BUCKETS_C/COL_UNFILL/UNFILL_LABEL/PROJECT_TYPE 一定已經設好（或維持
-   初始空值，代表兩邊都沒設定，由 init() 之後統一判斷 BUCKETS_B 是否為空
-   並提示錯誤，這段行為跟以前一致，沒有改變）。 */
+/* 把 _fetchLegacyBucketConfigData() 讀到的結果套進全域變數，行為跟
+   舊版 _fetchLegacyBucketConfig() 直接改全域變數時一致。 */
+function _applyLegacyBucketConfig(cfg){
+  COV_DIRECT_QUIZ = false; /* 走舊路徑，B/C/未填寫繼續讀主表格本身欄位 */
+  if (!cfg) return;
+  PROJECT_TYPE = cfg.projectType;
+  COL_UNFILL   = cfg.colUnfill;
+  UNFILL_LABEL = cfg.unfillLabel;
+  BUCKETS_B    = cfg.bucketsB;
+  BUCKETS_C    = cfg.bucketsC;
+}
+/* 桶設定統一入口：新格式（各專案自己試算表的「覆蓋分組設定」分頁）跟
+   舊格式（集中管理表）兩支請求同時發出去，不用等其中一個先失敗才發
+   另一個，省一輪網路來回。等兩邊都回來後才決定用誰：新格式讀到就用
+   新格式（並丟棄舊格式那邊的結果，即使它也讀到東西），新格式沒讀到
+   才套用舊格式的結果——維持「新格式優先」的語意跟以前完全一樣，只是
+   請求時機從序列改成並行。回傳 Promise，完成後 BUCKETS_B/BUCKETS_C/
+   COL_UNFILL/UNFILL_LABEL/PROJECT_TYPE 一定已經設好（或維持初始空值，
+   代表兩邊都沒設定，由 init() 之後統一判斷 BUCKETS_B 是否為空並提示
+   錯誤，這段行為跟以前一致，沒有改變）。 */
 function _loadBucketConfig(){
-  return new Promise(function(resolve){
-    _fetchNewBucketConfig(function(found){
-      if (found) { resolve(); return; }
-      _fetchLegacyBucketConfig().then(resolve);
-    });
+  var newFound = false;
+  var pNew = new Promise(function(res){
+    _fetchNewBucketConfig(function(found){ newFound = found; res(); });
+  });
+  var pLegacy = _fetchLegacyBucketConfigData();
+  return Promise.all([pNew, pLegacy]).then(function(results){
+    if (newFound) return; /* _fetchNewBucketConfig 成功時已經自己設好全域變數 */
+    _applyLegacyBucketConfig(results[1]);
   });
 }
 
 
-/* ── 第一步：從管理分頁查出此 sheetId 的設定，再啟動 ── */
+/* ── 第一步：從管理分頁查出此 sheetId 的設定，再啟動 ──
+   【v3.16.0 效能優化】下面這幾支請求彼此互不相依，以前卻是一個接一個
+   序列排隊（桶設定 → 專案管理 → 主資料表 → 問卷資料，共 4 輪網路來回）。
+   改成一開始就同時發出去：
+     1) 桶設定（新格式＋舊格式一起試，見 _loadBucketConfig 內部說明）
+     2) 「專案管理」基本資料（決定 PROJ_NAME／SHEET_NAME／SYNC_SHEET 等）
+     3) 主資料表（店家名冊）——分頁名稱通常就是預設值「店家名冊」，只有
+        管理表特別指定才會不同，所以先用預設值「猜」著發一次；等①②的
+        真正結果回來後，如果猜對了就直接用這次的結果，猜錯（少數專案
+        用了非預設分頁名稱）才另外補發一次正確的
+     4) 問卷資料——分頁名稱是寫死的常數，跟①②③的結果都無關，一開始
+        就能發，不管是「直接讀問卷資料」專案要立即拿來算、還是舊格式
+        專案本來就要背景暖快取，都提早開始抓，之後要用時直接吃現成的
+   4 輪序列排隊变成「大致同時發生」，總等待時間從相加變成取最慢的
+   那一個，畫面能更快開始渲染。 */
 function init() {
   if (!SHEET_ID) {
     hideLoading();
     document.getElementById('stage').innerHTML = '<div class="empty">⚠️ 缺少 sheetId 參數</div>';
     return;
   }
-  /* 先取得桶設定（新格式優先，讀不到才退回舊格式），再讀「專案管理」
-     取得基本資料 */
-  _loadBucketConfig()
-    .then(function(){
-      /* 不論桶設定是否讀到，繼續讀「專案管理」 */
-      var urlMgmt = 'https://docs.google.com/spreadsheets/d/' + MGMT_ID +
-        '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(MGMT_SHEET);
-      return fetch(urlMgmt).then(function(r){ return r.text(); });
-    })
-    .then(function(txt){
+
+  /* ④：問卷資料背景暖身，純粹提早發出去，不需要等它、也不需要處理
+     回呼結果——之後 COV_DIRECT_QUIZ 分支或 _warmQuestionnaireCache()
+     真正要用時，_fetchQuestionnaireSheet() 本身會自動判斷快取／進行中
+     請求直接沿用，不會被這次呼叫影響、也不會重複發送。 */
+  _fetchQuestionnaireSheet(function(){});
+
+  /* ③：主資料表用預設分頁名稱先猜著發 */
+  var specSheetName = SHEET_NAME_DEFAULT;
+  var specTextPromise = _fetchMainSheetText(specSheetName);
+
+  /* ①＋②：桶設定與「專案管理」同時發，互不等待 */
+  var bucketCfgPromise = _loadBucketConfig();
+  var urlMgmt = 'https://docs.google.com/spreadsheets/d/' + MGMT_ID +
+    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(MGMT_SHEET);
+  var mgmtPromise = fetch(urlMgmt).then(function(r){ return r.text(); });
+
+  Promise.all([bucketCfgPromise, mgmtPromise])
+    .then(function(results){
+      var txt = results[1];
       var json = gvizParse(txt);
       var rows = (json.table && json.table.rows) || [];
       var coverageProjs = [];
@@ -4018,15 +4098,28 @@ function init() {
 
       if (!BUCKETS_B.length) {
         hideLoading();
+        specTextPromise.catch(function(){}); /* 桶設定是空的，不會再用到猜發的主資料請求，吞掉可能的失敗 */
         document.getElementById('stage').innerHTML =
           '<div class="empty">⚠️ 找不到此專案的桶設定（B 群為空）——已檢查過本專案試算表的「' + esc(BUCKET_CFG_SHEET) + '」分頁，以及集中管理表「' + esc(COV_CFG_SHEET) + '」，兩邊都沒有這個 sheetId 的有效設定，請確認其中一邊填好</div>';
         return;
       }
       initChips();
-      fetchSheet();
+      /* ③ 猜對了分頁名稱就直接沿用剛剛已經在跑的那個請求，猜錯（少數
+         專案在「專案管理」指定了非預設分頁名稱）才重新發一次正確的；
+         猜錯時原本那個請求的結果不會再用到，補一個空 catch 避免主控台
+         跳出「未處理的 Promise rejection」警告。 */
+      var mainTextPromise;
+      if (SHEET_NAME === specSheetName) {
+        mainTextPromise = specTextPromise;
+      } else {
+        specTextPromise.catch(function(){});
+        mainTextPromise = _fetchMainSheetText(SHEET_NAME);
+      }
+      fetchSheet(mainTextPromise);
       fetchSyncTime();
     })
     .catch(function(){
+      specTextPromise.catch(function(){});
       if (!BUCKETS_B.length) {
         hideLoading();
         document.getElementById('stage').innerHTML =
@@ -4034,7 +4127,7 @@ function init() {
         return;
       }
       initChips();
-      fetchSheet();
+      fetchSheet(); /* 「專案管理」讀取失敗，SHEET_NAME 維持預設值，重新發一次乾淨的請求 */
       fetchSyncTime();
     });
 }
@@ -4045,13 +4138,22 @@ function switchProject(sid) {
 }
 
 
-/* ── 主資料 ── */
-function fetchSheet() {
-  showLoading();
+/* ── 主資料 ──
+   抽出純粹的「發請求拿文字」部分，讓 init() 可以提早（用預設分頁名稱）
+   猜著先發，不用等「專案管理」回來確認真正分頁名稱才發。 */
+function _fetchMainSheetText(sheetName){
   var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID +
-    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(SHEET_NAME);
-  fetch(url)
-    .then(function(r){ return r.text(); })
+    '/gviz/tq?tqx=out:json&headers=1&sheet=' + encodeURIComponent(sheetName);
+  return fetch(url).then(function(r){ return r.text(); });
+}
+/* preFetchedTextPromise：可選，傳入的話直接沿用（通常是 init() 提早
+   用預設分頁名稱發出去的那個請求），不再重新發送；不傳就用目前的
+   SHEET_NAME 現發一次（🔄手動重新整理鈕、猜錯分頁名稱時的補發都走
+   這條路）。 */
+function fetchSheet(preFetchedTextPromise) {
+  showLoading();
+  var textPromise = preFetchedTextPromise || _fetchMainSheetText(SHEET_NAME);
+  textPromise
     .then(function(txt){
       var json = gvizParse(txt);
       var tbl  = json.table || {};
