@@ -2168,7 +2168,7 @@ function mobileGateEnter(){
     renderOverview();
     return;
   }
-  FILTER.period = '全部'; FILTER.channel = '全部'; FILTER.grade = '全部';
+  FILTER.period = _defaultPeriodKey(); FILTER.channel = '全部'; FILTER.grade = '全部';
   FILTER.area = MOBILE_GATE.area; FILTER.office = MOBILE_GATE.office; FILTER.staff = MOBILE_GATE.staff;
   FILTER.keyword = ''; FILTER.onlyUnmetOverdue = false; FILTER.onlyUnmetOngoing = false; FILTER.onlyMvMiss = false; FILTER.onlyExtra = false; FILTER.week = null;
   _enterDetail();
@@ -2503,6 +2503,13 @@ function fetchPopulation(callback){
         staff: String(obj[P_STAFF]||'').trim()
       };
     }).filter(function(r){ return r.code; });
+    /* 營業處清單不寫死：AREA_ORDER 只當「排序偏好」，名冊裡出現但不在清單內的
+       營業處（新增／改名）自動補在後面，避免被各處 AREA_ORDER.filter 默默濾掉 */
+    var _extraAreas = [];
+    STORE_ROWS.forEach(function(r){
+      if(r.area && AREA_ORDER.indexOf(r.area)===-1 && _extraAreas.indexOf(r.area)===-1) _extraAreas.push(r.area);
+    });
+    if(_extraAreas.length) AREA_ORDER = AREA_ORDER.concat(_extraAreas.sort());
     _applyGradeOverrides(); /* 1.53.0：載入當下先套用一次（此時 FILTER.period 還是預設值），render()/renderOverview() 之後每次重繪還會再套一次 */
     _cfgDiagStoreChecks();
   }).catch(function(err){
@@ -3805,8 +3812,24 @@ function fetchSyncTime(){
 }
 
 /* ════ 篩選 UI 建置 ════ */
+/* 檔期篩選的預設值與「全部檔期」選項文字（動態）：
+   ‧ 只有 1 個檔期時，「全部檔期」跟那個檔期完全等價，不再多放一顆選項，
+     預設直接選中該檔期（這樣週次 chip 也會自動出現）。
+   ‧ 有多個檔期時，「全部檔期」後面的 (W1-Wn) 依 PERIODS 實際總週數計算，
+     不再寫死 W1-W5。 */
+function _singlePeriodKey(){ return PERIODS.length===1 ? PERIODS[0].key : null; }
+function _defaultPeriodKey(){ return _singlePeriodKey() || '全部'; }
+function _periodChipOpts(){
+  var opts = PERIODS.map(function(p){ return [p.key, p.label]; });
+  if(PERIODS.length>1){
+    var total = PERIODS.reduce(function(a,p){ return a+(p.weeks||0); }, 0);
+    opts.unshift(['全部','全部檔期 (W1-W'+total+')']);
+  }
+  return opts;
+}
 function buildFilterUI(){
-  var periodOpts = [['全部','全部檔期 (W1-W5)']].concat(PERIODS.map(function(p){ return [p.key, p.label]; }));
+  var periodOpts = _periodChipOpts();
+  FILTER.period = _defaultPeriodKey();
   document.getElementById('chip-period').innerHTML = periodOpts.map(function(o,i){
     return '<div class="chip'+(i===0?' active':'')+'" data-v="'+o[0]+'" onclick="setChip(this,\'period\')">'+o[1]+'</div>';
   }).join('');
@@ -4621,7 +4644,8 @@ function copyMvAuditList(btnEl){
 var MANPOWER_FILTER = { period:'全部', channel:'全部', grade:'全部', area:'全部', office:'全部' };
 
 function mpBuildFilterUI(){
-  var periodOpts = [['全部','全部檔期 (W1-W5)']].concat(PERIODS.map(function(p){ return [p.key, p.label]; }));
+  var periodOpts = _periodChipOpts();
+  if(_singlePeriodKey()) MANPOWER_FILTER.period = _singlePeriodKey();
   document.getElementById('mp-chip-period').innerHTML = periodOpts.map(function(o,i){
     return '<div class="chip'+(o[0]===MANPOWER_FILTER.period?' active':'')+'" data-v="'+o[0]+'" onclick="mpSetChip(this,\'period\')">'+o[1]+'</div>';
   }).join('');
@@ -4865,7 +4889,7 @@ function openDetailFromOffice(area, chanKey, onlyUnmet, evt, onlyExtra){
     FILTER.period = OFFICE_WEEK_SEL.period;
     FILTER.week = OFFICE_WEEK_SEL.week || null;
   } else {
-    FILTER.period = '全部';
+    FILTER.period = _defaultPeriodKey();
     FILTER.week = null;
   }
   FILTER.channel = chanKey||'全部'; FILTER.grade = '全部';
@@ -4889,7 +4913,7 @@ function openMvAuditFromOffice(area, chanKey, evt){
     FILTER.period = OFFICE_WEEK_SEL.period;
     FILTER.week = OFFICE_WEEK_SEL.week || null;
   } else {
-    FILTER.period = '全部';
+    FILTER.period = _defaultPeriodKey();
     FILTER.week = null;
   }
   FILTER.channel = chanKey || '全部'; FILTER.grade = '全部';
@@ -5042,7 +5066,7 @@ function openDetailFromOverview(periodKey, chanKey, grade, evt, onlyUnmet, week)
   _enterDetail();
 }
 function openDetailAll(){
-  FILTER.period = '全部'; FILTER.channel = '全部'; FILTER.grade = '全部'; FILTER.area = '全部'; FILTER.staff = '全部'; FILTER.keyword = '';
+  FILTER.period = _defaultPeriodKey(); FILTER.channel = '全部'; FILTER.grade = '全部'; FILTER.area = '全部'; FILTER.staff = '全部'; FILTER.keyword = '';
   FILTER.onlyUnmetOverdue = false;
   FILTER.onlyUnmetOngoing = false;
   FILTER.onlyMvMiss = false;
@@ -5191,9 +5215,12 @@ function getFilteredStores(){
 /* 1.6.2：週次格子的 7 格渲染邏輯抽成獨立 helper，讓桌機表格欄位跟手機
    卡片小節共用同一份輸出，不用維護兩份重複邏輯（也避免兩邊格子邏輯
    之後改壞其中一份卻沒同步改到另一份） */
-function _buildBoxCells(actual, stdN, isPastWeek){
+function _buildBoxCells(actual, stdN, isPastWeek, slotCount){
   var html = '';
-  for(var i=1;i<=7;i++){
+  /* 格子數＝本週實際天數（同店同天只算 1 次，次數上限即天數）；沒傳就維持 7。
+     至少要容納 stdN／actual，避免資料異常時格子被截掉 */
+  var n = Math.max(slotCount||7, stdN||0, actual||0);
+  for(var i=1;i<=n;i++){
     if(i<=stdN){
       if(actual>=i){ html += '<input type="checkbox" class="std-check" checked>'; }
       else if(isPastWeek){ html += '<span class="miss-mark" title="過去週未達成">✖</span>'; }
@@ -5601,7 +5628,7 @@ function render(){
          自己的應達／已達，不套用任何分組層級的彈性豁免。 */
       var boxesHtml = CELL_VIEW==='day'
         ? _buildDayBoxCells(rd.s, cs.col.period, cs.col.week, cs.std, cs.actual)
-        : _buildBoxCells(cs.actual, cs.std, m.isPastWeek);
+        : _buildBoxCells(cs.actual, cs.std, m.isPastWeek, m.dayCount);
       /* 1.9.6：量販A店才有 cs.mv，組出五、六兩個必訪日小徽章（✓已到店／
          ✖已過期未到店／·尚未到期）；任一天「已過期仍未到店」，整格加
          mv-alert-cell 高亮（發光紅底），跟次數是否達標無關。
@@ -5611,7 +5638,7 @@ function render(){
       var mvHtml = '', mvCellCls = '';
       if(cs.mv && CELL_VIEW!=='day'){
         mvHtml = '<div class="mv-row">' + cs.mv.map(function(d){
-          var lbl = d.dow===5 ? '五' : '六';
+          var lbl = DOW_LABELS[d.dow];
           var cls = d.visited ? 'mv-ok' : (d.isPast ? 'mv-miss' : 'mv-pending');
           var icon = d.visited ? '✓' : (d.isPast ? '✖' : '·');
           var title = lbl+'必訪：'+(d.visited ? '已到店' : (d.isPast ? '⚠️未到店（必訪日已過）' : '尚未到期'));
@@ -5728,11 +5755,11 @@ function render(){
     var mIsProrated = !!(mCp && mCp.lastWeekDays!=null && mCol && mCol.week===mCp.weeks);
     var mBoxesHtml = !mCol ? '' : (CELL_VIEW==='day'
       ? _buildDayBoxCells(rd.s, mCol.period, mCol.week, mStd, mActual)
-      : _buildBoxCells(mActual, mStd, mIsPastWeek));
+      : _buildBoxCells(mActual, mStd, mIsPastWeek, mIsProrated ? _weekDayCount(mCp, mCol.week) : 7));
     var mMvHtml = '';
     if(mMv && CELL_VIEW!=='day'){
       mMvHtml = '<div class="mv-row">' + mMv.map(function(d){
-        var lbl = d.dow===5 ? '五' : '六';
+        var lbl = DOW_LABELS[d.dow];
         var cls = d.visited ? 'mv-ok' : (d.isPast ? 'mv-miss' : 'mv-pending');
         var icon = d.visited ? '✓' : (d.isPast ? '✖' : '·');
         var title = lbl+'必訪：'+(d.visited ? '已到店' : (d.isPast ? '⚠️未到店（必訪日已過）' : '尚未到期'));
@@ -6664,7 +6691,7 @@ function _buildManualContent(){
     + '<b>營業處／營業所</b>：依組織層級篩選，選定營業處後才會出現底下的'
     + '營業所選項</p>'
     + '<hr>'
-    + '<p><b>【主表格的格子代表什麼？】</b>每週欄位固定畫 7 格（一週最多 7天），'
+    + '<p><b>【主表格的格子代表什麼？】</b>每週欄位依該週實際天數畫格（整週 7 格；不足整週的最後一週只畫實際天數），'
     + '前面幾格是「應達」格，剩下的格子預設幾乎看不見，只有真的去超過應達'
     + '次數才會亮起來，方便一眼看出「這一週還有多少餘裕」。</p>'
     + '<p><span style="display:inline-block;width:13px;height:13px;background:#2F86EB;border-radius:3px;vertical-align:middle;"></span>'
@@ -6719,7 +6746,7 @@ function _buildManualContent(){
     + '<p><b>【格子視角】</b>篩選列（🔍 篩選條件）最下面一排「格子視角」可以'
     + '切換格子的排列方式，「📅 依日期」在前、「🔢 依次數」在後，預設是'
     + '「依日期」：<br>'
-    + '<b>依日期</b>（預設）：7 格對應這個檔期週次實際的星期日～六，每格'
+    + '<b>依日期</b>（預設）：每格對應這個檔期週次實際的一天（整週 7 格，不足整週只畫實際天數），每格'
     + '上方印出星期幾（週六、週日固定紅字），直接看出督導轄下的店家實際'
     + '習慣在星期幾去巡補。藍＝已完成且算應達、橘＝已完成的超額；白格＝'
     + '還沒去但日期還沒過（今天或未來，或設有必訪規則的必訪日）；灰格＝'
@@ -6728,7 +6755,7 @@ function _buildManualContent(){
     + '店，規定日期的必訪格會優先從這個白格總額裡佔位，例如整週應達 5 次，'
     + '必訪格先佔 2 格，剩下 3 格才動態遞補給其他天，白格總數仍然是 5 格，'
     + '不會因為必訪格另外加碼變成 7 格）。<br>'
-    + '<b>依次數</b>：原本的視角，7 格代表第幾次巡補、跟哪一天去的無關。<br>'
+    + '<b>依次數</b>：原本的視角，每格代表第幾次巡補（格數同該週天數）、跟哪一天去的無關。<br>'
     + '手機版店卡也是同一套格子（跟桌機共用同一套判斷與顏色），篩選列展開後'
     + '一樣看得到、切得動這排「格子視角」。</p>'
     + '<hr>'
