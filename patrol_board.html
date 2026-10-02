@@ -5247,6 +5247,8 @@ function _buildDayBoxCells(s, period, week, stdN, actual){
   for(var i=0;i<7;i++){
     var day = startDay+i;
     var isOutOfRange = day > weekEndDay;
+    /* 不足整週的最後一週：終止日之後的天直接不畫（不再補灰格），格子數＝本週實際天數 */
+    if(isOutOfRange) continue;
     var dow = new Date(day*86400000).getUTCDay();
     var visited = !isOutOfRange && _hasVisitOnDay(s.code, day);
     var isPastDay = day < today;
