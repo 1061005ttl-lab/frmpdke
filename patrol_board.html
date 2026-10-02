@@ -497,7 +497,6 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .wk-noreq-badge { display:inline-block; margin-top:3px; padding:1px 7px; border-radius:9px; background:#E8EEF5; color:#3B4C63; font-size:10.5px; font-weight:700; white-space:nowrap; }
 input.free-check { accent-color:#4B6584; }
 .ov-mini-noreq { color:#475569; font-weight:600; text-align:center; }
-.oo-noreq-note { font-size:10.5px; font-weight:600; color:#475569; line-height:1.2; }
 .wk-pending-badge { display:inline-block; margin-top:3px; padding:1px 7px; border-radius:9px; background:var(--bg); color:var(--sub); font-size:10.5px; font-weight:700; white-space:nowrap; letter-spacing:.2px; border:1px dashed rgba(0,0,0,.18); cursor:help; }
 
 /* ── 訪員分組標題列（1.8.0：同一訪員的店家排序後連續排列，段落交界插入
@@ -1730,8 +1729,9 @@ function _labelForGradeKey(chanKey, grade){
   return '未設定';
 }
 function _stdFreq(s){ return _freqForGradeKey(s.chanKey, s.grade); }
-/* 「不要求巡補次數」＝等級對照的每週應達次數明確填 0（留空也視為 0）。
-   這種店不算達成/未達/超額，畫面只呈現「已巡幾次」；達成率沒有分母時顯示「—」而非 0.0% */
+/* 「無應達次數」＝等級對照的每週應達次數填 0（留空也視為 0）。
+   這種店不算達成/未達/超額，畫面一律用「—」表示，只另外呈現「已巡幾次」；達成率沒有分母時顯示「—」而非 0.0%。
+   畫面上刻意不出現「不要求」之類字眼，避免造成業務與主管之間的誤解 */
 function _fmtRate(done, exp){ return exp>0 ? (done/exp*100).toFixed(1)+'%' : '—'; }
 /* 1.53.1 修正：例外資料改從獨立分頁「等級覆寫」載入成 GRADE_OV（見
    fetchGradeOverrides()），完全不碰「店家名冊」本身——那是 ARRAYFORMULA+
@@ -4230,7 +4230,7 @@ function _officeStatsFor(area, chanKey){
     });
   });
 
-  /* 不要求巡補次數的店（所選週次內每一週的應達都是 0）：家數＋其中至少巡過一次的家數 */
+  /* 無應達次數的店（所選週次內每一週的應達都是 0）：家數＋其中至少巡過一次的家數 */
   var noReq=0, noReqVisited=0;
   subset.forEach(function(s){
     if(!cols.length) return;
@@ -4418,8 +4418,8 @@ function renderOfficeOverview(){
         : '';
       var quotaAttr = quotaTitle ? ' title="'+esc(quotaTitle)+'"' : '';
       var na = !(r.exp>0);
-      var noReqTitle = r.noReq>0 ? ' title="其中 '+r.noReq+' 家不要求巡補次數（不計入應達／達成率），已巡 '+r.noReqVisited+' 家"' : '';
-      return '<td'+click+noReqTitle+'>'+r.count+(r.noReq>0?'<div class="oo-noreq-note">含不要求 '+r.noReq+'</div>':'')+'</td>'
+      var noReqTitle = r.noReq>0 ? ' title="其中 '+r.noReq+' 家未設定應達次數（不計入應達／達成率），已巡 '+r.noReqVisited+' 家"' : '';
+      return '<td'+click+noReqTitle+'>'+r.count+'</td>'
         + '<td'+click+quotaAttr+'>'+(na?'—':r.exp)+(r.quotaApplied?' 🔽':'')+'</td>'
         + '<td'+click+quotaAttr+'>'+(na?'—':r.stdDone)+'</td>'
         + '<td'+click+' class="oo-rate">'+_fmtRate(r.stdDone, r.exp)+'</td>'
@@ -4483,7 +4483,7 @@ function renderOfficeOverview(){
     var tQuotaTitle = t.quotaApplied ? '合計裡有營業處遇到「不足整週」的最後一週，應達/達標/未達已混入縮減後的家數版本' : '';
     var tQuotaAttr = tQuotaTitle ? ' title="'+esc(tQuotaTitle)+'"' : '';
     var tNa = !(t.exp>0);
-    var cells = '<td>'+t.count+(t.noReq>0?'<div class="oo-noreq-note">含不要求 '+t.noReq+'</div>':'')+'</td><td'+tQuotaAttr+'>'+(tNa?'—':t.exp)+(t.quotaApplied?' 🔽':'')+'</td><td'+tQuotaAttr+'>'+(tNa?'—':t.stdDone)+'</td>'
+    var cells = '<td'+(t.noReq>0?' title="其中 '+t.noReq+' 家未設定應達次數（不計入應達／達成率）"':'')+'>'+t.count+'</td><td'+tQuotaAttr+'>'+(tNa?'—':t.exp)+(t.quotaApplied?' 🔽':'')+'</td><td'+tQuotaAttr+'>'+(tNa?'—':t.stdDone)+'</td>'
       + '<td class="oo-rate">'+_fmtRate(t.stdDone, t.exp)+'</td>'
       + '<td class="oo-unmet"'+tQuotaAttr+'>'+((tNa && !(t.unmet>0))?'—':t.unmet)+'</td>'
       + '<td class="oo-extra oo-clickable" onclick="openDetailFromOffice(\'全部\',\''+ck+'\',false,event,true)" title="點擊查看超額達成的門市（全部處合計）">'+(t.extra>0?'+'+t.extra:'0')+'</td>';
@@ -5003,7 +5003,7 @@ function renderOverview(){
       + allGrades.map(function(item){
           var chanKey = item.chanKey, g = item.grade, gd = item.gd;
           var r = gd.exp>0 ? (gd.stdDone/gd.exp*100).toFixed(1) : '0.0';
-          var label = _labelForGradeKey(chanKey,g) + (gd.noReq ? '（不要求）' : '（' + _freqForGradeKey(chanKey,g) + '）');
+          var label = _labelForGradeKey(chanKey,g) + (gd.noReq ? '（—）' : '（' + _freqForGradeKey(chanKey,g) + '）');
           var clickAttrs = ' onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event)" title="點擊查看這個等級整個檔期的門市明細"';
           var wd = gd.weeks[curWeek] || { exp:0, stdDone:0, unmet:0, visited:0 };
           if(gd.noReq){
@@ -5047,8 +5047,8 @@ function renderOverview(){
       + allGrades.map(function(item){
           var chanKey = item.chanKey, g = item.grade, gd = item.gd;
           var r = gd.exp>0 ? (gd.stdDone/gd.exp*100).toFixed(1) : '0.0';
-          var label = _labelForGradeKey(chanKey,g) + (gd.noReq ? '（不要求）' : '（' + _freqForGradeKey(chanKey,g) + '）');
-          var clickAttrs = ' onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event)" title="'+(gd.noReq?'這個等級不要求巡補次數，不計入達成率；點擊查看實際巡補情況':'點擊查看這個等級整個檔期的門市明細')+'"';
+          var label = _labelForGradeKey(chanKey,g) + (gd.noReq ? '（—）' : '（' + _freqForGradeKey(chanKey,g) + '）');
+          var clickAttrs = ' onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event)" title="'+(gd.noReq?'這個等級未設定應達次數，不計入達成率；點擊查看實際巡補情況':'點擊查看這個等級整個檔期的門市明細')+'"';
           if(gd.noReq){
             return '<tr>'
               + '<td class="ov-mini-clickable"'+clickAttrs+'>'+esc(label)+'</td>'
@@ -5347,7 +5347,7 @@ function _buildDayBoxCells(s, period, week, stdN, actual){
       title = dateLbl+'（週'+dowLbl+'）：已超出檔期範圍（終止日之後）';
     } else if(d.visited){
       visitedRank++;
-      if(stdN===0){ inner = '<input type="checkbox" class="free-check" checked>'; title = dateLbl+'（週'+dowLbl+'）：已巡（本店不要求次數）'; }
+      if(stdN===0){ inner = '<input type="checkbox" class="free-check" checked>'; title = dateLbl+'（週'+dowLbl+'）：已巡'; }
       else if(visitedRank<=stdN){ inner = '<input type="checkbox" class="std-check" checked>'; title = dateLbl+'（週'+dowLbl+'）：已完成，算入應達次數'; }
       else { inner = '<input type="checkbox" class="extra-check" checked>'; title = dateLbl+'（週'+dowLbl+'）：已完成，超額次數'; }
     } else if(d.isPastDay){
@@ -5480,7 +5480,7 @@ function render(){
       var stdN = stdC===undefined ? 0 : _stdForCol(c.period, c.week, stdC);
       var stdGroupKeyC = ovHit ? _stdGroupKey(s.chanKey, gAtC) : stdGroupKey;
       var stdDone = Math.min(actual, stdN);
-      var extra = stdN>0 ? Math.max(0, actual - stdN) : 0; /* 不要求次數的店，去了也不算「超額」 */
+      var extra = stdN>0 ? Math.max(0, actual - stdN) : 0; /* 無應達次數的店，去了也不算「超額」 */
       rowExp += stdN; rowStdDone += stdDone; rowExtra += extra;
       rowVisits += actual; if(stdC!==0) allNoReq = false;
       /* 1.9.6：必訪日狀態跟「次數達標與否」是分開算的兩套判斷（見檔頭
@@ -5648,7 +5648,7 @@ function render(){
   function flushGroup(){
     if(!group) return;
     var rate = group.exp>0 ? (group.done/group.exp*100).toFixed(1) : '0.0';
-    var statText = group.count+' 店 · '+(group.exp>0 ? group.done+'/'+group.exp+'（'+rate+'%）' : '不要求次數')+(group.extra>0?' · 超額 +'+group.extra:'');
+    var statText = group.count+' 店 · '+(group.exp>0 ? group.done+'/'+group.exp+'（'+rate+'%）' : '—')+(group.extra>0?' · 超額 +'+group.extra:'');
     rowsHtml += '<tr class="staff-group-row"><td class="staff-group-cell" colspan="'+(COLSPAN_FIXED+cols.length)+'">'
       + '<span class="sg-staff" onclick="openStaffDetail(\''+esc(group.staff)+'\',event)">👤 '+esc(group.staff||'未設定訪員')+'</span>'
       + '<span class="sg-office">'+esc(group.area)+' '+esc(group.office)+'</span>'
@@ -5722,7 +5722,7 @@ function render(){
       var wkPastUnmet = !wkAchieved && !cs.groupMet && cs.std>0 && m.isPastWeek;
       var wkPending = !wkAchieved && !cs.groupMet && cs.std>0 && !m.isPastWeek;
       var pastUnmetHtml = wkPastUnmet ? '<div class="wk-pastunmet-badge" title="這一週已經結束，但這家店這週的巡補次數還沒達到標準——是真的漏掉了，不是分組已達標可以忽略的情況。">⚠️ 已過期未達成</div>' : '';
-      var noReqHtml = cs.noReq ? '<div class="wk-noreq-badge" title="這個等級不要求巡補次數，只呈現實際巡補情況">不要求'+(cs.actual>0?'・已巡 '+cs.actual+' 次':'')+'</div>' : '';
+      var noReqHtml = (cs.noReq && cs.actual>0) ? '<div class="wk-noreq-badge" title="這個等級未設定應達次數，只呈現實際巡補情況">已巡 '+cs.actual+' 次</div>' : '';
       var pendingHtml = wkPending ? '<div class="wk-pending-badge" title="這一週還沒結束（今天或未來），這家店這週還有機會補去，白格是正常現象，不代表已經漏掉。">⏳ 本週進行中</div>' : '';
       /* 1.9.1：週次格子點擊 → 帶入該週次範圍縮限明細 Dialog（帶 period/week
          參數＋stopPropagation，避免同時觸發整列的 openStoreDetail 顯示全檔期）；
@@ -5752,7 +5752,7 @@ function render(){
     var rowGroupMetFull = rowIncompleteCols.length>0 && rowIncompleteCols.every(function(cs){ return cs.groupMet; }) && !rd.isMvMiss;
     var sumHtml = '<div class="sum-cell">'
       + (rd.noReq
-          ? '<div class="sum-main sum-noreq" title="這個等級不要求巡補次數，不計入達成率／超額">不要求</div><div class="sum-rate sum-noreq-sub">已巡 '+rd.rowVisits+' 次</div>'
+          ? '<div class="sum-main sum-noreq" title="這個等級未設定應達次數，不計入達成率／超額">—</div><div class="sum-rate sum-noreq-sub">已巡 '+rd.rowVisits+' 次</div>'
           : '<div class="sum-main">'+rd.rowStdDone+'/'+rd.rowExp+'</div><div class="sum-rate">'+_fmtRate(rd.rowStdDone, rd.rowExp)+'</div>')
       + (rd.rowExtra>0 ? '<div class="sum-extra-badge">超額 +'+rd.rowExtra+'</div>' : '')
       /* 1.23.1：拿掉「次數合計」欄這顆紅色未達標徽章——現在每個週次格子
@@ -5839,7 +5839,7 @@ function render(){
       +     '<span class="m-line-sep">·</span><span class="m-line-type">'+esc(rd.s.storeType||'—')+'</span>'
       +     '<span class="m-line-sep">·</span><span class="m-line-grade">'+gradeLineHtml+'</span>'
       +   '</div>'
-      +   '<div class="m-store-badge '+mRateClass+'">'+(mStdBase===0 ? '不要求・已巡 '+mActual : mDone+'/'+mStd)+(mExtra>0?'<small>+'+mExtra+'</small>':'')+(mUnmet?'<small class="m-unmet-flag">🔴</small>':'')+(mGroupMet?'<small class="m-groupmet-flag" title="本店這一週雖然還沒到店，但所屬分組（整處同通路＋等級）已經達到不足整週折算後的縮減家數門檻，整體已達標，這格留白是正常現象">🤝</small>':'')+(mMvMiss?'<small class="m-mv-flag">🚨</small>':'')+(mIsProrated?'<small class="m-prorated-flag" title="本週為不足整週的折算週，應達次數已依比例縮減，最低1次，比其他整週小是正常現象">⚠️</small>':'')+'</div>'
+      +   '<div class="m-store-badge '+mRateClass+'">'+(mStdBase===0 ? (mActual>0 ? '已巡 '+mActual : '—') : mDone+'/'+mStd)+(mExtra>0?'<small>+'+mExtra+'</small>':'')+(mUnmet?'<small class="m-unmet-flag">🔴</small>':'')+(mGroupMet?'<small class="m-groupmet-flag" title="本店這一週雖然還沒到店，但所屬分組（整處同通路＋等級）已經達到不足整週折算後的縮減家數門檻，整體已達標，這格留白是正常現象">🤝</small>':'')+(mMvMiss?'<small class="m-mv-flag">🚨</small>':'')+(mIsProrated?'<small class="m-prorated-flag" title="本週為不足整週的折算週，應達次數已依比例縮減，最低1次，比其他整週小是正常現象">⚠️</small>':'')+'</div>'
       + '</div>'
       + '<div class="box-container m-box-container">'+mBoxesHtml+'</div>'
       + mStatusHtml
@@ -6042,7 +6042,7 @@ function openStoreDetail(code, scopePeriod, scopeWeek, evt){
     stdDoneTotal += Math.min(actual, stdN);
     extraTotal += (stdN>0 ? Math.max(0, actual-stdN) : 0);
   });
-  var rate = expTotal>0 ? (stdDoneTotal/expTotal*100).toFixed(1)+'%' : '不要求次數';
+  var rate = expTotal>0 ? (stdDoneTotal/expTotal*100).toFixed(1)+'%' : '—';
 
   var visits = (VISIT_INDEX[code]||[]).filter(function(v){
     return cols.some(function(c){ return c.period===v.period && c.week===v.week; });
