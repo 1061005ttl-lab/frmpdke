@@ -753,6 +753,8 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
   .oo-mcard-grid { gap:6px 2px; }
   .oo-mstat .k { font-size:8.5px; }
   .oo-mstat .v { font-size:11px; }
+  .oo-mcard-chan .oo-mstat .k { font-size:10px; }
+  .oo-mcard-chan .oo-mstat .v { font-size:13.5px; }
 }
 
 .footnote { margin-top:14px; font-size:11.5px; color:#8a6d1f; background:#fbf3d9; padding:10px 14px; border-radius:8px; line-height:1.7; }
@@ -954,14 +956,20 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
    版本一致套用。（1.25.4：原本拆成基底＋1.14.0 覆寫兩段宣告，屬性不衝突、
    純粹是加法覆寫，合併成單一宣告塊，無視覺/行為差異。） */
 .oo-mcard-chan {
-  padding:9px 12px; border-bottom:1px dashed var(--border);
-  display:flex; align-items:center; gap:10px; overflow-x:auto; -webkit-overflow-scrolling:touch;
-  white-space:nowrap; scrollbar-width:thin;
+  padding:8px 10px 9px; border-bottom:1px dashed var(--border);
+  display:flex; flex-direction:column; gap:6px; overflow:hidden;
 }
+/* 1.55.3：不再橫向捲動。改兩層：上層＝通路名稱＋達成率（最重要的一個數字放最顯眼處），
+   下層＝其餘統計用等寬欄位均分整排（grid-auto-flow:column，5 項或 6 項含必訪缺都自動均分），
+   每格 label 在上、數字在下，永遠塞得進手機寬度，不需要捲動。 */
+.oo-mcard-chan-top { display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+.oo-mcard-chan-rate { display:flex; align-items:baseline; gap:5px; }
+.oo-mcard-chan-rate small { font-size:10.5px; color:var(--sub); font-weight:600; }
+.oo-mcard-chan-rate b { font-size:17px; font-weight:800; color:var(--green); letter-spacing:-.5px; }
 .oo-mcard-chan:last-child { border-bottom:none; }
 .oo-mcard-chan.oo-clickable { cursor:pointer; }
 .oo-mcard-chan.oo-clickable:active { background:var(--primary-bg); }
-.oo-mcard-chan-title { font-size:13.5px; font-weight:700; color:var(--sub); margin-bottom:0; flex-shrink:0; }
+.oo-mcard-chan-title { font-size:14px; font-weight:800; color:var(--text); margin-bottom:0; flex-shrink:0; }
 .oo-mcard-empty { color:var(--sub); font-size:13.5px; padding:2px 0; }
 /* 1.8.1：原 auto-fit + minmax(56px,1fr) 窄螢幕會被擠到下一行（5欄變3+2），
    改固定 5 欄（店數/應達/達標/達成率/超額）、欄寬 1fr 均分自動變窄。
@@ -989,13 +997,12 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
   .oo-mobile-cards { display:flex; }
 }
 .oo-mcard-chan .oo-mcard-grid, .oo-mcard-chan .oo-mcard-grid-7 {
-  display:flex; flex-wrap:nowrap; grid-template-columns:none; gap:0 12px; flex:1; min-width:0;
+  display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr); grid-template-columns:none;
+  gap:0 2px; text-align:center; background:rgba(26,80,139,.04); border-radius:8px; padding:4px 2px;
 }
-.oo-mcard-chan .oo-mstat {
-  flex-direction:row; align-items:baseline; gap:4px; flex-shrink:0; white-space:nowrap;
-}
-.oo-mcard-chan .oo-mstat .k::after { content:':'; }
-.oo-mcard-chan .oo-mstat .k, .oo-mcard-chan .oo-mstat .v { overflow:visible; text-overflow:clip; }
+.oo-mcard-chan .oo-mstat { flex-direction:column; align-items:center; gap:1px; padding:2px 0; }
+.oo-mcard-chan .oo-mstat .k { font-size:10.5px; overflow:visible; text-overflow:clip; }
+.oo-mcard-chan .oo-mstat .v { font-size:14px; overflow:visible; text-overflow:clip; }
 .oo-mcard-chan .oo-mv-mob-subs { white-space:nowrap; }
 
 /* ════ 1.14.0：手機版「單位導引」進站篩選 ════
@@ -4586,7 +4593,7 @@ function renderOfficeOverview(){
   function _mcardChan(area, ck){
     var c = statCache[area+'␟'+ck];
     var title = '<div class="oo-mcard-chan-title">'+(chanIcon[ck]||'')+' '+esc(CHANNEL_LABEL[ck]||ck)+'</div>';
-    if(!c.hasData){ return '<div class="oo-mcard-chan">'+title+'<div class="oo-mcard-empty">—</div></div>'; }
+    if(!c.hasData){ return '<div class="oo-mcard-chan"><div class="oo-mcard-chan-top">'+title+'<div class="oo-mcard-empty">—</div></div></div>'; }
     var r = c.r;
     var hasMv = _channelHasMustVisit(ck);
     var gridCls = hasMv ? 'oo-mcard-grid oo-mcard-grid-7' : 'oo-mcard-grid';
@@ -4602,12 +4609,11 @@ function renderOfficeOverview(){
         + '</div>';
     }
     return '<div class="oo-mcard-chan oo-clickable" onclick="openDetailFromOffice(\''+area+'\',\''+ck+'\')">'
-      + title
+      + '<div class="oo-mcard-chan-top">'+title+'<div class="oo-mcard-chan-rate"><small>達成率</small><b>'+_fmtRate(r.stdDone, r.exp)+'</b></div></div>'
       + '<div class="'+gridCls+'">'
       + '<div class="oo-mstat"><span class="k">店數</span><span class="v">'+r.count+'</span></div>'
       + '<div class="oo-mstat"><span class="k">應達</span><span class="v">'+r.exp+'</span></div>'
       + '<div class="oo-mstat"><span class="k">達標</span><span class="v">'+r.stdDone+'</span></div>'
-      + '<div class="oo-mstat"><span class="k">達成率</span><span class="v rate">'+_fmtRate(r.stdDone, r.exp)+'</span></div>'
       + '<div class="oo-mstat oo-mstat-unmet" onclick="openDetailFromOffice(\''+area+'\',\''+ck+'\',true,event)"><span class="k">未達</span><span class="v unmet">'+r.unmetCount+'</span></div>'
       + '<div class="oo-mstat oo-mstat-extra" onclick="openDetailFromOffice(\''+area+'\',\''+ck+'\',false,event,true)"><span class="k">超額</span><span class="v extra">'+(r.extra>0?'+'+r.extra:'0')+'</span></div>'
       + mvStat
@@ -4628,12 +4634,11 @@ function renderOfficeOverview(){
         + '<span class="v mv'+(mt.total>0?' has':'')+'">'+(mt.total>0?'🚨'+mt.total:'—')+'</span>'
         + '</div>') : '';
     return '<div class="oo-mcard-chan">'
-      + '<div class="oo-mcard-chan-title">'+(chanIcon[ck]||'')+' '+esc(CHANNEL_LABEL[ck]||ck)+'</div>'
+      + '<div class="oo-mcard-chan-top"><div class="oo-mcard-chan-title">'+(chanIcon[ck]||'')+' '+esc(CHANNEL_LABEL[ck]||ck)+'</div><div class="oo-mcard-chan-rate"><small>達成率</small><b>'+_fmtRate(t.stdDone, t.exp)+'</b></div></div>'
       + '<div class="'+gridCls+'">'
       + '<div class="oo-mstat"><span class="k">店數</span><span class="v">'+t.count+'</span></div>'
       + '<div class="oo-mstat"><span class="k">應達</span><span class="v">'+t.exp+'</span></div>'
       + '<div class="oo-mstat"><span class="k">達標</span><span class="v">'+t.stdDone+'</span></div>'
-      + '<div class="oo-mstat"><span class="k">達成率</span><span class="v rate">'+_fmtRate(t.stdDone, t.exp)+'</span></div>'
       + '<div class="oo-mstat"><span class="k">未達</span><span class="v unmet">'+t.unmet+'</span></div>'
       + '<div class="oo-mstat oo-mstat-extra" onclick="openDetailFromOffice(\'全部\',\''+ck+'\',false,event,true)"><span class="k">超額</span><span class="v extra">'+(t.extra>0?'+'+t.extra:'0')+'</span></div>'
       + mvStat
