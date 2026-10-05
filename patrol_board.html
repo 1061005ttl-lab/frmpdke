@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   patrol_board.html ─ 節慶專案巡補頻次型看板
-  版本：Ver. 1.54.0 ｜ 建立：2026-07-20 ｜ 最後更新：2026-09-21
+  版本：Ver. 1.55.1 ｜ 建立：2026-07-20 ｜ 最後更新：2026-10-05
 
 【檔案定位】
   ‧ 單一 HTML 檔案，純前端 JS，透過 gviz API 讀同一份試算表兩分頁，
@@ -415,24 +415,24 @@ body { background:var(--bg); color:var(--text); font-family:'Noto Sans TC','Micr
 .ctrl-sep { width:1px; align-self:stretch; margin:4px 2px; background:var(--border); flex-shrink:0; }
 
 /* ── filter bar ── */
-.filterbar { background:#fff; border-bottom:1px solid var(--border); padding:10px clamp(12px,2.5vw,20px); position:sticky; top:52px; z-index:40; }
+.filterbar { background:#fff; border-bottom:1px solid var(--border); padding:5px clamp(10px,2vw,14px); position:sticky; top:52px; z-index:40; }
 /* 1.6.2：手機版篩選收合鍵，桌機版一律隱藏（body 恆為展開狀態） */
 .filter-toggle-btn { display:none; }
 .filter-toggle-summary { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:11.5px; font-weight:600; color:var(--sub); text-align:left; }
-.chip-row { display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap; }
+.chip-row { display:flex; align-items:center; gap:4px 6px; margin-bottom:3px; flex-wrap:wrap; }
 .chip-row:last-child { margin-bottom:0; }
-.chip-fgroup { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-.chip-fgroup-divider { padding-left:14px; margin-left:2px; border-left:2px solid var(--border); }
-.chip-label { font-size:11px; color:var(--sub); font-weight:700; width:64px; flex-shrink:0; letter-spacing:.03em; }
-.chip-group { display:flex; gap:6px; flex-wrap:wrap; background:rgba(26,80,139,.045); border:1px solid rgba(26,80,139,.08); padding:4px; border-radius:18px; }
+.chip-fgroup { display:flex; align-items:center; gap:4px; flex-wrap:wrap; }
+.chip-fgroup-divider { padding-left:8px; margin-left:0; border-left:1px solid var(--border); }
+.chip-label { font-size:11px; color:var(--sub); font-weight:700; width:48px; flex-shrink:0; letter-spacing:0; }
+.chip-group { display:flex; gap:3px; flex-wrap:wrap; background:rgba(26,80,139,.045); border:1px solid rgba(26,80,139,.08); padding:2px; border-radius:14px; }
 /* 1.6.1：訪員 chip 數量多、常需要換行成 2 排以上時，讓 chip-group 直接吃掉
    同一列剩下的寬度（而不是被當成一個「太寬塞不下」的整塊被擠到下一行），
    這樣「訪員」label 才能穩定貼著第一排 chip，不會自己獨立佔一整行 */
 .chip-group-wrap { flex:1 1 300px; min-width:0; }
-.chip { padding:4px 12px; background:#fff; border:1px solid var(--border); border-radius:16px; cursor:pointer; font-size:12px; font-weight:600; color:var(--sub); font-family:inherit; transition:all .15s; white-space:nowrap; }
+.chip { padding:2px 9px; background:#fff; border:1px solid var(--border); border-radius:16px; cursor:pointer; font-size:12px; font-weight:600; color:var(--sub); font-family:inherit; transition:all .15s; white-space:nowrap; }
 .chip:hover { background:var(--primary-bg); color:var(--primary); }
 .chip.active { background:var(--primary); color:#fff; border-color:var(--primary); }
-.chip-hint { font-size:12px; color:var(--sub); font-style:italic; padding:4px 2px; }
+.chip-hint { font-size:12px; color:var(--sub); font-style:italic; padding:2px 2px; }
 /* ── summary row ── */
 .summary-row { padding:10px clamp(12px,2.5vw,20px) 0; display:flex; gap:10px; flex-wrap:wrap; }
 /* 1.5.0：label／數字改成同一列平行排列（原本是上下兩層），節省卡片高度；
@@ -526,7 +526,7 @@ td.staff-group-cell { padding:8px 14px !important; text-align:left !important; b
   .th-date-range { font-size:11.5px; }
   .box-container input[type="checkbox"], .box-ghost, .miss-mark { width:15px; height:15px; }
   .chip-label { width:auto; margin-right:4px; }
-  .chip { padding:3px 10px; font-size:11.5px; }
+  .chip { padding:2px 8px; font-size:11.5px; }
   .sum-card .sc-label { font-size:13px; }
   .sum-card .sc-val { font-size:17px; }
 }
@@ -744,18 +744,18 @@ td.mv-alert-cell { background:var(--red-bg) !important; }
 .footnote { margin-top:14px; font-size:11.5px; color:#8a6d1f; background:#fbf3d9; padding:10px 14px; border-radius:8px; line-height:1.7; }
 
 @media (max-width:640px) {
-  .chip-label { width:auto; margin-right:4px; }
-  .chip-fgroup-divider { flex-basis:100%; padding-left:0; margin-left:0; border-left:none; padding-top:8px; margin-top:4px; border-top:1px dashed var(--border); }
+  .chip-label { width:auto; margin-right:2px; }
+  .chip-fgroup-divider { flex-basis:100%; padding-left:0; margin-left:0; border-left:none; padding-top:4px; margin-top:2px; border-top:1px dashed var(--border); }
   /* 1.6.2：篩選 chip 列預設收合，只留一行「🔍 篩選條件」按鈕，大幅縮減
      固定在畫面上方的高度，把螢幕還給下面的資料表格 */
-  .filterbar { padding:6px 12px; }
+  .filterbar { padding:4px 10px; }
   .filter-toggle-btn {
     display:flex; align-items:center; gap:6px; width:100%; padding:6px 2px;
     background:none; border:none; font-size:13px; font-weight:700; color:var(--text);
     font-family:inherit; cursor:pointer;
   }
   #filter-toggle-ico { flex-shrink:0; color:var(--sub); }
-  .filterbar-body { display:none; padding-top:8px; }
+  .filterbar-body { display:none; padding-top:4px; }
   .filterbar-body.open { display:block; }
   .toolbar-controls {
     display:none; position:absolute; top:52px; left:0; right:0; z-index:60;
@@ -1872,7 +1872,7 @@ var _qSheetCache = {};
 var _qSheetLoading = {};
 var _qSheetWaiters = {};
 
-var FILTER = { period:'全部', channel:'全部', grade:'全部', area:'全部', office:'全部', staff:'全部', keyword:'', onlyUnmetOverdue:false, onlyUnmetOngoing:false, onlyMvMiss:false, onlyExtra:false, week:null };
+var FILTER = { period:'全部', channel:'全部', grade:'全部', area:'全部', office:'全部', staff:'全部', keyword:'', onlyUnmetOverdue:false, onlyUnmetOngoing:false, onlyMvMiss:false, onlyExtra:false, visitState:'', week:null };
 /* 1.11.0：主表格週次格子的顯示視角。1.13.0 起手機版也共用同一套（見
    .main-mobile-cards／MOBILE_SEL），同時影響桌機表格與手機卡片。
    ‧ 'count'：原始視角，格子代表「第幾次」抽象順位（跟哪天去無關）。
@@ -2179,7 +2179,7 @@ function mobileGateEnter(){
   }
   FILTER.period = _defaultPeriodKey(); FILTER.channel = '全部'; FILTER.grade = '全部';
   FILTER.area = MOBILE_GATE.area; FILTER.office = MOBILE_GATE.office; FILTER.staff = MOBILE_GATE.staff;
-  FILTER.keyword = ''; FILTER.onlyUnmetOverdue = false; FILTER.onlyUnmetOngoing = false; FILTER.onlyMvMiss = false; FILTER.onlyExtra = false; FILTER.week = null;
+  FILTER.keyword = ''; FILTER.onlyUnmetOverdue = false; FILTER.onlyUnmetOngoing = false; FILTER.onlyMvMiss = false; FILTER.onlyExtra = false; FILTER.visitState = ''; FILTER.week = null;
   _enterDetail();
 }
 
@@ -3882,7 +3882,9 @@ function buildFilterUI(){
     '<div class="chip'+(FILTER.onlyUnmetOverdue?' active':'')+'" id="chip-unmet-overdue-toggle" onclick="toggleUnmetOverdueChip(this)">⚠️逾期未達</div>'
     + '<div class="chip'+(FILTER.onlyUnmetOngoing?' active':'')+'" id="chip-unmet-ongoing-toggle" onclick="toggleUnmetOngoingChip(this)">🔴進行中未達</div>'
     + '<div class="chip'+(FILTER.onlyMvMiss?' active':'')+'" id="chip-mv-toggle" onclick="toggleMvMissChip(this)">🚨 必訪未達</div>'
-    + '<div class="chip'+(FILTER.onlyExtra?' active':'')+'" id="chip-extra-toggle" onclick="toggleExtraChip(this)">🟠 超額達成</div>';
+    + '<div class="chip'+(FILTER.onlyExtra?' active':'')+'" id="chip-extra-toggle" onclick="toggleExtraChip(this)">🟠 超額達成</div>'
+    + '<div class="chip'+(FILTER.visitState==='visited'?' active':'')+'" id="chip-visited-toggle" title="所選檔期／週次內，至少巡過 1 次的店（不論有沒有應達次數）" onclick="toggleVisitChip(this,\'visited\')">✅ 已巡</div>'
+    + '<div class="chip'+(FILTER.visitState==='unvisited'?' active':'')+'" id="chip-unvisited-toggle" title="所選檔期／週次內，完全沒有巡補紀錄的店（不論有沒有應達次數）" onclick="toggleVisitChip(this,\'unvisited\')">⬜ 未巡</div>';
 
   var areaOpts = ['全部'].concat(AREA_ORDER);
   document.getElementById('chip-area').innerHTML = areaOpts.map(function(v,i){
@@ -4020,6 +4022,19 @@ function toggleUnmetOngoingChip(el){
 function toggleMvMissChip(el){
   FILTER.onlyMvMiss = !FILTER.onlyMvMiss;
   el.classList.toggle('active', FILTER.onlyMvMiss);
+  onFilterChange();
+}
+/* 1.55.1：「已巡／未巡」清冊篩選。專給「列表但不控管」（等級對照每週應達次數＝0／留空）
+   的店使用，這類店沒有達成/未達可篩，只能看「去過沒」；一般有應達次數的店也適用。
+   判斷依據＝所選檔期／週次範圍內 rowVisits（實際巡補次數，含工讀代班）：>0＝已巡、=0＝未巡。
+   兩顆互斥（同一家店不可能同時已巡又未巡），再點一次已亮的那顆＝取消；
+   其他開關（逾期未達等）仍可同時疊加。 */
+function toggleVisitChip(el, state){
+  FILTER.visitState = (FILTER.visitState===state) ? '' : state;
+  var a = document.getElementById('chip-visited-toggle');
+  var b = document.getElementById('chip-unvisited-toggle');
+  if(a) a.classList.toggle('active', FILTER.visitState==='visited');
+  if(b) b.classList.toggle('active', FILTER.visitState==='unvisited');
   onFilterChange();
 }
 /* 1.32.0：「超額達成」開關，邏輯跟前兩顆對稱、各自獨立，可以同時開。 */
@@ -4945,7 +4960,7 @@ function openMvAuditFromOffice(area, chanKey, evt){
   FILTER.onlyUnmetOverdue = false;
   FILTER.onlyUnmetOngoing = false;
   FILTER.onlyMvMiss = true;
-  FILTER.onlyExtra = false;
+  FILTER.onlyExtra = false; FILTER.visitState = '';
   _enterDetail();
 }
 function renderOverview(){
@@ -5010,7 +5025,7 @@ function renderOverview(){
             return '<tr>'
               + '<td class="ov-mini-clickable"'+clickAttrs+'>'+esc(label)+'</td>'
               + '<td class="ov-mini-clickable"'+clickAttrs+'>'+gd.count+'</td>'
-              + '<td colspan="2" class="ov-mini-noreq ov-mini-clickable"'+clickAttrs+'>已巡 '+wd.visited+' 家</td>'
+              + '<td colspan="2" class="ov-mini-noreq ov-mini-clickable"'+clickAttrs+'><span onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,false,'+curWeek+',\'visited\')" title="只看這一週已巡的店">已巡 '+wd.visited+'</span>／<span onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,false,'+curWeek+',\'unvisited\')" title="只看這一週未巡的店">未巡 '+Math.max(0,gd.count-wd.visited)+'</span> 家</td>'
               + '<td class="ov-mini-noreq ov-mini-clickable"'+clickAttrs+'>—</td>'
               + '<td class="ov-mini-noreq ov-mini-clickable"'+clickAttrs+'>—</td>'
               + '</tr>';
@@ -5055,7 +5070,7 @@ function renderOverview(){
               + '<td class="ov-mini-clickable"'+clickAttrs+'>'+gd.count+'</td>'
               + weekNums.map(function(w){
                   var wd0 = gd.weeks[w] || { visited:0 };
-                  return '<td colspan="2" class="ov-mini-noreq ov-mini-clickable"'+clickAttrs+'>已巡 '+wd0.visited+' 家</td>';
+                  return '<td colspan="2" class="ov-mini-noreq ov-mini-clickable"'+clickAttrs+'><span onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,false,'+w+',\'visited\')" title="只看這一週已巡的店">已巡 '+wd0.visited+'</span>／<span onclick="openDetailFromOverview(\''+p.key+'\',\''+chanKey+'\',\''+g+'\',event,false,'+w+',\'unvisited\')" title="只看這一週未巡的店">未巡 '+Math.max(0,gd.count-wd0.visited)+'</span> 家</td>';
                 }).join('')
               + '<td class="ov-mini-noreq ov-mini-clickable"'+clickAttrs+'>—</td>'
               + '<td class="ov-mini-noreq ov-mini-clickable"'+clickAttrs+'>—</td>'
@@ -5097,7 +5112,7 @@ function _enterDetail(){
    （onlyUnmet=true，不鎖週次，看整個檔期）跟「單週進度」欄位（onlyUnmet=true
    ＋鎖那一週）兩種下鑽入口；原本「整列」「整個子區塊」的點擊維持不帶這兩個
    參數，行為不變。 */
-function openDetailFromOverview(periodKey, chanKey, grade, evt, onlyUnmet, week){
+function openDetailFromOverview(periodKey, chanKey, grade, evt, onlyUnmet, week, visitState){
   if(evt){ evt.stopPropagation(); } /* 列點擊（帶等級）不應該再讓外層子區塊的整通路點擊重複觸發 */
   FILTER.period = periodKey; FILTER.channel = chanKey; FILTER.grade = grade||'全部'; FILTER.area = '全部'; FILTER.staff = '全部'; FILTER.keyword = '';
   /* 1.33.1：同 openDetailFromOffice，這裡的 onlyUnmet 是「不分時間狀態」
@@ -5106,8 +5121,9 @@ function openDetailFromOverview(periodKey, chanKey, grade, evt, onlyUnmet, week)
   FILTER.onlyUnmetOverdue = !!onlyUnmet;
   FILTER.onlyUnmetOngoing = !!onlyUnmet;
   FILTER.onlyMvMiss = false;
-  FILTER.onlyExtra = false;
+  FILTER.onlyExtra = false; FILTER.visitState = '';
   FILTER.week = week || null;
+  FILTER.visitState = visitState || ''; /* 1.55.1：「無應達次數」列的已巡／未巡數字可直接下鑽 */
   _enterDetail();
 }
 function openDetailAll(){
@@ -5115,7 +5131,7 @@ function openDetailAll(){
   FILTER.onlyUnmetOverdue = false;
   FILTER.onlyUnmetOngoing = false;
   FILTER.onlyMvMiss = false;
-  FILTER.onlyExtra = false;
+  FILTER.onlyExtra = false; FILTER.visitState = '';
   FILTER.week = null;
   _enterDetail();
 }
@@ -5147,6 +5163,10 @@ function syncChipsToFilter(){
   if(mvToggle) mvToggle.classList.toggle('active', FILTER.onlyMvMiss);
   var extraToggle = document.getElementById('chip-extra-toggle');
   if(extraToggle) extraToggle.classList.toggle('active', FILTER.onlyExtra);
+  var visitedToggle = document.getElementById('chip-visited-toggle');
+  if(visitedToggle) visitedToggle.classList.toggle('active', FILTER.visitState==='visited');
+  var unvisitedToggle = document.getElementById('chip-unvisited-toggle');
+  if(unvisitedToggle) unvisitedToggle.classList.toggle('active', FILTER.visitState==='unvisited');
   _updateFilterToggleSummary();
 }
 /* 1.6.2：手機版篩選條件收合按鈕上的一行小字摘要——收合時仍能一眼看出
@@ -5170,6 +5190,8 @@ function _updateFilterToggleSummary(){
   if(FILTER.onlyUnmetOngoing) parts.push('🔴進行中未達');
   if(FILTER.onlyMvMiss) parts.push('🚨必訪未達');
   if(FILTER.onlyExtra) parts.push('🟠超額達成');
+  if(FILTER.visitState==='visited') parts.push('✅已巡');
+  if(FILTER.visitState==='unvisited') parts.push('⬜未巡');
   el.textContent = parts.length ? parts.join('・') : '全部';
 }
 /* 手機版：篩選 chip 列預設收合，避免固定工具列＋篩選列一次佔掉大半螢幕，
@@ -5618,7 +5640,17 @@ function render(){
   var extraToggleEl = document.getElementById('chip-extra-toggle');
   if(extraToggleEl) extraToggleEl.textContent = '🟠 超額達成（'+extraCount+'）';
 
+  /* 1.55.1：已巡／未巡 chip 數字（算目前 chip 篩出的整批店，不受這兩顆本身影響） */
+  var visitedCount = rowsDataAll.filter(function(rd){ return rd.rowVisits>0; }).length;
+  var unvisitedCount = rowsDataAll.length - visitedCount;
+  var visitedToggleEl = document.getElementById('chip-visited-toggle');
+  if(visitedToggleEl) visitedToggleEl.textContent = '✅ 已巡（'+visitedCount+'）';
+  var unvisitedToggleEl = document.getElementById('chip-unvisited-toggle');
+  if(unvisitedToggleEl) unvisitedToggleEl.textContent = '⬜ 未巡（'+unvisitedCount+'）';
+
   var rowsData = rowsDataAll.filter(function(rd){
+    if(FILTER.visitState==='visited' && !(rd.rowVisits>0)) return false;
+    if(FILTER.visitState==='unvisited' && rd.rowVisits>0) return false;
     /* 1.33.1：兩顆「未達標」開關各自獨立，同時開時取聯集（只要符合其中
        一種時間狀態就留下），不是交集——這樣兩顆都開才會等於「不分時間
        狀態，只要沒達標就算」，涵蓋範圍才會跟改版前的單一開關一致。只開
