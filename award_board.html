@@ -1,7 +1,7 @@
 <!--
 ================================================================================
   全聯18天推廣進度看板 (award_board.html)
-  版本：Ver. 1.13.5 ｜ 最後更新：2026-07-23 (得獎人PDF重大BUG修正：實測發現Ver.1.13.4
+  版本：Ver. 1.13.6 ｜ 最後更新：2026-07-23 (得獎人PDF重大BUG修正：實測發現Ver.1.13.4
                         的退列邏輯，把退回的列unshift塞進「已存在的下一頁陣列」，
                         當同一份PDF觸發多輪退列（例如某頁自己超頁又需要再退給下一頁）
                         時，這種跨頁合併同一陣列的寫法會讓部分店家列整批消失
@@ -704,7 +704,7 @@
   <button class="tb-btn" onclick="toggleRank()" id="rank-btn" style="background:rgba(255,215,0,.15);border-color:rgba(200,160,0,.3);color:#7a5500;">🏆 品評排行</button>
   <button class="tb-btn" onclick="openPersonTable()" id="ptbl-btn" style="background:rgba(74,122,85,.1);border-color:rgba(74,122,85,.3);color:#2d5a38;">👤 人員表</button>
   <div id="tb-right">
-    <div id="ver-ts">Ver. 1.13.1 (2026-07-23)</div>
+    <div id="ver-ts">Ver. 1.13.6 (2026-10-19)</div>
     <button class="tb-btn" onclick="mainCopyLine()" id="btn-main-line">💬 LINE</button>
     <button class="tb-btn" onclick="mainScreenshot()" id="btn-main-shot">📸 截圖</button>
     <button class="tb-btn" onclick="downloadXLSX()">📥 XLSX</button>
@@ -3034,6 +3034,11 @@ function _buildPersonTableData(){
   });
 }
 
+/* 任職月份：本季有業績資料的月份（evalMonths）。回傳 {n:數量, list:'4、5、6月'} */
+function _tenureInfo(qd){
+  var ms=qd.evalMonths||[];
+  return {n:ms.length, list:ms.length?ms.join('、')+'月':'—'};
+}
 function _personTableHTML(persons){
   /* 依處別分組 */
   var groups={};
@@ -3043,7 +3048,7 @@ function _personTableHTML(persons){
     groups[a].push(p);
   });
 
-  var NCOLS=8;
+  var NCOLS=9;
   var thS='padding:7px 10px;font-size:11px;font-weight:800;color:#444;background:#f0f4f0;border-bottom:2px solid #ccd8cc;border-right:1px solid #dde8dd;white-space:nowrap;text-align:right;position:sticky;top:0;z-index:2;';
   var thSL=thS+'text-align:left;';
 
@@ -3061,7 +3066,8 @@ function _personTableHTML(persons){
     '<th style="'+thSL+'">營業處</th>'+
     '<th style="'+thSL+'">營業所</th>'+
     '<th style="'+thSL+'">人名</th>'+
-    '<th style="'+thSL+'">身分別</th>'+
+    '<th style="'+thSL+'">任職月份數</th>'+
+    '<th style="'+thSL+'">有效月份</th>'+
     _ptSortTh('stores','總家數')+
     _ptSortTh('cur','當期CTN')+
     _ptSortTh('tgt','目標CTN')+
@@ -3080,7 +3086,7 @@ function _personTableHTML(persons){
     var sE=Math.round(arr.reduce(function(s,p){return s+(p.qd.totalEval||0);},0)*3)/3;
     var eCls=sE>0?'d-pos':sE<0?'d-neg':'d-nil';
     return '<tr style="'+trStyle+'">'+
-      '<td colspan="4" style="'+tdSL+'font-size:11px;">'+label+'</td>'+
+      '<td colspan="5" style="'+tdSL+'font-size:11px;">'+label+'</td>'+
       '<td style="'+tdS+'font-weight:900;">'+sStores+'</td>'+
       '<td style="'+tdS+'color:var(--blue);font-weight:900;">'+sC+'</td>'+
       '<td style="'+tdS+'color:var(--purple);font-weight:900;">'+toFrac(sT)+'</td>'+
@@ -3115,11 +3121,13 @@ function _personTableHTML(persons){
       var validColor=vm>=2?'color:#22a84c;font-weight:700;':'color:#d93025;font-weight:800;';
       var validLabel=(vm>=2?'✅':'⚠️')+' '+vm+'/2';
       var rowBg=qd.evalMonths.length<2?'background:rgba(0,0,0,.025);':'';
+      var ten=_tenureInfo(qd);
       var teCls=qd.totalEval===null?'d-nil':(qd.totalEval>0?'d-pos':qd.totalEval<0?'d-neg':'d-nil');
       tbody+='<tr style="'+rowBg+'">'+
         '<td style="'+tdSL+'color:#555;font-size:11px;">'+esc(p.area)+'</td>'+
         '<td style="'+tdSL+'color:#555;font-size:11px;">'+esc(p.office)+'</td>'+
         '<td style="'+tdSL+'font-weight:700;">'+(qd.evalMonths.length<2?'<span style="color:#bbb;">':'')+esc(p.displayName)+(qd.evalMonths.length<2?'</span>':'')+'</td>'+
+        '<td style="'+tdSL+'font-size:11px;white-space:nowrap;"><b style="font-size:12px;">'+ten.n+' 個月</b> <span style="color:#888;">（'+ten.list+'）</span></td>'+
         '<td style="'+tdSL+validColor+'font-size:11px;">'+validLabel+'</td>'+
         '<td style="'+tdS+'">'+qd.totalStores+'</td>'+
         '<td style="'+tdS+'color:var(--blue);">'+qd.totalCur+'</td>'+
@@ -3246,7 +3254,7 @@ function personTableCopyLine(){
       var tag=vm>=2?'✅':'⚠️';
       var evalStr=qd.totalEval!==null?_fracText(qd.totalEval):'—';
       var sign=(qd.totalEval>0?'+':'');
-      lines.push('　'+tag+' '+p.displayName+'　家數'+qd.totalStores+'／當期'+qd.totalCur+'／目標'+_fracText(qd.totalTgt)+'／品評'+sign+evalStr);
+      lines.push('　'+tag+' '+p.displayName+'　任職'+_tenureInfo(qd).n+'個月（'+_tenureInfo(qd).list+'）／家數'+qd.totalStores+'／當期'+qd.totalCur+'／目標'+_fracText(qd.totalTgt)+'／品評'+sign+evalStr);
     });
   });
   lines.push('─────────────────');
@@ -3262,13 +3270,13 @@ function personTableXLSX(){
   var btn=document.getElementById('btn-ptbl-xlsx');
   if(!window.XLSX){ alert('XLSX 套件載入中，請稍後再試'); return; }
   if(!_ptCurrentPersons.length){ if(btn)_flashBtn(btn,'⚠️ 無資料'); return; }
-  var rows=[['營業處','營業所','人名','身分別','總家數','當期CTN','目標CTN','品評CTN']];
+  var rows=[['營業處','營業所','人名','任職月份數','任職月份','有效月份','總家數','當期CTN','目標CTN','品評CTN']];
   var groups={};
   _ptCurrentPersons.forEach(function(p){ var a=p.area||'（未知）'; (groups[a]=groups[a]||[]).push(p); });
   sortAreas(Object.keys(groups)).forEach(function(a){
     groups[a].forEach(function(p){
-      var qd=p.qd, vm=qd.validMonths.length;
-      rows.push([p.area,p.office,p.displayName,(vm>=2?'✅':'⚠️')+' '+vm+'/2',qd.totalStores,qd.totalCur,_fracVal(qd.totalTgt),qd.totalEval!==null?_fracVal(qd.totalEval):'']);
+      var qd=p.qd, vm=qd.validMonths.length, ten=_tenureInfo(qd);
+      rows.push([p.area,p.office,p.displayName,ten.n,ten.list,(vm>=2?'✅':'⚠️')+' '+vm+'/2',qd.totalStores,qd.totalCur,_fracVal(qd.totalTgt),qd.totalEval!==null?_fracVal(qd.totalEval):'']);
     });
   });
   var wb=XLSX.utils.book_new();
