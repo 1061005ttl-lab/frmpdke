@@ -1,8 +1,8 @@
 <!--
 ╔══════════════════════════════════════════════════════════════════════════════════╗
 ║         傳統通路購值進度 — AI 交接說明書                                         ║
-║         VERSION: 1.8.1  UPDATED: 10/20 (Excel得獎人總整表備註調整：加單位說明、刪除    ║
-║                          身分別不發／同分並列等括號文字)                          ║
+║         VERSION: 1.8.2  UPDATED: 10/20 (Excel：各處得獎統計獨立成分頁；各分頁表下備註     ║
+║                          改為得獎統計／得獎原因／無人原因)                        ║
 ╠══════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                  ║
 ║  【系統用途】                                                                    ║
@@ -151,6 +151,13 @@
 ║                 「單位：業績/目標/成長額度為仟元；獎金/品評額度為元」；刪除達成獎勵      ║
 ║                 「身分別不符資格/暫鎖/排除者不發」及成長突破獎、卓越貢獻獎的「同分並    ║
 ║                 列」括號說明。僅改備註文字，判定邏輯與統計未變。                        ║
+║  v1.8.2  10/20  Excel匯出分頁調整（personTableXLSX）：分頁順序改為①得獎人總整表②各處    ║
+║                 得獎統計（新分頁，_ptBuildStatsSheetRows）③人員彙整④各處（或各所）。    ║
+║                 備註重新分工：①得獎人總整表備註＝說明這些人如何得獎（得獎條件，刪除從缺  ║
+║                 項，改放統計頁）；②各處得獎統計備註＝說明為何有人／為何沒人（0或從缺）； ║
+║                 ④各處／各所分頁表下新增該處／該所「得獎統計」（_ptBuildGroupSheetRows）：║
+║                 處別分頁含從缺；營業所分頁因名次以整處計算，只列人數、不列從缺。        ║
+║                 _ptAreaAwardStats拆出共用的_ptCountAwards()。判定邏輯未變。            ║
 ╚══════════════════════════════════════════════════════════════════════════════════╝
 -->
 <!DOCTYPE html>
@@ -2160,10 +2167,9 @@ function _ptIsWinner(p){
   var rR=p['_rank_growthRate'],rG=p['_rank_totalGrowth'];
   return !!((rR&&rR<=3)||(rG&&rG<=3));
 }
-/* 單一處的得獎統計。排名一律用「整處」人員（不受營業所篩選影響），因為名額是以處為單位 */
-function _ptAreaAwardStats(areaName){
-  var arr=_ptAllPersonsCache.filter(function(p){return (p.area||'（未知）')===areaName;});
-  var r={area:areaName,n1000:0,n500:0,winners:0,gCnt:0,gMiss:[],eCnt:0,eMiss:[]};
+/* 得獎統計核心：對一份人員清單計數（排名欄位 _rank_* 本身是整處排名，這裡只讀不算） */
+function _ptCountAwards(arr){
+  var r={n1000:0,n500:0,winners:0,gCnt:0,eCnt:0,gMiss:[],eMiss:[]};
   var gRanks={},eRanks={};
   arr.forEach(function(p){
     if(p.qd.bonus===1000) r.n1000++; else if(p.qd.bonus===500) r.n500++;
@@ -2177,9 +2183,14 @@ function _ptAreaAwardStats(areaName){
   [1,2,3].forEach(function(k){if(!gRanks[k])r.gMiss.push(k);if(!eRanks[k])r.eMiss.push(k);});
   return r;
 }
+/* 單一處的得獎統計。排名一律用「整處」人員（不受營業所篩選影響），因為名額是以處為單位 */
+function _ptAreaAwardStats(areaName){
+  var arr=_ptAllPersonsCache.filter(function(p){return (p.area||'（未知）')===areaName;});
+  var r=_ptCountAwards(arr); r.area=areaName; return r;
+}
 function _ptMissStr(miss){return miss.length?miss.length+'（第'+miss.join('、')+'名）':'0';}
 
-/* 第1分頁：得獎人總整表（表 → 備註：得獎條件 → 各處得獎／從缺統計） */
+/* 第1分頁：得獎人總整表。表下備註＝說明「這些人是怎麼得獎、列進來的」 */
 function _ptBuildAwardSheetRows(ordered){
   var winners=ordered.filter(_ptIsWinner);
   var rows=_ptRowsWithSerial(winners);
@@ -2190,17 +2201,19 @@ function _ptBuildAwardSheetRows(ordered){
   rows.push(['範圍：'+(curQ||'')+'　'+scope+'　得獎共 '+winners.length+' 人（含同時得多項獎者，僅計1人）']);
   rows.push(['單位：當期業績、目標(孰高)、成長額度為仟元；獎金、品評額度為元。']);
   rows.push([]);
-  rows.push(['得獎條件']);
-  rows.push(['1. 得獎者定義：符合下列「達成獎勵」「成長突破獎」「卓越貢獻獎」任一項，即列入本表。']);
-  rows.push(['2. 達成獎勵：本季成長額度>0 且 成長%≥5%；有效身分月份3個月得 $1,000、2個月得 $500。']);
-  rows.push(['3. 成長突破獎：須達成獎勵 $1,000 且全季所屬營業處一致（非跨單位）；同營業處內依「成長%」排名，前3名各 $1,000。']);
-  rows.push(['4. 卓越貢獻獎：條件同上；同營業處內依「成長額度」排名，前3名各 $1,000。']);
-  rows.push(['5. 品評額度：僅卓越貢獻獎第1名（非跨單位）適用，額度＝(成長%－5)取整數×$1,000，上限 $20,000。']);
-  rows.push(['6. 跨單位（本季月份分屬不同營業處）者僅領達成獎勵，不參與成長突破獎／卓越貢獻獎名次與品評額度。']);
-  rows.push(['7. 從缺：成長突破獎、卓越貢獻獎各處名額為第1～3名；某名次無人符合即該名次從缺（例：全處僅2人達 $1,000 且無並列，則第3名從缺，記為「從缺1（第3名）」）。']);
-  rows.push([]);
-  rows.push(['各處得獎統計']);
-  rows.push(['營業處','達成$1,000(人)','達成$500(人)','成長突破獎得獎(人)','成長突破獎從缺(名)','卓越貢獻獎得獎(人)','卓越貢獻獎從缺(名)','得獎總人數(人)']);
+  rows.push(['得獎條件（符合任一項即列入本表）']);
+  rows.push(['1. 達成獎勵：本季成長額度>0 且 成長%≥5%；有效身分月份3個月得 $1,000、2個月得 $500。']);
+  rows.push(['2. 成長突破獎：須達成獎勵 $1,000 且全季所屬營業處一致（非跨單位）；同營業處內依「成長%」排名，前3名各 $1,000。']);
+  rows.push(['3. 卓越貢獻獎：條件同上；同營業處內依「成長額度」排名，前3名各 $1,000。']);
+  rows.push(['4. 品評額度：僅卓越貢獻獎第1名（非跨單位）適用，額度＝(成長%－5)取整數×$1,000，上限 $20,000。']);
+  rows.push(['5. 跨單位（本季月份分屬不同營業處）者僅領達成獎勵，不參與成長突破獎／卓越貢獻獎名次與品評額度。']);
+  if(_ptOfficeFilter) rows.push(['※ 目前篩選營業所「'+_ptOfficeFilter+'」，本表僅列該所人員；名次仍以整個營業處計算。']);
+  return rows;
+}
+
+/* 第2分頁：各處得獎統計。表下備註＝說明「這張表為何有人、為何沒人」 */
+function _ptBuildStatsSheetRows(ordered){
+  var rows=[['營業處','達成$1,000(人)','達成$500(人)','成長突破獎得獎(人)','成長突破獎從缺(名)','卓越貢獻獎得獎(人)','卓越貢獻獎從缺(名)','得獎總人數(人)']];
   var areas={};ordered.forEach(function(p){areas[p.area||'（未知）']=1;});
   var tot={n1000:0,n500:0,gCnt:0,eCnt:0,winners:0,gMissN:0,eMissN:0};
   sortAreas(Object.keys(areas)).forEach(function(a){
@@ -2209,7 +2222,39 @@ function _ptBuildAwardSheetRows(ordered){
     rows.push([a,st.n1000,st.n500,st.gCnt,_ptMissStr(st.gMiss),st.eCnt,_ptMissStr(st.eMiss),st.winners]);
   });
   rows.push(['合計',tot.n1000,tot.n500,tot.gCnt,tot.gMissN,tot.eCnt,tot.eMissN,tot.winners]);
-  if(_ptOfficeFilter) rows.push(['※ 目前篩選營業所「'+_ptOfficeFilter+'」，上方得獎表僅列該所人員；統計表仍為「整個營業處」的數字（名額以處為單位）。']);
+  rows.push([]);
+  rows.push(['備註']);
+  rows.push(['範圍：'+(curQ||'')+'　統計以整個營業處計算，不受營業所篩選影響（名額以處為單位）。']);
+  rows.push(['單位：人數為「人」；從缺為「名次數」。']);
+  rows.push([]);
+  rows.push(['為何有人']);
+  rows.push(['1. 達成$1,000／$500：該處成長額度>0 且 成長%≥5% 的人，依有效身分月份（3個月／2個月）分別計入。']);
+  rows.push(['2. 成長突破獎／卓越貢獻獎得獎：達成 $1,000 且非跨單位者，依成長%／成長額度在處內排名，列名第1～3名者計入（條件詳見「得獎人總整表」備註）。']);
+  rows.push(['3. 得獎總人數：符合任一獎項者，同時得多項獎只計1人。']);
+  rows.push([]);
+  rows.push(['為何沒有人（0 或從缺）']);
+  rows.push(['1. 達成獎勵為0：該處無人同時滿足成長額度>0、成長%≥5%，且有效身分月份達2個月以上。']);
+  rows.push(['2. 兩個名次獎項無人：名次僅限達成 $1,000 者；只達 $500 者、跨單位者皆不參與名次，所以處內達 $1,000 的人不足時，名次即空出。']);
+  rows.push(['3. 從缺：兩個獎項各處名額為第1～3名，某名次無人符合即從缺，記為「從缺數（名次）」。例：全處僅2人達 $1,000，則第3名從缺，記「1（第3名）」；全處無人則記「3（第1、2、3名）」。']);
+  rows.push(['4. 合計列：各欄加總；從缺合計為各處從缺名次數相加。']);
+  if(_ptOfficeFilter) rows.push(['※ 目前篩選營業所「'+_ptOfficeFilter+'」，此表仍為該所所屬營業處的整處數字。']);
+  return rows;
+}
+
+/* 各處／各所分頁：人員表下方附「得獎統計」。處別分頁＝整處（含從缺）；營業所分頁＝該所人數（名次以整處計，故不列從缺） */
+function _ptBuildGroupSheetRows(list,label,isOffice){
+  var rows=_ptRowsWithSerial(list);
+  var st=_ptCountAwards(list);
+  rows.push([]);
+  rows.push(['備註']);
+  rows.push(['得獎統計：'+(curQ||'')+'　'+label+'　共 '+list.length+' 人']);
+  rows.push(['項目','得獎人數','從缺(名)']);
+  rows.push(['達成獎勵 $1,000',st.n1000,'—']);
+  rows.push(['達成獎勵 $500',st.n500,'—']);
+  rows.push(['成長突破獎',st.gCnt,isOffice?'—':_ptMissStr(st.gMiss)]);
+  rows.push(['卓越貢獻獎',st.eCnt,isOffice?'—':_ptMissStr(st.eMiss)]);
+  rows.push(['得獎總人數（重複只計1人）',st.winners,'—']);
+  rows.push([isOffice?'※ 成長突破獎／卓越貢獻獎名次與從缺以整個營業處計算，本所僅列本所人員的得獎人數，故不列從缺。':'※ 從缺：兩個獎項名額各為第1～3名，某名次無人即從缺。']);
   return rows;
 }
 
@@ -2239,15 +2284,15 @@ function _ptAoaSheet(rows,textRowsFrom){
   return ws;
 }
 
-/* 多分頁 Excel：①得獎人總整表 ②人員彙整 ③以後依營業處（畫面已篩營業處則改依營業所）各一頁 */
+/* 多分頁 Excel：①得獎人總整表 ②各處得獎統計 ③人員彙整 ④以後依營業處（畫面已篩營業處則改依營業所）各一頁 */
 function personTableXLSX(){
   if(!window.XLSX){alert('XLSX 套件載入中，請稍後再試');return;}
   var persons=_buildPersonTableData();
   var ordered=_ptOrdered(persons);
   var wb=XLSX.utils.book_new();
   var used={};
-  var awardRows=_ptBuildAwardSheetRows(ordered);
-  XLSX.utils.book_append_sheet(wb,_ptAoaSheet(awardRows,ordered.filter(_ptIsWinner).length+2),_ptSheetName('得獎人總整表',used));
+  XLSX.utils.book_append_sheet(wb,_ptAoaSheet(_ptBuildAwardSheetRows(ordered),0),_ptSheetName('得獎人總整表',used));
+  XLSX.utils.book_append_sheet(wb,_ptAoaSheet(_ptBuildStatsSheetRows(ordered),0),_ptSheetName('各處得獎統計',used));
   XLSX.utils.book_append_sheet(wb,_ptAoaSheet(_ptRowsWithSerial(ordered)),_ptSheetName('人員彙整',used));
 
   var byOffice=!!(_ptAreaFilter||fArea); /* 畫面已篩營業處 → 依營業所分頁 */
@@ -2260,7 +2305,7 @@ function personTableXLSX(){
   var keys=Object.keys(groups);
   keys=byOffice?keys.sort():sortAreas(keys);
   keys.forEach(function(k){
-    XLSX.utils.book_append_sheet(wb,_ptAoaSheet(_ptRowsWithSerial(groups[k])),_ptSheetName(k,used));
+    XLSX.utils.book_append_sheet(wb,_ptAoaSheet(_ptBuildGroupSheetRows(groups[k],k,byOffice),0),_ptSheetName(k,used));
   });
   XLSX.writeFile(wb,'人員彙整_'+(curQ||'')+'_'+_nowStr()+'.xlsx');
 }
