@@ -1,8 +1,8 @@
 <!--
 ╔══════════════════════════════════════════════════════════════════════════════════╗
 ║         傳統通路購值進度 — AI 交接說明書                                         ║
-║         VERSION: 1.7.2  UPDATED: 07/15 (得獎者PDF：改逐頁小容器渲染，修正        ║
-║                          店家數多時尾端資料列與合計列被裁掉的問題)                ║
+║         VERSION: 1.8.0  UPDATED: 10/20 (人員彙整表加序號；新增多分頁Excel匯出：   ║
+║                          得獎人總整表／人員彙整／依處(或所)分頁)                  ║
 ╠══════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                  ║
 ║  【系統用途】                                                                    ║
@@ -131,6 +131,22 @@
 ║                 （複製表頭+該頁列，頁2以後加「（續上頁）第X／Y頁」小標）分別呼叫    ║
 ║                 html2canvas，每張畫布高度都bound在一頁以內。移除已不再使用的        ║
 ║                 _collectRowBreaksCss()（舊版整圖切割法專用）。                      ║
+║  v1.8.0  10/20  人員彙整表①加「序號」：畫面表格、CSV、LINE複製皆加在第1欄，依畫面   ║
+║                 顯示順序（處別→目前排序欄位）連續編號；畫面欄數12→13（NCOLS、小計     ║
+║                 列colspan同步）。為讓畫面與匯出序號一致，內部sortPersons抽成全域      ║
+║                 _ptSortPersons()，_assemblePersonTableRows()改由_ptOrdered()（畫面同序）║
+║                 ＋_ptRowCells()（單人欄位，內容與v1.6.2相同）＋_ptRowsWithSerial()組成。║
+║                 ②新增【Excel】按鈕（btn-ptbl-xlsx，personTableXLSX()，沿用頁面已載入   ║
+║                 的SheetJS）：CSV本身無法分頁，故多分頁輸出為.xlsx，原CSV按鈕保留（單頁，║
+║                 僅多序號）。分頁：第1頁「得獎人總整表」（得獎者清單＋表下備註：得獎條  ║
+║                 件、各處得獎人數、從缺名次統計）；第2頁「人員彙整」（同現行表）；之後  ║
+║                 依「營業處」各一頁，若畫面已篩選營業處(_ptAreaFilter/fArea)則改依該處  ║
+║                 「營業所」各一頁（再篩到單一營業所則僅一頁）。各頁序號各自由1起算。   ║
+║                 得獎者判定與得獎者PDF一致（_ptIsWinner：達成獎勵或成長突破/卓越貢獻前3， ║
+║                 跨單位排除後兩者）。「從缺」＝成長突破獎／卓越貢獻獎各處第1~3名中無人的  ║
+║                 名次，名次以整處計算（_ptAllPersonsCache，不受營業所篩選影響）。        ║
+║                 ⚠️ 若獎項名額或條件改變，需同步修改_ptBuildAwardSheetRows()備註文字與   ║
+║                 _ptAreaAwardStats()的名額判斷（目前寫死前3名）。                        ║
 ╚══════════════════════════════════════════════════════════════════════════════════╝
 -->
 <!DOCTYPE html>
@@ -567,6 +583,7 @@
       <div style="display:flex;align-items:center;gap:8px;">
         <button class="dlg-action-btn" onclick="personTableCopyLine()" id="btn-ptbl-line">&#128172; LINE</button>
         <button class="dlg-action-btn" onclick="personTableCSV()" id="btn-ptbl-csv">&#128229; CSV</button>
+        <button class="dlg-action-btn" onclick="personTableXLSX()" id="btn-ptbl-xlsx">&#128202; Excel</button>
         <button class="dlg-action-btn" onclick="personTableScreenshot()" id="btn-ptbl-shot">&#128248; 截圖</button>
         <button class="dlg-action-btn" onclick="exportAwardWinnersPDF()" id="btn-ptbl-award-pdf">&#127942; 得獎PDF</button>
         <button class="dlg-close" onclick="closePersonTable()">&#10005;</button>
@@ -646,6 +663,7 @@ var MNAMES     = ['','1月','2月','3月','4月','5月','6月','7月','8月','9�
 var allRows=[],CI={},curQ='',fArea='',fOffice='',_syncTime='';
 var curSort='eval', viewMode='person', _rankTab='growth', _runRaf=null;
 var _currentQd=null, _currentStaff='', _currentOrgStore=null;
+var _ptAllPersonsCache=[]; /* v1.8.0 _buildPersonTableData() 算出的全體人員（含排名，未套篩選），供Excel匯出算「各處得獎/從缺」用 */
 var _ptSort={col:'pct',dir:-1}; /* 人員彙整表排序狀態，預設成長% 由大到小 */
 
 function _isMob(){ return ('ontouchstart' in window)||window.innerWidth<768; }
@@ -1831,7 +1849,24 @@ function _buildPersonTableData(){
     if(useOffice&&p.office!==useOffice) return false;
     return true;
   });
+  _ptAllPersonsCache=allPersons;
   return persons;
+}
+
+/* 依 _ptSort 欄位排序，有效月份 ≤1 的沉底（畫面／匯出共用） */
+function _ptSortPersons(arr){
+    return arr.slice().sort(function(a,b){
+      var aRd=_parseRoleDetail(a.qd), bRd=_parseRoleDetail(b.qd);
+      var aLow=(aRd.roleMonthCount<=1)?1:0;
+      var bLow=(bRd.roleMonthCount<=1)?1:0;
+      if(aLow!==bLow) return aLow-bLow;
+      var av,bv;
+      if(_ptSort.col==='cur'){av=a.qd.totalCur||0;bv=b.qd.totalCur||0;}
+      else if(_ptSort.col==='last'){av=a.qd.totalTgt||0;bv=b.qd.totalTgt||0;}
+      else if(_ptSort.col==='growth'){av=a.qd.totalGrowth||0;bv=b.qd.totalGrowth||0;}
+      else{av=a.qd.totalPct!==null?a.qd.totalPct:-9999;bv=b.qd.totalPct!==null?b.qd.totalPct:-9999;}
+      return _ptSort.dir*(av-bv); /* dir=-1=降冪(大在前)：-1*(av-bv)，bv>av → 正 → b在前 */
+    });
 }
 
 function _personTableHTML(persons){
@@ -1843,7 +1878,7 @@ function _personTableHTML(persons){
     groups[a].push(p);
   });
 
-  var NCOLS=12; /* 總欄數（含身分別欄） */
+  var NCOLS=13; /* 總欄數（含序號、身分別欄） */
   var thS='padding:7px 10px;font-size:11px;font-weight:800;color:#444;background:#f0f4f0;border-bottom:2px solid #ccd8cc;border-right:1px solid #dde8dd;white-space:nowrap;text-align:right;position:sticky;top:0;z-index:2;';
   var thSL=thS+'text-align:left;';
 
@@ -1858,6 +1893,7 @@ function _personTableHTML(persons){
   }
 
   var thead='<thead><tr>'+
+    '<th style="'+thS+'text-align:center;">序號</th>'+
     '<th style="'+thSL+'">營業處</th>'+
     '<th style="'+thSL+'">營業所</th>'+
     '<th style="'+thSL+'">人名</th>'+
@@ -1884,7 +1920,7 @@ function _personTableHTML(persons){
     var sL=arr.reduce(function(s,p){return s+p.qd.totalTgt;},0);
     var sD=sC-sL;
     return '<tr style="'+trStyle+'">'+
-      '<td colspan="4" style="'+tdSL+'font-size:11px;">'+label+'</td>'+
+      '<td colspan="5" style="'+tdSL+'font-size:11px;">'+label+'</td>'+
       '<td style="'+tdS+'color:#1a73e8;font-weight:900;">'+fmtN(sC)+'</td>'+
       '<td style="'+tdS+'color:#7c3aed;font-weight:900;">'+fmtN(sL)+'</td>'+
       '<td style="'+tdS+dCl(sD)+'font-weight:900;">'+ds(sD)+'</td>'+
@@ -1892,21 +1928,8 @@ function _personTableHTML(persons){
     '</tr>';
   }
 
-  /* 排序 helper：依 _ptSort 欄位排序，有效月份 ≤1 的沉底 */
-  function sortPersons(arr){
-    return arr.slice().sort(function(a,b){
-      var aRd=_parseRoleDetail(a.qd), bRd=_parseRoleDetail(b.qd);
-      var aLow=(aRd.roleMonthCount<=1)?1:0;
-      var bLow=(bRd.roleMonthCount<=1)?1:0;
-      if(aLow!==bLow) return aLow-bLow;
-      var av,bv;
-      if(_ptSort.col==='cur'){av=a.qd.totalCur||0;bv=b.qd.totalCur||0;}
-      else if(_ptSort.col==='last'){av=a.qd.totalTgt||0;bv=b.qd.totalTgt||0;}
-      else if(_ptSort.col==='growth'){av=a.qd.totalGrowth||0;bv=b.qd.totalGrowth||0;}
-      else{av=a.qd.totalPct!==null?a.qd.totalPct:-9999;bv=b.qd.totalPct!==null?b.qd.totalPct:-9999;}
-      return _ptSort.dir*(av-bv); /* dir=-1=降冪(大在前)：-1*(av-bv)，bv>av → 正 → b在前 */
-    });
-  }
+  /* 排序 helper：v1.8.0 起抽成全域 _ptSortPersons()，畫面與Excel匯出共用同一套排序（序號才會一致） */
+  function sortPersons(arr){return _ptSortPersons(arr);}
 
   var tbody='<tbody>';
   var allShown=[];
@@ -1934,6 +1957,7 @@ function _personTableHTML(persons){
       /* 有效月份 ≤1 整列淡化 */
       var rowBg=rd.roleMonthCount<=1?'background:rgba(0,0,0,.025);':'';
       tbody+='<tr style="'+rowBg+'">'+
+        '<td style="'+tdS+'color:#999;font-size:11px;text-align:center;">'+allShown.length+'</td>'+ /* 序號：依畫面顯示順序連續編號（allShown 已 push 當前這人） */
         '<td style="'+tdSL+'color:#555;font-size:11px;">'+esc(p.area)+'</td>'+
         '<td style="'+tdSL+'color:#555;font-size:11px;">'+esc(p.office)+'</td>'+
         '<td style="'+tdSL+'font-weight:700;">'+(rd.roleMonthCount<=1?'<span style="color:#bbb;">':'')+''+esc(p.displayName)+(rd.roleMonthCount<=1?'</span>':'')+'</td>'+
@@ -2051,11 +2075,20 @@ function openPersonTable(){
 }
 function closePersonTable(){var m=document.getElementById('person-table-modal');m.style.opacity='0';setTimeout(function(){m.style.display='none';},200);}
 
-function _assemblePersonTableRows(){
-  var persons=_buildPersonTableData();
-  var hdr=['營業處','營業所','人名','身分別','有效月份','當期業績','目標(孰高)','成長額度','成長%','達成獎勵','成長突破獎','卓越貢獻獎','品評額度','備註'];
-  var rows=[hdr];
-  persons.forEach(function(p){
+/* ══ v1.8.0 人員彙整表匯出（CSV／LINE／Excel 共用） ══ */
+var _PT_HDR=['營業處','營業所','人名','身分別','有效月份','當期業績','目標(孰高)','成長額度','成長%','達成獎勵','成長突破獎','卓越貢獻獎','品評額度','備註'];
+
+/* 與畫面同序：先依處別（sortAreas），處內依目前排序欄位 */
+function _ptOrdered(persons){
+  var groups={};
+  persons.forEach(function(p){var a=p.area||'（未知）';if(!groups[a])groups[a]=[];groups[a].push(p);});
+  var out=[];
+  sortAreas(Object.keys(groups)).forEach(function(a){out=out.concat(_ptSortPersons(groups[a]));});
+  return out;
+}
+
+/* 單一人員的匯出欄位（不含序號），欄位順序＝_PT_HDR */
+function _ptRowCells(p){
     var qd=p.qd;
     var rd=_parseRoleDetail(qd);
     var pct=truncPct2(qd.totalPct);
@@ -2084,7 +2117,7 @@ function _assemblePersonTableRows(){
     }
     var noteStr=noteParts.join('；');
 
-    rows.push([
+    return [
       p.area,p.office,p.displayName,
       rd.roleLabel,rd.roleMonthCount+'/3',
       fmtN(qd.totalCur),fmtN(qd.totalTgt),
@@ -2095,9 +2128,136 @@ function _assemblePersonTableRows(){
       excellenceAmt,
       evalStr,
       noteStr
-    ]);
-  });
+    ];}
+
+/* 加上序號欄：序號依傳入清單順序由 1 起算 */
+function _ptRowsWithSerial(list){
+  var rows=[['序號'].concat(_PT_HDR)];
+  list.forEach(function(p,i){rows.push([i+1].concat(_ptRowCells(p)));});
   return rows;
+}
+
+/* CSV／LINE 用：目前畫面篩選範圍、畫面同序、含序號 */
+function _assemblePersonTableRows(){
+  return _ptRowsWithSerial(_ptOrdered(_buildPersonTableData()));
+}
+
+/* 跨單位判斷（與 _personTableHTML 同一規則） */
+function _ptIsCross(p){
+  var qd=p.qd;
+  var ras=qd.evalMonths.map(function(m){return qd.monthArea[m]||'';});
+  return qd.bonus===1000&&!(qd.evalMonths.length===3&&ras.every(function(a){return a!==''&&a===ras[0];}));
+}
+/* 得獎者＝達成獎勵($1,000/$500)、成長突破獎前3、卓越貢獻獎前3 任一（與得獎者PDF同一標準） */
+function _ptIsWinner(p){
+  var qd=p.qd;
+  if(qd.bonus===1000||qd.bonus===500) return true;
+  if(_ptIsCross(p)) return false;
+  var rR=p['_rank_growthRate'],rG=p['_rank_totalGrowth'];
+  return !!((rR&&rR<=3)||(rG&&rG<=3));
+}
+/* 單一處的得獎統計。排名一律用「整處」人員（不受營業所篩選影響），因為名額是以處為單位 */
+function _ptAreaAwardStats(areaName){
+  var arr=_ptAllPersonsCache.filter(function(p){return (p.area||'（未知）')===areaName;});
+  var r={area:areaName,n1000:0,n500:0,winners:0,gCnt:0,gMiss:[],eCnt:0,eMiss:[]};
+  var gRanks={},eRanks={};
+  arr.forEach(function(p){
+    if(p.qd.bonus===1000) r.n1000++; else if(p.qd.bonus===500) r.n500++;
+    if(_ptIsWinner(p)) r.winners++;
+    if(!_ptIsCross(p)){
+      var rR=p['_rank_growthRate'],rG=p['_rank_totalGrowth'];
+      if(rR&&rR<=3){r.gCnt++;gRanks[rR]=1;}
+      if(rG&&rG<=3){r.eCnt++;eRanks[rG]=1;}
+    }
+  });
+  [1,2,3].forEach(function(k){if(!gRanks[k])r.gMiss.push(k);if(!eRanks[k])r.eMiss.push(k);});
+  return r;
+}
+function _ptMissStr(miss){return miss.length?miss.length+'（第'+miss.join('、')+'名）':'0';}
+
+/* 第1分頁：得獎人總整表（表 → 備註：得獎條件 → 各處得獎／從缺統計） */
+function _ptBuildAwardSheetRows(ordered){
+  var winners=ordered.filter(_ptIsWinner);
+  var rows=_ptRowsWithSerial(winners);
+  if(!winners.length) rows.push(['（目前篩選範圍無得獎者）']);
+  var scope=_ptOfficeFilter||_ptAreaFilter||fOffice||fArea||'全體';
+  rows.push([]);
+  rows.push(['備註']);
+  rows.push(['範圍：'+(curQ||'')+'　'+scope+'　得獎共 '+winners.length+' 人（含同時得多項獎者，僅計1人）']);
+  rows.push([]);
+  rows.push(['得獎條件']);
+  rows.push(['1. 得獎者定義：符合下列「達成獎勵」「成長突破獎」「卓越貢獻獎」任一項，即列入本表。']);
+  rows.push(['2. 達成獎勵：本季成長額度>0 且 成長%≥5%；有效身分月份3個月得 $1,000、2個月得 $500。身分別為「不符資格／暫鎖發放／排除」者不發。']);
+  rows.push(['3. 成長突破獎：須達成獎勵 $1,000 且全季所屬營業處一致（非跨單位）；同營業處內依「成長%」排名，前3名各 $1,000（同分並列同名次，故人數可能超過3人）。']);
+  rows.push(['4. 卓越貢獻獎：條件同上；同營業處內依「成長額度」排名，前3名各 $1,000（同分並列同名次）。']);
+  rows.push(['5. 品評額度：僅卓越貢獻獎第1名（非跨單位）適用，額度＝(成長%－5)取整數×$1,000，上限 $20,000。']);
+  rows.push(['6. 跨單位（本季月份分屬不同營業處）者僅領達成獎勵，不參與成長突破獎／卓越貢獻獎名次與品評額度。']);
+  rows.push(['7. 從缺：成長突破獎、卓越貢獻獎各處名額為第1～3名；某名次無人符合即該名次從缺（例：全處僅2人達 $1,000 且無並列，則第3名從缺，記為「從缺1（第3名）」）。']);
+  rows.push([]);
+  rows.push(['各處得獎統計']);
+  rows.push(['營業處','達成$1,000(人)','達成$500(人)','成長突破獎得獎(人)','成長突破獎從缺(名)','卓越貢獻獎得獎(人)','卓越貢獻獎從缺(名)','得獎總人數(人)']);
+  var areas={};ordered.forEach(function(p){areas[p.area||'（未知）']=1;});
+  var tot={n1000:0,n500:0,gCnt:0,eCnt:0,winners:0,gMissN:0,eMissN:0};
+  sortAreas(Object.keys(areas)).forEach(function(a){
+    var st=_ptAreaAwardStats(a);
+    tot.n1000+=st.n1000;tot.n500+=st.n500;tot.gCnt+=st.gCnt;tot.eCnt+=st.eCnt;tot.winners+=st.winners;tot.gMissN+=st.gMiss.length;tot.eMissN+=st.eMiss.length;
+    rows.push([a,st.n1000,st.n500,st.gCnt,_ptMissStr(st.gMiss),st.eCnt,_ptMissStr(st.eMiss),st.winners]);
+  });
+  rows.push(['合計',tot.n1000,tot.n500,tot.gCnt,tot.gMissN,tot.eCnt,tot.eMissN,tot.winners]);
+  if(_ptOfficeFilter) rows.push(['※ 目前篩選營業所「'+_ptOfficeFilter+'」，上方得獎表僅列該所人員；統計表仍為「整個營業處」的數字（名額以處為單位）。']);
+  return rows;
+}
+
+/* Excel 分頁名稱：去除非法字元、限31字、不可重複 */
+function _ptSheetName(name,used){
+  var base=String(name||'（未設）').replace(/[\\\/\?\*\[\]:]/g,'_').slice(0,31)||'_';
+  var n=base,i=2;
+  while(used[n.toLowerCase()]){var suf='('+i+')';n=base.slice(0,31-suf.length)+suf;i++;}
+  used[n.toLowerCase()]=1;
+  return n;
+}
+function _ptAoaSheet(rows,textRowsFrom){
+  var ws=XLSX.utils.aoa_to_sheet(rows);
+  var nCol=0;rows.forEach(function(r){if(r.length>nCol)nCol=r.length;});
+  var cols=[];
+  for(var c=0;c<Math.min(nCol,14);c++){
+    var mx=8;
+    rows.forEach(function(r,ri){
+      if(textRowsFrom!==undefined&&ri>=textRowsFrom&&r.length<=1) return; /* 備註長句不參與欄寬 */
+      var v=String(r[c]===undefined||r[c]===null?'':r[c]);
+      var w=0;for(var k=0;k<v.length;k++)w+=v.charCodeAt(k)>255?2:1;
+      if(w+2>mx)mx=w+2;
+    });
+    cols.push({wch:Math.min(mx,40)});
+  }
+  ws['!cols']=cols;
+  return ws;
+}
+
+/* 多分頁 Excel：①得獎人總整表 ②人員彙整 ③以後依營業處（畫面已篩營業處則改依營業所）各一頁 */
+function personTableXLSX(){
+  if(!window.XLSX){alert('XLSX 套件載入中，請稍後再試');return;}
+  var persons=_buildPersonTableData();
+  var ordered=_ptOrdered(persons);
+  var wb=XLSX.utils.book_new();
+  var used={};
+  var awardRows=_ptBuildAwardSheetRows(ordered);
+  XLSX.utils.book_append_sheet(wb,_ptAoaSheet(awardRows,ordered.filter(_ptIsWinner).length+2),_ptSheetName('得獎人總整表',used));
+  XLSX.utils.book_append_sheet(wb,_ptAoaSheet(_ptRowsWithSerial(ordered)),_ptSheetName('人員彙整',used));
+
+  var byOffice=!!(_ptAreaFilter||fArea); /* 畫面已篩營業處 → 依營業所分頁 */
+  var groups={};
+  ordered.forEach(function(p){
+    var k=byOffice?(p.office||'（未設所）'):(p.area||'（未知）');
+    if(!groups[k])groups[k]=[];
+    groups[k].push(p);
+  });
+  var keys=Object.keys(groups);
+  keys=byOffice?keys.sort():sortAreas(keys);
+  keys.forEach(function(k){
+    XLSX.utils.book_append_sheet(wb,_ptAoaSheet(_ptRowsWithSerial(groups[k])),_ptSheetName(k,used));
+  });
+  XLSX.writeFile(wb,'人員彙整_'+(curQ||'')+'_'+_nowStr()+'.xlsx');
 }
 
 function personTableCopyLine(){
