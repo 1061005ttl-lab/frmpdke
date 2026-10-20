@@ -1,7 +1,7 @@
 <!--
 ════════════════════════════════════════════════════════════
   coverage_board.html  ─  覆蓋率型看板
-  版本：Ver. 3.17.0 ｜ 最後更新：2026-09-22
+  版本：Ver. 3.18.0 ｜ 最後更新：2026-10-20
 ════════════════════════════════════════════════════════════
 
 
@@ -133,6 +133,18 @@
 
 
 【版本紀錄】（往後新版本請繼續往下累加，格式：版本號 日期 摘要）
+  3.18.0 2026-10-20  【匯出一致性】CSV 匯出漏了畫面明細表有的「最後訪店(調查)日」，
+                      一併盤點各匯出後統一補齊：
+                      1) 主 CSV（buildCsvContent，含彙整看板人員/單位/店家 CSV）：
+                      欄位順序改成跟畫面一致——營業處／營業所／執行人員／店碼／
+                      店名／店家型態／最後訪店(調查)日／狀態／各 B、C 欄；店家型態
+                      以前只有部分鑽層才有，現在一律輸出。
+                      2) 細項匯出 CSV：原本只有執行人員／店碼／店名，補上營業處／
+                      營業所／店家型態／最後訪店(調查)日。
+                      3) LINE 完整／精簡（buildLineText）與細項匯出 LINE：每家店
+                      補「｜最後訪店 日期」。
+                      共用 _exportVisitDate()（同畫面 _latestVisitTimeKey＋_dateOnly，
+                      無紀錄顯示「—」）。注意：問卷資料尚未載入完成時日期會是「—」。
   3.17.0 2026-09-22  配合管理表「覆蓋率型專案管理」刪掉沒在用的 C 欄
                       「專案類型」（加總型從一開始就沒真的用過），
                       _fetchLegacyBucketConfigData() 的欄位讀取位置跟著
@@ -5671,7 +5683,7 @@ function buildLineText(dRows, lv, title, simple) {
   var no     = valid.filter(function(r){return isNoRow(r);});
   var gcol   = getExtraCols(lv)[0]||null;
   function gh(r){return gcol?String(r[gcol]||''):null;}
-  function ss(r){var c=String(r[COL_CODE]||''),n=String(r[COL_NAME]||'—'),st=String(r[COL_STAFF]||'');return n+(c?' ('+c+')' : '')+(st?' ｜'+st:'');}
+  function ss(r){var c=String(r[COL_CODE]||''),n=String(r[COL_NAME]||'—'),st=String(r[COL_STAFF]||'');return n+(c?' ('+c+')' : '')+(st?' ｜'+st:'')+' ｜最後訪店 '+_exportVisitDate(c);}
 
 
   /* 摘要行 */
@@ -5814,6 +5826,11 @@ function toolbarScreenshot(){
 
 
 /* ── CSV 下載（共用） ── */
+/* 匯出用「最後訪店(調查)日」：跟畫面明細表同一來源（_latestVisitTimeKey＋_dateOnly），
+   無紀錄或問卷尚未載入時給「—」，與畫面一致。 */
+function _exportVisitDate(code){
+  return _dateOnly(_latestVisitTimeKey(code)) || '—';
+}
 function buildCsvContent(dRows, lv) {
   var allD = dialogRows(dRows, lv);
   /* COL_STAFF 已經改成固定獨立一欄「執行人員」（見下方 headers），
@@ -5830,18 +5847,19 @@ function buildCsvContent(dRows, lv) {
      所以「營業處」「營業所」這兩欄固定加進 CSV，不管目前鑽到哪一層都有；
      用 concat+filter 去重，避免跟 getExtraCols() 原本就有回傳的重複。
      只動 CSV 這裡，getDisplayCols()／畫面上的店家明細表格不受影響。 */
-  var extraCols = [COL_AREA, COL_OFFICE].concat(
-    getExtraCols(lv).filter(function(c){ return c !== COL_STAFF && c !== COL_AREA && c !== COL_OFFICE; })
-  );
   var dynCols = [];
   BUCKETS_B.forEach(function(g){if(g.cols.length===1)dynCols.push(g.label);else g.cols.forEach(function(t){dynCols.push(t);});});
   BUCKETS_C.forEach(function(g){if(g.cols.length===1)dynCols.push(g.label);else g.cols.forEach(function(t){dynCols.push(t);});});
-  var headers = extraCols.map(function(c){return COL_LABELS[c]||c;}).concat(['執行人員','店碼','店名','狀態']).concat(dynCols);
+  /* 【v3.18.0】欄位順序與畫面明細表一致：營業處／營業所／執行人員／店碼／店名／
+     店家型態／最後訪店(調查)日／狀態／各 B、C 欄。店家型態、最後訪店日不再依鑽層
+     層級有無，一律輸出，各匯出（CSV／細項匯出 CSV／LINE）口徑統一。 */
+  var headers = ['營業處','營業所/課','執行人員','店碼','店名','店家型態','最後訪店(調查)日','狀態'].concat(dynCols);
   var rows=[headers];
   allD.forEach(function(d){
     var r=d.r,row=[];
-    extraCols.forEach(function(c){row.push(String(r[c]||''));});
+    row.push(String(r[COL_AREA]||''));row.push(String(r[COL_OFFICE]||''));
     row.push(String(r[COL_STAFF]||''));row.push(String(r[COL_CODE]||''));row.push(String(r[COL_NAME]||''));
+    row.push(String(r[COL_TYPE]||''));row.push(_exportVisitDate(String(r[COL_CODE]||'')));
     row.push(d.grp===3?UNFILL_LABEL:d.grp===4?GAP_LABEL:d.grp===0?'已有':d.grp===1?'未有':'—');
     BUCKETS_B.forEach(function(g){if(g.cols.length===1)row.push(isSum()?numVal(r[g.cols[0]]):(isOne(r[g.cols[0]])?1:0));else g.cols.forEach(function(t){row.push(isSum()?numVal(r[t]):(isOne(r[t])?1:0));});});
     BUCKETS_C.forEach(function(g){if(g.cols.length===1){var v=r[g.cols[0]];row.push(isOne(v)?1:(isCText(v)?String(v):0));}else g.cols.forEach(function(t){var v=r[t];row.push(isOne(v)?1:(isCText(v)?String(v):0));});});
@@ -6021,7 +6039,7 @@ function _subColLineText(){
       var r = m.r;
       var code = String(r[COL_CODE]||''), name = String(r[COL_NAME]||'—');
       var hasText = m.matched.some(function(x){ return x.valText; });
-      lines.push('  '+name+(code?'('+code+')':''));
+      lines.push('  '+name+(code?'('+code+')':'')+' ｜最後訪店 '+_exportVisitDate(code));
       if(!singleDefNoText || hasText){
         m.matched.forEach(function(x){
           lines.push('   └'+x.def.col+(x.valText?'：'+x.valText:''));
@@ -6041,11 +6059,11 @@ function _subColLineCopy(btn){
 function _subColCsvContent(){
   var defs = _subColSelectedDefs();
   var matched = _subColMatchedRows();
-  var headers = ['執行人員','店碼','店名'].concat(defs.map(function(d){return d.col;}));
+  var headers = ['營業處','營業所/課','執行人員','店碼','店名','店家型態','最後訪店(調查)日'].concat(defs.map(function(d){return d.col;}));
   var rows=[headers];
   matched.forEach(function(m){
     var r=m.r;
-    var row=[String(r[COL_STAFF]||''),String(r[COL_CODE]||''),String(r[COL_NAME]||'')];
+    var row=[String(r[COL_AREA]||''),String(r[COL_OFFICE]||''),String(r[COL_STAFF]||''),String(r[COL_CODE]||''),String(r[COL_NAME]||''),String(r[COL_TYPE]||''),_exportVisitDate(String(r[COL_CODE]||''))];
     defs.forEach(function(d){
       /* 用 key 比對，不能用物件參照比對——defs 跟 m.matched 裡的 def 分別來自
          兩次不同的 _allSubColDefs() 呼叫，每次都是新物件，參照永遠不會相等 */
