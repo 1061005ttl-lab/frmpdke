@@ -120,6 +120,7 @@
 ║                 分頁時優先切在最接近但不超過整頁高度的列邊界上，每頁改用獨立裁切的    ║
 ║                 子畫布(canvas.drawImage切片)貼圖，確保表格資料列（含合計列）永遠     ║
 ║                 完整落在同一頁，未使用的頁尾空間留白。                              ║
+║  v1.7.4  11/04  得獎者PDF標頭補上「品評額度」徽章（卓越貢獻獎第1名、非跨單位才顯示）。     ║
 ║  v1.7.3  11/04  修正得獎者PDF跑版：①表格寬度(max-content)超出容器致右側欄位被裁切，改先量  ║
 ║                 表格寬度再撐大容器；②detail-scroll非wrapper直接子節點，導致整張表格重複   ║
 ║                 出現（頁首複製一份＋分頁表一份），改以包含它的直接子節點為分界。         ║
@@ -2362,6 +2363,8 @@ function _getAwardBadges(p){
   else if(qd.bonus===500) badges.push('&#9989; 季達成 $500');
   if(!_isCross&&rankR&&rankR<=3) badges.push('&#128640; 成長突破獎 第'+rankR+'名 $1,000');
   if(!_isCross&&rankG&&rankG<=3) badges.push('&#127942; 卓越貢獻獎 第'+rankG+'名 $1,000');
+  /* v1.7.4：品評額度＝卓越貢獻獎第1名且非跨單位（與人員彙整表同一規則），PDF標頭補上 */
+  if(!_isCross&&rankG===1&&qd.evalAmt>0) badges.push('&#128221; 品評額度 $'+qd.evalAmt.toLocaleString()+(qd.evalAmt>=20000?' ★':''));
   if(_isCross) badges.push('<span style="opacity:.7;">（本季含跨單位月份，不參與名次排行）</span>');
   return badges;
 }
