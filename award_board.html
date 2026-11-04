@@ -1213,7 +1213,11 @@ function buildQChips(qs){
   var el=document.getElementById('q-chips');
   el.innerHTML='';
   var list=qs.length?qs:['Q1','Q2','Q3','Q4'];
-  if(!curQ&&list.length) curQ=list[0];
+  if(!curQ&&list.length){
+    /* 預設為「今天所在的當季」；若資料尚無該季，改取資料中最新的一季 */
+    var _nowQ='Q'+(Math.floor(new Date().getMonth()/3)+1);
+    curQ=list.indexOf(_nowQ)>=0?_nowQ:list[list.length-1];
+  }
   list.forEach(function(q){
     var btn=document.createElement('button');
     btn.className='q-chip'+(q===curQ?' on':'');
@@ -3723,7 +3727,7 @@ function hideLoading(){
 
 /* ══ 年度成長（Ver.1.14.0 新增）══
    以「業務員」為單位，統計選定年度、自選月份區間內的 當期CTN vs 去年同期(last)，
-   成長CTN = 當期 - 去年同期；成長率 = 成長/去年同期；另附 品評 = 當期 - (去年+增量)。
+   成長CTN = 當期 - 去年同期；成長率 = 成長/去年同期；（不含品評：品評為每季獨立結算，跨季加總無意義）。
    與季度(curQ)無關；人員所屬處/所以「區間內最後有資料的月份」為準。
    點選任一列可展開逐月明細。函式前綴 yg / _yg。 */
 var _ygS={year:'',from:1,to:12,area:'',office:'',col:'growth',dir:-1,open:{}};
@@ -3825,16 +3829,16 @@ function _ygRefresh(){
   document.getElementById('yg-subtitle').textContent=(s.year?s.year+'年　':'')+s.from+'月～'+s.to+'月　共 '+list.length+' 人';
   var th='padding:7px 10px;font-size:11px;font-weight:800;color:#444;background:#eef3fa;border-bottom:2px solid #c9d6ea;white-space:nowrap;position:sticky;top:0;z-index:2;cursor:pointer;';
   function H(c,l,left){var on=s.col===c;return '<th style="'+th+(left?'text-align:left;':'text-align:right;')+(on?'background:#dce8fa;':'')+'" onclick="ygSort(\''+c+'\')">'+l+(on?(s.dir===-1?' ↓':' ↑'):' ⇅')+'</th>';}
-  var h='<table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr>'+H('name','業務員',1)+'<th style="'+th+'text-align:left;cursor:default;">營業處／所</th>'+H('nStores','店數')+H('last','去年同期')+H('cur','當期')+H('growth','成長CTN')+H('rate','成長率')+H('eval','品評CTN')+'</tr></thead><tbody>';
-  var tC=0,tL=0,tE=0;
+  var h='<table style="width:100%;border-collapse:collapse;font-size:12px;"><thead><tr>'+H('name','業務員',1)+'<th style="'+th+'text-align:left;cursor:default;">營業處／所</th>'+H('nStores','店數')+H('last','去年同期')+H('cur','當期')+H('growth','成長CTN')+H('rate','成長率')+'</tr></thead><tbody>';
+  var tC=0,tL=0;
   list.forEach(function(p,i){
-    tC+=p.cur;tL+=p.last;tE+=p.eval;
+    tC+=p.cur;tL+=p.last;
     var td='padding:6px 10px;border-bottom:1px solid #eee;text-align:right;';
-    h+='<tr style="cursor:pointer;" onclick="ygToggle(\''+esc(p.name).replace(/'/g,"&#39;")+'\')"><td style="'+td+'text-align:left;font-weight:800;">'+(s.open[p.name]?'▾ ':'▸ ')+esc(p.name)+'</td><td style="'+td+'text-align:left;color:#666;">'+esc(p.area)+' '+esc(p.office)+'</td><td style="'+td+'">'+p.nStores+'</td><td style="'+td+'">'+_ygR(p.last)+'</td><td style="'+td+'">'+_ygR(p.cur)+'</td><td style="'+td+'font-weight:800;color:'+_ygCl(p.growth)+';">'+_ygSg(p.growth)+'</td><td style="'+td+'font-weight:800;color:'+_ygCl(p.growth)+';">'+_ygPct(p.rate)+'</td><td style="'+td+'color:'+_ygCl(p.eval)+';">'+_ygSg(p.eval)+'</td></tr>';
-    if(s.open[p.name])h+='<tr><td colspan="8" style="background:#fafcff;border-bottom:1px solid #e3e9f3;">'+_ygDetail(p)+'</td></tr>';
+    h+='<tr style="cursor:pointer;" onclick="ygToggle(\''+esc(p.name).replace(/'/g,"&#39;")+'\')"><td style="'+td+'text-align:left;font-weight:800;">'+(s.open[p.name]?'▾ ':'▸ ')+esc(p.name)+'</td><td style="'+td+'text-align:left;color:#666;">'+esc(p.area)+' '+esc(p.office)+'</td><td style="'+td+'">'+p.nStores+'</td><td style="'+td+'">'+_ygR(p.last)+'</td><td style="'+td+'">'+_ygR(p.cur)+'</td><td style="'+td+'font-weight:800;color:'+_ygCl(p.growth)+';">'+_ygSg(p.growth)+'</td><td style="'+td+'font-weight:800;color:'+_ygCl(p.growth)+';">'+_ygPct(p.rate)+'</td></tr>';
+    if(s.open[p.name])h+='<tr><td colspan="7" style="background:#fafcff;border-bottom:1px solid #e3e9f3;">'+_ygDetail(p)+'</td></tr>';
   });
   var tg=tC-tL,tr=tL>0?tg/tL:null,tt='padding:8px 10px;text-align:right;font-weight:900;background:#eef3fa;border-top:2px solid #c9d6ea;';
-  h+='<tr><td style="'+tt+'text-align:left;" colspan="3">合計 '+list.length+' 人</td><td style="'+tt+'">'+_ygR(tL)+'</td><td style="'+tt+'">'+_ygR(tC)+'</td><td style="'+tt+'color:'+_ygCl(tg)+';">'+_ygSg(tg)+'</td><td style="'+tt+'color:'+_ygCl(tg)+';">'+_ygPct(tr)+'</td><td style="'+tt+'color:'+_ygCl(tE)+';">'+_ygSg(tE)+'</td></tr></tbody></table>';
+  h+='<tr><td style="'+tt+'text-align:left;" colspan="3">合計 '+list.length+' 人</td><td style="'+tt+'">'+_ygR(tL)+'</td><td style="'+tt+'">'+_ygR(tC)+'</td><td style="'+tt+'color:'+_ygCl(tg)+';">'+_ygSg(tg)+'</td><td style="'+tt+'color:'+_ygCl(tg)+';">'+_ygPct(tr)+'</td></tr></tbody></table>';
   if(!list.length)h='<div style="padding:40px;text-align:center;color:#999;">此區間無資料</div>';
   document.getElementById('yg-body').innerHTML=h;
 }
@@ -3852,10 +3856,10 @@ function ygXLSX(){
   if(!window.XLSX){alert('XLSX 套件載入中，請稍後再試');return;}
   if(!_ygList.length){_flashBtn(btn,'⚠️ 無資料');return;}
   var list=_ygSorted();
-  var r1=[['營業處','營業所','業務員','店數','去年同期','當期','成長CTN','成長率','品評CTN']];
+  var r1=[['營業處','營業所','業務員','店數','去年同期','當期','成長CTN','成長率']];
   var r2=[['營業處','營業所','業務員','月份','去年同期','當期','成長CTN','成長率']];
   list.forEach(function(p){
-    r1.push([p.area,p.office,p.name,p.nStores,_ygR(p.last),_ygR(p.cur),_ygR(p.growth),p.rate===null?'':_ygPct(p.rate),_ygR(p.eval)]);
+    r1.push([p.area,p.office,p.name,p.nStores,_ygR(p.last),_ygR(p.cur),_ygR(p.growth),p.rate===null?'':_ygPct(p.rate)]);
     p.ml.forEach(function(m){var d=p.months[m],g=d.cur-d.last;r2.push([p.area,p.office,p.name,m,_ygR(d.last),_ygR(d.cur),_ygR(g),d.last>0?_ygPct(g/d.last):'']);});
   });
   var wb=XLSX.utils.book_new(),w1=XLSX.utils.aoa_to_sheet(r1),w2=XLSX.utils.aoa_to_sheet(r2);
