@@ -120,6 +120,9 @@
 ║                 分頁時優先切在最接近但不超過整頁高度的列邊界上，每頁改用獨立裁切的    ║
 ║                 子畫布(canvas.drawImage切片)貼圖，確保表格資料列（含合計列）永遠     ║
 ║                 完整落在同一頁，未使用的頁尾空間留白。                              ║
+║  v1.7.3  11/04  修正得獎者PDF跑版：①表格寬度(max-content)超出容器致右側欄位被裁切，改先量  ║
+║                 表格寬度再撐大容器；②detail-scroll非wrapper直接子節點，導致整張表格重複   ║
+║                 出現（頁首複製一份＋分頁表一份），改以包含它的直接子節點為分界。         ║
 ║  v1.7.2  07/15  修正得獎者PDF「店家數多時（如200+家）尾端資料列與合計列整段消失」： ║
 ║                 v1.7.1的作法是整個容器先html2canvas截一張完整長圖，再依列邊界切成   ║
 ║                 多頁；實測發現店家數很多時，單一容器一次截圖產生的畫布過高，超出     ║
@@ -2438,9 +2441,15 @@ function _buildOnePersonPDFBlob(p,cb){
     var pdf=new jspdf.jsPDF('p','mm','a4');
     var pageWidthMM=pdf.internal.pageSize.getWidth();
     var pageHeightMM=pdf.internal.pageSize.getHeight();
-    var contentWidthCss=wrapper.scrollWidth;
-
     var tableEl=wrapper.querySelector('.detail-tbl');
+    /* v1.7.3：.detail-tbl 是 width:max-content，欄位多時比容器(900px)還寬，右側欄位被推出頁面外被裁掉。
+       先量表格自然寬度，把容器撐到「表格寬＋左右padding」，再讓整份內容縮放貼滿頁寬 */
+    if(tableEl){
+      var needW=Math.ceil(tableEl.getBoundingClientRect().width)+52;
+      if(needW>wrapper.offsetWidth) wrapper.style.width=needW+'px';
+    }
+    var contentWidthCss=wrapper.offsetWidth;
+
     if(!tableEl){
       /* 無店家明細資料（極短內容），直接單頁截圖即可，不需要分頁 */
       html2canvas(wrapper,{scale:2,backgroundColor:'#ffffff',useCORS:true,width:wrapper.scrollWidth,height:wrapper.scrollHeight}).then(function(canvas){
@@ -2458,8 +2467,13 @@ function _buildOnePersonPDFBlob(p,cb){
     var dataRows=Array.prototype.slice.call(tbodyEl.children); /* 含一般店家列、合計列、排除店家列，DOM順序與畫面一致 */
     var detailScrollEl=wrapper.querySelector('.detail-scroll');
     var headNodes=[],footNodes=[],seenScroll=false;
+    /* v1.7.3：.detail-scroll 實際包在 detailWrap 裡，不是 wrapper 的直接子節點，
+       原本比對不到 → 整個 detailWrap（完整表格）被當頁首複製一次，PDF 出現兩張重複表格。
+       改為找出「包含 detail-scroll 的直接子節點」當分界。 */
+    var detailHost=detailScrollEl;
+    while(detailHost && detailHost.parentNode!==wrapper) detailHost=detailHost.parentNode;
     Array.prototype.forEach.call(wrapper.childNodes,function(n){
-      if(n===detailScrollEl){seenScroll=true;return;}
+      if(n===detailHost){seenScroll=true;return;}
       (seenScroll?footNodes:headNodes).push(n);
     });
 
@@ -2514,7 +2528,7 @@ function _buildOnePersonPDFBlob(p,cb){
         footNodes.forEach(function(n){ pageWrap.appendChild(n.cloneNode(true)); });
       }
       document.body.appendChild(pageWrap);
-      html2canvas(pageWrap,{scale:2,backgroundColor:'#ffffff',useCORS:true,width:pageWrap.scrollWidth,height:pageWrap.scrollHeight}).then(function(canvas){
+      html2canvas(pageWrap,{scale:2,backgroundColor:'#ffffff',useCORS:true,width:pageWrap.offsetWidth,height:pageWrap.scrollHeight}).then(function(canvas){
         document.body.removeChild(pageWrap);
         var imgData=canvas.toDataURL('image/jpeg',0.92);
         var imgHmm=canvas.height/canvas.width*pageWidthMM;
