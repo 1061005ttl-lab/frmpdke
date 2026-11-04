@@ -3474,9 +3474,15 @@ function _buildOnePersonPDFBlob(p,cb){
     var pdf=new jspdf.jsPDF('p','mm','a4');
     var pageWidthMM=pdf.internal.pageSize.getWidth();
     var pageHeightMM=pdf.internal.pageSize.getHeight();
-    var contentWidthCss=wrapper.scrollWidth;
-
     var tableEl=wrapper.querySelector('.detail-tbl');
+    /* 1.13.7：.detail-tbl 是 width:max-content，欄位多時比容器(900px)還寬，右側欄位被推出頁面外被裁掉。
+       先量表格自然寬度，把容器撐到「表格寬＋左右padding」，再讓整份內容縮放貼滿頁寬 */
+    if(tableEl){
+      var needW=Math.ceil(tableEl.getBoundingClientRect().width)+52;
+      if(needW>wrapper.offsetWidth) wrapper.style.width=needW+'px';
+    }
+    var contentWidthCss=wrapper.offsetWidth;
+
     if(!tableEl){
       /* 無店家明細資料，直接單頁截圖即可 */
       html2canvas(wrapper,{scale:2,backgroundColor:'#ffffff',useCORS:true,width:wrapper.scrollWidth,height:wrapper.scrollHeight}).then(function(canvas){
@@ -3583,7 +3589,7 @@ function _buildOnePersonPDFBlob(p,cb){
         footNodes.forEach(function(n){ pageWrap.appendChild(n.cloneNode(true)); });
       }
       document.body.appendChild(pageWrap);
-      html2canvas(pageWrap,{scale:2,backgroundColor:'#ffffff',useCORS:true,width:pageWrap.scrollWidth,height:pageWrap.scrollHeight}).then(function(canvas){
+      html2canvas(pageWrap,{scale:2,backgroundColor:'#ffffff',useCORS:true,width:pageWrap.offsetWidth,height:pageWrap.scrollHeight}).then(function(canvas){
         document.body.removeChild(pageWrap);
         var imgHmm=canvas.height/canvas.width*pageWidthMM;
         /* ★安全網（0723二次修正／0723三次效能修正）：即使事前用列高「預估」分頁、
