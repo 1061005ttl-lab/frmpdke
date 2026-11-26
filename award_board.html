@@ -711,7 +711,7 @@
   <button class="tb-btn" onclick="openPersonTable()" id="ptbl-btn" style="background:rgba(74,122,85,.1);border-color:rgba(74,122,85,.3);color:#2d5a38;">👤 人員表</button>
   <button class="tb-btn" onclick="openYearGrowth()" id="yg-btn" style="background:rgba(26,115,232,.08);border-color:rgba(26,115,232,.3);color:#1a4fa0;">📈 年度成長</button>
   <div id="tb-right">
-    <div id="ver-ts">Ver. 1.14.0 (2026-11-04)</div>
+    <div id="ver-ts">Ver. 1.14.1 (2026-11-26)</div>
     <button class="tb-btn" onclick="mainCopyLine()" id="btn-main-line">💬 LINE</button>
     <button class="tb-btn" onclick="mainScreenshot()" id="btn-main-shot">📸 截圖</button>
     <button class="tb-btn" onclick="downloadXLSX()">📥 XLSX</button>
@@ -2681,6 +2681,7 @@ function _assembleViewRows(includeExtraCols){
       });
       row.push(qd.totalCur, fmt1(qd.totalTgt||0), fmt1(qd.totalEvalRaw||0));
       if(includeExtraCols) row.push(qd.evalMonths.length);
+      row._qd=qd; /* 供XLSX匯出計算PSD（不影響aoa輸出） */
       rows.push(row);
     });
   } else {
@@ -2736,20 +2737,81 @@ function downloadXLSX(){
   if(viewMode==='org'){ _exportOrgXLSX(); } else { _exportPersonXLSX(); }
 }
 
+
+/* ══ XLSX 共用：PSD 資料 ══
+   PSD 屬於店家進銷存資料（invData），只在 invDate 月份落於目前季度時才有意義。
+   人員視角：取該人員「進銷存資料月份」仍掛名的店家（與卡片庫存異常統計同一邏輯）。 */
+function _psdStoresOfPerson(qd){
+  var out=[];
+  if(!invDate||!_invDateInCurQ()) return out;
+  var mm=invDate.match(/^(\d{4})(\d{2})/);
+  var invMonth=mm?parseInt(mm[2],10):null;
+  var seen={};
+  qd.storeRows.forEach(function(s){
+    if(invMonth&&s.month!==invMonth) return;
+    var k=s.code||s.name;
+    if(seen[k]) return; seen[k]=1;
+    var inv=_invLookup(s.code);
+    out.push({code:s.code,name:s.name,inv:inv});
+  });
+  return out;
+}
+function _personPsdSummary(qd){
+  var list=_psdStoresOfPerson(qd).filter(function(x){return x.inv;});
+  if(!list.length) return {sum:'',avg:''};
+  var sum=list.reduce(function(t,x){return t+x.inv.psd;},0);
+  return {sum:Math.round(sum*10)/10, avg:Math.round(sum/list.length*10)/10};
+}
+/* persons: [{name,area,office,qd}] → 店家PSD明細 sheet rows */
+function _psdDetailRows(persons){
+  var rows=[['人員','營業處','營業所','店碼','店名','上存','進貨','退貨','銷貨','庫存','本月平均PSD','資料時間']];
+  persons.forEach(function(p){
+    _psdStoresOfPerson(p.qd).forEach(function(x){
+      var d=x.inv;
+      rows.push(d?[p.name,p.area,p.office,x.code,x.name,d.upper,d.in,d.ret,d.sale,d.stock,d.psd,invDate]
+                  :[p.name,p.area,p.office,x.code,x.name,'','','','','','','無進銷存資料']);
+    });
+  });
+  return rows;
+}
+function _appendPsdSheet(wb,persons){
+  if(!Object.keys(invData).length||!_invDateInCurQ()) return;
+  var rows=_psdDetailRows(persons);
+  if(rows.length<2) return;
+  var ws=XLSX.utils.aoa_to_sheet(rows);
+  _xlsxAutoWidth(ws,rows);
+  XLSX.utils.book_append_sheet(wb,ws,'店家PSD明細');
+}
+
 function _exportPersonXLSX(){
   var assembled=_assembleViewRows(true);
-  var rows=[assembled.header].concat(assembled.rows);
+  var hasPsd=Object.keys(invData).length&&_invDateInCurQ();
+  var hdr=assembled.header.slice();
+  var persons=[];
+  if(hasPsd) hdr.push('店家PSD合計','店家PSD平均');
+  assembled.rows.forEach(function(r){
+    if(hasPsd){ var ps=_personPsdSummary(r._qd); r.push(ps.sum,ps.avg); }
+    persons.push({name:r[0],area:r[1],office:r[2],qd:r._qd});
+  });
+  var rows=[hdr].concat(assembled.rows);
   var wb=XLSX.utils.book_new();
   var ws=XLSX.utils.aoa_to_sheet(rows);
   _xlsxAutoWidth(ws,rows);
   XLSX.utils.book_append_sheet(wb,ws,(curQ||'')+'人員視角');
+  _appendPsdSheet(wb,persons);
   XLSX.writeFile(wb,'全聯18天_'+(curQ||'')+'_人員_'+_nowStr()+'.xlsx');
 }
 
 function _exportOrgXLSX(){
   var storeMap=getStoreList();
   var assembled=_assembleViewRows(false);
-  var rows=[assembled.header].concat(assembled.rows);
+  var hasPsd=Object.keys(invData).length&&_invDateInCurQ();
+  var hdr=assembled.header.slice();
+  if(hasPsd){
+    hdr.push('PSD');
+    assembled.rows.forEach(function(r){ var d=_invLookup(r[0]); r.push(d?d.psd:''); });
+  }
+  var rows=[hdr].concat(assembled.rows);
   var wb=XLSX.utils.book_new();
   var ws1=XLSX.utils.aoa_to_sheet(rows);
   _xlsxAutoWidth(ws1,rows);
@@ -3302,18 +3364,25 @@ function personTableXLSX(){
   if(!window.XLSX){ alert('XLSX 套件載入中，請稍後再試'); return; }
   if(!_ptCurrentPersons.length){ if(btn)_flashBtn(btn,'⚠️ 無資料'); return; }
   var rows=[['營業處','營業所','人名','任職月份數','任職月份','有效月份','總家數','當期CTN','目標CTN','品評CTN']];
+  var hasPsd=Object.keys(invData).length&&_invDateInCurQ();
+  if(hasPsd) rows[0].push('店家PSD合計','店家PSD平均');
+  var psdPersons=[];
   var groups={};
   _ptCurrentPersons.forEach(function(p){ var a=p.area||'（未知）'; (groups[a]=groups[a]||[]).push(p); });
   sortAreas(Object.keys(groups)).forEach(function(a){
     groups[a].forEach(function(p){
       var qd=p.qd, vm=qd.validMonths.length, ten=_tenureInfo(qd);
-      rows.push([p.area,p.office,p.displayName,ten.n,ten.list,(vm>=2?'✅':'⚠️')+' '+vm+'/2',qd.totalStores,qd.totalCur,_fracVal(qd.totalTgt),qd.totalEval!==null?_fracVal(qd.totalEval):'']);
+      var row=[p.area,p.office,p.displayName,ten.n,ten.list,(vm>=2?'✅':'⚠️')+' '+vm+'/2',qd.totalStores,qd.totalCur,_fracVal(qd.totalTgt),qd.totalEval!==null?_fracVal(qd.totalEval):''];
+      if(hasPsd){ var ps=_personPsdSummary(qd); row.push(ps.sum,ps.avg); }
+      psdPersons.push({name:p.displayName,area:p.area,office:p.office,qd:qd});
+      rows.push(row);
     });
   });
   var wb=XLSX.utils.book_new();
   var ws=XLSX.utils.aoa_to_sheet(rows);
   _xlsxAutoWidth(ws,rows);
   XLSX.utils.book_append_sheet(wb,ws,(curQ||'')+'人員表');
+  _appendPsdSheet(wb,psdPersons);
   var scopeLabel=_ptOfficeFilter||_ptAreaFilter||fOffice||fArea||'全體';
   XLSX.writeFile(wb,'全聯18天_人員表_'+(curQ||'')+'_'+scopeLabel+'_'+_nowStr()+'.xlsx');
 }
