@@ -780,7 +780,7 @@
     <hr>
     <p><b>【上方篩選器怎麼用？】</b>點擊「北部」「桃園」等按鈕只看特定區域；點進去後可再選特定營業所；點「全部」回到整體。排序按鈕可依品評CTN、當期箱數、去年同期、庫存（組織視角）重新排列，庫存排序讓庫存最少的門市排最前面，方便快速找到需要補貨的店。</p>
     <p><b>【📊 彙整表是什麼？】</b>切到組織視角，點「📊 彙整表」開啟一張整合大表，把所有門市的業績與庫存集中呈現，適合開會逐店討論。可下載成 Excel 或截圖分享。</p>
-    <p><b>【進銷存欄位怎麼看？】</b>上存＝月初庫存、進貨＝本月進貨量、退貨＝退回量、銷貨＝實際售出量、庫存＝現有剩餘、PSD＝每日平均銷速（越高代表賣越快）。資料時間顯示在區塊標題旁，確認是否為最新資料。</p>
+    <p><b>【進銷存欄位怎麼看？】</b>上存＝月初庫存、進貨＝本月進貨量、退貨＝退回量、銷貨＝實際售出量、庫存＝現有剩餘、PSD＝每日銷售速度（越高代表賣越快）。資料時間顯示在區塊標題旁，確認是否為最新資料。</p>
     <hr>
     <p><b>【👤 人員表是什麼？】</b>點上方「👤 人員表」開啟全體業務員的彙整大表，依營業處分組、可依當期CTN／目標CTN／品評CTN／總家數排序，方便開會時一次看完所有人的達成狀況。表格右上角可再依處／所篩選，也能複製 LINE 摘要、下載 Excel 或截圖分享。</p>
     <p><b>【🏆 得獎PDF是什麼？】</b>在「👤 人員表」視窗內點「🏆 得獎PDF」，會自動抓出本季<b>有效月份 ≥2 個月且品評CTN為正數</b>（即畫面上「🎁 預計核發 +N 箱」會算到的人）的所有人員，逐人產生一份PDF（含得獎徽章、個人業績卡片、店家明細），最後打包成一個 ZIP 檔下載，方便逐人核發或存檔。</p>
@@ -926,7 +926,7 @@
   2. 「全聯進銷存資料」（INV_SHEET）— 庫存資料，每列為一家店的進銷存快照
      欄位（固定索引，不用欄名對應）：
        [0]全號  [1]店號（後6碼）  [2]店名  [3]開單所
-       [4]上存  [5]進貨  [6]退貨  [7]銷貨  [8]庫存  [9]本月平均PSD
+       [4]上存  [5]進貨  [6]退貨  [7]銷貨  [8]庫存  [9]PSD
        K1（資料日期）從 INV_DATE_CELL 讀取（如 20260615）
 
   資料讀取方式：gviz/tq API（免登入公開讀取），headers=0 跳過標題列自行解析。
@@ -950,7 +950,7 @@
     - 店家明細 dialog（openOrgDetailDialog）：
       · 基本業績明細（各月各業務貢獻）
       · 若 invData[storeKey] 存在：額外顯示進銷存區塊
-        欄位：上存 / 進貨 / 退貨 / 銷貨 / 庫存 / 本月平均PSD
+        欄位：上存 / 進貨 / 退貨 / 銷貨 / 庫存 / PSD
         資料時間：invDate（從 K1 讀取）
 
 【導覽列（Navbar）】
@@ -1910,7 +1910,7 @@ function buildInvBlock(code){
         '<th style="'+thStyle+'">退貨</th>'+
         '<th style="'+thStyle+'">銷貨</th>'+
         '<th style="'+thStyle+'">庫存</th>'+
-        '<th style="'+thStyle+'">本月平均PSD</th>'+
+        '<th style="'+thStyle+'">PSD</th>'+
       '</tr></thead>'+
       '<tbody><tr>'+
         '<td style="text-align:right;padding:8px 14px;color:var(--sub);">'+d.upper+'</td>'+
@@ -2738,6 +2738,9 @@ function downloadXLSX(){
 }
 
 
+/* Excel 欄名：PSD(資料日期) */
+function _psdHdr(){ return invDate?'PSD('+invDate+')':'PSD'; }
+
 /* ══ XLSX 共用：PSD 資料 ══
    PSD 屬於店家進銷存資料（invData），只在 invDate 月份落於目前季度時才有意義。
    人員視角：取該人員「進銷存資料月份」仍掛名的店家（與卡片庫存異常統計同一邏輯）。 */
@@ -2758,12 +2761,12 @@ function _psdStoresOfPerson(qd){
 }
 /* persons: [{name,area,office,qd}] → 店家PSD明細 sheet rows */
 function _psdDetailRows(persons){
-  var rows=[['人員','營業處','營業所','店碼','店名','上存','進貨','退貨','銷貨','庫存','本月平均PSD','資料時間']];
+  var rows=[['人員','營業處','營業所','店碼','店名','上存','進貨','退貨','銷貨','庫存',_psdHdr()]];
   persons.forEach(function(p){
     _psdStoresOfPerson(p.qd).forEach(function(x){
       var d=x.inv;
-      rows.push(d?[p.name,p.area,p.office,x.code,x.name,d.upper,d.in,d.ret,d.sale,d.stock,d.psd,invDate]
-                  :[p.name,p.area,p.office,x.code,x.name,'','','','','','','無進銷存資料']);
+      rows.push(d?[p.name,p.area,p.office,x.code,x.name,d.upper,d.in,d.ret,d.sale,d.stock,d.psd]
+                  :[p.name,p.area,p.office,x.code,x.name,'','','','','','']);
     });
   });
   return rows;
@@ -2800,29 +2803,17 @@ function _exportOrgXLSX(){
   var hasPsd=Object.keys(invData).length&&_invDateInCurQ();
   var hdr=assembled.header.slice();
   if(hasPsd){
-    hdr.push('PSD');
-    assembled.rows.forEach(function(r){ var d=_invLookup(r[0]); r.push(d?d.psd:''); });
+    hdr.push('上存','進貨','退貨','銷貨','庫存',_psdHdr());
+    assembled.rows.forEach(function(r){
+      var d=_invLookup(r[0]);
+      r.push(d?d.upper:'', d?d.in:'', d?d.ret:'', d?d.sale:'', d?d.stock:'', d?d.psd:'');
+    });
   }
   var rows=[hdr].concat(assembled.rows);
   var wb=XLSX.utils.book_new();
   var ws1=XLSX.utils.aoa_to_sheet(rows);
   _xlsxAutoWidth(ws1,rows);
   XLSX.utils.book_append_sheet(wb,ws1,(curQ||'')+'業績');
-  if(Object.keys(invData).length && _invDateInCurQ()){
-    var ih=['店碼','店名','上存','進貨','退貨','銷貨','庫存','本月平均PSD','資料時間'];
-    var irows=[ih];
-    var seen={};
-    Object.keys(storeMap).forEach(function(k){
-      var s=storeMap[k];
-      var d=_invLookup(s.code);
-      if(!d||seen[s.code]) return;
-      seen[s.code]=1;
-      irows.push([s.code,s.name,d.upper,d.in,d.ret,d.sale,d.stock,d.psd,invDate]);
-    });
-    var ws2=XLSX.utils.aoa_to_sheet(irows);
-    _xlsxAutoWidth(ws2,irows);
-    XLSX.utils.book_append_sheet(wb,ws2,'進銷存');
-  }
   XLSX.writeFile(wb,'全聯18天_'+(curQ||'')+'_組織_'+_unitLabel()+'_'+_nowStr()+'.xlsx');
 }
 
