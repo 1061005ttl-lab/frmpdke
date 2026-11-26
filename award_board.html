@@ -1504,10 +1504,12 @@ function getStoreList(){
     var key=code||storeName;
     if(!key) return;
 
-    if(!storeMap[key]) storeMap[key]={code:code,name:storeName,area:'',office:'',lastMonth:0,rows:[]};
+    if(!storeMap[key]) storeMap[key]={code:code,name:storeName,area:'',office:'',staff:'',lastMonth:0,rows:[],_sbm:{}};
     storeMap[key].rows.push(r);
 
     var m=parseInt(gv(r,'month'))||0;
+    var stf=gv(r,'staff');
+    if(m>0&&stf){ (storeMap[key]._sbm[m]=storeMap[key]._sbm[m]||{})[stf]=1; }
     /* 以季內最後一個月的所屬單位為準 */
     if(qMonths&&qMonths.indexOf(m)>=0&&m>storeMap[key].lastMonth){
       storeMap[key].lastMonth=m;
@@ -1517,6 +1519,13 @@ function getStoreList(){
     /* fallback */
     if(!storeMap[key].area) storeMap[key].area=gv(r,'area');
     if(!storeMap[key].office) storeMap[key].office=gv(r,'office');
+  });
+
+  /* 現任訪員：以季內最後一個月的訪員為準（與所屬單位同一判定）；該月無人則取有資料的最近月份 */
+  Object.keys(storeMap).forEach(function(k){
+    var s=storeMap[k], sbm=s._sbm||{};
+    var mk=sbm[s.lastMonth]?s.lastMonth:Math.max.apply(null,[0].concat(Object.keys(sbm).map(Number)));
+    s.staff=mk&&sbm[mk]?Object.keys(sbm[mk]).join('、'):'';
   });
 
   /* 套用篩選 */
@@ -2686,7 +2695,7 @@ function _assembleViewRows(includeExtraCols){
     });
   } else {
     var storeMap=getStoreList();
-    header=['店碼','店名','營業處','營業所'];
+    header=['店碼','店名','營業處','營業所','現任訪員'];
     months.forEach(function(m){ header.push(MNAMES[m]+'當期',MNAMES[m]+'去年',MNAMES[m]+'增減'); });
     header.push('季當期','季去年','季增減');
 
@@ -2702,7 +2711,7 @@ function _assembleViewRows(includeExtraCols){
     });
     scards.forEach(function(c){
       var s=c.s, qd=c.qd;
-      var row=[s.code,s.name,s.area,s.office];
+      var row=[s.code,s.name,s.area,s.office,s.staff||''];
       months.forEach(function(m){
         var d=qd.monthData[m];
         row.push(d.hasData?d.cur:'', d.hasData?d.last:'', d.hasData?d.delta:'');
@@ -2845,12 +2854,12 @@ function openSummaryTable(){
   var thSI=thS+'background:#e4eef8;';
 
   var thead='<thead><tr>';
-  thead+='<th colspan="4" style="'+thSL+'">店家資訊</th>';
+  thead+='<th colspan="5" style="'+thSL+'">店家資訊</th>';
   months.forEach(function(m){ thead+='<th colspan="3" style="'+thSM+'border-left:2px solid #b8ccb8;">'+MNAMES[m]+'</th>'; });
   thead+='<th colspan="3" style="'+thST+'border-left:2px solid #a0c0a0;">季合計</th>';
   if(hasInv) thead+='<th colspan="6" style="'+thSI+'border-left:2px solid #a0c0e0;">📦 進銷存資料時間 '+(invDate||'—')+'</th>';
   thead+='</tr><tr>';
-  ['店碼','店名','營業處','營業所'].forEach(function(t){ thead+='<th style="'+thSL+'top:34px;">'+t+'</th>'; });
+  ['店碼','店名','營業處','營業所','現任訪員'].forEach(function(t){ thead+='<th style="'+thSL+'top:34px;">'+t+'</th>'; });
   months.forEach(function(m,mi){
     ['當期','去年','增減'].forEach(function(t,i){ thead+='<th style="'+thS+'top:34px;'+(i===0?'border-left:2px solid #b8ccb8;background:#e4eee4;':'background:#f0f4f0;')+'">'+t+'</th>'; });
   });
@@ -2877,7 +2886,7 @@ function openSummaryTable(){
     var sL=gc.reduce(function(s,c){return s+c.qd.totalLast;},0);
     var sD=sC-sL;
     var r='<tr style="'+rowStyle+'">';
-    r+='<td colspan="4" style="'+tdSL+labelStyle+'">'+label+'</td>';
+    r+='<td colspan="5" style="'+tdSL+labelStyle+'">'+label+'</td>';
     months.forEach(function(m,mi){
       var mc=gc.reduce(function(s,c){return s+(c.qd.monthData[m].hasData?c.qd.monthData[m].cur:0);},0);
       var ml=gc.reduce(function(s,c){return s+(c.qd.monthData[m].hasData?c.qd.monthData[m].last:0);},0);
@@ -2914,7 +2923,7 @@ function openSummaryTable(){
   }
   gKeys.forEach(function(gk){ sortCardsInGroup(groups[gk]); });
 
-  var totalCols=4+months.length*3+3+(hasInv?6:0);
+  var totalCols=5+months.length*3+3+(hasInv?6:0);
   var tbody='<tbody>';
   gKeys.forEach(function(gk){
     var gc=groups[gk];
@@ -2928,6 +2937,7 @@ function openSummaryTable(){
       row+='<td style="'+tdSL+'font-weight:700;">'+s.name+'</td>';
       row+='<td style="'+tdSL+'color:#888;font-size:11px;">'+s.area+'</td>';
       row+='<td style="'+tdSL+'color:#888;font-size:11px;">'+s.office+'</td>';
+      row+='<td style="'+tdSL+'font-size:11px;">'+(s.staff||'—')+'</td>';
       months.forEach(function(m,mi){
         var d=qd.monthData[m];
         var bl=mi===0?'border-left:2px solid #ddeedd;':'';
