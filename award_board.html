@@ -2756,12 +2756,6 @@ function _psdStoresOfPerson(qd){
   });
   return out;
 }
-function _personPsdSummary(qd){
-  var list=_psdStoresOfPerson(qd).filter(function(x){return x.inv;});
-  if(!list.length) return {sum:'',avg:''};
-  var sum=list.reduce(function(t,x){return t+x.inv.psd;},0);
-  return {sum:Math.round(sum*10)/10, avg:Math.round(sum/list.length*10)/10};
-}
 /* persons: [{name,area,office,qd}] → 店家PSD明細 sheet rows */
 function _psdDetailRows(persons){
   var rows=[['人員','營業處','營業所','店碼','店名','上存','進貨','退貨','銷貨','庫存','本月平均PSD','資料時間']];
@@ -2788,9 +2782,7 @@ function _exportPersonXLSX(){
   var hasPsd=Object.keys(invData).length&&_invDateInCurQ();
   var hdr=assembled.header.slice();
   var persons=[];
-  if(hasPsd) hdr.push('店家PSD合計','店家PSD平均');
   assembled.rows.forEach(function(r){
-    if(hasPsd){ var ps=_personPsdSummary(r._qd); r.push(ps.sum,ps.avg); }
     persons.push({name:r[0],area:r[1],office:r[2],qd:r._qd});
   });
   var rows=[hdr].concat(assembled.rows);
@@ -3365,7 +3357,6 @@ function personTableXLSX(){
   if(!_ptCurrentPersons.length){ if(btn)_flashBtn(btn,'⚠️ 無資料'); return; }
   var rows=[['營業處','營業所','人名','任職月份數','任職月份','有效月份','總家數','當期CTN','目標CTN','品評CTN']];
   var hasPsd=Object.keys(invData).length&&_invDateInCurQ();
-  if(hasPsd) rows[0].push('店家PSD合計','店家PSD平均');
   var psdPersons=[];
   var groups={};
   _ptCurrentPersons.forEach(function(p){ var a=p.area||'（未知）'; (groups[a]=groups[a]||[]).push(p); });
@@ -3373,7 +3364,6 @@ function personTableXLSX(){
     groups[a].forEach(function(p){
       var qd=p.qd, vm=qd.validMonths.length, ten=_tenureInfo(qd);
       var row=[p.area,p.office,p.displayName,ten.n,ten.list,(vm>=2?'✅':'⚠️')+' '+vm+'/2',qd.totalStores,qd.totalCur,_fracVal(qd.totalTgt),qd.totalEval!==null?_fracVal(qd.totalEval):''];
-      if(hasPsd){ var ps=_personPsdSummary(qd); row.push(ps.sum,ps.avg); }
       psdPersons.push({name:p.displayName,area:p.area,office:p.office,qd:qd});
       rows.push(row);
     });
